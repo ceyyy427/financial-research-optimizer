@@ -32,6 +32,21 @@ The generator accepts an object with these fields:
     "model": "ensemble-v3",
     "validity": "under the current regime and frozen rolling protocol"
   },
+  "charts": [
+    {
+      "chart_id": "forecast_path",
+      "title": "滚动预测与实际",
+      "type": "line",
+      "unit": "收益率（%）",
+      "labels": ["T-4", "T-3", "T-2", "T-1", "T"],
+      "series": [
+        {"name": "实际", "values": [-1.2, 0.8, -0.4, 1.1, -0.7]},
+        {"name": "模型均值", "values": [-0.6, 0.4, 0.1, 0.7, -0.2]}
+      ],
+      "band": {"lower": [-2.2, -1.3, -1.8, -0.8, -2.0], "upper": [1.0, 2.1, 2.0, 2.2, 1.6]},
+      "description": "实际收益、模型均值和预测区间。"
+    }
+  ],
   "modules": [
     {
       "module_id": "risk_tail",
@@ -73,6 +88,8 @@ The generator accepts an object with these fields:
 
 `facts` are observed values, `interpretation` is analysis, `forecast` is model output, and `decision_rows` are conditional research actions. Keep these namespaces separate. A missing or failed module must still be present with `status: "not_available"` or `status: "failed"` and a reason in `caveats`.
 
+The `analysis.json` must include a non-empty `charts` list. Metric figures are not decorative: at minimum include a forecast-vs-actual or forecast-distribution figure and the most decision-relevant risk or model-comparison figure. If a figure cannot be supported, record the reason and use a clearly labeled `not_available` chart rather than fabricating values.
+
 ## HTML acceptance criteria
 
 - one standalone `.html` file; no CDN, remote JavaScript, font, or stylesheet;
@@ -80,10 +97,10 @@ The generator accepts an object with these fields:
 - module cards show status, summary, key metrics, evidence IDs, caveats, and next check;
 - decisions are visible as a compact table and do not read as unconditional trade instructions;
 - source URLs and reproducibility fields appear in the footer;
+- supplied forecast metrics are rendered as labeled inline SVG charts; a completed run cannot omit `charts`;
 - values are escaped as HTML and missing values are shown as `—`, never invented;
 - a reader can understand the result without opening the long mathematical report.
 
 ## Decision table acceptance criteria
 
 Use one row per material decision or monitoring item. Required columns are `priority`, `module`, `current_view`, `action`, `trigger`, `evidence`, `risk`, `horizon`, and `next_check`. When the data-quality or calibration gate fails, include an explicit `wait` or `insufficient evidence` row.
-

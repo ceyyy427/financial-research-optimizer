@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 340" role="img" aria-labelledby="title desc">
+  <title id="title">Financial research workflow tutorial</title>
+  <desc id="desc">Teaching diagram from data source selection to modular analysis, rolling forecast, decision table, and offline HTML.</desc>
+  <rect width="1280" height="340" rx="24" fill="#f8fafc"/>
+  <text x="56" y="48" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#172033">一张图理解：从数据到决策</text>
+  <text x="56" y="74" font-family="Arial, sans-serif" font-size="13" fill="#64748b">每一步都留下可检查的证据，最后同时交付预测摘要和决策表。</text>
+  <g font-family="Arial, sans-serif" text-anchor="middle">
+    <g><rect x="50" y="122" width="190" height="112" rx="16" fill="#dbeafe"/><text x="145" y="158" font-size="16" font-weight="700" fill="#1e3a8a">1 · 找数据</text><text x="145" y="186" font-size="12" fill="#334155">官方源 / API</text><text x="145" y="207" font-size="12" fill="#334155">时间戳与版本</text></g>
+    <g><rect x="290" y="122" width="190" height="112" rx="16" fill="#dcfce7"/><text x="385" y="158" font-size="16" font-weight="700" fill="#166534">2 · 做审计</text><text x="385" y="186" font-size="12" fill="#334155">缺失 / 重复</text><text x="385" y="207" font-size="12" fill="#334155">泄漏 / 调整</text></g>
+    <g><rect x="530" y="122" width="190" height="112" rx="16" fill="#fef3c7"/><text x="625" y="158" font-size="16" font-weight="700" fill="#92400e">3 · 分模块</text><text x="625" y="186" font-size="12" fill="#334155">市场 / 风险</text><text x="625" y="207" font-size="12" fill="#334155">统计 / 模型</text></g>
+    <g><rect x="770" y="122" width="190" height="112" rx="16" fill="#fce7f3"/><text x="865" y="158" font-size="16" font-weight="700" fill="#9d174d">4 · 做预测</text><text x="865" y="186" font-size="12" fill="#334155">滚动评估</text><text x="865" y="207" font-size="12" fill="#334155">区间与校准</text></g>
+    <g><rect x="1010" y="122" width="220" height="112" rx="16" fill="#ede9fe"/><text x="1120" y="158" font-size="16" font-weight="700" fill="#5b21b6">5 · 交付</text><text x="1120" y="186" font-size="12" fill="#334155">HTML 指标图</text><text x="1120" y="207" font-size="12" fill="#334155">决策表与限制</text></g>
+  </g>
+  <g stroke="#94a3b8" stroke-width="3" fill="none"><path d="M244 178h36"/><path d="M484 178h36"/><path d="M724 178h36"/><path d="M964 178h36"/></g>
+  <g fill="#94a3b8"><path d="M280 178l-10-7v14z"/><path d="M520 178l-10-7v14z"/><path d="M760 178l-10-7v14z"/><path d="M1000 178l-10-7v14z"/></g>
+</svg>

@@ -45,18 +45,29 @@ def safe_url(value):
 def validate_payload(data):
     """Fail early when the mandatory reader-facing contract is incomplete."""
     errors = []
-    for field in ("meta", "summary", "forecast", "modules", "decision_rows"):
+    for field in ("meta", "summary", "forecast", "charts", "modules", "decision_rows"):
         if field not in data:
             errors.append(f"missing top-level field: {field}")
     if not isinstance(data.get("modules"), list) or not data.get("modules"):
         errors.append("modules must be a non-empty list")
     if not isinstance(data.get("decision_rows"), list) or not data.get("decision_rows"):
         errors.append("decision_rows must be a non-empty list")
+    if not isinstance(data.get("charts"), list) or not data.get("charts"):
+        errors.append("charts must be a non-empty list; metric figures are mandatory")
     forecast = data.get("forecast")
     if isinstance(forecast, dict):
         for field in ("label", "value", "interval", "probability", "model"):
             if not forecast.get(field):
                 errors.append(f"forecast missing field: {field}")
+    for index, chart in enumerate(data.get("charts", [])):
+        if not isinstance(chart, dict):
+            errors.append(f"chart {index} must be an object")
+            continue
+        for field in ("chart_id", "title", "type", "labels", "series", "description"):
+            if field not in chart:
+                errors.append(f"chart {index} missing field: {field}")
+        if chart.get("type") not in {"line", "bar"}:
+            errors.append(f"chart {index} type must be line or bar")
     for index, module in enumerate(data.get("modules", [])):
         if not isinstance(module, dict):
             errors.append(f"module {index} must be an object")
@@ -111,6 +122,97 @@ def render_sparkline(series):
         y = 44 - ((value - lo) / spread * 36)
         points.append(f"{x:.1f},{y:.1f}")
     return f'<svg class="spark" viewBox="0 0 200 48" role="img" aria-label="trend sparkline"><polyline points="{" ".join(points)}" /></svg>'
+
+
+def render_metric_chart(chart, chart_index):
+    """Render a small, labeled inline SVG chart for forecast metrics."""
+    if not isinstance(chart, dict):
+        return ""
+    labels = chart.get("labels", [])
+    series = chart.get("series", [])
+    if not isinstance(labels, list) or len(labels) < 2 or not isinstance(series, list) or not series:
+        return ""
+    clean_series = []
+    for item in series:
+        if not isinstance(item, dict) or not isinstance(item.get("values"), list):
+            continue
+        try:
+            values = [float(value) for value in item["values"]]
+        except (TypeError, ValueError):
+            continue
+        if len(values) != len(labels):
+            continue
+        clean_series.append({"name": text(item.get("name")), "values": values})
+    if not clean_series:
+        return ""
+    width, height = 680, 250
+    left, right, top, bottom = 52, 18, 42, 38
+    plot_w, plot_h = width - left - right, height - top - bottom
+    flat = [value for item in clean_series for value in item["values"]]
+    band = chart.get("band") if isinstance(chart.get("band"), dict) else None
+    if band and isinstance(band.get("lower"), list) and isinstance(band.get("upper"), list):
+        flat.extend(float(value) for value in band["lower"] if isinstance(value, (int, float)))
+        flat.extend(float(value) for value in band["upper"] if isinstance(value, (int, float)))
+    is_bar = chart.get("type") == "bar"
+    lo = min(0.0, min(flat)) if is_bar else min(flat)
+    hi = max(0.0, max(flat)) if is_bar else max(flat)
+    spread = hi - lo or 1.0
+    lo -= spread * 0.08
+    hi += spread * 0.08
+
+    def x(index):
+        return left + (index * plot_w / max(1, len(labels) - 1))
+
+    def y(value):
+        return top + (hi - value) * plot_h / (hi - lo)
+
+    grid = []
+    for step in range(4):
+        value = lo + (hi - lo) * step / 3
+        yy = y(value)
+        grid.append(f'<line x1="{left}" y1="{yy:.1f}" x2="{width-right}" y2="{yy:.1f}" class="chart-grid" />'
+                    f'<text x="{left-8}" y="{yy+4:.1f}" text-anchor="end" class="chart-label">{value:.2f}</text>')
+    x_labels = []
+    for index, label in enumerate(labels):
+        if len(labels) <= 7 or index in {0, len(labels) - 1}:
+            x_labels.append(f'<text x="{x(index):.1f}" y="{height-12}" text-anchor="middle" class="chart-label">{esc(label)}</text>')
+
+    marks = []
+    palette = ["chart-series-1", "chart-series-2", "chart-series-3", "chart-series-4"]
+    if is_bar:
+        group_width = plot_w / len(labels)
+        bar_width = min(26, group_width / max(1, len(clean_series)) * 0.68)
+        for series_index, item in enumerate(clean_series):
+            for index, value in enumerate(item["values"]):
+                xx = left + index * group_width + group_width * 0.18 + series_index * bar_width
+                yy = y(max(0, value))
+                zero = y(0)
+                marks.append(f'<rect x="{xx:.1f}" y="{min(yy, zero):.1f}" width="{bar_width:.1f}" height="{abs(zero-yy):.1f}" class="{palette[series_index % len(palette)]}" data-tooltip="{esc(item["name"])}: {value:.2f}" />')
+    else:
+        if band and len(band.get("lower", [])) == len(labels) and len(band.get("upper", [])) == len(labels):
+            upper = " ".join(f"{x(i):.1f},{y(float(value)):.1f}" for i, value in enumerate(band["upper"]))
+            lower = " ".join(f"{x(i):.1f},{y(float(value)):.1f}" for i, value in reversed(list(enumerate(band["lower"]))))
+            marks.append(f'<polygon points="{upper} {lower}" class="chart-band" aria-label="prediction interval" />')
+        for series_index, item in enumerate(clean_series):
+            points = " ".join(f"{x(i):.1f},{y(value):.1f}" for i, value in enumerate(item["values"]))
+            marks.append(f'<polyline points="{points}" class="{palette[series_index % len(palette)]}" fill="none" />')
+            marks.extend(f'<circle cx="{x(i):.1f}" cy="{y(value):.1f}" r="3" class="{palette[series_index % len(palette)]}" data-tooltip="{esc(item["name"])}: {value:.2f}" />' for i, value in enumerate(item["values"]))
+    legend = " ".join(f'<span><i class="legend-swatch {palette[i % len(palette)]}"></i>{esc(item["name"])}</span>' for i, item in enumerate(clean_series))
+    desc = text(chart.get("description"), "预测指标图")
+    return f'''<figure class="chart" aria-label="{esc(chart.get("title"))}">
+      <figcaption><b>{esc(chart.get("title"))}</b><span>{esc(chart.get("unit"))}</span></figcaption>
+      <svg viewBox="0 0 {width} {height}" role="img"><title>{esc(chart.get("title"))}</title><desc>{esc(desc)}</desc>
+        {"".join(grid)}<line x1="{left}" y1="{top+plot_h}" x2="{width-right}" y2="{top+plot_h}" class="chart-axis" />
+        {"".join(marks)}{"".join(x_labels)}
+      </svg><div class="legend">{legend}</div>
+    </figure>'''
+
+
+def render_metric_charts(charts):
+    if not isinstance(charts, list):
+        return ""
+    rendered = "".join(render_metric_chart(chart, index) for index, chart in enumerate(charts))
+    return rendered
 
 
 def render_module(module):
@@ -176,6 +278,7 @@ def render_html(data):
     sources = data.get("sources", []) if isinstance(data.get("sources", []), list) else []
     reproducibility = data.get("reproducibility", {})
     spark = render_sparkline(data.get("series"))
+    charts_html = render_metric_charts(data.get("charts", []))
     source_html = "".join(
         f'<li><code>{esc(source.get("id"))}</code> {esc(source.get("label"))}'
         + (f' — <a href="{safe_url(source.get("url"))}">source</a>' if safe_url(source.get("url")) else "")
@@ -190,12 +293,13 @@ def render_html(data):
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)}</title>
 <style>
-:root{{--ink:#172033;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff;--accent:#2563eb;--good:#15803d;--warn:#b45309;--bad:#b91c1c}}
-*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}main{{max-width:1120px;margin:auto;padding:24px}}h1,h2,h3,p{{margin-top:0}}h1{{font-size:clamp(24px,4vw,36px);margin-bottom:6px}}h2{{font-size:18px;margin:24px 0 10px}}h3{{font-size:16px;margin:0}}.muted,small{{color:var(--muted)}}.meta{{color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}}.hero,.module,.decision,.foot{{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 18px #0f172a0a}}.hero{{padding:20px;display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:center}}.headline{{font-size:18px;font-weight:650}}.forecast{{padding:16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe}}.forecast .value{{font-size:28px;font-weight:750}}.badge{{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;background:#e2e8f0;color:#475569}}.badge.ok{{background:#dcfce7;color:var(--good)}}.badge.warning{{background:#fef3c7;color:var(--warn)}}.badge.failed,.badge.not_available{{background:#fee2e2;color:var(--bad)}}.modules{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}}.module{{padding:15px}}.module-head{{display:flex;justify-content:space-between;gap:8px;align-items:center}}.summary{{margin:9px 0;color:#334155}}.metrics{{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}}.metric{{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 9px;min-width:100px}}.metric span{{display:block;font-size:11px;color:var(--muted)}}.metric strong{{font-size:16px}}details{{color:#475569;font-size:13px}}summary{{cursor:pointer;color:var(--accent)}}ul{{padding-left:18px;margin:5px 0 10px}}.table-wrap{{overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}}table{{border-collapse:collapse;width:100%;min-width:900px}}th,td{{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}}th{{background:#f1f5f9;font-size:12px;white-space:nowrap}}td{{font-size:13px}}.foot{{padding:15px;color:#475569;font-size:12px}}.foot code{{word-break:break-word}}.spark{{width:100%;max-width:360px;height:64px;margin-top:10px}}.spark polyline{{fill:none;stroke:var(--accent);stroke-width:2.5}}@media(max-width:720px){{main{{padding:14px}}.hero{{grid-template-columns:1fr}}}}
+:root{{--ink:#172033;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff;--accent:#2563eb;--good:#15803d;--warn:#b45309;--bad:#b91c1c;--series1:#2563eb;--series2:#f97316;--series3:#16a34a;--series4:#9333ea}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}main{{max-width:1120px;margin:auto;padding:24px}}h1,h2,h3,p{{margin-top:0}}h1{{font-size:clamp(24px,4vw,36px);margin-bottom:6px}}h2{{font-size:18px;margin:24px 0 10px}}h3{{font-size:16px;margin:0}}.muted,small{{color:var(--muted)}}.meta{{color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}}.hero,.module,.decision,.foot{{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 18px #0f172a0a}}.hero{{padding:20px;display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:center}}.headline{{font-size:18px;font-weight:650}}.forecast{{padding:16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe}}.forecast .value{{font-size:28px;font-weight:750}}.badge{{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;background:#e2e8f0;color:#475569}}.badge.ok{{background:#dcfce7;color:var(--good)}}.badge.warning{{background:#fef3c7;color:var(--warn)}}.badge.failed,.badge.not_available{{background:#fee2e2;color:var(--bad)}}.modules{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}}.module{{padding:15px}}.module-head{{display:flex;justify-content:space-between;gap:8px;align-items:center}}.summary{{margin:9px 0;color:#334155}}.metrics{{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}}.metric{{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 9px;min-width:100px}}.metric span{{display:block;font-size:11px;color:var(--muted)}}.metric strong{{font-size:16px}}details{{color:#475569;font-size:13px}}summary{{cursor:pointer;color:var(--accent)}}ul{{padding-left:18px;margin:5px 0 10px}}.charts{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}}.chart{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:0;min-width:0}}.chart figcaption{{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}}.chart figcaption span{{color:var(--muted);font-size:12px}}.chart svg{{display:block;width:100%;height:auto}}.chart-grid{{stroke:#e2e8f0;stroke-width:1}}.chart-axis{{stroke:#94a3b8;stroke-width:1}}.chart-label{{fill:#64748b;font-size:11px}}.chart-series-1{{stroke:var(--series1);fill:var(--series1)}}.chart-series-2{{stroke:var(--series2);fill:var(--series2)}}.chart-series-3{{stroke:var(--series3);fill:var(--series3)}}.chart-series-4{{stroke:var(--series4);fill:var(--series4)}}polyline.chart-series-1,polyline.chart-series-2,polyline.chart-series-3,polyline.chart-series-4{{fill:none;stroke-width:2.5}}.chart-band{{fill:var(--series1);opacity:.12;stroke:none}}.legend{{display:flex;gap:12px;flex-wrap:wrap;color:#475569;font-size:12px}}.legend-swatch{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}}.table-wrap{{overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}}table{{border-collapse:collapse;width:100%;min-width:900px}}th,td{{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}}th{{background:#f1f5f9;font-size:12px;white-space:nowrap}}td{{font-size:13px}}.foot{{padding:15px;color:#475569;font-size:12px}}.foot code{{word-break:break-word}}.spark{{width:100%;max-width:360px;height:64px;margin-top:10px}}.spark polyline{{fill:none;stroke:var(--accent);stroke-width:2.5}}@media(max-width:720px){{main{{padding:14px}}.hero{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <header><h1>{esc(title)}</h1><div class="meta"><span>As of: {esc(meta.get("as_of"))}</span><span>Generated: {esc(meta.get("generated_at"))}</span><span>Universe: {esc(meta.get("universe"))}</span><span>Target: {esc(meta.get("target"))}</span><span>Horizon: {esc(meta.get("horizon"))}</span></div></header>
 <section class="hero"><div><p class="headline">{esc(summary.get("headline"))}</p><p>{esc(summary.get("risk_note"))}</p><span class="badge {status_class(summary.get("confidence"))}">置信度：{esc(summary.get("confidence"))}</span>{spark}</div><div class="forecast"><small>{esc(forecast.get("label"))} · {esc(forecast.get("model"))}</small><div class="value">{esc(forecast.get("value"))}</div><div>方向：<b>{esc(forecast.get("direction"))}</b> · 概率：{esc(forecast.get("probability"))}</div><div>区间：{esc(forecast.get("interval"))}</div><small>有效条件：{esc(forecast.get("validity"))}</small></div></section>
 <h2>模块化分析</h2><section class="modules">{module_html}</section>
+{f'<h2>预测指标图</h2><section class="charts">{charts_html}</section>' if charts_html else ''}
 <h2>决策表</h2><section class="decision">{render_decisions(rows)}</section>
 <h2>来源与复现</h2><footer class="foot"><ul>{source_html}</ul><div>数据快照：{esc(reproducibility.get("data_snapshot"))} · 代码：{esc(reproducibility.get("code"))} · 种子：{esc(reproducibility.get("seeds"))} · 评估窗口：{esc(reproducibility.get("evaluation_window"))}</div><div>局限：{esc(limitations)}</div><div>本页面是模型研究与决策支持摘要，不是收益保证或自动交易指令。</div></footer>
 </main></body></html>'''

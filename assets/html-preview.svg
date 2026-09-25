@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Financial Research Optimizer HTML preview</title>
+  <desc id="desc">A compact offline HTML research brief with forecast, metric cards, charts, modules, and decision table.</desc>
+  <rect width="1200" height="720" rx="24" fill="#e8eef7"/>
+  <rect x="28" y="24" width="1144" height="672" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="28" y="24" width="1144" height="52" rx="18" fill="#f1f5f9"/>
+  <circle cx="62" cy="50" r="7" fill="#f87171"/><circle cx="86" cy="50" r="7" fill="#fbbf24"/><circle cx="110" cy="50" r="7" fill="#34d399"/>
+  <rect x="160" y="37" width="620" height="26" rx="13" fill="#ffffff" stroke="#dbe3ee"/>
+  <text x="180" y="55" font-family="Arial, sans-serif" font-size="13" fill="#64748b">financial_research_brief.html · offline</text>
+  <text x="62" y="112" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#172033">沪深300研究摘要</text>
+  <text x="62" y="138" font-family="Arial, sans-serif" font-size="13" fill="#64748b">As of 2026-09-25 · 未来20个交易日收益率 · 多模型滚动评估</text>
+  <rect x="62" y="164" width="666" height="124" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="84" y="196" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#172033">证据偏混合，下行风险仍然偏高</text>
+  <text x="84" y="225" font-family="Arial, sans-serif" font-size="13" fill="#64748b">置信度：中 · 风险提示：预测对状态变化和交易成本敏感</text>
+  <polyline points="84,263 154,244 224,254 294,224 364,239 434,213 504,230 574,196 644,208 704,188" fill="none" stroke="#2563eb" stroke-width="3"/>
+  <rect x="750" y="164" width="396" height="124" rx="14" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="774" y="193" font-family="Arial, sans-serif" font-size="12" fill="#64748b">20日收益率 · ensemble-v3</text>
+  <text x="774" y="236" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#172033">-2.1%</text>
+  <text x="774" y="262" font-family="Arial, sans-serif" font-size="13" fill="#334155">区间 [-8.4%, 4.7%] · 概率 0.61</text>
+  <text x="62" y="328" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#172033">模块化分析</text>
+  <g font-family="Arial, sans-serif">
+    <rect x="62" y="346" width="246" height="106" rx="12" fill="#ffffff" stroke="#e2e8f0"/><text x="80" y="374" font-size="15" font-weight="700" fill="#172033">数据与溯源</text><text x="80" y="400" font-size="12" fill="#475569">缺失率 0.2% · 状态 OK</text><text x="80" y="423" font-size="12" fill="#64748b">下一检查：数据更新</text>
+    <rect x="324" y="346" width="246" height="106" rx="12" fill="#ffffff" stroke="#e2e8f0"/><text x="342" y="374" font-size="15" font-weight="700" fill="#172033">风险与尾部</text><text x="342" y="400" font-size="12" fill="#475569">波动率 24.0% · WARNING</text><text x="342" y="423" font-size="12" fill="#64748b">下一检查：下个收盘</text>
+    <rect x="586" y="346" width="246" height="106" rx="12" fill="#ffffff" stroke="#e2e8f0"/><text x="604" y="374" font-size="15" font-weight="700" fill="#172033">模型比较</text><text x="604" y="400" font-size="12" fill="#475569">滚动覆盖率 87% · OK</text><text x="604" y="423" font-size="12" fill="#64748b">主模型：ensemble-v3</text>
+    <rect x="848" y="346" width="298" height="106" rx="12" fill="#ffffff" stroke="#e2e8f0"/><text x="866" y="374" font-size="15" font-weight="700" fill="#172033">决策情景</text><text x="866" y="400" font-size="12" fill="#475569">姿态：低于风险预算</text><text x="866" y="423" font-size="12" fill="#64748b">触发：波动率回落</text>
+  </g>
+  <text x="62" y="492" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#172033">预测指标图</text>
+  <line x1="62" y1="616" x2="1146" y2="616" stroke="#e2e8f0"/>
+  <line x1="62" y1="536" x2="566" y2="536" stroke="#e2e8f0"/><line x1="62" y1="576" x2="566" y2="576" stroke="#e2e8f0"/>
+  <polyline points="78,584 172,560 266,574 360,548 454,566 548,542" fill="none" stroke="#2563eb" stroke-width="3"/><polyline points="78,568 172,574 266,562 360,568 454,550 548,558" fill="none" stroke="#f97316" stroke-width="3"/>
+  <rect x="622" y="516" width="524" height="130" rx="12" fill="#ffffff" stroke="#e2e8f0"/><text x="644" y="545" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#172033">决策表</text><text x="644" y="575" font-family="Arial, sans-serif" font-size="12" fill="#475569">高 · 风险尾部 · 保持风险暴露低于预算</text><text x="644" y="600" font-family="Arial, sans-serif" font-size="12" fill="#475569">中 · 数据质量 · 等待新版本并复核</text><text x="644" y="625" font-family="Arial, sans-serif" font-size="12" fill="#64748b">每行均带触发条件、依据、风险和下一检查</text>
+</svg>

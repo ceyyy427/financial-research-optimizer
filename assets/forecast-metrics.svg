@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">Forecast metric chart</title>
+  <desc id="desc">Actual return, model mean, and prediction interval across rolling origins.</desc>
+  <rect width="960" height="420" fill="#ffffff"/>
+  <text x="54" y="42" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#172033">滚动预测与实际</text>
+  <text x="54" y="66" font-family="Arial, sans-serif" font-size="13" fill="#64748b">收益率（%）· 区间用于表达预测不确定性</text>
+  <g stroke="#e2e8f0"><line x1="70" y1="110" x2="900" y2="110"/><line x1="70" y1="180" x2="900" y2="180"/><line x1="70" y1="250" x2="900" y2="250"/><line x1="70" y1="320" x2="900" y2="320"/></g>
+  <polygon points="80,205 240,145 400,190 560,120 720,170 880,100 880,270 720,300 560,280 400,320 240,285 80,300" fill="#2563eb" opacity=".12"/>
+  <polyline points="80,260 240,220 400,275 560,190 720,240 880,160" fill="none" stroke="#f97316" stroke-width="4"/>
+  <polyline points="80,245 240,205 400,235 560,210 720,190 880,180" fill="none" stroke="#2563eb" stroke-width="4"/>
+  <g fill="#f97316"><circle cx="80" cy="260" r="5"/><circle cx="240" cy="220" r="5"/><circle cx="400" cy="275" r="5"/><circle cx="560" cy="190" r="5"/><circle cx="720" cy="240" r="5"/><circle cx="880" cy="160" r="5"/></g>
+  <g font-family="Arial, sans-serif" font-size="12" fill="#64748b"><text x="72" y="348">T-5</text><text x="232" y="348">T-4</text><text x="392" y="348">T-3</text><text x="552" y="348">T-2</text><text x="712" y="348">T-1</text><text x="872" y="348">T</text></g>
+  <line x1="70" y1="375" x2="100" y2="375" stroke="#f97316" stroke-width="4"/><text x="110" y="379" font-family="Arial, sans-serif" font-size="12" fill="#475569">实际</text><line x1="180" y1="375" x2="210" y2="375" stroke="#2563eb" stroke-width="4"/><text x="220" y="379" font-family="Arial, sans-serif" font-size="12" fill="#475569">模型均值</text><rect x="310" y="369" width="30" height="12" fill="#2563eb" opacity=".12"/><text x="350" y="379" font-family="Arial, sans-serif" font-size="12" fill="#475569">预测区间</text>
+</svg>

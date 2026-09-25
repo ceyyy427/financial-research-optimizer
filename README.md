@@ -23,9 +23,21 @@ Skill 把结果拆成四层：
 
 “最佳模型”只表示在预先声明的样本外指标和风险约束下表现最好的候选，不表示保证未来收益。Skill 不会自动下单。
 
+## 可视化预览
+
+生成的 HTML 是一个精炼的研究摘要：顶部给出结论、预测值、区间和置信度；中部按模块呈现数据、风险与模型证据；底部给出决策表和复现信息。
+
+![生成的 HTML 摘要预览](assets/html-preview.svg)
+
+HTML 会把预测后的指标直接绘制成内嵌 SVG 图，包括实际值与模型均值、预测区间、风险指标和模型比较结果。这样打开单个 HTML 文件即可查看，不依赖 CDN 或外部前端服务。
+
+![滚动预测与实际指标](assets/forecast-metrics.svg)
+
+![模型比较指标](assets/model-metrics.svg)
+
 ## 标准流程
 
-scope -> source discovery -> data audit -> feature/label build -> baselines -> deep challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> report
+scope -> source discovery -> data audit -> feature/label build -> baselines -> deep challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> modular summary -> HTML + decision table
 
 每个阶段都要保存可检查的中间结果，避免只输出一个无法追溯的预测数字。任何完成的数据分析都必须至少产出：`analysis.json`、精炼 HTML、决策表和数据/模型审计记录。
 
@@ -44,6 +56,10 @@ scope -> source discovery -> data audit -> feature/label build -> baselines -> d
 - 情景分析；
 - 局限性与复现信息。
 
+![标准呈现教学流程](assets/workflow-tutorial.svg)
+
+阅读顺序是：先确认数据事实，再看统计与深度模型，最后阅读情景预测和决策表。图表只展示已有的计算结果，不替代滚动评估、数学推导或数据溯源。
+
 ## HTML 与决策表
 
 结构化分析完成后运行：
@@ -52,11 +68,15 @@ scope -> source discovery -> data audit -> feature/label build -> baselines -> d
 python scripts/generate_financial_html.py analysis.json --output-dir artifacts --decision-format both
 ```
 
-HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、关键指标、情景预测、风险提示和决策表。它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字。
+HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、预测与风险指标图、情景预测、风险提示和决策表。它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字；完成的预测运行不得省略指标图。
+
+示例文件：[`examples/financial_research_brief.html`](examples/financial_research_brief.html)。
 
 决策表至少包含：优先级、模块、当前判断、建议动作/仓位姿态、触发条件、依据、风险、有效期、下一次检查。表中的“动作”是研究与决策支持表达，不是自动下单指令。
 
 ## 目录
+
+![目录结构教学图](assets/directory-map.svg)
 
 - SKILL.md：主说明和路由规则；
 - references/content_contract.md：内容呈现契约；
@@ -67,6 +87,8 @@ HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
 - scripts/validate_financial_dataset.py：CSV 数据质量审计脚本。
 - scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
+- assets/：HTML 预览、预测指标、模型比较、流程教学和目录说明图片；
+- examples/：示例分析 JSON、生成的 HTML 和决策表。
 
 ## 快速调用
 
@@ -75,6 +97,10 @@ $financial-research-optimizer
 示例：
 
 使用 $financial-research-optimizer 搜索公开数据，比较 ARMA-GARCH、LSTM 和 Transformer 对沪深300未来20个交易日波动率的预测，在最大回撤、换手率和交易成本约束下进行多轮模型选择。
+
+![快速调用教学图](assets/quick-call-tutorial.svg)
+
+快速调用时至少写清楚五件事：数据源、研究对象、预测目标、风险/成本约束、交付物。Skill 会据此生成模块总结、预测区间、指标图、HTML 和决策表。
 
 ## 免责声明
 

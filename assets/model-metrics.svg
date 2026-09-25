@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">Model comparison metrics</title>
+  <desc id="desc">Comparison of normalized out-of-sample error and calibration coverage across baseline and challenger models.</desc>
+  <rect width="960" height="420" fill="#ffffff"/>
+  <text x="54" y="42" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#172033">模型比较指标</text>
+  <text x="54" y="66" font-family="Arial, sans-serif" font-size="13" fill="#64748b">误差越低越好；覆盖率越接近目标 90% 越好</text>
+  <g font-family="Arial, sans-serif" font-size="14" fill="#172033"><text x="72" y="120">ARMA-GARCH</text><text x="72" y="182">LSTM</text><text x="72" y="244">Transformer</text><text x="72" y="306" font-weight="700">Ensemble-v3</text></g>
+  <g fill="#e2e8f0"><rect x="210" y="98" width="430" height="28" rx="6"/><rect x="210" y="160" width="430" height="28" rx="6"/><rect x="210" y="222" width="430" height="28" rx="6"/><rect x="210" y="284" width="430" height="28" rx="6"/></g>
+  <g fill="#2563eb"><rect x="210" y="98" width="258" height="28" rx="6"/><rect x="210" y="160" width="314" height="28" rx="6"/><rect x="210" y="222" width="280" height="28" rx="6"/><rect x="210" y="284" width="196" height="28" rx="6"/></g>
+  <g font-family="Arial, sans-serif" font-size="13" fill="#334155"><text x="650" y="118">RMSE 0.60</text><text x="650" y="180">RMSE 0.73</text><text x="650" y="242">RMSE 0.65</text><text x="650" y="304" font-weight="700">RMSE 0.46 · selected</text></g>
+  <line x1="72" y1="350" x2="900" y2="350" stroke="#e2e8f0"/><text x="72" y="382" font-family="Arial, sans-serif" font-size="13" fill="#64748b">滚动验证、校准、换手率和稳定性共同决定选择，不能只看单一回测收益。</text>
+</svg>

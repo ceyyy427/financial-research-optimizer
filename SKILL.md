@@ -62,6 +62,7 @@ Keep observed facts, fitted estimates, model-implied forecasts, and decisions in
 At the end of every run, call `scripts/generate_financial_html.py` with the structured analysis JSON. It writes:
 
 - one self-contained, dependency-free HTML file with an executive summary, forecast badge, module cards, compact evidence metrics, and a decision table;
+- embedded inline SVG metric figures for every completed prediction run, including the actual/model comparison, uncertainty or interval, and the most decision-relevant risk/model metric;
 - one decision table in CSV and/or Markdown form for downstream use.
 
 Read `references/html_output_contract.md` before producing or modifying the structured JSON, HTML, or decision table. The HTML must be concise, render offline, use no remote JavaScript or CSS, show the as-of timestamp and uncertainty, and link every material claim to a source or calculation identifier. The decision table is a decision-support artifact, not a trade instruction.
