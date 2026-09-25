@@ -71,6 +71,8 @@ For every series record:
 - usage/license note;
 - local snapshot path and checksum if saved.
 
+If a Java/MyBatis adapter is used, also record mapper/query ID, application commit, database schema version, inclusive/exclusive time bounds, row limit or page cursor, and the snapshot checksum. Never record a password or token; record only a secret-manager or environment-variable reference.
+
 ## Common financial-source hazards
 
 - Yahoo-like historical endpoints may change fields, rate-limit requests, or revise adjusted values.

@@ -1,6 +1,6 @@
 ---
 name: financial-research-optimizer
-description: Search public financial data, audit and analyze it in modules, compare statistical and deep-learning models, produce calibrated forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
+description: Search public financial data, audit and analyze it in modules, optionally retrieve point-in-time data through a Java/MyBatis layer, compare statistical and deep-learning models with mathematical derivations, produce calibrated forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
 ---
 
 # Financial Research Optimizer
@@ -141,6 +141,8 @@ Create a data dictionary and audit:
 
 Use a time-based split. Fit every imputer, scaler, PCA, factor model, graph, and feature selector inside each training window. Keep raw, cleaned, feature, label, and split tables separate. Save a metadata JSON and a reproducible script where possible.
 
+If the data are stored in a relational database or the user requests Java, read `references/java_data_layer.md` before retrieval. Treat Java/MyBatis as an optional, read-only source adapter: it must export a time-bounded raw/canonical snapshot and provenance manifest for the same audit used for CSV/API data. It must not perform model selection or hide point-in-time joins in SQL.
+
 ### 4. Establish statistical baselines
 
 Always compare at least one interpretable baseline appropriate to the target:
@@ -152,7 +154,7 @@ Always compare at least one interpretable baseline appropriate to the target:
 - logistic regression for direction;
 - historical or parametric quantiles for tail risk.
 
-Read references/model_derivations.md when deriving, explaining, or implementing a model. Use the assumptions and diagnostics there rather than describing a model as a black box.
+Read `references/model_derivations.md` before deriving, explaining, or implementing a model. Keep it in the Skill because it supplies the mathematical contract for model cards, assumptions, stability conditions, uncertainty, and diagnostics rather than describing a model as a black box.
 
 ### 5. Add deep candidates only when justified
 
@@ -167,7 +169,7 @@ Choose models by data geometry:
 - deep ensembles or approximate Bayesian models for model uncertainty;
 - reinforcement learning only when actions, rewards, transition assumptions, and offline evaluation are credible.
 
-For each candidate record parameter count, receptive field/context length, loss, constraints, random seeds, optimizer, early-stopping rule, and computational budget. Read the relevant derivation section before claiming why a model should work.
+For each candidate record parameter count, receptive field/context length, loss, constraints, random seeds, optimizer, early-stopping rule, computational budget, derivation reference, assumption check, and failure mode. Read the relevant derivation section before claiming why a model should work.
 
 ### 6. Run rolling, leakage-safe validation
 
@@ -253,6 +255,7 @@ Stop and ask for direction when the target, horizon, asset identity, or risk lim
 ## Supporting references
 
 - Read references/model_derivations.md for the mathematical assumptions and derivations behind each supported model.
+- Read references/java_data_layer.md when the source is a SQL database or Java/MyBatis retrieval is requested; use it for schema, type, mapper, provenance, and read-only safeguards.
 - Read references/data_provenance.md before public-data retrieval or source selection.
 - Read references/rolling_evaluation.md before any backtest, model selection, or portfolio optimization.
 - Use the existing gao-multivariate-statistical-analysis, linear-regression-analysis, mao-tang-bayesian-statistics, ross-elementary-mathematical-finance, and tsay-financial-data-analysis skills when available; this skill provides the workflow and audit contract, while those skills provide domain-specific judgment.

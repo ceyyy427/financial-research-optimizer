@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="example.finance.data.MarketObservationMapper">
+  <resultMap id="MarketObservationMap" type="example.finance.data.MarketObservation">
+    <result property="instrumentId" column="instrument_id" />
+    <result property="observationTs" column="observation_ts" jdbcType="TIMESTAMP_WITH_TIMEZONE" />
+    <result property="openPrice" column="open_price" jdbcType="DECIMAL" />
+    <result property="highPrice" column="high_price" jdbcType="DECIMAL" />
+    <result property="lowPrice" column="low_price" jdbcType="DECIMAL" />
+    <result property="closePrice" column="close_price" jdbcType="DECIMAL" />
+    <result property="volume" column="volume" jdbcType="DECIMAL" />
+    <result property="adjustmentCode" column="adjustment_code" />
+    <result property="sourceId" column="source_id" />
+    <result property="retrievedAt" column="retrieved_at" jdbcType="TIMESTAMP_WITH_TIMEZONE" />
+    <result property="revisionId" column="revision_id" />
+  </resultMap>
+
+  <select id="selectWindow" resultMap="MarketObservationMap">
+    SELECT instrument_id, observation_ts, open_price, high_price,
+           low_price, close_price, volume, adjustment_code,
+           source_id, retrieved_at, revision_id
+    FROM market_observation
+    WHERE instrument_id = #{instrumentId}
+      AND observation_ts &gt;= #{from}
+      AND observation_ts &lt; #{to}
+      AND source_id = #{sourceId}
+    ORDER BY observation_ts ASC
+  </select>
+</mapper>

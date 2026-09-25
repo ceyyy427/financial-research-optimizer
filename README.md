@@ -9,6 +9,7 @@
 - 比较 OLS、岭回归、ARMA/GARCH、LSTM、CNN、Transformer、贝叶斯模型和图模型；
 - 进行滚动预测、概率校准、压力测试和多轮模型比较；
 - 在交易成本、换手率、流动性、杠杆和风险预算约束下做组合优化。
+- 当数据位于关系数据库时，通过 Java/MyBatis 做只读、按时间窗口、可溯源的数据读取，再交给统计和深度学习模型。
 - 将数据质量、市场状态、统计结构、风险尾部、预测比较和决策情景分模块呈现；每个模块同时给出事实、解释、预测、置信度和下一次检查项。
 - 生成单文件、无外部依赖的 HTML 可视化摘要，以及 CSV/Markdown 决策表。
 
@@ -20,6 +21,8 @@ Skill 把结果拆成四层：
 2. 统计/深度模型：条件分布、预测和不确定性；
 3. 决策层：组合目标、约束、成本和优化结果；
 4. 审计层：滚动验证、稳定性、压力测试和失败边界。
+
+其中 `references/model_derivations.md` 不删除：它是模型层的核心依据，负责把模型名称连接到估计目标、假设、推导、诊断和失败边界；Java/MyBatis 只负责数据层，不替代数学推导。
 
 “最佳模型”只表示在预先声明的样本外指标和风险约束下表现最好的候选，不表示保证未来收益。Skill 不会自动下单。
 
@@ -84,6 +87,7 @@ HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间
 - references/content_contract.md：内容呈现契约；
 - references/workflow_blueprint.md：流程状态机和多轮选择规则；
 - references/model_derivations.md：模型数学推导摘要；
+- references/java_data_layer.md：Java/MyBatis 数据接入、时间序列 SQL、类型映射与溯源规范；
 - references/data_provenance.md：公开数据来源与溯源规范；
 - references/rolling_evaluation.md：滚动评估与组合优化规范；
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
@@ -91,6 +95,7 @@ HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间
 - scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
 - assets/：HTML 预览、预测指标、模型比较、流程教学和目录说明图片；
 - examples/：示例分析 JSON、生成的 HTML 和决策表。
+- examples/java-mybatis/：只读 Mapper、Java 时间序列 DTO 和 XML 查询示例。
 
 ## 快速调用
 

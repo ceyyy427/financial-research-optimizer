@@ -6,12 +6,15 @@ scope -> source_discovery -> provenance_and_quality -> feature_label_build -> st
 
 A state may be skipped only when its output is already available, current, and verified. Record the reason for the skip.
 
+When the source is relational or the user requests Java, insert an optional `java_mybatis_adapter` state between `source_discovery` and `provenance_and_quality`. It must output a bounded raw/canonical snapshot and query manifest; it does not change the statistical or deep-learning states.
+
 ## State input/output contract
 
 | State | Inputs | Required output | Gate |
 |---|---|---|---|
 | scope | user question | research contract | target/horizon/cutoff defined |
 | source discovery | contract | source registry | source identity and access verified |
+| Java/MyBatis adapter (optional) | source registry + database contract | raw/canonical snapshot and query manifest | read-only, bounded, ordered, point-in-time fields present |
 | provenance and quality | raw snapshots | audit report | dates/units/missingness/leakage checked |
 | feature-label build | clean data | versioned feature table | every feature has an information timestamp |
 | statistical baselines | feature table | baseline forecasts | residual and assumption diagnostics |

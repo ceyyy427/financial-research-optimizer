@@ -2,6 +2,14 @@
 
 This reference is read when the skill needs to explain or implement a model. It is a compact derivation map; the full mathematical exposition in the user's manuscript may be used as additional context.
 
+## Importance and retention decision
+
+Keep this file as a core reference. It is the bridge between a model name and a defensible model card: it states the estimand, objective, assumptions, stability condition, uncertainty interpretation, and diagnostics. A model may be fitted by a library, but the Skill must still use these derivations to check that the target, loss, data transformations, and reported metric match the model.
+
+For every selected or materially discussed model, record at least one derivation reference, one assumption check, and one failure mode in the model ledger. Do not load this file for a pure database extraction task with no modeling; load it before feature/label construction when a model choice or forecast is involved.
+
+The Java/MyBatis layer is deliberately separate: it retrieves and preserves observations, while this reference explains what the downstream statistical or deep-learning computation means. SQL must not silently replace a rolling estimator, likelihood, loss, gradient, or portfolio objective.
+
 ## Regression
 
 For y = X beta + epsilon, minimize 1/2 ||y-X beta||^2. The first-order condition is X'X beta = X'y. If rank(X)=p, the objective is strictly convex and beta_hat=(X'X)^(-1)X'y. With E(epsilon|X)=0, the estimator is conditionally unbiased; with Var(epsilon|X)=sigma^2 I, its conditional covariance is sigma^2(X'X)^(-1).
@@ -45,4 +53,3 @@ Always separate forecast from decision. Forecast errors, covariance error, trans
 In a binomial model, replication of (V_u,V_d) with Delta shares and bond B gives V_0=R^(-1)[q V_u+(1-q)V_d], q=(R-d)/(u-d). In Black--Scholes, Ito's lemma and delta hedging give V_t+sigma^2 S^2 V_SS/2+r S V_S-rV=0. Historical return probabilities are not automatically risk-neutral probabilities.
 
 For reinforcement learning, Bellman expectation is V^pi(s)=E[r+gamma V^pi(s')|s], and the policy-gradient identity is grad J=E[sum_t grad log pi(a_t|s_t) G_t]. Offline financial data do not identify arbitrary counterfactual actions; require a credible simulator, conservative offline evaluation, and a fallback.
-
