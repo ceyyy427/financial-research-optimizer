@@ -1,4 +1,6 @@
 {
+  "experiment_id": "demo-spy-tlt-gld-20260926-exp001",
+  "reproducibility_status": "complete",
   "meta": {
     "title": "示例：沪深300研究摘要",
     "generated_at": "2026-09-26T10:00:00+08:00",
@@ -57,6 +59,57 @@
     }
   ],
   "series": [100, 101, 99, 98, 100, 97, 96],
+  "model_cards": [
+    {
+      "model_id": "arma-garch",
+      "version": "baseline-1",
+      "estimand": "20日条件均值与波动率",
+      "objective": "滚动 RMSE / QLIKE",
+      "validation_protocol": "expanding_window_756_126_252",
+      "overfitting_diagnostics": {"DM": "pass", "WRC": "pass", "SPA": "pass", "DSR": "warning", "PBO": "warning"},
+      "failure_mode": "均值结构错设与状态漂移",
+      "status": "baseline"
+    },
+    {
+      "model_id": "ensemble-v3",
+      "version": "2026.09.26.1",
+      "estimand": "20日超额收益分布",
+      "objective": "CRPS + 换手率惩罚",
+      "validation_protocol": "expanding_window_756_126_252",
+      "overfitting_diagnostics": {"DM": "pass", "WRC": "pass", "SPA": "pass", "DSR": "warning", "PBO": "warning"},
+      "failure_mode": "状态漂移、协方差误差和尾部外推",
+      "status": "selected"
+    }
+  ],
+  "backtest_overfitting": {
+    "hard_gate": "warning",
+    "note": "DSR/PBO 仍提示选择不稳定，保留低暴露与等待触发条件。",
+    "methods": [
+      {"method": "DM", "status": "pass", "statistic": "-1.82", "p_value": "0.069", "interpretation": "ensemble 相对基线有方向性改善，但未达 5% 显著性。"},
+      {"method": "WRC", "status": "pass", "statistic": "1.44", "p_value": "0.12", "interpretation": "候选族最大优势未显著超过基准。"},
+      {"method": "SPA", "status": "pass", "statistic": "1.31", "p_value": "0.10", "interpretation": "没有足够证据证明某候选稳定优于基准。"},
+      {"method": "DSR", "status": "warning", "statistic": "0.73", "p_value": "0.73", "interpretation": "考虑试验次数后，Sharpe 证据不足。"},
+      {"method": "PBO", "status": "warning", "statistic": "0.42", "p_value": "0.42", "interpretation": "约 42% 的组合切分出现样本外排名低于中位数。"}
+    ]
+  },
+  "source_reconciliation": {
+    "status": "minor_difference",
+    "records": 2070,
+    "counts": {"match": 2018, "minor_difference": 52, "material_conflict": 0},
+    "stop_dependency_analysis": false,
+    "tolerance": {"price_rel": 0.0001, "volume_rel": 0.005},
+    "source_priority": ["official_exchange", "documented_api", "public_aggregator"]
+  },
+  "portfolio_robustness": {
+    "covariance_models": [
+      {"name": "sample", "solver_status": "optimal", "objective": "0.184", "turnover": "0.19", "weight_interval": "SPY [0.42,0.57]", "active_constraints": "turnover"},
+      {"name": "Ledoit-Wolf", "solver_status": "optimal", "objective": "0.176", "turnover": "0.16", "weight_interval": "SPY [0.45,0.55]", "active_constraints": "turnover"},
+      {"name": "factor", "solver_status": "optimal", "objective": "0.181", "turnover": "0.21", "weight_interval": "SPY [0.39,0.58]", "active_constraints": "CVaR"},
+      {"name": "robust", "solver_status": "optimal", "objective": "0.171", "turnover": "0.14", "weight_interval": "SPY [0.44,0.53]", "active_constraints": "CVaR"}
+    ],
+    "perturbation_summary": "收益 ±20%、协方差 ±20%、成本 5–20bps、gamma ±25%、边界 ±10%",
+    "fallback": {"status": "not_used", "trigger": "infeasible solver", "action": "prior_weights or cash"}
+  },
   "modules": [
     {
       "module_id": "data_quality",

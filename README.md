@@ -12,6 +12,7 @@
 - 当数据位于关系数据库时，通过 Java/MyBatis 做只读、按时间窗口、可溯源的数据读取，再交给统计和深度学习模型。
 - 将数据质量、市场状态、统计结构、风险尾部、预测比较和决策情景分模块呈现；每个模块同时给出事实、解释、预测、置信度和下一次检查项。
 - 生成单文件、无外部依赖的 HTML 可视化摘要，以及 CSV/Markdown 决策表。
+- 对多模型回测执行 DM、White Reality Check、SPA、DSR 和 PBO 审计；对样本、Ledoit-Wolf、因子和稳健协方差进行扰动比较，并记录可复现实验 Manifest。
 
 ## 输出理念
 
@@ -23,6 +24,8 @@ Skill 把结果拆成四层：
 4. 审计层：滚动验证、稳定性、压力测试和失败边界。
 
 其中 `references/model_derivations.md` 不删除：它是模型层的核心依据，负责把模型名称连接到估计目标、假设、推导、诊断和失败边界；Java/MyBatis 只负责数据层，不替代数学推导。
+
+每次运行还必须登记 `experiment_id`、数据快照哈希、代码/环境版本、随机种子、模型参数、特征版本、训练/评估窗口和输出文件。多源数据先经过 `source_reconciliation`；如果出现未解决的实质冲突，HTML 和决策表必须显示阻断状态，不能继续给出依赖该数据的结论。
 
 “最佳模型”只表示在预先声明的样本外指标和风险约束下表现最好的候选，不表示保证未来收益。Skill 不会自动下单。
 
@@ -73,7 +76,18 @@ scope -> source discovery -> data audit -> feature/label build -> baselines -> d
 python scripts/generate_financial_html.py analysis.json --output-dir artifacts --decision-format both
 ```
 
-HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、预测与风险指标图、情景预测、风险提示和决策表。它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字；完成的预测运行不得省略指标图。
+HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、预测与风险指标图、模型卡、反过拟合审计、数据源冲突审计、组合稳健性、情景预测、风险提示和决策表。页首和决策层展示 `experiment_id` 与 `reproducibility_status`；它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字；完成的预测运行不得省略指标图。
+
+推荐显式绑定同一份研究配置和实验 Manifest：
+
+```bash
+python scripts/validate_research_config.py examples/research_config.json
+python scripts/validate_experiment_manifest.py examples/experiment_manifest.json
+python scripts/generate_financial_html.py analysis.json \
+  --config examples/research_config.json \
+  --manifest examples/experiment_manifest.json \
+  --output-dir artifacts --decision-format both
+```
 
 示例文件：[`examples/financial_research_brief.html`](examples/financial_research_brief.html)。
 
@@ -90,9 +104,21 @@ HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间
 - references/java_data_layer.md：Java/MyBatis 数据接入、时间序列 SQL、类型映射与溯源规范；
 - references/data_provenance.md：公开数据来源与溯源规范；
 - references/rolling_evaluation.md：滚动评估与组合优化规范；
+- references/backtest_overfitting.md：多重回测和模型试验的反过拟合检验；
+- references/point_in_time_data.md：发布日期、可用时间、版本和生存者偏差规则；
+- references/source_reconciliation.md：多数据源字段冲突、容差、优先级和阻断规则；
+- references/portfolio_robustness.md：四类协方差与组合扰动分析；
+- references/model_registry.md：模型卡和版本登记规范；
+- references/experiment_manifest.md：实验运行账本和复现状态规范；
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
-- scripts/validate_financial_dataset.py：CSV 数据质量审计脚本。
+- experiment_manifest.schema.json：实验可复现性 Manifest JSON Schema；
+- scripts/config_utils.py、scripts/manifest_utils.py：统一配置/Manifest 读取与指纹；
+- scripts/validate_financial_dataset.py：CSV 数据质量审计脚本；
+- scripts/reconcile_sources.py、scripts/point_in_time_audit.py：源冲突和未来信息审计；
+- scripts/rolling_split.py、scripts/portfolio_robustness.py：滚动切分和组合稳健性工具；
 - scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
+- tests/：最小 synthetic financial dataset 和 pytest 回归测试；
+- .github/workflows/ci.yml：配置、Manifest、审计、HTML 和组合 fallback 的 CI。
 - assets/：HTML 预览、预测指标、模型比较、流程教学和目录说明图片；
 - examples/：示例分析 JSON、生成的 HTML 和决策表。
 - examples/java-mybatis/：只读 Mapper、Java 时间序列 DTO 和 XML 查询示例。

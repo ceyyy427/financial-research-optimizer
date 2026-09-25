@@ -1,0 +1,31 @@
+{
+  "universe": ["SPY", "TLT", "GLD"],
+  "target": "excess_return",
+  "horizon": "20d",
+  "frequency": "daily",
+  "cutoff": "2026-09-26",
+  "costs": {"transaction_cost_bps": 10},
+  "constraints": {"max_turnover": 0.25, "max_drawdown": 0.20},
+  "risk_measure": "cvar",
+  "confidence_level": 0.95,
+  "evaluation": {"method": "expanding_window", "train_period": 756, "validation_period": 126, "test_period": 252},
+  "models": {
+    "baselines": ["historical_mean", "arma_garch"],
+    "challengers": ["lstm", "transformer", "ensemble"],
+    "selection": {"primary_metric": "mae", "calibration_metric": "coverage", "economic_metric": "net_cvar_adjusted_return"}
+  },
+  "output": {
+    "artifact_dir": "artifacts",
+    "analysis_json": "analysis.json",
+    "html_file": "financial_research_brief.html",
+    "decision_table_csv": "decision_table.csv",
+    "decision_table_md": "decision_table.md"
+  },
+  "source_policy": {
+    "price_abs_tolerance": 0.00000001,
+    "price_rel_tolerance": 0.0001,
+    "volume_abs_tolerance": 1,
+    "volume_rel_tolerance": 0.005,
+    "priority": ["official_exchange", "documented_api", "licensed_database", "public_aggregator"]
+  }
+}

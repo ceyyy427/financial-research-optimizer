@@ -1,6 +1,6 @@
 ---
 name: financial-research-optimizer
-description: Search public financial data, audit and analyze it in modules, optionally retrieve point-in-time data through a Java/MyBatis layer, compare statistical and deep-learning models with mathematical derivations, produce calibrated forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
+description: Search public financial data, reconcile sources with point-in-time controls, audit and analyze it in modules, optionally retrieve data through a Java/MyBatis layer, compare statistical and deep-learning models with mathematical derivations and backtest-overfitting diagnostics, produce reproducible forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios with covariance robustness under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
 ---
 
 # Financial Research Optimizer
@@ -75,7 +75,7 @@ For a short answer, compress these sections but preserve the order and the disti
 
 The workflow is a state machine with explicit handoffs:
 
-`scope -> sources -> audit -> features -> baselines -> challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> modular summary -> HTML + decision table`
+`scope -> sources -> reconciliation -> point-in-time audit -> features -> baselines -> challengers -> rolling validation -> overfitting audit -> calibration -> covariance robustness -> portfolio optimization -> stress test -> selection -> manifest -> modular summary -> HTML + decision table`
 
 Each state must leave an artifact that can be inspected by the next state. A source list is not a data audit; a fitted model is not an out-of-sample forecast; a high forecast score is not a portfolio; and a portfolio backtest is not proof of future returns.
 
@@ -87,6 +87,8 @@ At every handoff, preserve the following invariants:
 - the evaluation period remains untouched until selection;
 - costs and constraints are not relaxed after seeing results;
 - failed or rejected candidates remain recorded;
+- every run has an experiment manifest with snapshot, code, environment, seeds, parameters, windows, and outputs;
+- source conflicts are classified and material conflicts stop dependent analysis;
 - every numerical claim can be traced to a source, calculation, or saved output.
 
 Use the detailed workflow schema in `references/workflow_blueprint.md`, the output contract in `references/content_contract.md`, the HTML artifact contract in `references/html_output_contract.md`, and the source routing rules in `references/data_provenance.md` when building a durable report or reusable dataset.
@@ -100,6 +102,7 @@ Use the detailed workflow schema in `references/workflow_blueprint.md`, the outp
 - Never use future information: no random shuffling of time series, full-sample scaling, revised macro values unavailable at the forecast timestamp, final constituent lists for historical periods, or future-derived graphs/features.
 - Do not invent missing observations, metrics, p-values, backtest returns, or model performance.
 - If data are insufficient or sources conflict, stop dependent claims and report the exact gap.
+- Do not treat a favorable backtest as sufficient evidence: apply DM, White Reality Check, SPA, Deflated Sharpe Ratio, and PBO gates when multiple models or trials are compared.
 
 ## Workflow
 
@@ -143,6 +146,8 @@ Use a time-based split. Fit every imputer, scaler, PCA, factor model, graph, and
 
 If the data are stored in a relational database or the user requests Java, read `references/java_data_layer.md` before retrieval. Treat Java/MyBatis as an optional, read-only source adapter: it must export a time-bounded raw/canonical snapshot and provenance manifest for the same audit used for CSV/API data. It must not perform model selection or hide point-in-time joins in SQL.
 
+Read `references/point_in_time_data.md` and `references/source_reconciliation.md` whenever more than one source or a revised macro/filing dataset is involved. Compare timestamps, prices, volume, adjustment conventions, calendars, and missingness before feature construction; record the reconciliation result in the provenance manifest and stop dependent analysis on unresolved material conflicts.
+
 ### 4. Establish statistical baselines
 
 Always compare at least one interpretable baseline appropriate to the target:
@@ -184,6 +189,8 @@ Use expanding-window or rolling-window evaluation:
 
 Do not select a model on the final test period and call that period out-of-sample. If the test period is used to revise the design, it becomes development data and a new untouched evaluation period is required.
 
+Read `references/backtest_overfitting.md` and store the five diagnostics (DM, White Reality Check, SPA, DSR, PBO) for the candidate set. An unresolved hard gate is a reportable failure, not permission to keep searching.
+
 ### 7. Evaluate forecasts statistically and economically
 
 Use metrics matched to the target:
@@ -212,12 +219,14 @@ Freeze the evaluation protocol before round 5. Select a Pareto set using out-of-
 
 ### 9. Optimize the portfolio transparently
 
-Separate forecasting from optimization. Given predicted return \hat\mu_t and covariance/risk estimate \hat\Sigma_t, solve a constrained problem such as
+Separate forecasting from optimization. Given predicted return \hat\mu_t and covariance/risk estimate \hat\Sigma_t, compare sample covariance, Ledoit--Wolf shrinkage, factor covariance, and robust covariance before solving a constrained problem such as
 \[
 \max_w \; \hat\mu_t^\top w-\frac{\gamma}{2}w^\top\hat\Sigma_t w
 -\kappa\|w-w_{t-1}\|_1
 \]
 subject to budget, leverage, bounds, liquidity, turnover, sector, factor, and ES/CVaR constraints. Record solver status, KKT residuals, active constraints, forecast version, and transaction-cost assumptions. If the optimization is infeasible, use a documented fallback: prior weights, minimum-risk portfolio, or cash; never silently relax constraints.
+
+Read `references/portfolio_robustness.md` for the covariance definitions and perturb expected returns, covariance, costs, risk aversion, and constraint bounds. Report weight intervals, turnover intervals, objective changes, and the exact infeasibility reason for every stress cell.
 
 ### 10. Report the result
 
@@ -232,6 +241,7 @@ A complete output includes:
 - portfolio optimization problem and constraints;
 - selected model/portfolio with selection rule;
 - limitations, non-stationarity caveats, and no-guarantee statement;
+- experiment manifest, model registry, source reconciliation, backtest-overfitting results, and covariance-robustness comparison;
 - reproducible code, metadata, charts, and timestamps.
 
 ### 11. Produce the compact reader-facing artifacts
@@ -239,7 +249,11 @@ A complete output includes:
 Create a structured `analysis.json` after model selection. It must contain the research contract, source registry, data quality facts, module records, forecast record, decision rows, and reproducibility footer. Run:
 
 ```bash
+python scripts/validate_research_config.py examples/research_config.json
+python scripts/validate_experiment_manifest.py examples/experiment_manifest.json
 python scripts/generate_financial_html.py analysis.json \
+  --config examples/research_config.json \
+  --manifest examples/experiment_manifest.json \
   --output-dir artifacts \
   --decision-format both
 ```
@@ -258,4 +272,9 @@ Stop and ask for direction when the target, horizon, asset identity, or risk lim
 - Read references/java_data_layer.md when the source is a SQL database or Java/MyBatis retrieval is requested; use it for schema, type, mapper, provenance, and read-only safeguards.
 - Read references/data_provenance.md before public-data retrieval or source selection.
 - Read references/rolling_evaluation.md before any backtest, model selection, or portfolio optimization.
+- Read references/backtest_overfitting.md before comparing multiple backtests or model trials.
+- Read references/point_in_time_data.md and references/source_reconciliation.md before joining revised, filing, or multi-source data.
+- Read references/portfolio_robustness.md before covariance selection or perturbation analysis.
+- Read references/model_registry.md and references/experiment_manifest.schema.json before registering models or declaring a run reproducible.
+- Read references/experiment_manifest.md when creating or reviewing the immutable run ledger.
 - Use the existing gao-multivariate-statistical-analysis, linear-regression-analysis, mao-tang-bayesian-statistics, ross-elementary-mathematical-finance, and tsay-financial-data-analysis skills when available; this skill provides the workflow and audit contract, while those skills provide domain-specific judgment.

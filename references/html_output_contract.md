@@ -1,6 +1,6 @@
 # HTML, analysis JSON, and decision-table contract
 
-This contract is for the mandatory reader-facing artifacts produced after financial data has been read and audited. It is intentionally small enough to be implemented by a script or another language.
+This contract is for the mandatory reader-facing artifacts produced after financial data has been read and audited. It is intentionally small enough to be implemented by a script or another language. The same contract is used by the offline HTML generator and the decision table writer.
 
 ## Input JSON
 
@@ -32,6 +32,8 @@ The generator accepts an object with these fields:
     "model": "ensemble-v3",
     "validity": "under the current regime and frozen rolling protocol"
   },
+  "experiment_id": "spy-tlt-gld-20260926-exp001",
+  "reproducibility_status": "complete",
   "charts": [
     {
       "chart_id": "forecast_path",
@@ -62,6 +64,42 @@ The generator accepts an object with these fields:
       "next_check": "next daily close"
     }
   ],
+  "model_cards": [
+    {
+      "model_id": "ensemble-v3",
+      "version": "3.0.0",
+      "estimand": "20d excess return",
+      "objective": "rolling log score plus net utility",
+      "validation_protocol": "expanding window",
+      "overfitting_diagnostics": {"DM": "pass", "SPA": "warning"},
+      "failure_mode": "regime shift",
+      "status": "active"
+    }
+  ],
+  "backtest_overfitting": {
+    "hard_gate": "warning",
+    "methods": [
+      {"method": "DM", "status": "pass", "statistic": 1.2, "p_value": 0.23, "interpretation": "no significant loss difference"},
+      {"method": "WRC", "status": "warning", "statistic": 0.08, "p_value": 0.12, "interpretation": "multiple testing remains material"},
+      {"method": "SPA", "status": "pass", "statistic": 0.04, "p_value": 0.18, "interpretation": "no superior model at the gate"},
+      {"method": "DSR", "status": "warning", "statistic": 0.71, "p_value": 0.39, "interpretation": "Sharpe is not fully deflated"},
+      {"method": "PBO", "status": "pass", "statistic": 0.18, "p_value": 0.18, "interpretation": "low overfit probability"}
+    ]
+  },
+  "source_reconciliation": {
+    "status": "minor_difference",
+    "counts": {"match": 1420, "minor_difference": 3, "material_conflict": 0},
+    "stop_dependency_analysis": false,
+    "tolerance": {"price_rel": 0.0001, "volume_rel": 0.005},
+    "source_priority": ["official_exchange", "documented_api", "public_aggregator"]
+  },
+  "portfolio_robustness": {
+    "covariance_models": [
+      {"name": "sample", "solver_status": "optimal", "objective": "0.018", "turnover": "0.14", "weight_interval": "SPY 0.40-0.55", "active_constraints": "turnover"}
+    ],
+    "perturbation_summary": "Weights remain feasible under declared return/cost/covariance shocks.",
+    "fallback": {"status": "not_used", "reason": "—"}
+  },
   "decision_rows": [
     {
       "priority": "high",
@@ -88,6 +126,10 @@ The generator accepts an object with these fields:
 
 `facts` are observed values, `interpretation` is analysis, `forecast` is model output, and `decision_rows` are conditional research actions. Keep these namespaces separate. A missing or failed module must still be present with `status: "not_available"` or `status: "failed"` and a reason in `caveats`.
 
+`experiment_id` and `reproducibility_status` are required for every completed run. The generator may obtain them from `experiment_manifest.json`, but the final HTML and decision table must expose them. A complete status means that snapshot hash, code version, environment, seeds, model parameters, feature version, train/evaluation windows, and output files are all recorded.
+
+`model_cards`, `backtest_overfitting`, `source_reconciliation`, and `portfolio_robustness` are required top-level audit blocks. The five backtest methods are exactly DM, WRC, SPA, DSR, and PBO. Source reconciliation must include tolerance, source priority, conflict status/counts, and `stop_dependency_analysis`. Portfolio robustness must include the four covariance families when they are applicable, perturbation results, and a documented infeasibility fallback.
+
 The `analysis.json` must include a non-empty `charts` list. Metric figures are not decorative: at minimum include a forecast-vs-actual or forecast-distribution figure and the most decision-relevant risk or model-comparison figure. If a figure cannot be supported, record the reason and use a clearly labeled `not_available` chart rather than fabricating values.
 
 ## HTML acceptance criteria
@@ -97,10 +139,12 @@ The `analysis.json` must include a non-empty `charts` list. Metric figures are n
 - module cards show status, summary, key metrics, evidence IDs, caveats, and next check;
 - decisions are visible as a compact table and do not read as unconditional trade instructions;
 - source URLs and reproducibility fields appear in the footer;
+- `experiment_id`, reproducibility status, manifest/config fingerprints, and source-conflict status are visible in the page header or audit sections;
+- model cards, five-method overfitting diagnostics, source reconciliation, and covariance/perturbation results are visible as compact audit sections;
 - supplied forecast metrics are rendered as labeled inline SVG charts; a completed run cannot omit `charts`;
 - values are escaped as HTML and missing values are shown as `—`, never invented;
 - a reader can understand the result without opening the long mathematical report.
 
 ## Decision table acceptance criteria
 
-Use one row per material decision or monitoring item. Required columns are `priority`, `module`, `current_view`, `action`, `trigger`, `evidence`, `risk`, `horizon`, and `next_check`. When the data-quality or calibration gate fails, include an explicit `wait` or `insufficient evidence` row.
+Use one row per material decision or monitoring item. Required columns are `priority`, `module`, `current_view`, `action`, `trigger`, `evidence`, `risk`, `horizon`, and `next_check`. Add `experiment_id` and `reproducibility_status` as table metadata or repeated fields in downstream systems. When the data-quality, source-reconciliation, or calibration gate fails, include an explicit `wait` or `insufficient evidence` row and do not present a dependent allocation as actionable.

@@ -1,0 +1,23 @@
+name: financial-research-optimizer-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pytest pandas numpy
+      - name: Validate configuration and manifest
+        run: |
+          python scripts/validate_research_config.py examples/research_config.json
+          python scripts/validate_experiment_manifest.py examples/experiment_manifest.json
+      - name: Run tests
+        run: pytest

@@ -8,7 +8,7 @@ This contract defines how a financial research run is presented so that a reader
 
 After a financial dataset has been read and audited, produce all of the following:
 
-1. a structured `analysis.json` containing the contract, provenance, module records, forecast, decisions, and reproducibility footer;
+1. a structured `analysis.json` containing the contract, provenance, module records, forecast, model cards, overfitting diagnostics, portfolio robustness, decisions, and reproducibility footer;
 2. a concise self-contained HTML file generated from that JSON;
 3. a decision table in CSV and/or Markdown.
 
@@ -63,11 +63,13 @@ Use one row per material claim:
 
 ### Model card
 
-| Model | Estimand | Objective | Main assumption | Validation | Failure mode |
-|---|---|---|---|---|---|
-| Baseline | conditional mean/variance/etc. | explicit loss | stated statistical structure | rolling | misspecification |
-| Deep challenger | nonlinear conditional object | stated loss | capacity/regularization | rolling | overfit/drift |
-| Decision layer | utility/risk objective | constrained optimization | cost/risk model | stress | infeasible/action mismatch |
+| Model | Estimand | Objective | Main assumption | Validation | Overfitting diagnostics | Failure mode |
+|---|---|---|---|---|---|---|
+| Baseline | conditional mean/variance/etc. | explicit loss | stated statistical structure | rolling | DM/WRC/SPA/DSR/PBO | misspecification |
+| Deep challenger | nonlinear conditional object | stated loss | capacity/regularization | rolling | DM/WRC/SPA/DSR/PBO | overfit/drift |
+| Decision layer | utility/risk objective | constrained optimization | cost/risk model | stress | PBO/DSR + perturbation | infeasible/action mismatch |
+
+Each model card must include `model_id`, `version`, `feature_version`, `derivation_refs`, training/evaluation windows, parameters, seeds, covariance model when relevant, and overfitting-diagnostic results.
 
 ### Forecast presentation
 
@@ -76,6 +78,12 @@ For every forecast, show point or distributional output, horizon, uncertainty, s
 ### Portfolio presentation
 
 Show objective, constraints, input forecast version, covariance/risk estimate, costs, solver status, active constraints, turnover, and fallback. If weights are produced, label them as model-implied or simulated and not as instructions to trade.
+
+Compare sample covariance, Ledoit–Wolf, factor, and robust covariance. Show perturbation scenarios for expected returns, covariance, transaction costs, risk aversion, and constraint bounds, with weight/turnover intervals, objective changes, and infeasibility reasons.
+
+### Reproducibility and source conflict
+
+Show `experiment_id`, `reproducibility_status`, data snapshot hash, code/environment versions, seeds, feature version, training/evaluation windows, and output file hashes. Also show source reconciliation status, conflict counts, tolerance, source priority, and whether dependent analysis was stopped.
 
 ### Decision table
 

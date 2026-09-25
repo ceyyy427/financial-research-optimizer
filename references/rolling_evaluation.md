@@ -20,6 +20,10 @@ Compare a naive or historical-mean baseline, a linear/ridge model, a time-series
 
 Use a target-appropriate proper scoring rule. For dependent forecast errors, use block bootstrap or a serial-dependence-aware comparison. Report point estimate, uncertainty interval, number of forecasts, and effective evaluation period. For portfolios, separate gross returns, costs, turnover, capacity, and drawdown.
 
+## Backtest-overfitting gate
+
+Before final model selection, run and record DM, White Reality Check, SPA, Deflated Sharpe Ratio, and PBO as specified in `references/backtest_overfitting.md`. They consume the same frozen rolling ledger and candidate family. A failure, unavailable input, unresolved source conflict, point-in-time violation, or incomplete experiment manifest blocks a `selected` status and must produce a `wait/insufficient evidence` decision row.
+
 ## Multi-round rule
 
 Freeze the evaluation window, metric definitions, costs, and risk constraints before comparing deep challengers. Use a Pareto selection set rather than selecting only the largest historical return. An optional utility may be
@@ -33,7 +37,8 @@ where a,b,c,d,e are declared before final selection. If two consecutive rounds f
 
 Given forecast mu_t and risk estimate Sigma_t, solve a constrained problem. Log solver status, active constraints, infeasibility, and fallback. Do not silently change constraints after observing results. Stress the result under higher costs, larger covariance, lower liquidity, and alternative windows.
 
+Compare sample covariance, Ledoit–Wolf shrinkage, factor covariance, and robust covariance under the identical objective and constraints. Perturb expected returns, covariance, transaction costs, risk aversion, and constraint boundaries. Report componentwise weight intervals, turnover intervals, objective changes, active constraints, solver status, and the reason for any infeasibility. Use the pre-registered fallback when infeasible.
+
 ## Required final claims
 
 State the selected model, selection rule, evaluation dates, source data, main uncertainty, and known failure boundary. Never use “optimal” without specifying the objective, constraints, and information set.
-

@@ -1,3 +1,3 @@
-﻿priority,module,current_view,action,trigger,evidence,risk,horizon,next_check
-high,risk_tail,下行风险偏高,保持风险暴露低于既定预算,20日波动率回落至阈值以下,calc:rolling_vol_20d,状态反转 / 模型漂移,20个交易日,下一个交易日收盘
-medium,data_quality,数据可用但存在修订风险,等待新数据并复核,宏观数据发布新版本,audit:sample,修订导致特征漂移,下次发布周期,新版本到达后
+﻿priority,module,current_view,action,trigger,evidence,risk,horizon,next_check,experiment_id,reproducibility_status
+high,risk_tail,下行风险偏高,保持风险暴露低于既定预算,20日波动率回落至阈值以下,calc:rolling_vol_20d,状态反转 / 模型漂移,20个交易日,下一个交易日收盘,spy-tlt-gld-20260926-exp001,complete
+medium,data_quality,数据可用但存在修订风险,等待新数据并复核,宏观数据发布新版本,audit:sample,修订导致特征漂移,下次发布周期,新版本到达后,spy-tlt-gld-20260926-exp001,complete
