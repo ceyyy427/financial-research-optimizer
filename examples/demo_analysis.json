@@ -45,6 +45,15 @@
       "labels": ["ARMA-GARCH", "LSTM", "Transformer", "Ensemble-v3"],
       "series": [{"name": "RMSE", "values": [0.60, 0.73, 0.65, 0.46]}],
       "description": "不同候选模型的样本外滚动 RMSE，越低越好。"
+    },
+    {
+      "chart_id": "risk_tail",
+      "title": "风险与尾部指标",
+      "type": "bar",
+      "unit": "百分比（%）",
+      "labels": ["20日波动率", "最大回撤", "VaR 95%", "ES 95%"],
+      "series": [{"name": "风险指标", "values": [24.0, -12.4, -3.8, -5.6]}],
+      "description": "当前样本下的实现波动率、回撤与尾部损失指标。"
     }
   ],
   "series": [100, 101, 99, 98, 100, 97, 96],

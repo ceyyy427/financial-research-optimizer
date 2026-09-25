@@ -35,6 +35,8 @@ HTML 会把预测后的指标直接绘制成内嵌 SVG 图，包括实际值与�
 
 ![模型比较指标](assets/model-metrics.svg)
 
+![风险与尾部指标](assets/risk-metrics.svg)
+
 ## 标准流程
 
 scope -> source discovery -> data audit -> feature/label build -> baselines -> deep challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> modular summary -> HTML + decision table
