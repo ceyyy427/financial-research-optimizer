@@ -1,0 +1,66 @@
+# Financial Research Optimizer
+
+一个面向金融统计、深度学习和组合优化的可审计 Codex Skill。
+
+## 适用场景
+
+- 搜索公开股票、指数、基金、期货、利率、汇率、商品或宏观数据；
+- 分析市场状态、资讯主题、波动率和风险暴露；
+- 比较 OLS、岭回归、ARMA/GARCH、LSTM、CNN、Transformer、贝叶斯模型和图模型；
+- 进行滚动预测、概率校准、压力测试和多轮模型比较；
+- 在交易成本、换手率、流动性、杠杆和风险预算约束下做组合优化。
+
+## 输出理念
+
+Skill 把结果拆成四层：
+
+1. 数据事实：来源、时间、字段和质量；
+2. 统计/深度模型：条件分布、预测和不确定性；
+3. 决策层：组合目标、约束、成本和优化结果；
+4. 审计层：滚动验证、稳定性、压力测试和失败边界。
+
+“最佳模型”只表示在预先声明的样本外指标和风险约束下表现最好的候选，不表示保证未来收益。Skill 不会自动下单。
+
+## 标准流程
+
+scope -> source discovery -> data audit -> feature/label build -> baselines -> deep challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> report
+
+每个阶段都要保存可检查的中间结果，避免只输出一个无法追溯的预测数字。
+
+## 标准呈现
+
+默认按以下结构输出：
+
+- 研究合同；
+- 数据来源与质量审计；
+- 内容/市场状态摘要；
+- 特征和标签公式；
+- 模型卡和假设；
+- 滚动预测与校准；
+- 组合目标与约束；
+- 多轮比较和选择规则；
+- 情景分析；
+- 局限性与复现信息。
+
+## 目录
+
+- SKILL.md：主说明和路由规则；
+- references/content_contract.md：内容呈现契约；
+- references/workflow_blueprint.md：流程状态机和多轮选择规则；
+- references/model_derivations.md：模型数学推导摘要；
+- references/data_provenance.md：公开数据来源与溯源规范；
+- references/rolling_evaluation.md：滚动评估与组合优化规范；
+- scripts/validate_financial_dataset.py：CSV 数据质量审计脚本。
+
+## 快速调用
+
+$financial-research-optimizer
+
+示例：
+
+使用 $financial-research-optimizer 搜索公开数据，比较 ARMA-GARCH、LSTM 和 Transformer 对沪深300未来20个交易日波动率的预测，在最大回撤、换手率和交易成本约束下进行多轮模型选择。
+
+## 免责声明
+
+这是研究与决策支持工具，不是投资顾问、交易执行器或收益保证器。任何结论都必须结合数据更新时间、模型不确定性、市场制度变化和用户自己的风险承受能力。
+
