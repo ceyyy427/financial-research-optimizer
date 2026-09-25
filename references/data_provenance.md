@@ -23,6 +23,22 @@ Use the following routing table as a starting point. It is a source-selection ai
 
 When a connector such as AkShare, Tushare, JoinQuant, FRED API, SEC EDGAR API, Nasdaq Data Link, Alpha Vantage, EODHD, or Polygon.io is used, store both the connector endpoint and the underlying provider. The connector is not automatically the authoritative source.
 
+### Connector entry points
+
+| Connector | Typical use | Minimum provenance fields |
+|---|---|---|
+| [AkShare](https://akshare.akfamily.xyz/) | China/global public-data adapters | function name, upstream provider, query date, adjustment |
+| [Tushare](https://tushare.pro/) | China market and fundamentals | token/account authorization, API endpoint, fields, quota/date |
+| [JoinQuant](https://www.joinquant.com/) | China research datasets | authorized account, query code, point-in-time rules, license |
+| [FRED API](https://fred.stlouisfed.org/docs/api/fred/) | macro series and vintages | series ID, API query, realtime dates, units |
+| [SEC EDGAR API](https://www.sec.gov/edgar/sec-api-documentation) | filings and XBRL | CIK, accession, user-agent, filing timestamp |
+| [Nasdaq Data Link](https://data.nasdaq.com/) | market, macro, alternative data | dataset code, query, license, revision policy |
+| [Alpha Vantage](https://www.alphavantage.co/documentation/) | global market and indicators | endpoint, symbol, interval, adjusted flag, rate limit |
+| [EODHD](https://eodhd.com/financial-apis/) | end-of-day and fundamentals | endpoint, exchange code, corporate-action convention |
+| [Polygon](https://polygon.io/docs) | US/global market and aggregates | endpoint, ticker, timezone, entitlement, delayed/live status |
+
+Never put API tokens in the Skill, generated HTML, GitHub commits, logs, or provenance JSON. Record an environment-variable name or secret reference instead.
+
 ### Source selection algorithm
 
 1. Map the target field to the routing table by geography, asset class, frequency, and legal access.

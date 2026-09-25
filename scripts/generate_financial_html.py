@@ -9,6 +9,7 @@ import csv
 import json
 import html
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 DECISION_FIELDS = [
@@ -29,6 +30,49 @@ def text(value, fallback="—"):
 
 def esc(value, fallback="—"):
     return html.escape(text(value, fallback))
+
+
+def safe_url(value):
+    """Allow only ordinary web links in the generated document."""
+    if not value:
+        return None
+    parsed = urlparse(str(value))
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return html.escape(str(value), quote=True)
+    return None
+
+
+def validate_payload(data):
+    """Fail early when the mandatory reader-facing contract is incomplete."""
+    errors = []
+    for field in ("meta", "summary", "forecast", "modules", "decision_rows"):
+        if field not in data:
+            errors.append(f"missing top-level field: {field}")
+    if not isinstance(data.get("modules"), list) or not data.get("modules"):
+        errors.append("modules must be a non-empty list")
+    if not isinstance(data.get("decision_rows"), list) or not data.get("decision_rows"):
+        errors.append("decision_rows must be a non-empty list")
+    forecast = data.get("forecast")
+    if isinstance(forecast, dict):
+        for field in ("label", "value", "interval", "probability", "model"):
+            if not forecast.get(field):
+                errors.append(f"forecast missing field: {field}")
+    for index, module in enumerate(data.get("modules", [])):
+        if not isinstance(module, dict):
+            errors.append(f"module {index} must be an object")
+            continue
+        for field in ("module_id", "title", "status", "summary", "evidence_refs", "caveats", "next_check"):
+            if field not in module:
+                errors.append(f"module {index} missing field: {field}")
+    for index, row in enumerate(data.get("decision_rows", [])):
+        if not isinstance(row, dict):
+            errors.append(f"decision row {index} must be an object")
+            continue
+        for field in DECISION_FIELDS:
+            if not row.get(field):
+                errors.append(f"decision row {index} missing field: {field}")
+    if errors:
+        raise SystemExit("input contract errors:\n- " + "\n- ".join(errors))
 
 
 def list_items(values):
@@ -134,7 +178,7 @@ def render_html(data):
     spark = render_sparkline(data.get("series"))
     source_html = "".join(
         f'<li><code>{esc(source.get("id"))}</code> {esc(source.get("label"))}'
-        + (f' — <a href="{html.escape(str(source.get("url")), quote=True)}">source</a>' if source.get("url") else "")
+        + (f' — <a href="{safe_url(source.get("url"))}">source</a>' if safe_url(source.get("url")) else "")
         + "</li>"
         for source in sources if isinstance(source, dict)
     ) or "<li>—</li>"
@@ -166,6 +210,7 @@ def main():
     data = json.loads(args.input.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise SystemExit("input JSON must be an object")
+    validate_payload(data)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     html_path = args.output_dir / "financial_research_brief.html"
     html_path.write_text(render_html(data), encoding="utf-8")
