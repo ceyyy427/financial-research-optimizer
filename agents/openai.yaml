@@ -1,9 +1,8 @@
 interface:
   display_name: "Financial Research Optimizer"
-  short_description: "Search, model, and optimize financial research"
+  short_description: "Analyze financial data and produce forecasts, HTML, and decisions"
   brand_color: "#1D4ED8"
-  default_prompt: "Use $financial-research-optimizer to search public financial data, compare statistical and deep models, run audited rolling forecasts, and optimize a constrained portfolio."
+  default_prompt: "Use $financial-research-optimizer to search and audit public financial data, analyze it by module, compare statistical and deep models, run audited rolling forecasts, and always produce a concise offline HTML summary plus a decision table."
 
 policy:
   allow_implicit_invocation: true
-

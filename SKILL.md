@@ -1,13 +1,13 @@
 ---
 name: financial-research-optimizer
-description: Search public financial data, validate time-series provenance, compare statistical and deep-learning models, run rolling forecasts, and optimize portfolios under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
+description: Search public financial data, audit and analyze it in modules, compare statistical and deep-learning models, produce calibrated forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
 ---
 
 # Financial Research Optimizer
 
 Use this skill when the user asks to discover financial data, analyze market direction, forecast prices/returns/volatility, compare statistical and deep-learning models, or optimize a portfolio from model outputs.
 
-The objective is an auditable research result, not a guaranteed “best prediction.” Treat “best” as the model or portfolio that wins a pre-specified, risk-adjusted, out-of-sample comparison under stated costs and constraints.
+The objective is an auditable research result, not a guaranteed “best prediction.” Treat “best” as the model or portfolio that wins a pre-specified, risk-adjusted, out-of-sample comparison under stated costs and constraints. Every completed run that reads financial data must leave two reader-facing artifacts: a compact standalone HTML file and a decision table.
 
 ## Introduction and positioning
 
@@ -28,7 +28,7 @@ Unless the user requests another format, present outputs in this order:
 
 1. **Research contract** — universe, target, horizon, cutoff, costs, risk limits, and output type.
 2. **Source and data audit** — URLs, retrieval time, fields, adjustments, missingness, revisions, and leakage checks.
-3. **Market/content summary** — descriptive facts separated from interpretation; cite each external claim near its source.
+3. **Module summaries** — one module per material analytical question; each has evidence, interpretation, forecast, confidence, and caveat.
 4. **Feature and label construction** — formulas, information cutoff, transformations, and split logic.
 5. **Model card table** — model, assumptions, objective, parameters, validation role, and known failure mode.
 6. **Forecast evidence** — rolling metrics, uncertainty, calibration, regime slices, and challenger comparisons.
@@ -37,7 +37,36 @@ Unless the user requests another format, present outputs in this order:
 9. **Scenario conclusion** — base, upside, and downside conditions; never write certainty as a fact.
 10. **Limitations and reproducibility** — data snapshot, code, random seeds, version, and next monitoring actions.
 
-Use tables for model comparisons and risk limits, equations for estimands and optimization problems, figures for time trends/calibration/regime structure, and short prose for interpretation. Do not hide sample size, denominator, units, or uncertainty in a footnote.
+The reader-facing HTML and decision table are mandatory, even when the user asks only for analysis. If a module cannot be supported by the data, render it as `not_available` with the exact reason instead of inventing a result.
+
+## Mandatory modular analysis and artifacts
+
+After data retrieval and quality checks, partition the analysis into the modules that are relevant to the target. Use these default modules unless the contract explicitly narrows scope:
+
+1. **Data and provenance** — coverage, freshness, missingness, duplicates, adjustments, and leakage status.
+2. **Descriptive market state** — returns, trend, liquidity, cross-sectional dispersion, and regime indicators.
+3. **Statistical structure** — dependence, stationarity/transformations, factors, correlation, and volatility structure.
+4. **Risk and tail** — realized volatility, drawdown, VaR/ES or quantiles, stress observations, and risk drivers.
+5. **Forecast and model comparison** — baseline versus challengers, rolling metrics, calibration, and forecast distribution.
+6. **Decision and scenarios** — base/upside/downside conditions, triggers, constraints, costs, and monitoring actions.
+
+Each module must emit the same compact record:
+
+```text
+module_id, title, status, observed_facts, interpretation, forecast, confidence,
+key_metrics, evidence_refs, caveats, next_check
+```
+
+Keep observed facts, fitted estimates, model-implied forecasts, and decisions in separate fields. A forecast record must include target, forecast origin, horizon, point or class output, interval or probability, model/version, and validity condition. A decision record must include priority, action/stance, trigger, rationale, risk, horizon, and owner/next check.
+
+At the end of every run, call `scripts/generate_financial_html.py` with the structured analysis JSON. It writes:
+
+- one self-contained, dependency-free HTML file with an executive summary, forecast badge, module cards, compact evidence metrics, and a decision table;
+- one decision table in CSV and/or Markdown form for downstream use.
+
+Read `references/html_output_contract.md` before producing or modifying the structured JSON, HTML, or decision table. The HTML must be concise, render offline, use no remote JavaScript or CSS, show the as-of timestamp and uncertainty, and link every material claim to a source or calculation identifier. The decision table is a decision-support artifact, not a trade instruction.
+
+Use tables for model comparisons and risk limits, equations for estimands and optimization problems, figures for time trends/calibration/regime structure, and short prose for interpretation. Do not hide sample size, denominator, units, or uncertainty in a footnote. In HTML, prefer four to six summary cards and short module rows over a long narrative; include a small inline SVG trend plot only when a series is available and decision-relevant.
 
 For a short answer, compress these sections but preserve the order and the distinction between observation, model output, scenario, and decision.
 
@@ -45,7 +74,7 @@ For a short answer, compress these sections but preserve the order and the disti
 
 The workflow is a state machine with explicit handoffs:
 
-`scope -> sources -> audit -> features -> baselines -> challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> report`
+`scope -> sources -> audit -> features -> baselines -> challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> modular summary -> HTML + decision table`
 
 Each state must leave an artifact that can be inspected by the next state. A source list is not a data audit; a fitted model is not an out-of-sample forecast; a high forecast score is not a portfolio; and a portfolio backtest is not proof of future returns.
 
@@ -59,7 +88,7 @@ At every handoff, preserve the following invariants:
 - failed or rejected candidates remain recorded;
 - every numerical claim can be traced to a source, calculation, or saved output.
 
-Use the detailed workflow schema in `references/workflow_blueprint.md` and the output contract in `references/content_contract.md` when building a durable report or reusable dataset.
+Use the detailed workflow schema in `references/workflow_blueprint.md`, the output contract in `references/content_contract.md`, the HTML artifact contract in `references/html_output_contract.md`, and the source routing rules in `references/data_provenance.md` when building a durable report or reusable dataset.
 
 ## Non-negotiable boundaries
 
@@ -90,7 +119,7 @@ If the user leaves these open, choose conservative defaults and state them. For 
 
 ### 2. Search and bind public sources
 
-Use web search for current, authoritative or reproducible sources. Prefer:
+Use web search for current, authoritative or reproducible sources. Apply the source routing table in `references/data_provenance.md`. Prefer:
 
 1. official exchange, central-bank, regulator, or index-provider data;
 2. public APIs with documented fields and timestamps;
@@ -201,6 +230,18 @@ A complete output includes:
 - selected model/portfolio with selection rule;
 - limitations, non-stationarity caveats, and no-guarantee statement;
 - reproducible code, metadata, charts, and timestamps.
+
+### 11. Produce the compact reader-facing artifacts
+
+Create a structured `analysis.json` after model selection. It must contain the research contract, source registry, data quality facts, module records, forecast record, decision rows, and reproducibility footer. Run:
+
+```bash
+python scripts/generate_financial_html.py analysis.json \
+  --output-dir artifacts \
+  --decision-format both
+```
+
+Before delivery, open the generated HTML in a browser or render it with an available HTML renderer and verify that the key forecast, as-of time, uncertainty, module statuses, and decision table are visible without network access. Deliver the HTML and decision table alongside the detailed report; do not substitute the HTML for the audit trail.
 
 Use language such as “under this sample and protocol” and “model-implied scenario,” not “the market will.”
 

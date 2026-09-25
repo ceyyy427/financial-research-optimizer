@@ -4,6 +4,42 @@
 
 Prefer official exchange, central-bank, regulator, or index-provider data. If the source is a public mirror, record the original provider and mirror URL separately. Use web search to verify current access and field definitions before retrieval.
 
+## Source routing for common Chinese and global websites
+
+Use the following routing table as a starting point. It is a source-selection aid, not permission to bypass authentication, paywalls, robots rules, rate limits, or terms of use.
+
+| Research need | Preferred source | Secondary source / connector | Required audit note |
+|---|---|---|---|
+| China GDP, CPI, PPI, PMI, population, property, consumption | [National Data](https://data.stats.gov.cn/) | public statistical releases | release date, vintage/revision, unit, frequency, seasonal adjustment |
+| China money, credit, rates, financial conditions | [People's Bank of China](https://www.pbc.gov.cn/) | official bulletin or public statistical series | announcement timestamp, policy versus realized value, revision status |
+| China listed-company filings and financials | [CNINFO](https://www.cninfo.com.cn/) | SSE/SZSE filing pages | announcement time, fiscal period, restatement, consolidated scope |
+| Shanghai / Shenzhen exchange prices and notices | [SSE](https://www.sse.com.cn/) / [SZSE](https://www.szse.cn/) | licensed market-data provider | trading calendar, adjustment, suspension, corporate action |
+| China daily market lookup | [Eastmoney](https://www.eastmoney.com/) / [10jqka](https://www.10jqka.com.cn/) | AkShare, Tushare, JoinQuant when authorized | public mirror versus original provider, timestamp, adjusted/unadjusted flag |
+| China institution-grade or academic panel | [Wind](https://www.wind.com.cn/) / [CSMAR](https://www.gtarsc.com/) | authorized export/API only | license, query definition, vintage and survivorship rules |
+| US/global macro time series | [FRED](https://fred.stlouisfed.org/) | FRED API, Nasdaq Data Link | series ID, realtime_start/realtime_end, revision vintage, units |
+| US company filings | [SEC EDGAR](https://www.sec.gov/edgar) | SEC submissions/XBRL APIs | filing accession, filing timestamp, XBRL taxonomy, restatement |
+| US/global exchange data | [NYSE Data Products](https://www.nyse.com/data-products) | licensed feed, Yahoo Finance | exchange timezone, entitlements, corporate actions, delayed/live status |
+| broad global market lookup | [Yahoo Finance](https://finance.yahoo.com/) / [Investing.com](https://www.investing.com/) / [TradingView](https://www.tradingview.com/) | documented public API or authorized connector | source is a public mirror/aggregator unless original provenance is explicit |
+
+When a connector such as AkShare, Tushare, JoinQuant, FRED API, SEC EDGAR API, Nasdaq Data Link, Alpha Vantage, EODHD, or Polygon.io is used, store both the connector endpoint and the underlying provider. The connector is not automatically the authoritative source.
+
+### Source selection algorithm
+
+1. Map the target field to the routing table by geography, asset class, frequency, and legal access.
+2. Choose the highest available source tier: official/regulator/exchange, documented API, licensed database, public aggregator.
+3. Verify field definition, time zone, adjustment convention, revision policy, and retrieval timestamp.
+4. If the preferred source is unavailable, use the next tier only when the original provider or limitation is recorded.
+5. Cross-check a material series against one independent source when feasible; report discrepancies rather than averaging silently.
+6. Save the exact URL, query parameters or series ID, response timestamp, and snapshot checksum in the provenance record.
+
+### Adaptation boundaries
+
+- Do not scrape an interactive page when an official downloadable file or documented API exists.
+- Do not infer historical availability from a current page; confirm the series dates and release timestamps.
+- Do not use Wind, CSMAR, JoinQuant, or other paid/authenticated sources without a user-provided authorized connection or export.
+- Do not treat a chart value from Eastmoney, 10jqka, Investing.com, or TradingView as an audited raw series until fields, adjustments, and timestamp semantics are confirmed.
+- For news, announcements, and filings, use publication time as the information timestamp; document date alone is insufficient.
+
 ## Required metadata
 
 For every series record:
@@ -32,4 +68,3 @@ For every series record:
 ## Evidence language
 
 Use “public mirror of [provider] data” when the original feed is not directly retrieved. Use “descriptive association” rather than “cause” unless an identification design supports causality. A forecast is model-implied and conditional on the sample, features, and protocol.
-

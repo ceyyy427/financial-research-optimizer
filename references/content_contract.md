@@ -4,6 +4,38 @@
 
 This contract defines how a financial research run is presented so that a reader can distinguish data, inference, forecast, and decision.
 
+## Mandatory post-read deliverables
+
+After a financial dataset has been read and audited, produce all of the following:
+
+1. a structured `analysis.json` containing the contract, provenance, module records, forecast, decisions, and reproducibility footer;
+2. a concise self-contained HTML file generated from that JSON;
+3. a decision table in CSV and/or Markdown.
+
+The HTML is the executive view, not the source of truth. The JSON, raw snapshot, audit report, model ledger, and forecast ledger remain the evidence trail.
+
+## Module record contract
+
+Use one record per applicable module. The default module set is data/provenance, descriptive market state, statistical structure, risk/tail, forecast/model comparison, and decision/scenarios. A module may be `not_available`, but must explain the missing field, time range, source, or quality gate.
+
+```json
+{
+  "module_id": "risk_tail",
+  "title": "Risk and tail",
+  "status": "ok",
+  "observed_facts": ["..."],
+  "interpretation": ["..."],
+  "forecast": {"target": "...", "horizon": "...", "value": "...", "interval": "...", "probability": 0.0},
+  "confidence": "medium",
+  "key_metrics": [{"label": "max_drawdown", "value": "...", "unit": "%"}],
+  "evidence_refs": ["calc:volatility_rolling_20d"],
+  "caveats": ["..."],
+  "next_check": "..."
+}
+```
+
+Keep `observed_facts`, `interpretation`, `forecast`, and `decision` separate. Do not place a model output in `observed_facts`.
+
 ## Required sections
 
 ### Research contract
@@ -45,6 +77,20 @@ For every forecast, show point or distributional output, horizon, uncertainty, s
 
 Show objective, constraints, input forecast version, covariance/risk estimate, costs, solver status, active constraints, turnover, and fallback. If weights are produced, label them as model-implied or simulated and not as instructions to trade.
 
+### Decision table
+
+Use one row per material decision or monitoring item:
+
+| Priority | Module | Current view | Action/stance | Trigger | Evidence | Risk | Horizon | Next check |
+|---|---|---|---|---|---|---|---|---|
+| high | forecast | model-implied downside | reduce exposure / wait | probability or threshold | forecast/model id | model drift | 20d | next close |
+
+The table must include “wait/insufficient evidence” when gates fail. Never convert a forecast directly into an unconditional trade instruction.
+
+### HTML presentation
+
+The HTML should fit the reader's first screen plus a short scroll. Show, in order: as-of stamp and scope, one-line conclusion, forecast badge with interval/probability, 4–6 module cards, key metrics, decision table, and a compact sources/limitations footer. Use inline CSS and optional inline SVG only. Avoid remote assets, large tables, long derivations, or unqualified point estimates.
+
 ## Writing rules
 
 Use “the data show” for observed data, “the model estimates” for fitted quantities, “under this scenario” for conditional projections, and “the optimizer returns” for computed weights. Use “may,” “is consistent with,” or “is sensitive to” when the evidence does not support a stronger statement.
@@ -60,4 +106,3 @@ Every durable report should finish with:
 - evaluation window;
 - cost/risk assumptions;
 - known limitations and next monitoring check.
-
