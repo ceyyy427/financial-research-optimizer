@@ -8,7 +8,8 @@ from pathlib import Path
 SCHEMA_FILES = [
     "research_config.schema.json", "experiment_manifest.schema.json", "feature_label_contract.schema.json",
     "backtest_overfitting.schema.json", "model_selection.schema.json", "portfolio_output.schema.json", "feature_label_audit.schema.json", "source_reconciliation.schema.json",
-    "preflight.schema.json", "analysis.schema.json",
+    "preflight.schema.json", "analysis.schema.json", "result_lineage.schema.json", "online_snapshot.schema.json", "monitoring_status.schema.json", "refresh_policy.schema.json", "event_data.schema.json", "canonical_record.schema.json", "network_capture.schema.json",
+    "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json",
 ]
 
 
@@ -36,9 +37,12 @@ def validate_local_schemas(root):
         ("portfolio_output.schema.json", root / "examples" / "demo_analysis.json"),
         ("feature_label_audit.schema.json", root / "examples" / "demo_analysis.json"),
         ("source_reconciliation.schema.json", root / "examples" / "demo_analysis.json"),
+        ("result_lineage.schema.json", root / "examples" / "demo_analysis.json"),
+        ("online_snapshot.schema.json", root / "examples" / "online_snapshot.json"),
+        ("refresh_policy.schema.json", root / "examples" / "research_config.json"),
         ("analysis.schema.json", root / "examples" / "demo_analysis.json"),
     ]
-    selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation"}
+    selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation", "result_lineage.schema.json": "result_lineage", "refresh_policy.schema.json": "refresh_policy"}
     for schema_name, data_path in examples:
         data = json.loads(data_path.read_text(encoding="utf-8"))
         if schema_name in selectors:

@@ -7,6 +7,7 @@
   "required": ["benchmark", "active_return", "risk_contribution", "factor_exposures", "industry_exposure", "turnover_contribution", "cost_attribution", "return_attribution", "binding_constraints", "weight_drift", "covariance_models", "fallback"],
   "properties": {
     "benchmark": {"type": "string", "minLength": 1},
+    "lineage_refs": {"type": "array", "items": {"type": "string"}},
     "active_return": {},
     "risk_contribution": {"type": "object", "additionalProperties": {"type": "number"}},
     "factor_exposures": {"type": "object", "additionalProperties": {"type": "number"}},

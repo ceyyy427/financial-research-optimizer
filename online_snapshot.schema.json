@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "online_snapshot.schema.json",
+  "title": "Online provider snapshot manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["snapshot_id", "provider", "request_url", "request_params", "retrieved_at", "http_status", "response_hash", "raw_file", "license", "revision_policy"],
+  "properties": {
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "provider": {"type": "string", "minLength": 1},
+    "provider_version": {"type": "string"},
+    "request_url": {"type": "string", "format": "uri"},
+    "request_params": {"type": "object"},
+    "retrieved_at": {"type": "string", "minLength": 1},
+    "http_status": {"type": "integer", "minimum": 100},
+    "response_hash": {"type": "string", "minLength": 8},
+    "snapshot_hash": {"type": "string", "minLength": 8},
+    "raw_file": {"type": "string", "minLength": 1},
+    "cache_expiry": {"type": "string"},
+    "license": {"type": "string", "minLength": 1},
+    "revision_policy": {"type": "string", "enum": ["point_in_time", "vintage_aware", "filing_date_aware", "latest_only"]},
+    "from_cache": {"type": "boolean"},
+    "stale": {"type": "boolean"},
+    "observation_date": {"type": "string"},
+    "release_date": {"type": "string"},
+    "availability_date": {"type": "string"},
+    "vintage_date": {"type": "string"},
+    "first_release_value": {},
+    "revised_value": {}
+  }
+}

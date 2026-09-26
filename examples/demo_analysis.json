@@ -38,6 +38,7 @@
         {"name": "模型均值", "values": [-0.6, 0.4, 0.1, 0.7, -0.2, 0.1]}
       ],
       "band": {"lower": [-2.2, -1.3, -1.8, -0.8, -2.0, -1.4], "upper": [1.0, 2.1, 2.0, 2.2, 1.6, 1.8]},
+      "lineage_refs": ["chart_forecast_path"],
       "description": "实际收益、模型均值和预测区间。"
     },
     {
@@ -47,6 +48,7 @@
       "unit": "RMSE（标准化）",
       "labels": ["ARMA-GARCH", "LSTM", "Transformer", "Ensemble-v3"],
       "series": [{"name": "RMSE", "values": [0.60, 0.73, 0.65, 0.46]}],
+      "lineage_refs": ["chart_model_comparison"],
       "description": "不同候选模型的样本外滚动 RMSE，越低越好。"
     },
     {
@@ -56,9 +58,11 @@
       "unit": "百分比（%）",
       "labels": ["20日波动率", "最大回撤", "VaR 95%", "ES 95%"],
       "series": [{"name": "风险指标", "values": [24.0, -12.4, -3.8, -5.6]}],
+      "lineage_refs": ["chart_risk_tail"],
       "description": "当前样本下的实现波动率、回撤与尾部损失指标。"
     }
   ],
+  "series_lineage_refs": ["sparkline_nav"],
   "series": [100, 101, 99, 98, 100, 97, 96],
   "model_cards": [
     {
@@ -83,6 +87,7 @@
     }
   ],
   "selection_protocol": {
+    "lineage_refs": ["selection_protocol_score"],
     "layers": ["statistical_validity", "predictive_performance", "economic_usefulness"],
     "criteria": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"],
     "weights": {"statistical_validity": 0.20, "predictive_performance": 0.30, "economic_effectiveness": 0.25, "regime_stability": 0.15, "seed_window_sensitivity": 0.10},
@@ -97,6 +102,7 @@
     "required_evidence": ["rolling_evaluation", "calibration", "source_reconciliation", "experiment_manifest"]
   },
   "backtest_overfitting": {
+    "lineage_refs": ["backtest_overfitting_gate"],
     "candidate_count": 4,
     "trial_count": 8,
     "gate_status": "warning",
@@ -110,6 +116,7 @@
     ]
   },
   "source_reconciliation": {
+    "lineage_refs": ["source_reconciliation_audit"],
     "status": "minor_difference",
     "records": 2070,
     "counts": {"match": 2018, "minor_difference": 52, "material_conflict": 0},
@@ -118,6 +125,7 @@
     "source_priority": ["official_exchange", "documented_api", "public_aggregator"]
   },
   "feature_label_audit": {
+    "lineage_refs": ["feature_label_audit_result"],
     "availability": {"availability_field": "availability_time", "future_rows": 0, "invalid_rows": 0, "point_in_time_safe": true},
     "lineage_fields": 3,
     "computed_purge_gap": 20,
@@ -125,6 +133,7 @@
     "safe": true
   },
   "portfolio_robustness": {
+    "lineage_refs": ["portfolio_robustness_result"],
     "benchmark": "SPY equal-risk baseline",
     "active_return": "-0.4% vs benchmark over evaluation window",
     "risk_contribution": {"SPY": 0.48, "TLT": 0.27, "GLD": 0.25},
@@ -145,6 +154,31 @@
     ],
     "perturbation_summary": "收益 ±20%、协方差 ±20%、成本 5–20bps、gamma ±25%、边界 ±10%",
     "fallback": {"status": "not_used", "trigger": "infeasible solver", "action": "prior_weights or cash"}
+  },
+  "result_lineage": {
+    "status": "pass",
+    "metrics": [
+      {"metric_id": "chart_forecast_path", "value": "forecast_path_series", "calculation_id": "calc_demo_chart_001", "input_hash": "sha256:demo-series-001", "code_version": "financial-research-optimizer@961cee1", "formula": "plot(actual, model_mean, interval)", "source_ids": ["source_1"]},
+      {"metric_id": "chart_model_comparison", "value": "rolling_rmse_by_model", "calculation_id": "calc_demo_chart_002", "input_hash": "sha256:demo-series-002", "code_version": "financial-research-optimizer@961cee1", "formula": "sqrt(mean((y-yhat)^2))", "source_ids": ["source_1"]},
+      {"metric_id": "chart_risk_tail", "value": "risk_tail_metrics", "calculation_id": "calc_demo_chart_003", "input_hash": "sha256:demo-series-003", "code_version": "financial-research-optimizer@961cee1", "formula": "volatility, max_drawdown, VaR, ES", "source_ids": ["source_1"]},
+      {"metric_id": "sparkline_nav", "value": [100, 101, 99, 98, 100, 97, 96], "calculation_id": "calc_demo_series_001", "input_hash": "sha256:demo-series-004", "code_version": "financial-research-optimizer@961cee1", "formula": "cumulative_value_t", "source_ids": ["source_1"]},
+      {"metric_id": "selection_protocol_score", "value": "multi_criterion_selection", "calculation_id": "calc_demo_selection_001", "input_hash": "sha256:demo-selection-001", "code_version": "financial-research-optimizer@961cee1", "formula": "sum(weight_i * normalized_score_i)", "source_ids": ["source_1"]},
+      {"metric_id": "backtest_overfitting_gate", "value": "warning", "calculation_id": "calc_demo_overfit_001", "input_hash": "sha256:demo-overfit-001", "code_version": "financial-research-optimizer@961cee1", "formula": "applicability-gated DM/WRC/SPA/DSR/PBO", "source_ids": ["source_1"]},
+      {"metric_id": "source_reconciliation_audit", "value": "minor_difference", "calculation_id": "calc_demo_source_001", "input_hash": "sha256:demo-source-001", "code_version": "financial-research-optimizer@961cee1", "formula": "source comparison under declared tolerances", "source_ids": ["source_1"]},
+      {"metric_id": "feature_label_audit_result", "value": true, "calculation_id": "calc_demo_feature_001", "input_hash": "sha256:demo-feature-001", "code_version": "financial-research-optimizer@961cee1", "formula": "availability + overlap + purge + embargo audit", "source_ids": ["source_1"]},
+      {"metric_id": "portfolio_robustness_result", "value": "covariance_perturbation_summary", "calculation_id": "calc_demo_portfolio_001", "input_hash": "sha256:demo-portfolio-001", "code_version": "financial-research-optimizer@961cee1", "formula": "robustness across sample/LW/factor/robust covariance", "source_ids": ["source_1"]}
+    ]
+  },
+  "online_status": {
+    "as_of_time": "2026-09-25T15:00:00Z",
+    "data_latency": "35 minutes",
+    "data_status": "degraded",
+    "model_status": "active",
+    "forecast_status": "available_with_cache",
+    "source_status": "official_source_verified",
+    "cache_status": "macro_factor_from_vintage_cache",
+    "forecast_validity": "下一交易日开盘前",
+    "fallback_used": true
   },
   "modules": [
     {

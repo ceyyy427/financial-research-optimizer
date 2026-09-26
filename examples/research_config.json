@@ -47,6 +47,8 @@
     ]
   },
   "preflight": {"require_manifest": true, "require_dataset": false, "require_reconciliation": false},
+  "online": {"enabled": false, "provider_registry": ["fred_alfred", "sec_edgar", "ecb_sdmx", "bis_sdmx"], "cache_dir": "artifacts/cache", "snapshot_dir": "artifacts/snapshots", "max_staleness_minutes": 1440, "allow_stale_cache": false, "require_raw_response": true, "revision_policy": "vintage_aware"},
+  "refresh_policy": {"prices": "intraday", "macro_data": "on_release", "features": "daily", "forecast": "daily", "retrain": "weekly", "full_research": "monthly"},
   "output": {
     "artifact_dir": "artifacts",
     "analysis_json": "analysis.json",

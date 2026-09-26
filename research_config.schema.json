@@ -29,7 +29,13 @@
         "max_leverage": {"type": "number", "exclusiveMinimum": 0},
         "long_only": {"type": "boolean"},
         "max_weight": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
-        "min_cash": {"type": "number", "minimum": 0, "maximum": 1}
+        "min_cash": {"type": "number", "minimum": 0, "maximum": 1},
+        "max_spread_bps": {"type": "number", "minimum": 0},
+        "min_adv_multiple": {"type": "number", "minimum": 0},
+        "market_impact_bps": {"type": "number", "minimum": 0},
+        "financing_cost_bps": {"type": "number", "minimum": 0},
+        "borrow_cost_bps": {"type": "number", "minimum": 0},
+        "min_trade_unit": {"type": "number", "minimum": 0}
       }
     },
     "risk_measure": {"type": "string", "enum": ["volatility", "var", "cvar", "drawdown", "utility"]},
@@ -90,6 +96,20 @@
         "require_reconciliation": {"type": "boolean"}
       }
     },
+    "online": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "provider_registry": {"type": "array", "items": {"type": "string"}},
+        "cache_dir": {"type": "string", "minLength": 1},
+        "snapshot_dir": {"type": "string", "minLength": 1},
+        "max_staleness_minutes": {"type": "integer", "minimum": 0},
+        "allow_stale_cache": {"type": "boolean"},
+        "require_raw_response": {"type": "boolean"},
+        "revision_policy": {"type": "string", "enum": ["point_in_time", "vintage_aware", "filing_date_aware", "latest_only"]}
+      }
+    },
+    "refresh_policy": {"$ref": "refresh_policy.schema.json"},
     "output": {
       "type": "object", "additionalProperties": false, "required": ["artifact_dir", "analysis_json", "html_file", "decision_table_csv", "decision_table_md"],
       "properties": {

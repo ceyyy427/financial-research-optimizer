@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "refresh_policy.schema.json",
+  "title": "Online refresh policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["prices", "macro_data", "features", "forecast", "retrain", "full_research"],
+  "properties": {
+    "prices": {"type": "string", "enum": ["intraday", "daily", "weekly", "monthly", "manual"]},
+    "macro_data": {"type": "string", "enum": ["on_release", "daily", "weekly", "monthly", "manual"]},
+    "features": {"type": "string", "enum": ["intraday", "daily", "weekly", "monthly", "manual"]},
+    "forecast": {"type": "string", "enum": ["intraday", "daily", "weekly", "monthly", "manual"]},
+    "retrain": {"type": "string", "enum": ["daily", "weekly", "monthly", "on_drift", "manual"]},
+    "full_research": {"type": "string", "enum": ["daily", "weekly", "monthly", "on_revision", "manual"]}
+  }
+}

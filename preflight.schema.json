@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["status", "mode", "output_level", "checks", "blocking_reasons"],
   "properties": {
-    "status": {"type": "string", "enum": ["ready", "blocked"]},
+    "status": {"type": "string", "enum": ["ready", "stale", "degraded", "fallback", "blocked"]},
     "output_level": {"type": "string", "enum": ["minimal", "standard", "research_grade", "portfolio_grade"]},
     "mode": {"type": "string", "enum": ["data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"]},
     "checks": {"type": "array", "items": {"type": "object", "required": ["check_id", "status", "message"], "properties": {"check_id": {"type": "string"}, "status": {"type": "string", "enum": ["pass", "warning", "fail", "skip"]}, "message": {"type": "string"}}, "additionalProperties": true}},

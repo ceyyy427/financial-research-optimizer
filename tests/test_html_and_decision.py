@@ -21,7 +21,7 @@ def test_html_is_offline_and_decision_table_is_complete(ROOT, CONFIG, MANIFEST, 
     assert "<script" not in html and "<link" not in html
     with (output / "decision_table.csv").open(encoding="utf-8-sig", newline="") as handle:
         header = next(csv.reader(handle))
-    assert header == ["priority", "module", "current_view", "action", "trigger", "evidence", "risk", "horizon", "next_check", "experiment_id", "reproducibility_status"]
+    assert header == ["priority", "module", "current_view", "action", "trigger", "evidence", "risk", "horizon", "next_check", "experiment_id", "reproducibility_status", "as_of_time", "data_status", "cache_status", "model_status", "forecast_status"]
 
 
 def test_analysis_without_overfit_fields_fails(ROOT, tmp_path):
@@ -37,6 +37,7 @@ def test_data_audit_mode_does_not_require_forecast_or_portfolio_blocks():
         "mode": "data_audit",
         "meta": {},
         "summary": {},
+        "result_lineage": {"status": "pass", "metrics": []},
         "sources": [{"id": "source_1", "label": "synthetic"}],
         "modules": [{"module_id": "quality", "title": "质量", "status": "ok", "summary": "ok", "evidence_refs": [], "caveats": [], "next_check": "next run"}],
         "decision_rows": [{"priority": "low", "module": "quality", "current_view": "ok", "action": "continue", "trigger": "new data", "evidence": "audit:1", "risk": "drift", "horizon": "next run", "next_check": "next run"}],

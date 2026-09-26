@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "node_result.schema.json",
+  "title": "Research plan node result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["node_id", "status", "attempt", "artifacts", "provenance"],
+  "properties": {
+    "node_id": {"type": "string"},
+    "status": {"type": "string", "enum": ["pass", "warning", "failed", "blocked", "fallback"]},
+    "attempt": {"type": "integer", "minimum": 1},
+    "message": {"type": "string"},
+    "artifacts": {"type": "array", "items": {"type": "string"}},
+    "provenance": {"type": "object"},
+    "fallback_used": {"type": "string"}
+  }
+}
