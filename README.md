@@ -105,6 +105,21 @@ python3 scripts/monitoring/model_monitor.py artifacts/monitor_input.json --outpu
 
 动态 preflight 状态为 `ready`、`stale`、`degraded`、`fallback` 或 `blocked`。只有 `blocked` 禁止继续依赖分析；其余状态必须在 HTML 中显示数据延迟、缓存、模型和预测有效期。
 
+## 金融网站 Source Adapter Registry
+
+`config/source_registry.yaml` 把国家数据、人民银行、巨潮、上交所、深交所、东方财富、同花顺、Wind、CSMAR、SEC EDGAR、FRED/ALFRED、Nasdaq Data Link、Yahoo Finance、Investing.com、TradingView、AkShare、Tushare 和 JoinQuant 定义成可路由的 source profile。上层智能体按权威性、Point-in-Time 能力、字段完整度、新鲜度、授权状态和稳定性选择来源，而不是只判断网页能否打开：
+
+```bash
+python3 scripts/validate_source_registry.py
+python3 scripts/source_router.py \
+  --topic "美国 CPI 历史修订值" \
+  --universe CPIAUCSL \
+  --capability point_in_time \
+  --capability vintage_data
+```
+
+适配链路固定为：`官方 API → 官方下载 → 已授权数据库 → Patchright → CDP → DOM → 合法缓存`。原始响应先通过 `scripts/source_snapshot.py` 保存哈希和请求元数据，再由 `scripts/normalize_observations.py` 转成 `schemas/canonical_observation.schema.json`；未经 canonicalization 的记录不能进入模型。Wind、CSMAR、Nasdaq Data Link 和 JoinQuant 只接受授权 API、数据库、CSV/Excel 或快照导入，不进行未授权爬取。
+
 ## 标准呈现
 
 默认按以下结构输出：
@@ -156,7 +171,7 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 
 示例文件：[`examples/financial_research_brief.html`](examples/financial_research_brief.html)。
 
-决策表至少包含：优先级、模块、当前判断、建议动作/仓位姿态、触发条件、依据、风险、有效期、下一次检查、实验 ID、复现状态；在线运行还附带数据时点、数据状态、缓存状态、模型状态和预测状态。表中的“动作”是研究与决策支持表达，不是自动下单指令。
+决策表至少包含：优先级、模块、当前判断、建议动作/仓位姿态、触发条件、依据、风险、有效期、下一次检查、实验 ID、复现状态；在线运行还附带 `source_id`、访问方式、freshness、snapshot hash、revision、授权和 Point-in-Time 状态，以及数据/缓存/模型/预测状态。表中的“动作”是研究与决策支持表达，不是自动下单指令。
 
 ## 目录
 
@@ -181,6 +196,8 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
 - references/result_lineage.md：结果数值、计算、输入快照和来源血缘契约；
 - references/online_data_contract.md、references/patchright_cdp_contract.md：在线 provider、缓存、快照、浏览器和 CDP 观测契约；
+- references/source_adapter_contract.md、references/browser_adapter_contract.md：金融网站 source profile、访问优先级和浏览器适配器契约；
+- references/source_priority_rules.md、references/licensed_data_policy.md：来源权威性、冲突阻断和授权数据政策；
 - references/agent_execution_contract.md：Research Contract、Plan DAG、预算、重试和降级规则；
 - references/event_data_contract.md、references/transformation_contract.md：事件时间和网页/API 到 canonical dataset 的转换规则；
 - references/browser_security.md：授权 context、cookie、token、trace 和只读边界；
@@ -188,7 +205,9 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - references/asset_class_contracts/：equity、ETF、futures、fixed income、FX、options、crypto 契约；
 - experiment_manifest.schema.json：实验可复现性 Manifest JSON Schema；
 - analysis.schema.json、result_lineage.schema.json、online_snapshot.schema.json、monitoring_status.schema.json、refresh_policy.schema.json、event_data.schema.json、canonical_record.schema.json、network_capture.schema.json：分析、结果血缘、在线状态、规范化记录和 CDP 网络 Schema；
+- schemas/source_profile.schema.json、schemas/source_snapshot.schema.json、schemas/canonical_observation.schema.json：来源注册、原始快照和 canonical observation Schema；
 - agent_contracts/：task、plan、node result 和 artifact Schema；
+- config/source_registry.yaml：可执行金融网站 Source Adapter Registry；
 - backtest_overfitting.schema.json、model_selection.schema.json、portfolio_output.schema.json、preflight.schema.json、feature_label_contract.schema.json、feature_label_audit.schema.json、source_reconciliation.schema.json：研究、特征、组合和来源契约 Schema；
 - pyproject.toml：依赖、pytest 配置和命令入口；
 - scripts/config_utils.py、scripts/manifest_utils.py：统一配置/Manifest 读取与指纹；
@@ -198,6 +217,8 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - scripts/feature_label_audit.py、scripts/overfitting_applicability.py、scripts/run_preflight.py、scripts/validate_schemas.py：特征/标签审计、适用性触发、运行前门禁和离线 Schema 校验；
 - scripts/verify_result_lineage.py：HTML/decision table 的结果可信度门禁；
 - scripts/online/：FRED/ALFRED、SEC、ECB、BIS、provider registry、缓存、重试和 snapshot store；
+- scripts/source_router.py、scripts/source_snapshot.py、scripts/normalize_observations.py：Source Adapter 路由、快照和标准化入口；
+- scripts/adapters/：国家数据、人民银行、巨潮、交易所、聚合器、FRED/ALFRED、SEC、授权数据和库适配器；
 - scripts/browser/：Patchright runtime、隔离 context、CDP network recorder、下载、页面快照和 trace；
 - scripts/transform/、scripts/events/：HTML/JSON/PDF/canonical 转换与事件时间审计；
 - scripts/agent/、scripts/monitoring/：Plan DAG、执行/重规划、安全策略、新鲜度和模型漂移监控；

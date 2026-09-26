@@ -2,7 +2,7 @@
 
 ## Source selection
 
-Prefer official exchange, central-bank, regulator, or index-provider data. If the source is a public mirror, record the original provider and mirror URL separately. Use web search to verify current access and field definitions before retrieval.
+Prefer official exchange, central-bank, regulator, or index-provider data. Resolve the source through `config/source_registry.yaml` and `scripts/source_router.py`; the registry records authority, access method, authorization, revision support, and required fields. If the source is a public mirror, record the original provider and mirror URL separately. Use web search to verify current access and field definitions before retrieval.
 
 ## Source routing for common Chinese and global websites
 
@@ -22,6 +22,8 @@ Use the following routing table as a starting point. It is a source-selection ai
 | broad global market lookup | [Yahoo Finance](https://finance.yahoo.com/) / [Investing.com](https://www.investing.com/) / [TradingView](https://www.tradingview.com/) | documented public API or authorized connector | source is a public mirror/aggregator unless original provenance is explicit |
 
 When a connector such as AkShare, Tushare, JoinQuant, FRED API, SEC EDGAR API, Nasdaq Data Link, Alpha Vantage, EODHD, or Polygon.io is used, store both the connector endpoint and the underlying provider. The connector is not automatically the authoritative source.
+
+All source responses must pass the source snapshot and canonical observation boundary. Retain `source_id`, `access_method`, `source_authority`, `snapshot_hash`, `parser_version`, `observation_time`, `release_time`, `availability_time`, `effective_time`, `vintage_time`, `revision_status`, and `point_in_time_status`. Use the profile-specific parser/normalizer declared in the registry rather than an unrecorded ad hoc transformation.
 
 ### Connector entry points
 

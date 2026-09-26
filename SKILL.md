@@ -105,7 +105,7 @@ The workflow is a state machine with explicit handoffs:
 
 Each state must leave an artifact that can be inspected by the next state. A source list is not a data audit; a fitted model is not an out-of-sample forecast; a high forecast score is not a portfolio; and a portfolio backtest is not proof of future returns.
 
-For online sources, add the capture and transformation boundary: `source routing -> API/cache/browser/CDP capture -> raw snapshot -> HTML/JSON/CSV/PDF transformation -> canonical dataset -> provenance -> PIT audit`. The canonical row contains `instrument_id`, `observation_time`, `availability_time`, `effective_time`, `field`, `value`, `unit`, `currency`, `adjustment`, `source_id`, `snapshot_hash`, and `transformation_id`.
+For online sources, add the capture and transformation boundary: `source routing -> API/cache/browser/CDP capture -> raw snapshot -> HTML/JSON/CSV/PDF transformation -> canonical dataset -> provenance -> PIT audit`. The canonical row contains `instrument_id`, `source_id`, `field`, `value`, `unit`, `observation_time`, `release_time`, `availability_time`, `effective_time`, `vintage_time`, `currency`, `adjustment`, `source_url`, `snapshot_hash`, `parser_version`, `transformation_id`, `source_authority`, `access_method`, and `point_in_time_status`. Records that have not passed `schemas/canonical_observation.schema.json` cannot enter feature construction.
 
 At every handoff, preserve the following invariants:
 
@@ -121,7 +121,7 @@ At every handoff, preserve the following invariants:
 - every feature has availability time and lineage, every label has an overlap group, and purge/embargo are applied before evaluation;
 - every numerical claim can be traced to a source, calculation, or saved output.
 
-Use the detailed workflow schema in `references/workflow_blueprint.md`, the output contract in `references/content_contract.md`, the HTML artifact contract in `references/html_output_contract.md`, and the source routing rules in `references/data_provenance.md` when building a durable report or reusable dataset.
+Use the detailed workflow schema in `references/workflow_blueprint.md`, the output contract in `references/content_contract.md`, the HTML artifact contract in `references/html_output_contract.md`, and the source routing rules in `references/data_provenance.md` and `references/source_adapter_contract.md` when building a durable report or reusable dataset.
 
 ## Non-negotiable boundaries
 
@@ -168,7 +168,7 @@ Use web search for current, authoritative or reproducible sources. Apply the sou
 2. public APIs with documented fields and timestamps;
 3. stable public CSV/Parquet repositories with a clear provenance note.
 
-For each source create a provenance record with fields source_id, url, retrieved_at, series, field, frequency, timezone, adjustments, revision_policy, and access_notes. Download a local snapshot when allowed. If an official page is inaccessible, use a mirror only when the mirror identifies the original source and label it as a mirror. Online adapters in `scripts/online/` preserve request parameters, HTTP status, provider version, response hash, raw file, license, cache expiry, and revision policy. FRED/ALFRED, SEC EDGAR, ECB SDMX, and BIS SDMX are supported through explicit adapters.
+For each source create a profile-backed provenance record with fields source_id, source_authority, access_method, url, retrieved_at, series, field, frequency, timezone, adjustments, revision_policy, authorization_status, and access_notes. Route through `config/source_registry.yaml` and `scripts/source_router.py`; save an immutable snapshot with `scripts/source_snapshot.py`, then normalize through `scripts/normalize_observations.py`. Download a local snapshot when allowed. If an official page is inaccessible, use a mirror only when the mirror identifies the original source and label it as a mirror. Online adapters in `scripts/online/` preserve request parameters, HTTP status, provider version, response hash, raw file, license, cache expiry, and revision policy. FRED/ALFRED, SEC EDGAR, ECB SDMX, and BIS SDMX are supported through explicit adapters; China official portals and licensed providers use the declared source-specific adapter and authorization policy.
 
 Do not treat a new observation as permission to retrain. Apply the declared `refresh_policy`: data refresh, feature refresh, forecast refresh, model retrain, and full research are separate actions. Use `scripts/run_online_refresh.py` to produce the plan and `scripts/check_data_freshness.py` / `scripts/monitoring/model_monitor.py` for dynamic status.
 
@@ -329,6 +329,7 @@ For online work, `stale`, `degraded`, and `fallback` must be visible in HTML and
 - Read references/model_derivations.md for the mathematical assumptions and derivations behind each supported model.
 - Read references/java_data_layer.md when the source is a SQL database or Java/MyBatis retrieval is requested; use it for schema, type, mapper, provenance, and read-only safeguards.
 - Read references/data_provenance.md before public-data retrieval or source selection.
+- Read references/source_adapter_contract.md, references/browser_adapter_contract.md, references/source_priority_rules.md, and references/licensed_data_policy.md before routing a financial website or licensed provider.
 - Read references/rolling_evaluation.md before any backtest, model selection, or portfolio optimization.
 - Read references/backtest_overfitting.md before comparing multiple backtests or model trials.
 - Read references/preflight_contract.md before selecting an output level or starting a run.

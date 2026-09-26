@@ -19,11 +19,13 @@ jobs:
         run: |
           python3 scripts/validate_research_config.py examples/research_config.json
           python3 scripts/validate_experiment_manifest.py examples/experiment_manifest.json
+          python3 scripts/validate_source_registry.py
           python3 scripts/validate_schemas.py
           python3 scripts/verify_result_lineage.py examples/demo_analysis.json
           python3 scripts/run_preflight.py --config examples/research_config.json --manifest examples/experiment_manifest.json --analysis examples/demo_analysis.json --output /tmp/preflight.json
           python3 scripts/overfitting_applicability.py --candidate-count 4 --trial-count 8 --observations 690 --paired-loss --portfolio-returns --output /tmp/overfitting_applicability.json
           python3 scripts/run_online_refresh.py --config examples/research_config.json --output /tmp/refresh_plan.json
+          python3 scripts/source_router.py --topic "US CPI vintage" --universe CPIAUCSL --capability point_in_time --capability vintage_data --output /tmp/source_plan.json
       - name: Generate offline example artifacts
         run: python3 scripts/generate_financial_html.py examples/demo_analysis.json --config examples/research_config.json --manifest examples/experiment_manifest.json --output-dir /tmp/artifacts --decision-format both
       - name: Run tests

@@ -8,8 +8,10 @@
   "properties": {
     "instrument_id": {"type": "string"},
     "observation_time": {"type": "string"},
+    "release_time": {"type": ["string", "null"]},
     "availability_time": {"type": "string"},
     "effective_time": {"type": "string"},
+    "vintage_time": {"type": ["string", "null"]},
     "field": {"type": "string"},
     "value": {},
     "unit": {"type": "string"},
@@ -18,6 +20,12 @@
     "source_id": {"type": "string"},
     "snapshot_hash": {"type": "string"},
     "transformation_id": {"type": "string"},
-    "transformation_hash": {"type": "string"}
+    "transformation_hash": {"type": "string"},
+    "source_url": {"type": "string"},
+    "parser_version": {"type": "string"},
+    "source_authority": {"type": "string"},
+    "access_method": {"type": "string"},
+    "point_in_time_status": {"type": "string"},
+    "revision_status": {"type": "string"}
   }
 }

@@ -1,0 +1,23 @@
+{
+  "instrument_id": "CPIAUCSL",
+  "source_id": "alfred",
+  "field": "value",
+  "value": 312.332,
+  "unit": "index",
+  "currency": null,
+  "observation_time": "2026-08-01T00:00:00+00:00",
+  "release_time": "2026-09-10T12:30:00+00:00",
+  "availability_time": "2026-09-10T12:30:00+00:00",
+  "effective_time": "2026-08-01T00:00:00+00:00",
+  "vintage_time": "2026-09-10T12:30:00+00:00",
+  "adjustment": "seasonally_adjusted",
+  "source_url": "https://api.stlouisfed.org/fred/series/observations",
+  "snapshot_hash": "sha256:demo-fred-vintage-001",
+  "parser_version": "fred_json_realtime_period",
+  "transformation_id": "canonical_observation_v1",
+  "transformation_hash": "sha256:demo-canonical-001",
+  "source_authority": "federal_reserve",
+  "access_method": "api",
+  "point_in_time_status": "pass",
+  "revision_status": "vintage_aware"
+}

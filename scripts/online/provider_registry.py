@@ -1,5 +1,11 @@
-"""Route a source to API-first, browser-second, cache-last access modes."""
+"""Route low-level providers or use the full capability-aware source registry."""
 from dataclasses import dataclass
+from pathlib import Path
+
+try:
+    from ..source_router import SourceRouter
+except ImportError:
+    from source_router import SourceRouter
 
 
 @dataclass(frozen=True)
@@ -28,3 +34,9 @@ def route_provider(source_id, prefer_browser=False):
     if prefer_browser and route.access_mode == "api":
         return ProviderRoute(route.source_id, "browser", route.fallback, route.requires_auth, route.point_in_time_support, route.revision_support)
     return route
+
+
+def resolve_source(topic, universe=None, required_capabilities=None, required_fields=None, registry_path=None, **kwargs):
+    """Resolve a website/profile through the executable source registry."""
+    router = SourceRouter.from_file(registry_path or Path(__file__).resolve().parents[2] / "config" / "source_registry.yaml")
+    return router.resolve(topic, universe, required_capabilities, required_fields, **kwargs)

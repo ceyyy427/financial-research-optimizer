@@ -10,6 +10,7 @@ SCHEMA_FILES = [
     "backtest_overfitting.schema.json", "model_selection.schema.json", "portfolio_output.schema.json", "feature_label_audit.schema.json", "source_reconciliation.schema.json",
     "preflight.schema.json", "analysis.schema.json", "result_lineage.schema.json", "online_snapshot.schema.json", "monitoring_status.schema.json", "refresh_policy.schema.json", "event_data.schema.json", "canonical_record.schema.json", "network_capture.schema.json",
     "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json",
+    "schemas/source_profile.schema.json", "schemas/source_snapshot.schema.json", "schemas/canonical_observation.schema.json",
 ]
 
 
@@ -39,6 +40,9 @@ def validate_local_schemas(root):
         ("source_reconciliation.schema.json", root / "examples" / "demo_analysis.json"),
         ("result_lineage.schema.json", root / "examples" / "demo_analysis.json"),
         ("online_snapshot.schema.json", root / "examples" / "online_snapshot.json"),
+        ("schemas/source_profile.schema.json", root / "examples" / "source_profile.json"),
+        ("schemas/source_snapshot.schema.json", root / "examples" / "source_snapshot.json"),
+        ("schemas/canonical_observation.schema.json", root / "examples" / "canonical_observation.json"),
         ("refresh_policy.schema.json", root / "examples" / "research_config.json"),
         ("analysis.schema.json", root / "examples" / "demo_analysis.json"),
     ]
