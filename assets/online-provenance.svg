@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 370" role="img" aria-labelledby="title desc">
+  <title id="title">Online data provenance pipeline</title>
+  <desc id="desc">Online data flows from official providers through cache and immutable snapshots to canonical records, PIT audits, and reader-facing artifacts.</desc>
+  <rect width="1280" height="370" rx="26" fill="#f8fafc"/>
+  <text x="52" y="50" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#172033">在线数据不是“抓到就用”：每一步都留下版本证据</text>
+  <text x="52" y="77" font-family="Arial, sans-serif" font-size="14" fill="#64748b">原始响应可复现，修订版本可比较，过期或降级状态会进入 HTML 和 decision table。</text>
+  <g font-family="Arial, sans-serif" text-anchor="middle">
+    <g><rect x="42" y="120" width="190" height="142" rx="16" fill="#dbeafe" stroke="#93c5fd"/><text x="137" y="155" font-size="16" font-weight="700" fill="#1e3a8a">官方 provider</text><text x="137" y="184" font-size="12" fill="#334155">FRED / SEC</text><text x="137" y="205" font-size="12" fill="#334155">ECB / BIS / API</text><text x="137" y="236" font-size="12" fill="#1d4ed8">release + vintage</text></g>
+    <g><rect x="274" y="120" width="190" height="142" rx="16" fill="#dcfce7" stroke="#86efac"/><text x="369" y="155" font-size="16" font-weight="700" fill="#166534">cache + retry</text><text x="369" y="184" font-size="12" fill="#334155">限流 / 重试</text><text x="369" y="205" font-size="12" fill="#334155">脱敏请求元数据</text><text x="369" y="236" font-size="12" fill="#15803d">stale 可见</text></g>
+    <g><rect x="506" y="120" width="190" height="142" rx="16" fill="#fef3c7" stroke="#fcd34d"/><text x="601" y="155" font-size="16" font-weight="700" fill="#92400e">snapshot</text><text x="601" y="184" font-size="12" fill="#334155">raw response</text><text x="601" y="205" font-size="12" fill="#334155">response hash</text><text x="601" y="236" font-size="12" fill="#b45309">request / retrieved_at</text></g>
+    <g><rect x="738" y="120" width="190" height="142" rx="16" fill="#fce7f3" stroke="#f9a8d4"/><text x="833" y="155" font-size="16" font-weight="700" fill="#9d174d">canonical + PIT</text><text x="833" y="184" font-size="12" fill="#334155">availability_time</text><text x="833" y="205" font-size="12" fill="#334155">revision / conflict</text><text x="833" y="236" font-size="12" fill="#be185d">只用可见信息</text></g>
+    <g><rect x="970" y="120" width="268" height="142" rx="16" fill="#ede9fe" stroke="#c4b5fd"/><text x="1104" y="155" font-size="16" font-weight="700" fill="#5b21b6">审计交付</text><text x="1104" y="184" font-size="12" fill="#334155">analysis.json + lineage</text><text x="1104" y="205" font-size="12" fill="#334155">offline HTML + decision table</text><text x="1104" y="236" font-size="12" fill="#6d28d9">ready / degraded / blocked</text></g>
+  </g>
+  <g stroke="#94a3b8" stroke-width="3" fill="none"><path d="M232 191h42"/><path d="M464 191h42"/><path d="M696 191h42"/><path d="M928 191h42"/></g>
+  <g fill="#94a3b8"><path d="M274 191l-10-7v14z"/><path d="M506 191l-10-7v14z"/><path d="M738 191l-10-7v14z"/><path d="M970 191l-10-7v14z"/></g>
+  <text x="52" y="322" font-family="Arial, sans-serif" font-size="13" fill="#475569">刷新分离：data_refresh → feature_refresh → forecast_refresh → model_retrain → full_research</text>
+</svg>

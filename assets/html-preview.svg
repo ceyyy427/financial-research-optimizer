@@ -7,9 +7,10 @@
   <circle cx="62" cy="50" r="7" fill="#f87171"/><circle cx="86" cy="50" r="7" fill="#fbbf24"/><circle cx="110" cy="50" r="7" fill="#34d399"/>
   <rect x="160" y="37" width="620" height="26" rx="13" fill="#ffffff" stroke="#dbe3ee"/>
   <text x="180" y="55" font-family="Arial, sans-serif" font-size="13" fill="#64748b">financial_research_brief.html · offline</text>
-  <text x="62" y="112" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#172033">沪深300研究摘要</text>
-  <text x="62" y="138" font-family="Arial, sans-serif" font-size="13" fill="#64748b">As of 2026-09-25 · 未来20个交易日收益率 · 多模型滚动评估</text>
+  <text x="62" y="112" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#172033">SPY · TLT · GLD 研究摘要</text>
+  <text x="62" y="138" font-family="Arial, sans-serif" font-size="13" fill="#64748b">As of 2026-09-26 · excess return · expanding-window rolling evaluation</text>
   <rect x="62" y="164" width="666" height="124" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="84" y="198" font-family="Arial, sans-serif" font-size="13" fill="#64748b">experiment_id</text><text x="84" y="222" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#172033">spy-tlt-gld-20260926-exp001</text><text x="84" y="252" font-family="Arial, sans-serif" font-size="12" fill="#475569">reproducibility: complete · data: degraded · cache: vintage-aware</text>
   <text x="84" y="196" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#172033">证据偏混合，下行风险仍然偏高</text>
   <text x="84" y="225" font-family="Arial, sans-serif" font-size="13" fill="#64748b">置信度：中 · 风险提示：预测对状态变化和交易成本敏感</text>
   <polyline points="84,263 154,244 224,254 294,224 364,239 434,213 504,230 574,196 644,208 704,188" fill="none" stroke="#2563eb" stroke-width="3"/>
