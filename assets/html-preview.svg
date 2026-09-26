@@ -1,6 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
   <title id="title">Financial Research Optimizer HTML preview</title>
   <desc id="desc">A compact offline HTML research brief with forecast, metric cards, charts, modules, and decision table.</desc>
+  <style>text { font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", Arial, sans-serif !important; }</style>
   <rect width="1200" height="720" rx="24" fill="#e8eef7"/>
   <rect x="28" y="24" width="1144" height="672" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
   <rect x="28" y="24" width="1144" height="52" rx="18" fill="#f1f5f9"/>
@@ -9,15 +11,16 @@
   <text x="180" y="55" font-family="Arial, sans-serif" font-size="13" fill="#64748b">financial_research_brief.html · offline</text>
   <text x="62" y="112" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#172033">SPY · TLT · GLD 研究摘要</text>
   <text x="62" y="138" font-family="Arial, sans-serif" font-size="13" fill="#64748b">As of 2026-09-26 · excess return · expanding-window rolling evaluation</text>
-  <rect x="62" y="164" width="666" height="124" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="84" y="198" font-family="Arial, sans-serif" font-size="13" fill="#64748b">experiment_id</text><text x="84" y="222" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#172033">spy-tlt-gld-20260926-exp001</text><text x="84" y="252" font-family="Arial, sans-serif" font-size="12" fill="#475569">reproducibility: complete · data: degraded · cache: vintage-aware</text>
-  <text x="84" y="196" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#172033">证据偏混合，下行风险仍然偏高</text>
-  <text x="84" y="225" font-family="Arial, sans-serif" font-size="13" fill="#64748b">置信度：中 · 风险提示：预测对状态变化和交易成本敏感</text>
-  <polyline points="84,263 154,244 224,254 294,224 364,239 434,213 504,230 574,196 644,208 704,188" fill="none" stroke="#2563eb" stroke-width="3"/>
-  <rect x="750" y="164" width="396" height="124" rx="14" fill="#eff6ff" stroke="#bfdbfe"/>
-  <text x="774" y="193" font-family="Arial, sans-serif" font-size="12" fill="#64748b">20日收益率 · ensemble-v3</text>
-  <text x="774" y="236" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#172033">-2.1%</text>
-  <text x="774" y="262" font-family="Arial, sans-serif" font-size="13" fill="#334155">区间 [-8.4%, 4.7%] · 概率 0.61</text>
+  <rect x="62" y="164" width="666" height="144" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="84" y="187" font-family="Arial, sans-serif" font-size="12" fill="#64748b">experiment_id · spy-tlt-gld-20260926-exp001</text>
+  <text x="84" y="213" font-family="Arial, sans-serif" font-size="12" fill="#475569">reproducibility: complete · data: degraded · cache: vintage-aware</text>
+  <text x="84" y="241" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#172033">证据偏混合，下行风险仍然偏高</text>
+  <text x="84" y="265" font-family="Arial, sans-serif" font-size="13" fill="#64748b">置信度：中 · 风险提示：预测对状态变化和交易成本敏感</text>
+  <polyline points="84,294 154,278 224,286 294,261 364,274 434,250 504,266 574,236 644,247 704,226" fill="none" stroke="#2563eb" stroke-width="3"/>
+  <rect x="750" y="164" width="396" height="144" rx="14" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="774" y="198" font-family="Arial, sans-serif" font-size="12" fill="#64748b">20日收益率 · ensemble-v3</text>
+  <text x="774" y="244" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#172033">-2.1%</text>
+  <text x="774" y="274" font-family="Arial, sans-serif" font-size="13" fill="#334155">区间 [-8.4%, 4.7%] · 概率 0.61</text>
   <text x="62" y="328" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#172033">模块化分析</text>
   <g font-family="Arial, sans-serif">
     <rect x="62" y="346" width="246" height="106" rx="12" fill="#ffffff" stroke="#e2e8f0"/><text x="80" y="374" font-size="15" font-weight="700" fill="#172033">数据与溯源</text><text x="80" y="400" font-size="12" fill="#475569">缺失率 0.2% · 状态 OK</text><text x="80" y="423" font-size="12" fill="#64748b">下一检查：数据更新</text>
