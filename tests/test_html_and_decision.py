@@ -5,6 +5,8 @@ import sys
 
 import pytest
 
+from generate_financial_html import validate_payload
+
 
 def test_html_is_offline_and_decision_table_is_complete(ROOT, CONFIG, MANIFEST, tmp_path):
     output = tmp_path / "artifacts"
@@ -28,3 +30,16 @@ def test_analysis_without_overfit_fields_fails(ROOT, tmp_path):
     path.write_text(json.dumps(data), encoding="utf-8")
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "generate_financial_html.py"), str(path)], capture_output=True, text=True)
     assert result.returncode != 0
+
+
+def test_data_audit_mode_does_not_require_forecast_or_portfolio_blocks():
+    data = {
+        "mode": "data_audit",
+        "meta": {},
+        "summary": {},
+        "sources": [{"id": "source_1", "label": "synthetic"}],
+        "modules": [{"module_id": "quality", "title": "质量", "status": "ok", "summary": "ok", "evidence_refs": [], "caveats": [], "next_check": "next run"}],
+        "decision_rows": [{"priority": "low", "module": "quality", "current_view": "ok", "action": "continue", "trigger": "new data", "evidence": "audit:1", "risk": "drift", "horizon": "next run", "next_check": "next run"}],
+        "experiment_id": "audit-test"
+    }
+    validate_payload(data, {"mode": "data_audit"})

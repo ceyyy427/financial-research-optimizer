@@ -23,5 +23,5 @@ Optional `source_reconciliation` records the conflict status, counts, canonical 
 Validate with:
 
 ```bash
-python scripts/validate_experiment_manifest.py examples/experiment_manifest.json
+python3 scripts/validate_experiment_manifest.py examples/experiment_manifest.json
 ```

@@ -2,8 +2,14 @@
 """Audit a time-indexed financial CSV without fitting a model."""
 import argparse, json
 from pathlib import Path
-import pandas as pd
-from config_utils import load_config
+try:
+    import pandas as pd
+except ImportError as exc:  # pragma: no cover - exercised in dependency-free environments
+    raise SystemExit("validate_financial_dataset.py requires pandas; install with python3 -m pip install -e .") from exc
+try:
+    from .config_utils import load_config
+except ImportError:
+    from config_utils import load_config
 
 def main():
     ap = argparse.ArgumentParser()

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ceyyy427/financial-research-optimizer/blob/main/model_selection.schema.json",
+  "title": "Multi-criterion model selection protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["layers", "criteria", "weights", "selection_rule", "stability_thresholds", "regime_performance", "seed_sensitivity", "window_sensitivity", "feature_ablation", "model_degradation", "benchmark_stability"],
+  "properties": {
+    "layers": {"type": "array", "minItems": 3, "items": {"type": "string", "enum": ["statistical_validity", "predictive_performance", "economic_usefulness"]}},
+    "criteria": {"type": "array", "minItems": 5, "items": {"type": "string", "enum": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"]}},
+    "weights": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}},
+    "selection_rule": {"type": "string", "minLength": 1},
+    "stability_thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
+    "required_evidence": {"type": "array", "items": {"type": "string"}}
+    ,"regime_performance": {"type": "object"},
+    "seed_sensitivity": {"type": "object"},
+    "window_sensitivity": {"type": "object"},
+    "feature_ablation": {"type": "object"},
+    "model_degradation": {"type": "object"},
+    "benchmark_stability": {"type": "object"}
+  }
+}

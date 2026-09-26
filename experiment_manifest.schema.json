@@ -7,6 +7,8 @@
   "required": ["experiment_id", "config_fingerprint", "data_snapshot_hash", "code_version", "environment", "random_seeds", "model_parameters", "feature_version", "train_window", "evaluation_window", "outputs", "reproducibility_status"],
   "properties": {
     "experiment_id": {"type": "string", "minLength": 1},
+    "mode": {"type": "string", "enum": ["data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"]},
+    "output_level": {"type": "string", "enum": ["minimal", "standard", "research_grade", "portfolio_grade"]},
     "config_fingerprint": {"type": "string", "minLength": 8},
     "data_snapshot_hash": {"type": "object", "additionalProperties": false, "required": ["algorithm", "value"], "properties": {"algorithm": {"type": "string"}, "value": {"type": "string", "minLength": 16}, "path": {"type": "string"}}},
     "code_version": {"type": "object", "additionalProperties": false, "required": ["commit", "repository"], "properties": {"commit": {"type": "string", "minLength": 7}, "repository": {"type": "string"}, "dirty": {"type": "boolean"}}},

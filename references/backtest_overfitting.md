@@ -143,7 +143,6 @@ the fraction of combinations where the in-sample winner ranks below the median o
 
 Use only chronologically admissible combinations when the target has overlap or a purge/embargo requirement. PBO is unreliable with too few observations, highly dependent candidates, unstable regime changes, or a selection metric different from the declared research objective. It diagnoses selection instability; it does not estimate a causal probability that a live strategy will lose.
 
-## Decision gates and reporting
+## Applicability and reporting
 
-Report all five methods, including `not_available` with a reason when sample size or inputs fail a gate. Suggested gates are: no unresolved source conflict, no leakage flag, untouched final test, declared candidate family, valid block/purge rule, and reproducibility manifest complete. A conservative decision table row is `wait / insufficient evidence` when any hard gate fails.
-
+Evaluate applicability before running a method. Store `applicable`, `applicability_reason`, `status`, and the minimum input requirement for each of DM, WRC, SPA, DSR, and PBO. A method with insufficient candidates, trials, observations, paired losses, portfolio returns, or admissible splits is `not_applicable`, not a failed hard gate. Only applicable methods can set the aggregate gate to `warning` or `failed`. Suggested common gates remain: no unresolved source conflict, no leakage flag, untouched final test, declared candidate family, valid block/purge rule, and reproducibility manifest complete. A conservative decision table row is `wait / insufficient evidence` when an applicable gate fails.

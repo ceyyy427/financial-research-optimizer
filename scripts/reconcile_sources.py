@@ -5,7 +5,10 @@ import csv
 import json
 from collections import Counter
 from pathlib import Path
-from config_utils import load_config
+try:
+    from .config_utils import load_config
+except ImportError:
+    from config_utils import load_config
 
 
 REQUIRED = {"instrument_id", "observation_date", "close", "volume", "adjustment_code", "effective_timestamp"}

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "financial-research-optimizer"
+version = "0.4.0"
+description = "Auditable, point-in-time financial research workflow with offline artifacts."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.0"
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "jsonschema>=4.20"]
+schema = ["jsonschema>=4.20"]
+
+[project.scripts]
+fro-preflight = "scripts.run_preflight:main"
+fro-html = "scripts.generate_financial_html:main"
+fro-config = "scripts.validate_research_config:main"
+fro-manifest = "scripts.validate_experiment_manifest:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+include = ["scripts*"]

@@ -39,6 +39,7 @@ def load_manifest(path):
     errors = validate_manifest(data)
     if errors:
         raise ValueError("invalid experiment manifest:\n- " + "\n- ".join(errors))
+    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
     data["_manifest_path"] = str(path)
-    data["_manifest_fingerprint"] = hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    data["_manifest_fingerprint"] = fingerprint
     return data

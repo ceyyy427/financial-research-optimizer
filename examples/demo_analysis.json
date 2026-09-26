@@ -1,6 +1,7 @@
 {
   "experiment_id": "demo-spy-tlt-gld-20260926-exp001",
   "reproducibility_status": "complete",
+  "mode": "forecasting",
   "meta": {
     "title": "示例：沪深300研究摘要",
     "generated_at": "2026-09-26T10:00:00+08:00",
@@ -81,15 +82,31 @@
       "status": "selected"
     }
   ],
+  "selection_protocol": {
+    "layers": ["statistical_validity", "predictive_performance", "economic_usefulness"],
+    "criteria": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"],
+    "weights": {"statistical_validity": 0.20, "predictive_performance": 0.30, "economic_effectiveness": 0.25, "regime_stability": 0.15, "seed_window_sensitivity": 0.10},
+    "selection_rule": "先通过统计有效性与适用的过拟合检验，再最大化加权样本外效用；并列时选择 regime/seed/window 更稳定者。",
+    "stability_thresholds": {"regime_score_min": 0.60, "seed_window_score_min": 0.60},
+    "regime_performance": {"low_vol": 0.72, "high_vol": 0.61, "drawdown": 0.58},
+    "seed_sensitivity": {"mean_score": 0.69, "iqr": 0.08},
+    "window_sensitivity": {"mean_score": 0.67, "iqr": 0.10},
+    "feature_ablation": {"largest_degradation": 0.04, "status": "stable"},
+    "model_degradation": {"shortfall_from_training": 0.08, "status": "monitored"},
+    "benchmark_stability": {"benchmark": "historical_mean", "relative_rank": 1},
+    "required_evidence": ["rolling_evaluation", "calibration", "source_reconciliation", "experiment_manifest"]
+  },
   "backtest_overfitting": {
-    "hard_gate": "warning",
+    "candidate_count": 4,
+    "trial_count": 8,
+    "gate_status": "warning",
     "note": "DSR/PBO 仍提示选择不稳定，保留低暴露与等待触发条件。",
     "methods": [
-      {"method": "DM", "status": "pass", "statistic": "-1.82", "p_value": "0.069", "interpretation": "ensemble 相对基线有方向性改善，但未达 5% 显著性。"},
-      {"method": "WRC", "status": "pass", "statistic": "1.44", "p_value": "0.12", "interpretation": "候选族最大优势未显著超过基准。"},
-      {"method": "SPA", "status": "pass", "statistic": "1.31", "p_value": "0.10", "interpretation": "没有足够证据证明某候选稳定优于基准。"},
-      {"method": "DSR", "status": "warning", "statistic": "0.73", "p_value": "0.73", "interpretation": "考虑试验次数后，Sharpe 证据不足。"},
-      {"method": "PBO", "status": "warning", "statistic": "0.42", "p_value": "0.42", "interpretation": "约 42% 的组合切分出现样本外排名低于中位数。"}
+      {"method": "DM", "applicable": true, "reason": "有成对损失序列和 690 个滚动观测。", "applicability_reason": "有成对损失序列和 690 个滚动观测。", "input_requirements": ["paired_loss", "20 observations"], "blocking_level": "selection_blocker", "status": "pass", "statistic": "-1.82", "p_value": "0.069", "interpretation": "ensemble 相对基线有方向性改善，但未达 5% 显著性。"},
+      {"method": "WRC", "applicable": true, "reason": "候选族包含 4 个模型并经历 8 次试验。", "applicability_reason": "候选族包含 4 个模型并经历 8 次试验。", "input_requirements": ["candidate_family", "multiple_trials", "30 observations"], "blocking_level": "selection_blocker", "status": "pass", "statistic": "1.44", "p_value": "0.12", "interpretation": "候选族最大优势未显著超过基准。"},
+      {"method": "SPA", "applicable": true, "reason": "候选族、试验次数和滚动样本量满足触发条件。", "applicability_reason": "候选族、试验次数和滚动样本量满足触发条件。", "input_requirements": ["candidate_family", "multiple_trials", "30 observations"], "blocking_level": "selection_blocker", "status": "pass", "statistic": "1.31", "p_value": "0.10", "interpretation": "没有足够证据证明某候选稳定优于基准。"},
+      {"method": "DSR", "applicable": true, "reason": "有组合收益序列和多个 Sharpe 试验。", "applicability_reason": "有组合收益序列和多个 Sharpe 试验。", "input_requirements": ["portfolio_returns", "multiple_trials", "30 observations"], "blocking_level": "selection_blocker", "status": "warning", "statistic": "0.73", "p_value": "0.73", "interpretation": "考虑试验次数后，Sharpe 证据不足。"},
+      {"method": "PBO", "applicable": true, "reason": "候选数、试验数和样本量满足组合切分要求。", "applicability_reason": "候选数、试验数和样本量满足组合切分要求。", "input_requirements": ["candidate_family", "multiple_trials", "40 observations"], "blocking_level": "selection_blocker", "status": "warning", "statistic": "0.42", "p_value": "0.42", "interpretation": "约 42% 的组合切分出现样本外排名低于中位数。"}
     ]
   },
   "source_reconciliation": {
@@ -100,7 +117,26 @@
     "tolerance": {"price_rel": 0.0001, "volume_rel": 0.005},
     "source_priority": ["official_exchange", "documented_api", "public_aggregator"]
   },
+  "feature_label_audit": {
+    "availability": {"availability_field": "availability_time", "future_rows": 0, "invalid_rows": 0, "point_in_time_safe": true},
+    "lineage_fields": 3,
+    "computed_purge_gap": 20,
+    "label_split": {"overlap_rows": 0, "purge_period": 20, "embargo_period": 5, "safe": true},
+    "safe": true
+  },
   "portfolio_robustness": {
+    "benchmark": "SPY equal-risk baseline",
+    "active_return": "-0.4% vs benchmark over evaluation window",
+    "risk_contribution": {"SPY": 0.48, "TLT": 0.27, "GLD": 0.25},
+    "factor_exposures": {"market": 0.62, "duration": -0.18, "real_asset": 0.21},
+    "industry_exposure": {"broad_equity": 0.33, "rates": 0.34, "commodity": 0.33},
+    "factor_exposure": {"market": 0.62, "duration": -0.18, "real_asset": 0.21},
+    "turnover_contribution": {"signal_rebalance": 0.11, "risk_rebalance": 0.05, "constraint_repair": 0.03},
+    "turnover_attribution": {"signal_rebalance": 0.11, "risk_rebalance": 0.05, "constraint_repair": 0.03},
+    "cost_attribution": {"transaction_cost": 0.0019, "slippage": 0.0007, "borrow": 0.0},
+    "return_attribution": {"allocation": 0.003, "selection": -0.007, "cost": -0.0026},
+    "binding_constraints": ["max_turnover", "CVaR 95%"],
+    "weight_drift": {"SPY": 0.04, "TLT": -0.02, "GLD": -0.02},
     "covariance_models": [
       {"name": "sample", "solver_status": "optimal", "objective": "0.184", "turnover": "0.19", "weight_interval": "SPY [0.42,0.57]", "active_constraints": "turnover"},
       {"name": "Ledoit-Wolf", "solver_status": "optimal", "objective": "0.176", "turnover": "0.16", "weight_interval": "SPY [0.45,0.55]", "active_constraints": "turnover"},

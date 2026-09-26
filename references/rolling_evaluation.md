@@ -20,9 +20,9 @@ Compare a naive or historical-mean baseline, a linear/ridge model, a time-series
 
 Use a target-appropriate proper scoring rule. For dependent forecast errors, use block bootstrap or a serial-dependence-aware comparison. Report point estimate, uncertainty interval, number of forecasts, and effective evaluation period. For portfolios, separate gross returns, costs, turnover, capacity, and drawdown.
 
-## Backtest-overfitting gate
+## Backtest-overfitting applicability
 
-Before final model selection, run and record DM, White Reality Check, SPA, Deflated Sharpe Ratio, and PBO as specified in `references/backtest_overfitting.md`. They consume the same frozen rolling ledger and candidate family. A failure, unavailable input, unresolved source conflict, point-in-time violation, or incomplete experiment manifest blocks a `selected` status and must produce a `wait/insufficient evidence` decision row.
+Before final model selection, assess and record the applicability of DM, White Reality Check, SPA, Deflated Sharpe Ratio, and PBO as specified in `references/backtest_overfitting.md`. They consume the same frozen rolling ledger and candidate family. `not_applicable` is a valid status when its trigger conditions are absent; it does not become a hard failure. A failure of an applicable test, unresolved source conflict, point-in-time violation, or incomplete experiment manifest blocks a `selected` status and must produce a `wait/insufficient evidence` decision row.
 
 ## Multi-round rule
 
