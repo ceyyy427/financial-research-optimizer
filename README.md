@@ -73,6 +73,10 @@ agent contract -> plan DAG -> preflight -> source routing -> API/cache/browser/C
 | Python engine | API/cache/snapshot、标准化、PIT 审计、特征、模型、验证和输出 | 不隐藏原始响应或跳过 provenance |
 | Provenance | source/snapshot/calculation/input/code/artifact 的可追溯证据链 | 不替模型或智能体做未声明的决策 |
 
+![上层智能体与五层执行架构](assets/agent-architecture.svg)
+
+这五层分别回答“下一步做什么”“如何访问网页”“浏览器实际发生了什么”“如何标准化、分析和验证”以及“为什么相信这个结果”。
+
 结果 lineage 是 HTML 门禁：任何进入图表、审计区块或决策产物的数值都必须拥有 `source_ids`、`calculation_id`、`input_hash`、`code_version` 和 `formula`。运行：
 
 ```bash
@@ -88,6 +92,8 @@ python3 scripts/verify_result_lineage.py examples/demo_analysis.json
 - `ecb_sdmx.py`、`bis_sdmx.py`：SDMX flow/key 查询；
 - `http_cache.py`、`retry_policy.py`、`snapshot_store.py`：缓存、重试、原始响应和快照 Manifest；
 - `provider_registry.py`：API → 官方下载/浏览器 → 合法缓存的路由策略。
+
+![在线数据与 provenance 管线](assets/online-provenance.svg)
 
 刷新被拆为 `data_refresh`、`feature_refresh`、`forecast_refresh`、`model_retrain` 和 `full_research`。新数据不会自动触发重训；只有预定周期或漂移阈值满足时才进入重训流程：
 
@@ -200,7 +206,7 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - tests/：最小 synthetic financial dataset 和 pytest 回归测试；
 - .github/workflows/ci.yml：配置、Manifest、审计、HTML 和组合 fallback 的 CI。
 - requirements.txt、requirements-dev.txt：运行与测试依赖；测试统一使用 `python3 -m pytest -q`；
-- assets/：HTML 预览、预测指标、模型比较、流程教学和目录说明图片；
+- assets/：HTML 预览、预测指标、模型比较、风险、五层架构、在线 provenance、流程教学和目录说明图片；
 - examples/：示例分析 JSON、在线 snapshot、生成的 HTML 和决策表。
 - requirements-browser.txt：可选 Patchright 浏览器运行依赖；
 - examples/java-mybatis/：只读 Mapper、Java 时间序列 DTO 和 XML 查询示例。

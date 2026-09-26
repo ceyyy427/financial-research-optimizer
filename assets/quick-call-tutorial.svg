@@ -6,11 +6,11 @@
   <text x="56" y="82" font-family="Arial, sans-serif" font-size="13" fill="#cbd5e1">数据源 + 研究对象 + 目标 + 约束 + 交付物</text>
   <g font-family="Arial, sans-serif"><rect x="56" y="116" width="968" height="246" rx="16" fill="#172033" stroke="#334155"/>
     <text x="84" y="153" font-size="15" fill="#93c5fd">使用 $financial-research-optimizer：</text>
-    <text x="84" y="190" font-size="14" fill="#e2e8f0">数据源：从同花顺 / 国家数据 / FRED 获取可验证数据；</text>
-    <text x="84" y="224" font-size="14" fill="#e2e8f0">对象：沪深300；目标：未来20个交易日收益率；</text>
-    <text x="84" y="258" font-size="14" fill="#e2e8f0">方法：比较 ARMA-GARCH、LSTM 和 Transformer；</text>
-    <text x="84" y="292" font-size="14" fill="#e2e8f0">约束：最大回撤、换手率和交易成本；</text>
-    <text x="84" y="326" font-size="14" fill="#e2e8f0">交付：模块总结、预测区间、HTML 指标图、CSV/Markdown 决策表。</text>
+    <text x="84" y="190" font-size="14" fill="#e2e8f0">数据源：官方 API / 缓存快照，并保留 release 与 vintage；</text>
+    <text x="84" y="224" font-size="14" fill="#e2e8f0">对象：SPY、TLT、GLD；目标：未来20日 excess return；</text>
+    <text x="84" y="258" font-size="14" fill="#e2e8f0">方法：基线 + 深度模型，按适用性触发统计检验；</text>
+    <text x="84" y="292" font-size="14" fill="#e2e8f0">约束：CVaR、最大回撤、换手率和交易成本；</text>
+    <text x="84" y="326" font-size="14" fill="#e2e8f0">交付：lineage、HTML 指标图、CSV/Markdown 决策表。</text>
   </g>
   <rect x="56" y="386" width="250" height="26" rx="13" fill="#2563eb"/><text x="181" y="404" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#ffffff">结果：可审计 · 可复现 · 可阅读</text>
 </svg>

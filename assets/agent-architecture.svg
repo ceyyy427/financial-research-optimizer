@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 430" role="img" aria-labelledby="title desc">
+  <title id="title">Auditable agent architecture</title>
+  <desc id="desc">Five cooperating layers: upper agent planning, Patchright access, CDP observation, Python analysis, and provenance evidence.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#0f172a"/><stop offset="1" stop-color="#172554"/></linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#020617" flood-opacity=".20"/></filter>
+  </defs>
+  <rect width="1280" height="430" rx="26" fill="url(#bg)"/>
+  <text x="54" y="52" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#f8fafc">五层架构：让“自主规划”仍然可审计</text>
+  <text x="54" y="80" font-family="Arial, sans-serif" font-size="14" fill="#cbd5e1">访问、观测、分析、决策与证据分层，任何一层都不能替代另一层。</text>
+  <g font-family="Arial, sans-serif" text-anchor="middle" filter="url(#shadow)">
+    <g><rect x="44" y="126" width="214" height="174" rx="18" fill="#1d4ed8"/><text x="151" y="164" font-size="17" font-weight="700" fill="#fff">上层智能体</text><text x="151" y="194" font-size="13" fill="#dbeafe">Research Contract</text><text x="151" y="218" font-size="13" fill="#dbeafe">Plan DAG / 重规划</text><text x="151" y="252" font-size="12" fill="#bfdbfe">不改目标与约束</text></g>
+    <g><rect x="286" y="126" width="214" height="174" rx="18" fill="#0e7490"/><text x="393" y="164" font-size="17" font-weight="700" fill="#fff">Patchright</text><text x="393" y="194" font-size="13" fill="#cffafe">动态网页访问</text><text x="393" y="218" font-size="13" fill="#cffafe">隔离 context / 下载</text><text x="393" y="252" font-size="12" fill="#a5f3fc">不绕过 CAPTCHA</text></g>
+    <g><rect x="528" y="126" width="214" height="174" rx="18" fill="#047857"/><text x="635" y="164" font-size="17" font-weight="700" fill="#fff">CDP</text><text x="635" y="194" font-size="13" fill="#d1fae5">Network / Page 事实</text><text x="635" y="218" font-size="13" fill="#d1fae5">请求、响应、trace</text><text x="635" y="252" font-size="12" fill="#a7f3d0">不直接生成指标</text></g>
+    <g><rect x="770" y="126" width="214" height="174" rx="18" fill="#b45309"/><text x="877" y="164" font-size="17" font-weight="700" fill="#fff">Python engine</text><text x="877" y="194" font-size="13" fill="#fef3c7">canonical dataset</text><text x="877" y="218" font-size="13" fill="#fef3c7">PIT / 模型 / 验证</text><text x="877" y="252" font-size="12" fill="#fde68a">不隐藏原始响应</text></g>
+    <g><rect x="1012" y="126" width="224" height="174" rx="18" fill="#7c3aed"/><text x="1124" y="164" font-size="17" font-weight="700" fill="#fff">Provenance</text><text x="1124" y="194" font-size="13" fill="#ede9fe">source / snapshot</text><text x="1124" y="218" font-size="13" fill="#ede9fe">calculation / artifact</text><text x="1124" y="252" font-size="12" fill="#ddd6fe">为什么相信结果</text></g>
+  </g>
+  <g stroke="#93c5fd" stroke-width="3" fill="none"><path d="M258 213h28"/><path d="M500 213h28"/><path d="M742 213h28"/><path d="M984 213h28"/></g>
+  <g fill="#93c5fd"><path d="M286 213l-11-7v14z"/><path d="M528 213l-11-7v14z"/><path d="M770 213l-11-7v14z"/><path d="M1012 213l-11-7v14z"/></g>
+  <rect x="44" y="344" width="1192" height="46" rx="14" fill="#020617" stroke="#334155"/>
+  <text x="640" y="373" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#e2e8f0">API first · 官方下载 second · 浏览器 fallback · 合法缓存 last · blocked 时停止依赖分析</text>
+</svg>
