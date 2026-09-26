@@ -24,7 +24,7 @@ DECISION_FIELDS = [
     "priority", "module", "current_view", "action", "trigger",
     "evidence", "risk", "horizon", "next_check"
 ]
-DECISION_METADATA_FIELDS = ["experiment_id", "reproducibility_status", "as_of_time", "data_status", "cache_status", "model_status", "forecast_status"]
+DECISION_METADATA_FIELDS = ["experiment_id", "reproducibility_status", "source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"]
 DECISION_OUTPUT_FIELDS = DECISION_FIELDS + DECISION_METADATA_FIELDS
 
 
@@ -164,7 +164,7 @@ def normalize_rows(rows, experiment_id=None, reproducibility_status=None, online
         normalized[-1]["experiment_id"] = text(experiment_id)
         normalized[-1]["reproducibility_status"] = text(reproducibility_status)
         status = online_status if isinstance(online_status, dict) else {}
-        for field in ("as_of_time", "data_status", "cache_status", "model_status", "forecast_status"):
+        for field in ("source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"):
             normalized[-1][field] = text(status.get(field))
     if not normalized:
         normalized.append({field: "—" for field in DECISION_OUTPUT_FIELDS})
@@ -344,7 +344,7 @@ def render_result_lineage(lineage):
 def render_online_status(status):
     if not isinstance(status, dict):
         return '<p class="muted">未提供在线状态。</p>'
-    fields = ("as_of_time", "data_latency", "data_status", "model_status", "forecast_status", "source_status", "cache_status", "forecast_validity", "fallback_used")
+    fields = ("source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "source_status", "cache_status", "model_status", "forecast_status", "forecast_validity", "fallback_used")
     return '<div class="recon-grid">' + "".join(f'<div><b>{esc(field)}</b><strong>{esc(status.get(field))}</strong></div>' for field in fields) + '</div>'
 
 
@@ -387,7 +387,7 @@ def render_decisions(rows):
         "priority": "优先级", "module": "模块", "current_view": "当前判断",
         "action": "动作/姿态", "trigger": "触发条件", "evidence": "依据",
         "risk": "风险", "horizon": "有效期", "next_check": "下一检查",
-        "experiment_id": "实验 ID", "reproducibility_status": "复现状态", "as_of_time": "数据时点", "data_status": "数据状态", "cache_status": "缓存状态", "model_status": "模型状态", "forecast_status": "预测状态"
+        "experiment_id": "实验 ID", "reproducibility_status": "复现状态", "source_id": "来源 ID", "access_method": "访问方式", "as_of_time": "数据时点", "freshness": "新鲜度", "data_latency": "数据延迟", "data_status": "数据状态", "snapshot_hash": "快照哈希", "revision_status": "修订状态", "source_authority": "来源权威性", "authorization_status": "授权状态", "point_in_time_status": "PIT 状态", "fallback_used": "使用降级", "cache_status": "缓存状态", "model_status": "模型状态", "forecast_status": "预测状态"
     }
     head = "".join(f"<th>{headers[field]}</th>" for field in DECISION_OUTPUT_FIELDS)
     body = "".join("<tr>" + "".join(f"<td>{esc(row.get(field))}</td>" for field in DECISION_OUTPUT_FIELDS) + "</tr>" for row in rows)
@@ -405,7 +405,7 @@ def write_decision_table(rows, output_dir, fmt):
         written.append(path)
     if fmt in {"md", "both"}:
         path = output_dir / "decision_table.md"
-        labels = ["优先级", "模块", "当前判断", "动作/姿态", "触发条件", "依据", "风险", "有效期", "下一检查", "实验 ID", "复现状态", "数据时点", "数据状态", "缓存状态", "模型状态", "预测状态"]
+        labels = ["优先级", "模块", "当前判断", "动作/姿态", "触发条件", "依据", "风险", "有效期", "下一检查", "实验 ID", "复现状态", "来源 ID", "访问方式", "数据时点", "新鲜度", "数据延迟", "数据状态", "快照哈希", "修订状态", "来源权威性", "授权状态", "PIT 状态", "使用降级", "缓存状态", "模型状态", "预测状态"]
         lines = ["| " + " | ".join(labels) + " |", "|" + "|".join("---" for _ in labels) + "|"]
         lines.extend("| " + " | ".join(row[field].replace("|", "\\|") for field in DECISION_OUTPUT_FIELDS) + " |" for row in rows)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")

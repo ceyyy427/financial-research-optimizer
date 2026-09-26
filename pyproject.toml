@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "numpy>=1.26",
-  "pandas>=2.0"
+  "pandas>=2.0",
+  "PyYAML>=6.0"
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,9 @@ fro-preflight = "scripts.run_preflight:main"
 fro-html = "scripts.generate_financial_html:main"
 fro-config = "scripts.validate_research_config:main"
 fro-manifest = "scripts.validate_experiment_manifest:main"
+fro-source-router = "scripts.source_router:main"
+fro-source-snapshot = "scripts.source_snapshot:main"
+fro-source-registry = "scripts.validate_source_registry:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

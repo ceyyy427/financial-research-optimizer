@@ -21,7 +21,7 @@ def test_html_is_offline_and_decision_table_is_complete(ROOT, CONFIG, MANIFEST, 
     assert "<script" not in html and "<link" not in html
     with (output / "decision_table.csv").open(encoding="utf-8-sig", newline="") as handle:
         header = next(csv.reader(handle))
-    assert header == ["priority", "module", "current_view", "action", "trigger", "evidence", "risk", "horizon", "next_check", "experiment_id", "reproducibility_status", "as_of_time", "data_status", "cache_status", "model_status", "forecast_status"]
+    assert header == ["priority", "module", "current_view", "action", "trigger", "evidence", "risk", "horizon", "next_check", "experiment_id", "reproducibility_status", "source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"]
 
 
 def test_analysis_without_overfit_fields_fails(ROOT, tmp_path):

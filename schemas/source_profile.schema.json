@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source_profile.schema.json",
+  "title": "Financial source adapter profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "name", "authority", "kind", "asset_classes", "data_types", "access_methods", "primary_method", "fallback_methods", "point_in_time", "revision_aware", "access_policy", "parser", "normalizer", "quality_checks"],
+  "properties": {
+    "source_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "name": {"type": "string", "minLength": 1},
+    "region": {"type": "string"},
+    "authority": {"type": "string", "minLength": 1},
+    "priority": {"type": "integer", "minimum": 0},
+    "kind": {"type": "string", "enum": ["official_api", "official_portal", "exchange", "regulator", "secondary_aggregator", "licensed_market_data", "licensed_provider", "library_adapter"]},
+    "asset_classes": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "data_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "access_methods": {"type": "array", "items": {"type": "string", "enum": ["api", "official_download", "authorized_database", "browser", "cdp", "dom", "cached_snapshot", "user_upload"]}, "minItems": 1},
+    "primary_method": {"type": "string"},
+    "fallback_methods": {"type": "array", "items": {"type": "string"}},
+    "point_in_time": {"type": "boolean"},
+    "revision_aware": {"type": "boolean"},
+    "authentication": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "boolean"}, "secret_env": {"type": ["string", "null"]}, "status_required": {"type": "boolean"}}},
+    "access_policy": {"type": "string", "enum": ["public", "licensed_only", "authorized_only"]},
+    "browser_scraping": {"type": "boolean"},
+    "allowed_inputs": {"type": "array", "items": {"type": "string"}},
+    "roles": {"type": "array", "items": {"type": "string", "enum": ["primary", "cross_check", "discovery", "fallback", "convenience_query"]}},
+    "parser": {"type": "string", "minLength": 1},
+    "normalizer": {"type": "string", "minLength": 1},
+    "quality_checks": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "required_fields": {"type": "array", "items": {"type": "string"}},
+    "base_urls": {"type": "array", "items": {"type": "string", "format": "uri"}}
+  }
+}

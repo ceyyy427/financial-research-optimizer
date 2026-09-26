@@ -170,9 +170,17 @@
     ]
   },
   "online_status": {
+    "source_id": "fred_alfred",
+    "access_method": "api",
     "as_of_time": "2026-09-25T15:00:00Z",
+    "freshness": "35 minutes",
     "data_latency": "35 minutes",
     "data_status": "degraded",
+    "snapshot_hash": "sha256:demo-fred-vintage-001",
+    "revision_status": "vintage_aware",
+    "source_authority": "federal_reserve",
+    "authorization_status": "authorized",
+    "point_in_time_status": "pass",
     "model_status": "active",
     "forecast_status": "available_with_cache",
     "source_status": "official_source_verified",

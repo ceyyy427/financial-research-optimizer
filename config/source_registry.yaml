@@ -1,0 +1,419 @@
+sources:
+  - source_id: stats_gov_cn
+    name: 国家数据
+    region: china
+    authority: national_statistics
+    priority: 100
+    kind: official_portal
+    asset_classes: [macro, rates, real_estate, labor]
+    data_types: [macro_timeseries, releases]
+    access_methods: [api, official_download, browser, cdp, cached_snapshot]
+    primary_method: api
+    fallback_methods: [official_download, browser, cdp, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [primary, cross_check]
+    parser: stats_gov_json
+    normalizer: macro_timeseries_v1
+    quality_checks: [timestamp_order, release_date, availability_date, missingness, revision_check]
+    required_fields: [observation_date, release_date, availability_date, value, unit, frequency]
+    base_urls: [https://data.stats.gov.cn/]
+  - source_id: pbc
+    name: 中国人民银行
+    region: china
+    authority: central_bank
+    priority: 100
+    kind: official_portal
+    asset_classes: [macro, rates, fx, credit]
+    data_types: [macro_timeseries, releases, financial_market]
+    access_methods: [official_download, browser, cdp, cached_snapshot]
+    primary_method: official_download
+    fallback_methods: [browser, cdp, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [primary, cross_check]
+    parser: pbc_download
+    normalizer: macro_timeseries_v1
+    quality_checks: [timestamp_order, release_date, availability_date, missingness, revision_check]
+    required_fields: [observation_date, release_date, availability_date, value, unit, frequency]
+    base_urls: [https://www.pbc.gov.cn/]
+  - source_id: cninfo
+    name: 巨潮资讯网
+    region: china
+    authority: regulator_disclosure
+    priority: 95
+    kind: official_portal
+    asset_classes: [equity, etf]
+    data_types: [filings, announcements, financial_statements, xbrl]
+    access_methods: [official_download, browser, cdp, dom, cached_snapshot]
+    primary_method: official_download
+    fallback_methods: [browser, cdp, dom, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [primary]
+    parser: cninfo_filing_pdf_html_xbrl
+    normalizer: filing_observation_v1
+    quality_checks: [announcement_time, report_period, document_hash, release_time, missingness]
+    required_fields: [stock_code, announcement_type, report_period, release_time, document_url, document_hash, financial_concept, value, unit, currency]
+    base_urls: [https://www.cninfo.com.cn/]
+  - source_id: sse
+    name: 上海证券交易所
+    region: china
+    authority: exchange
+    priority: 110
+    kind: exchange
+    asset_classes: [equity, etf, fixed_income]
+    data_types: [official_market_data, trading_calendar, listing_status, corporate_actions, announcements]
+    access_methods: [official_download, browser, cdp, dom, cached_snapshot]
+    primary_method: official_download
+    fallback_methods: [browser, cdp, dom, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [primary]
+    parser: exchange_file_v1
+    normalizer: market_observation_v1
+    quality_checks: [trading_calendar, timestamp_order, corporate_action, adjustment, missingness]
+    required_fields: [instrument_id, observation_time, close, volume, trading_status, adjustment, calendar]
+    base_urls: [https://www.sse.com.cn/]
+  - source_id: szse
+    name: 深圳证券交易所
+    region: china
+    authority: exchange
+    priority: 110
+    kind: exchange
+    asset_classes: [equity, etf, fixed_income]
+    data_types: [official_market_data, trading_calendar, listing_status, corporate_actions, announcements]
+    access_methods: [official_download, browser, cdp, dom, cached_snapshot]
+    primary_method: official_download
+    fallback_methods: [browser, cdp, dom, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [primary]
+    parser: exchange_file_v1
+    normalizer: market_observation_v1
+    quality_checks: [trading_calendar, timestamp_order, corporate_action, adjustment, missingness]
+    required_fields: [instrument_id, observation_time, close, volume, trading_status, adjustment, calendar]
+    base_urls: [https://www.szse.cn/]
+  - source_id: eastmoney
+    name: 东方财富
+    region: china
+    authority: secondary_aggregator
+    priority: 45
+    kind: secondary_aggregator
+    asset_classes: [equity, etf, fund, macro]
+    data_types: [market_data, financial_indicators, fund_data, capital_flow]
+    access_methods: [api, browser, cdp, dom, cached_snapshot]
+    primary_method: api
+    fallback_methods: [browser, cdp, dom, cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [discovery, cross_check, convenience_query]
+    parser: aggregator_json
+    normalizer: market_observation_v1
+    quality_checks: [timestamp_order, adjustment, calendar, missingness, source_conflict]
+    required_fields: [instrument_id, observation_time, close, volume, adjustment]
+    base_urls: [https://www.eastmoney.com/]
+  - source_id: 10jqka
+    name: 同花顺
+    region: china
+    authority: secondary_aggregator
+    priority: 45
+    kind: secondary_aggregator
+    asset_classes: [equity, etf, fund, macro]
+    data_types: [market_data, financial_indicators, sector_data, screening]
+    access_methods: [browser, cdp, dom, cached_snapshot]
+    primary_method: browser
+    fallback_methods: [cdp, dom, cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [discovery, cross_check, convenience_query]
+    parser: aggregator_html_json
+    normalizer: market_observation_v1
+    quality_checks: [timestamp_order, adjustment, calendar, missingness, source_conflict]
+    required_fields: [instrument_id, observation_time, close, volume, adjustment]
+    base_urls: [https://www.10jqka.com.cn/]
+  - source_id: wind
+    name: Wind
+    region: global
+    authority: licensed_provider
+    priority: 90
+    kind: licensed_market_data
+    asset_classes: [equity, etf, futures, fixed_income, fx, options, macro]
+    data_types: [market_data, financial_statements, macro_timeseries]
+    access_methods: [authorized_database, user_upload, cached_snapshot]
+    primary_method: authorized_database
+    fallback_methods: [user_upload, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: true, secret_env: WIND_API_KEY, status_required: true}
+    access_policy: licensed_only
+    browser_scraping: false
+    allowed_inputs: [authorized_api, exported_csv, exported_excel, database_snapshot]
+    roles: [primary, cross_check]
+    parser: wind_export
+    normalizer: licensed_observation_v1
+    quality_checks: [authorization, timestamp_order, revision_check, adjustment, missingness]
+    required_fields: [instrument_id, observation_time, availability_time, value, unit, adjustment]
+  - source_id: csmar
+    name: CSMAR
+    region: china
+    authority: licensed_provider
+    priority: 90
+    kind: licensed_market_data
+    asset_classes: [equity, etf, macro, fixed_income]
+    data_types: [financial_statements, market_data, corporate_actions, research_data]
+    access_methods: [authorized_database, user_upload, cached_snapshot]
+    primary_method: authorized_database
+    fallback_methods: [user_upload, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: true, secret_env: CSMAR_API_KEY, status_required: true}
+    access_policy: licensed_only
+    browser_scraping: false
+    allowed_inputs: [authorized_api, exported_csv, exported_excel, database_snapshot]
+    roles: [primary, cross_check]
+    parser: csmar_export
+    normalizer: licensed_observation_v1
+    quality_checks: [authorization, timestamp_order, revision_check, adjustment, missingness]
+    required_fields: [instrument_id, observation_time, availability_time, value, unit, adjustment]
+    base_urls: [https://www.gtarsc.com/]
+  - source_id: sec_edgar
+    name: SEC EDGAR
+    region: global
+    authority: securities_regulator
+    priority: 110
+    kind: regulator
+    asset_classes: [equity, etf]
+    data_types: [filings, xbrl, company_facts, announcements]
+    access_methods: [api, official_download, browser, cached_snapshot]
+    primary_method: api
+    fallback_methods: [official_download, browser, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: false
+    roles: [primary]
+    parser: sec_xbrl_filing
+    normalizer: filing_observation_v1
+    quality_checks: [accepted_datetime, filing_date, report_date, xbrl_taxonomy, missingness]
+    required_fields: [cik, ticker, form, accession_number, filing_date, report_date, accepted_datetime, concept, unit, value]
+    base_urls: [https://www.sec.gov/edgar, https://data.sec.gov/]
+  - source_id: fred
+    name: FRED
+    region: global
+    authority: federal_reserve
+    priority: 100
+    kind: official_api
+    asset_classes: [macro, rates, fx]
+    data_types: [time_series, releases]
+    access_methods: [api, cached_snapshot]
+    primary_method: api
+    fallback_methods: [cached_snapshot]
+    point_in_time: false
+    revision_aware: true
+    authentication: {required: true, secret_env: FRED_API_KEY, status_required: true}
+    access_policy: public
+    browser_scraping: false
+    roles: [discovery, cross_check]
+    parser: fred_json
+    normalizer: macro_timeseries_v1
+    quality_checks: [timestamp_order, missingness, revision_check]
+    required_fields: [observation_date, value, unit, frequency]
+    base_urls: [https://api.stlouisfed.org/fred/]
+  - source_id: alfred
+    name: ALFRED
+    region: global
+    authority: federal_reserve
+    priority: 105
+    kind: official_api
+    asset_classes: [macro, rates, fx]
+    data_types: [time_series, releases, vintages]
+    access_methods: [api, cached_snapshot]
+    primary_method: api
+    fallback_methods: [cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: true, secret_env: FRED_API_KEY, status_required: true}
+    access_policy: public
+    browser_scraping: false
+    roles: [primary]
+    parser: fred_json_realtime_period
+    normalizer: macro_timeseries_v1
+    quality_checks: [timestamp_order, vintage_date, release_date, missingness, revision_check]
+    required_fields: [observation_date, release_date, availability_date, vintage_date, value, unit, frequency]
+    base_urls: [https://api.stlouisfed.org/fred/]
+  - source_id: nasdaq_data_link
+    name: Nasdaq Data Link
+    region: global
+    authority: licensed_market_data
+    priority: 75
+    kind: licensed_market_data
+    asset_classes: [equity, futures, fx, macro]
+    data_types: [market_data, macro_timeseries, alternative_data]
+    access_methods: [api, user_upload, cached_snapshot]
+    primary_method: api
+    fallback_methods: [user_upload, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: true, secret_env: NASDAQ_DATA_LINK_API_KEY, status_required: true}
+    access_policy: licensed_only
+    browser_scraping: false
+    allowed_inputs: [authorized_api, exported_csv, exported_excel]
+    roles: [primary, cross_check]
+    parser: nasdaq_json_csv
+    normalizer: market_observation_v1
+    quality_checks: [authorization, timestamp_order, revision_check, missingness]
+    required_fields: [instrument_id, observation_time, value, unit, source_url]
+    base_urls: [https://data.nasdaq.com/]
+  - source_id: yahoo_finance
+    name: Yahoo Finance
+    region: global
+    authority: secondary_aggregator
+    priority: 40
+    kind: secondary_aggregator
+    asset_classes: [equity, etf, futures, fx, crypto]
+    data_types: [market_data, historical_prices]
+    access_methods: [browser, cached_snapshot, user_upload]
+    primary_method: browser
+    fallback_methods: [user_upload, cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [discovery, cross_check, convenience_query]
+    parser: yahoo_chart
+    normalizer: market_observation_v1
+    quality_checks: [timestamp_order, adjustment, calendar, missingness, source_conflict]
+    required_fields: [instrument_id, observation_time, close, volume, adjustment]
+    base_urls: [https://finance.yahoo.com/]
+  - source_id: investing_com
+    name: Investing.com
+    region: global
+    authority: secondary_aggregator
+    priority: 35
+    kind: secondary_aggregator
+    asset_classes: [equity, futures, fx, crypto, macro]
+    data_types: [market_data, economic_calendar]
+    access_methods: [browser, cdp, cached_snapshot]
+    primary_method: browser
+    fallback_methods: [cdp, cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [discovery, cross_check]
+    parser: aggregator_html_json
+    normalizer: market_observation_v1
+    quality_checks: [timestamp_order, calendar, missingness, source_conflict]
+    required_fields: [instrument_id, observation_time, value, unit]
+    base_urls: [https://www.investing.com/]
+  - source_id: tradingview
+    name: TradingView
+    region: global
+    authority: secondary_aggregator
+    priority: 35
+    kind: secondary_aggregator
+    asset_classes: [equity, futures, fx, crypto]
+    data_types: [charts, technical_indicators, market_data]
+    access_methods: [browser, cdp, cached_snapshot]
+    primary_method: browser
+    fallback_methods: [cdp, cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: true
+    roles: [discovery, convenience_query]
+    parser: chart_data_json
+    normalizer: market_observation_v1
+    quality_checks: [timestamp_order, calendar, missingness, source_conflict]
+    required_fields: [instrument_id, observation_time, value, unit]
+    base_urls: [https://www.tradingview.com/]
+  - source_id: akshare
+    name: AkShare
+    region: global
+    authority: depends_on_underlying_source
+    priority: 30
+    kind: library_adapter
+    asset_classes: [equity, etf, futures, macro, fx]
+    data_types: [market_data, macro_timeseries]
+    access_methods: [api, cached_snapshot]
+    primary_method: api
+    fallback_methods: [cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: false, secret_env: null, status_required: false}
+    access_policy: public
+    browser_scraping: false
+    roles: [discovery, cross_check]
+    parser: library_output
+    normalizer: market_observation_v1
+    quality_checks: [underlying_source, timestamp_order, missingness, source_conflict]
+    required_fields: [instrument_id, observation_time, value, unit, underlying_source]
+  - source_id: tushare
+    name: Tushare
+    region: china
+    authority: depends_on_underlying_source
+    priority: 35
+    kind: library_adapter
+    asset_classes: [equity, etf, futures, macro]
+    data_types: [market_data, financial_statements]
+    access_methods: [api, cached_snapshot]
+    primary_method: api
+    fallback_methods: [cached_snapshot]
+    point_in_time: false
+    revision_aware: false
+    authentication: {required: true, secret_env: TUSHARE_TOKEN, status_required: true}
+    access_policy: authorized_only
+    browser_scraping: false
+    roles: [discovery, cross_check]
+    parser: library_output
+    normalizer: market_observation_v1
+    quality_checks: [authorization, underlying_source, timestamp_order, missingness]
+    required_fields: [instrument_id, observation_time, value, unit, underlying_source]
+  - source_id: joinquant
+    name: JoinQuant
+    region: china
+    authority: licensed_provider
+    priority: 60
+    kind: licensed_provider
+    asset_classes: [equity, etf, futures, macro]
+    data_types: [market_data, financial_statements, research_data]
+    access_methods: [authorized_database, user_upload, cached_snapshot]
+    primary_method: authorized_database
+    fallback_methods: [user_upload, cached_snapshot]
+    point_in_time: true
+    revision_aware: true
+    authentication: {required: true, secret_env: JOINQUANT_TOKEN, status_required: true}
+    access_policy: licensed_only
+    browser_scraping: false
+    allowed_inputs: [authorized_api, exported_csv, exported_excel, database_snapshot]
+    roles: [primary, cross_check]
+    parser: library_output
+    normalizer: licensed_observation_v1
+    quality_checks: [authorization, timestamp_order, revision_check, missingness]
+    required_fields: [instrument_id, observation_time, availability_time, value, unit]

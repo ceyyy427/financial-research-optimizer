@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical_observation.schema.json",
+  "title": "Canonical point-in-time financial observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "source_id", "field", "value", "unit", "observation_time", "release_time", "availability_time", "effective_time", "vintage_time", "adjustment", "source_url", "snapshot_hash", "parser_version", "transformation_id", "source_authority", "access_method", "point_in_time_status"],
+  "properties": {
+    "instrument_id": {"type": "string", "minLength": 1},
+    "source_id": {"type": "string", "minLength": 1},
+    "field": {"type": "string", "minLength": 1},
+    "value": {},
+    "unit": {"type": "string"},
+    "currency": {"type": ["string", "null"]},
+    "observation_time": {"type": "string", "format": "date-time"},
+    "release_time": {"type": ["string", "null"], "format": "date-time"},
+    "availability_time": {"type": "string", "format": "date-time"},
+    "effective_time": {"type": "string", "format": "date-time"},
+    "vintage_time": {"type": ["string", "null"], "format": "date-time"},
+    "adjustment": {"type": "string"},
+    "source_url": {"type": "string", "format": "uri"},
+    "snapshot_hash": {"type": "string", "minLength": 8},
+    "parser_version": {"type": "string", "minLength": 1},
+    "transformation_id": {"type": "string", "minLength": 1},
+    "transformation_hash": {"type": "string"},
+    "source_authority": {"type": "string"},
+    "access_method": {"type": "string"},
+    "point_in_time_status": {"type": "string", "enum": ["pass", "fail", "not_available", "unknown"]},
+    "revision_status": {"type": "string"}
+  }
+}

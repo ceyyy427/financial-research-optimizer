@@ -48,4 +48,4 @@ def test_demo_contains_every_new_contract_block(ROOT):
 def test_examples_validate_against_local_schemas(ROOT):
     result = validate_local_schemas(ROOT)
     assert result["valid"] is True
-    assert result["examples_validated"] == 12
+    assert result["examples_validated"] == 15

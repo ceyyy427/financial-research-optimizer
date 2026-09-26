@@ -1,4 +1,4 @@
-| 优先级 | 模块 | 当前判断 | 动作/姿态 | 触发条件 | 依据 | 风险 | 有效期 | 下一检查 | 实验 ID | 复现状态 | 数据时点 | 数据状态 | 缓存状态 | 模型状态 | 预测状态 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| high | risk_tail | 下行风险偏高 | 保持风险暴露低于既定预算 | 20日波动率回落至阈值以下 | calc:rolling_vol_20d | 状态反转 / 模型漂移 | 20个交易日 | 下一个交易日收盘 | spy-tlt-gld-20260926-exp001 | complete | 2026-09-25T15:00:00Z | degraded | macro_factor_from_vintage_cache | active | available_with_cache |
-| medium | data_quality | 数据可用但存在修订风险 | 等待新数据并复核 | 宏观数据发布新版本 | audit:sample | 修订导致特征漂移 | 下次发布周期 | 新版本到达后 | spy-tlt-gld-20260926-exp001 | complete | 2026-09-25T15:00:00Z | degraded | macro_factor_from_vintage_cache | active | available_with_cache |
+| 优先级 | 模块 | 当前判断 | 动作/姿态 | 触发条件 | 依据 | 风险 | 有效期 | 下一检查 | 实验 ID | 复现状态 | 来源 ID | 访问方式 | 数据时点 | 新鲜度 | 数据延迟 | 数据状态 | 快照哈希 | 修订状态 | 来源权威性 | 授权状态 | PIT 状态 | 使用降级 | 缓存状态 | 模型状态 | 预测状态 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| high | risk_tail | 下行风险偏高 | 保持风险暴露低于既定预算 | 20日波动率回落至阈值以下 | calc:rolling_vol_20d | 状态反转 / 模型漂移 | 20个交易日 | 下一个交易日收盘 | spy-tlt-gld-20260926-exp001 | complete | fred_alfred | api | 2026-09-25T15:00:00Z | 35 minutes | 35 minutes | degraded | sha256:demo-fred-vintage-001 | vintage_aware | federal_reserve | authorized | pass | True | macro_factor_from_vintage_cache | active | available_with_cache |
+| medium | data_quality | 数据可用但存在修订风险 | 等待新数据并复核 | 宏观数据发布新版本 | audit:sample | 修订导致特征漂移 | 下次发布周期 | 新版本到达后 | spy-tlt-gld-20260926-exp001 | complete | fred_alfred | api | 2026-09-25T15:00:00Z | 35 minutes | 35 minutes | degraded | sha256:demo-fred-vintage-001 | vintage_aware | federal_reserve | authorized | pass | True | macro_factor_from_vintage_cache | active | available_with_cache |
