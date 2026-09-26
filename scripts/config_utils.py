@@ -6,7 +6,12 @@ from pathlib import Path
 from datetime import date
 
 
-REQUIRED = ("universe", "target", "horizon", "frequency", "cutoff", "costs", "constraints", "risk_measure", "confidence_level", "evaluation", "models", "output")
+OUTPUT_LEVELS = {"minimal", "standard", "research_grade", "portfolio_grade"}
+MODES = {"data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"}
+MIN_OUTPUT_LEVEL = {"minimal": 0, "standard": 1, "research_grade": 2, "portfolio_grade": 3}
+MODE_MIN_LEVEL = {"data_audit": 0, "descriptive_analysis": 0, "forecasting": 1, "backtest": 2, "portfolio_research": 2}
+SELECTION_CRITERIA = {"statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"}
+REQUIRED = ("mode", "universe", "target", "horizon", "frequency", "cutoff", "output_level", "costs", "constraints", "risk_measure", "confidence_level", "evaluation", "feature_label_contract", "models", "output")
 
 
 def load_config(path):
@@ -15,8 +20,9 @@ def load_config(path):
     errors = validate_config(data)
     if errors:
         raise ValueError("invalid research config:\n- " + "\n- ".join(errors))
+    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
     data["_config_path"] = str(path)
-    data["_config_fingerprint"] = hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    data["_config_fingerprint"] = fingerprint
     return data
 
 
@@ -26,6 +32,8 @@ def validate_config(data):
         return ["config must be a JSON object"]
     missing = [key for key in REQUIRED if key not in data]
     errors.extend(f"missing top-level field: {key}" for key in missing)
+    if data.get("mode") not in MODES:
+        errors.append("mode must be data_audit, descriptive_analysis, forecasting, backtest, or portfolio_research")
     if not isinstance(data.get("universe"), list) or not data.get("universe") or len(set(data.get("universe", []))) != len(data.get("universe", [])):
         errors.append("universe must be a non-empty list of unique identifiers")
     if data.get("target") not in {"return", "excess_return", "direction", "price", "volatility", "quantile", "spread", "option_value"}:
@@ -34,6 +42,10 @@ def validate_config(data):
         errors.append("horizon must be a positive integer or a string such as 20d")
     if data.get("frequency") not in {"daily", "weekly", "monthly", "intraday"}:
         errors.append("frequency is not supported")
+    if data.get("output_level") not in OUTPUT_LEVELS:
+        errors.append("output_level must be minimal, standard, research_grade, or portfolio_grade")
+    elif data.get("mode") in MODE_MIN_LEVEL and MIN_OUTPUT_LEVEL[data["output_level"]] < MODE_MIN_LEVEL[data["mode"]]:
+        errors.append(f"output_level {data['output_level']} is below the minimum for mode {data['mode']}")
     try:
         date.fromisoformat(str(data.get("cutoff")))
     except ValueError:
@@ -64,6 +76,34 @@ def validate_config(data):
     models = data.get("models", {})
     if not isinstance(models, dict) or not isinstance(models.get("baselines"), list) or not models.get("baselines") or not isinstance(models.get("challengers"), list) or not isinstance(models.get("selection"), dict):
         errors.append("models must define baselines, challengers, and selection")
+    else:
+        selection = models["selection"]
+        if not all(selection.get(key) for key in ("primary_metric", "calibration_metric", "economic_metric", "stability_metric")):
+            errors.append("models.selection must define primary, calibration, economic, and stability metrics")
+        criteria = selection.get("criteria")
+        if not isinstance(criteria, dict) or set(criteria) != SELECTION_CRITERIA:
+            errors.append("models.selection.criteria must define the five model-selection dimensions")
+        elif any(not isinstance(value, (int, float)) or value < 0 or value > 1 for value in criteria.values()):
+            errors.append("models.selection.criteria values must be between 0 and 1")
+    contract = data.get("feature_label_contract")
+    if not isinstance(contract, dict):
+        errors.append("feature_label_contract must be an object")
+    else:
+        for key in ("availability_time_field", "features", "labels"):
+            if key not in contract:
+                errors.append(f"feature_label_contract missing {key}")
+        for key in ("purge_period", "embargo_period"):
+            if not isinstance(contract.get(key), int) or contract.get(key) < 0:
+                errors.append(f"feature_label_contract.{key} must be a non-negative integer")
+        if not isinstance(contract.get("features"), list) or not contract.get("features"):
+            errors.append("feature_label_contract.features must be non-empty")
+        if not isinstance(contract.get("labels"), list) or not contract.get("labels"):
+            errors.append("feature_label_contract.labels must be non-empty")
+        for kind in ("features", "labels"):
+            for index, item in enumerate(contract.get(kind, [])):
+                required_fields = ("feature_id", "formula", "source_ids", "observation_time", "availability_time", "forecast_origin", "label_horizon", "purge_required", "embargo_required", "point_in_time_safe", "lineage") if kind == "features" else ("label_id", "formula", "source_ids", "observation_time", "availability_time", "forecast_origin", "label_horizon", "purge_required", "embargo_required", "point_in_time_safe", "label_start", "label_end", "overlap_group", "lineage")
+                if not isinstance(item, dict) or any(field not in item for field in required_fields):
+                    errors.append(f"feature_label_contract.{kind}[{index}] is missing a required timing or lineage field")
     output = data.get("output", {})
     if not isinstance(output, dict) or any(not output.get(key) for key in ("artifact_dir", "analysis_json", "html_file", "decision_table_csv", "decision_table_md")):
         errors.append("output must define artifact_dir and all artifact filenames")

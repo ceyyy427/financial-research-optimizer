@@ -10,8 +10,12 @@ import json
 import html
 from pathlib import Path
 from urllib.parse import urlparse
-from config_utils import load_config
-from manifest_utils import load_manifest
+try:
+    from .config_utils import load_config
+    from .manifest_utils import load_manifest
+except ImportError:
+    from config_utils import load_config
+    from manifest_utils import load_manifest
 
 
 DECISION_FIELDS = [
@@ -46,28 +50,51 @@ def safe_url(value):
     return None
 
 
-def validate_payload(data):
-    """Fail early when the mandatory reader-facing contract is incomplete."""
+def validate_payload(data, config=None):
+    """Fail early while requiring only the artifact blocks for the selected mode."""
     errors = []
-    for field in ("meta", "summary", "forecast", "charts", "modules", "model_cards", "backtest_overfitting", "portfolio_robustness", "decision_rows"):
+    mode = (config or {}).get("mode", data.get("mode", "portfolio_research"))
+    for field in ("meta", "summary", "modules", "decision_rows"):
         if field not in data:
             errors.append(f"missing top-level field: {field}")
+    if mode == "data_audit" and not data.get("sources"):
+        errors.append("data_audit requires sources")
+    if mode in {"descriptive_analysis", "forecasting", "backtest", "portfolio_research"} and "charts" not in data:
+        errors.append("mode requires charts")
+    if mode in {"forecasting", "backtest", "portfolio_research"}:
+        for field in ("forecast", "model_cards", "selection_protocol"):
+            if field not in data:
+                errors.append(f"{mode} requires top-level field: {field}")
+    if mode in {"backtest", "portfolio_research"} and "backtest_overfitting" not in data:
+        errors.append(f"{mode} requires backtest_overfitting")
+    if mode == "portfolio_research" and "portfolio_robustness" not in data:
+        errors.append("portfolio_research requires portfolio_robustness")
     if not isinstance(data.get("modules"), list) or not data.get("modules"):
         errors.append("modules must be a non-empty list")
     if not isinstance(data.get("decision_rows"), list) or not data.get("decision_rows"):
         errors.append("decision_rows must be a non-empty list")
-    if not isinstance(data.get("charts"), list) or not data.get("charts"):
+    if mode in {"descriptive_analysis", "forecasting", "backtest", "portfolio_research"} and (not isinstance(data.get("charts"), list) or not data.get("charts")):
         errors.append("charts must be a non-empty list; metric figures are mandatory")
-    if not isinstance(data.get("model_cards"), list) or not data.get("model_cards"):
+    if mode in {"forecasting", "backtest", "portfolio_research"} and (not isinstance(data.get("model_cards"), list) or not data.get("model_cards")):
         errors.append("model_cards must be a non-empty list")
+    selection = data.get("selection_protocol")
+    if mode in {"forecasting", "backtest", "portfolio_research"} and (not isinstance(selection, dict) or not isinstance(selection.get("criteria"), list) or len(selection.get("criteria", [])) < 5 or not isinstance(selection.get("layers"), list) or len(selection.get("layers", [])) < 3):
+        errors.append("selection_protocol must contain the three evaluation layers and five model-selection criteria")
     diagnostics = data.get("backtest_overfitting")
-    if not isinstance(diagnostics, dict) or not isinstance(diagnostics.get("methods"), list) or len(diagnostics.get("methods", [])) != 5:
-        errors.append("backtest_overfitting.methods must contain DM, WRC, SPA, DSR, and PBO records")
+    if mode in {"backtest", "portfolio_research"} and (not isinstance(diagnostics, dict) or not isinstance(diagnostics.get("methods"), list)):
+        errors.append("backtest_overfitting.methods must contain applicable diagnostic records")
     robustness = data.get("portfolio_robustness")
-    if not isinstance(robustness, dict) or not isinstance(robustness.get("covariance_models"), list) or not robustness.get("covariance_models"):
+    if mode == "portfolio_research" and (not isinstance(robustness, dict) or not isinstance(robustness.get("covariance_models"), list) or not robustness.get("covariance_models")):
         errors.append("portfolio_robustness.covariance_models must be a non-empty list")
+    if mode == "portfolio_research" and isinstance(robustness, dict):
+        for field in ("benchmark", "active_return", "risk_contribution", "factor_exposures", "industry_exposure", "turnover_contribution", "cost_attribution", "return_attribution", "binding_constraints", "weight_drift", "fallback"):
+            if field not in robustness:
+                errors.append(f"portfolio_robustness missing field: {field}")
+    feature_audit = data.get("feature_label_audit")
+    if feature_audit is not None and (not isinstance(feature_audit, dict) or "safe" not in feature_audit or "computed_purge_gap" not in feature_audit):
+        errors.append("feature_label_audit must contain safe and computed_purge_gap")
     forecast = data.get("forecast")
-    if isinstance(forecast, dict):
+    if mode in {"forecasting", "backtest", "portfolio_research"} and isinstance(forecast, dict):
         for field in ("label", "value", "interval", "probability", "model"):
             if not forecast.get(field):
                 errors.append(f"forecast missing field: {field}")
@@ -94,11 +121,14 @@ def validate_payload(data):
         for field in ("model_id", "version", "estimand", "objective", "validation_protocol", "overfitting_diagnostics", "failure_mode", "status"):
             if field not in card:
                 errors.append(f"model card {index} missing field: {field}")
-    if isinstance(diagnostics, dict):
+    if mode in {"backtest", "portfolio_research"} and isinstance(diagnostics, dict):
         methods = {str(item.get("method", "")).upper() for item in diagnostics.get("methods", []) if isinstance(item, dict)}
         missing_methods = {"DM", "WRC", "SPA", "DSR", "PBO"} - methods
         if missing_methods:
             errors.append(f"backtest_overfitting missing methods: {sorted(missing_methods)}")
+        for index, item in enumerate(diagnostics.get("methods", [])):
+            if not isinstance(item, dict) or not isinstance(item.get("applicable"), bool) or not item.get("reason") or not item.get("input_requirements") or not item.get("blocking_level") or not item.get("status") or not item.get("interpretation"):
+                errors.append(f"backtest_overfitting.methods[{index}] must declare applicability, reason, input_requirements, blocking_level, status, and interpretation")
     for index, row in enumerate(data.get("decision_rows", [])):
         if not isinstance(row, dict):
             errors.append(f"decision row {index} must be an object")
@@ -257,10 +287,21 @@ def render_backtest_overfitting(diagnostics):
     methods = diagnostics.get("methods", []) if isinstance(diagnostics, dict) else []
     rows = []
     for item in methods:
-        rows.append("<tr>" + "".join(f"<td>{esc(item.get(field))}</td>" for field in ("method", "status", "statistic", "p_value", "interpretation")) + "</tr>")
-    gate = diagnostics.get("hard_gate", "not_available") if isinstance(diagnostics, dict) else "not_available"
-    return f'''<div class="audit-banner"><b>反过拟合硬门槛：{esc(gate)}</b><span>{esc(diagnostics.get("note"))}</span></div>
-      <div class="table-wrap"><table><thead><tr><th>方法</th><th>状态</th><th>统计量</th><th>p/概率</th><th>解释</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'''
+        rows.append("<tr>" + "".join(f"<td>{esc(item.get(field))}</td>" for field in ("method", "applicable", "status", "reason", "input_requirements", "blocking_level", "statistic", "p_value", "interpretation")) + "</tr>")
+    gate = diagnostics.get("gate_status", diagnostics.get("hard_gate", "not_available")) if isinstance(diagnostics, dict) else "not_available"
+    return f'''<div class="audit-banner"><b>反过拟合触发状态：{esc(gate)}</b><span>{esc(diagnostics.get("note"))}</span></div>
+      <div class="table-wrap"><table><thead><tr><th>方法</th><th>适用</th><th>状态</th><th>原因</th><th>输入要求</th><th>阻断级别</th><th>统计量</th><th>p/概率</th><th>解释</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'''
+
+
+def render_selection_protocol(protocol):
+    if not isinstance(protocol, dict):
+        return '<p class="muted">未提供模型选择协议。</p>'
+    weights = protocol.get("weights", {})
+    criteria = ", ".join(text(item) for item in protocol.get("criteria", []))
+    layers = ", ".join(text(item) for item in protocol.get("layers", []))
+    stability = {key: protocol.get(key) for key in ("regime_performance", "seed_sensitivity", "window_sensitivity", "feature_ablation", "model_degradation", "benchmark_stability")}
+    return f'''<div class="audit-banner"><b>评价层：{esc(layers)}</b><span>选择维度：{esc(criteria)}</span><span>权重：{esc(weights)}</span></div>
+      <p><b>规则：</b>{esc(protocol.get("selection_rule"))}</p><p class="muted">稳定性阈值：{esc(protocol.get("stability_thresholds"))} · 敏感性/消融/基准：{esc(stability)}</p>'''
 
 
 def render_reconciliation(reconciliation):
@@ -271,13 +312,22 @@ def render_reconciliation(reconciliation):
       <p class="muted">容差：{esc(reconciliation.get("tolerance"))} · 来源优先级：{esc(reconciliation.get("source_priority"))}</p>'''
 
 
+def render_feature_label_audit(audit):
+    if not isinstance(audit, dict):
+        return '<p class="muted">未提供特征/标签审计。</p>'
+    availability = audit.get("availability", {})
+    split = audit.get("label_split", {})
+    return f'''<div class="recon-grid"><div><b>状态</b><strong>{esc(audit.get("safe"))}</strong></div><div><b>可用时间字段</b><strong>{esc(availability.get("availability_field"))}</strong></div><div><b>未来可用行</b><strong>{esc(availability.get("future_rows"))}</strong></div><div><b>标签重叠</b><strong>{esc(split.get("overlap_rows", 0))}</strong></div><div><b>计算 purge gap</b><strong>{esc(audit.get("computed_purge_gap"))}</strong></div><div><b>lineage 字段</b><strong>{esc(audit.get("lineage_fields"))}</strong></div></div>'''
+
+
 def render_portfolio_robustness(robustness):
     models = robustness.get("covariance_models", []) if isinstance(robustness, dict) else []
     rows = []
     for item in models:
         rows.append("<tr>" + "".join(f"<td>{esc(item.get(field))}</td>" for field in ("name", "solver_status", "objective", "turnover", "weight_interval", "active_constraints")) + "</tr>")
     fallback = robustness.get("fallback", {}) if isinstance(robustness, dict) else {}
-    return f'''<div class="table-wrap"><table><thead><tr><th>协方差</th><th>求解状态</th><th>目标函数</th><th>换手率</th><th>权重区间</th><th>主动约束</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div><p class="muted">扰动分析：{esc(robustness.get("perturbation_summary"))} · fallback：{esc(fallback)}</p>'''
+    attribution = {"benchmark": robustness.get("benchmark"), "active_return": robustness.get("active_return"), "risk_contribution": robustness.get("risk_contribution"), "factor_exposures": robustness.get("factor_exposures", robustness.get("factor_exposure")), "industry_exposure": robustness.get("industry_exposure"), "turnover_contribution": robustness.get("turnover_contribution", robustness.get("turnover_attribution")), "cost_attribution": robustness.get("cost_attribution"), "return_attribution": robustness.get("return_attribution"), "binding_constraints": robustness.get("binding_constraints"), "weight_drift": robustness.get("weight_drift")}
+    return f'''<div class="recon-grid">{''.join(f'<div><b>{esc(key)}</b><strong>{esc(value)}</strong></div>' for key, value in attribution.items())}</div><div class="table-wrap"><table><thead><tr><th>协方差</th><th>求解状态</th><th>目标函数</th><th>换手率</th><th>权重区间</th><th>主动约束</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div><p class="muted">扰动分析：{esc(robustness.get("perturbation_summary"))} · fallback：{esc(fallback)}</p>'''
 
 
 def render_module(module):
@@ -344,13 +394,23 @@ def render_html(data, config=None, manifest=None):
     reproducibility = data.get("reproducibility", {})
     experiment_id = (manifest or {}).get("experiment_id", data.get("experiment_id"))
     reproducibility_status = (manifest or {}).get("reproducibility_status", data.get("reproducibility_status", "not_available"))
+    output_level = (config or {}).get("output_level", data.get("output_level", "not_available"))
+    mode = (config or {}).get("mode", data.get("mode", "standard"))
     rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status)
     spark = render_sparkline(data.get("series"))
     charts_html = render_metric_charts(data.get("charts", []))
     model_cards_html = render_model_cards(data.get("model_cards", []))
+    selection_html = render_selection_protocol(data.get("selection_protocol", {}))
     overfit_html = render_backtest_overfitting(data.get("backtest_overfitting", {}))
     reconciliation_html = render_reconciliation(data.get("source_reconciliation", {}))
+    feature_label_html = render_feature_label_audit(data.get("feature_label_audit", {}))
     portfolio_html = render_portfolio_robustness(data.get("portfolio_robustness", {}))
+    model_section = f'<h2>模型卡</h2><section class="decision">{model_cards_html}</section>' if data.get("model_cards") else ""
+    selection_section = f'<h2>模型选择协议</h2><section class="decision">{selection_html}</section>' if data.get("selection_protocol") else ""
+    overfit_section = f'<h2>反过拟合审计</h2><section class="decision">{overfit_html}</section>' if data.get("backtest_overfitting") else ""
+    reconciliation_section = f'<h2>数据源冲突审计</h2><section class="decision">{reconciliation_html}</section>' if data.get("source_reconciliation") else ""
+    feature_label_section = f'<h2>特征/标签审计</h2><section class="decision">{feature_label_html}</section>' if data.get("feature_label_audit") else ""
+    portfolio_section = f'<h2>组合稳健性</h2><section class="decision">{portfolio_html}</section>' if data.get("portfolio_robustness") else ""
     source_html = "".join(
         f'<li><code>{esc(source.get("id"))}</code> {esc(source.get("label"))}'
         + (f' — <a href="{safe_url(source.get("url"))}">source</a>' if safe_url(source.get("url")) else "")
@@ -368,14 +428,16 @@ def render_html(data, config=None, manifest=None):
 :root{{--ink:#172033;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff;--accent:#2563eb;--good:#15803d;--warn:#b45309;--bad:#b91c1c;--series1:#2563eb;--series2:#f97316;--series3:#16a34a;--series4:#9333ea}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}main{{max-width:1120px;margin:auto;padding:24px}}h1,h2,h3,p{{margin-top:0}}h1{{font-size:clamp(24px,4vw,36px);margin-bottom:6px}}h2{{font-size:18px;margin:24px 0 10px}}h3{{font-size:16px;margin:0}}.muted,small{{color:var(--muted)}}.meta{{color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}}.hero,.module,.decision,.foot{{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 18px #0f172a0a}}.hero{{padding:20px;display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:center}}.headline{{font-size:18px;font-weight:650}}.forecast{{padding:16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe}}.forecast .value{{font-size:28px;font-weight:750}}.badge{{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;background:#e2e8f0;color:#475569}}.badge.ok{{background:#dcfce7;color:var(--good)}}.badge.warning{{background:#fef3c7;color:var(--warn)}}.badge.failed,.badge.not_available{{background:#fee2e2;color:var(--bad)}}.modules{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}}.module{{padding:15px}}.module-head{{display:flex;justify-content:space-between;gap:8px;align-items:center}}.summary{{margin:9px 0;color:#334155}}.metrics{{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}}.metric{{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 9px;min-width:100px}}.metric span{{display:block;font-size:11px;color:var(--muted)}}.metric strong{{font-size:16px}}details{{color:#475569;font-size:13px}}summary{{cursor:pointer;color:var(--accent)}}ul{{padding-left:18px;margin:5px 0 10px}}.charts{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}}.chart{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:0;min-width:0}}.chart figcaption{{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}}.chart figcaption span{{color:var(--muted);font-size:12px}}.chart svg{{display:block;width:100%;height:auto}}.chart-grid{{stroke:#e2e8f0;stroke-width:1}}.chart-axis{{stroke:#94a3b8;stroke-width:1}}.chart-label{{fill:#64748b;font-size:11px}}.chart-series-1{{stroke:var(--series1);fill:var(--series1)}}.chart-series-2{{stroke:var(--series2);fill:var(--series2)}}.chart-series-3{{stroke:var(--series3);fill:var(--series3)}}.chart-series-4{{stroke:var(--series4);fill:var(--series4)}}polyline.chart-series-1,polyline.chart-series-2,polyline.chart-series-3,polyline.chart-series-4{{fill:none;stroke-width:2.5}}.chart-band{{fill:var(--series1);opacity:.12;stroke:none}}.legend{{display:flex;gap:12px;flex-wrap:wrap;color:#475569;font-size:12px}}.legend-swatch{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}}.audit-banner,.recon-grid{{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}}.audit-banner{{display:flex;gap:16px;flex-wrap:wrap}}.recon-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}}.recon-grid b,.recon-grid strong{{display:block}}.recon-grid b{{font-size:11px;color:var(--muted)}}.recon-grid strong{{font-size:15px}}.table-wrap{{overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}}table{{border-collapse:collapse;width:100%;min-width:900px}}th,td{{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}}th{{background:#f1f5f9;font-size:12px;white-space:nowrap}}td{{font-size:13px}}.foot{{padding:15px;color:#475569;font-size:12px}}.foot code{{word-break:break-word}}.spark{{width:100%;max-width:360px;height:64px;margin-top:10px}}.spark polyline{{fill:none;stroke:var(--accent);stroke-width:2.5}}@media(max-width:720px){{main{{padding:14px}}.hero{{grid-template-columns:1fr}}}}
 </style></head><body><main>
-<header><h1>{esc(title)}</h1><div class="meta"><span>As of: {esc(meta.get("as_of"))}</span><span>Generated: {esc(meta.get("generated_at"))}</span><span>Universe: {esc(meta.get("universe"))}</span><span>Target: {esc(meta.get("target"))}</span><span>Horizon: {esc(meta.get("horizon"))}</span><span>Experiment: {esc(experiment_id)}</span><span>Reproducibility: {esc(reproducibility_status)}</span></div></header>
+<header><h1>{esc(title)}</h1><div class="meta"><span>Mode: {esc(mode)}</span><span>As of: {esc(meta.get("as_of"))}</span><span>Generated: {esc(meta.get("generated_at"))}</span><span>Universe: {esc(meta.get("universe"))}</span><span>Target: {esc(meta.get("target"))}</span><span>Horizon: {esc(meta.get("horizon"))}</span><span>Output level: {esc(output_level)}</span><span>Experiment: {esc(experiment_id)}</span><span>Reproducibility: {esc(reproducibility_status)}</span></div></header>
 <section class="hero"><div><p class="headline">{esc(summary.get("headline"))}</p><p>{esc(summary.get("risk_note"))}</p><span class="badge {status_class(summary.get("confidence"))}">置信度：{esc(summary.get("confidence"))}</span>{spark}</div><div class="forecast"><small>{esc(forecast.get("label"))} · {esc(forecast.get("model"))}</small><div class="value">{esc(forecast.get("value"))}</div><div>方向：<b>{esc(forecast.get("direction"))}</b> · 概率：{esc(forecast.get("probability"))}</div><div>区间：{esc(forecast.get("interval"))}</div><small>有效条件：{esc(forecast.get("validity"))}</small></div></section>
 <h2>模块化分析</h2><section class="modules">{module_html}</section>
 {f'<h2>预测指标图</h2><section class="charts">{charts_html}</section>' if charts_html else ''}
-<h2>模型卡</h2><section class="decision">{model_cards_html}</section>
-<h2>反过拟合审计</h2><section class="decision">{overfit_html}</section>
-<h2>数据源冲突审计</h2><section class="decision">{reconciliation_html}</section>
-<h2>组合稳健性</h2><section class="decision">{portfolio_html}</section>
+{model_section}
+{selection_section}
+{overfit_section}
+{reconciliation_section}
+{feature_label_section}
+{portfolio_section}
 <h2>决策表</h2><section class="decision">{render_decisions(rows)}</section>
 <h2>来源与复现</h2><footer class="foot"><ul>{source_html}</ul><div>数据快照：{esc(reproducibility.get("data_snapshot"))} · 代码：{esc(reproducibility.get("code"))} · 种子：{esc(reproducibility.get("seeds"))} · 评估窗口：{esc(reproducibility.get("evaluation_window"))}</div><div>配置：{esc((config or {}).get("_config_fingerprint"))} · Manifest：{esc((manifest or {}).get("_manifest_fingerprint"))}</div><div>局限：{esc(limitations)}</div><div>本页面是模型研究与决策支持摘要，不是收益保证或自动交易指令。</div></footer>
 </main></body></html>'''
@@ -399,7 +461,7 @@ def main():
     if manifest:
         data.setdefault("experiment_id", manifest["experiment_id"])
         data.setdefault("reproducibility_status", manifest["reproducibility_status"])
-    validate_payload(data)
+    validate_payload(data, config=config)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     html_path = args.output_dir / "financial_research_brief.html"
     html_path.write_text(render_html(data, config=config, manifest=manifest), encoding="utf-8")

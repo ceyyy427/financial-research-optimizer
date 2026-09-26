@@ -1,9 +1,11 @@
 {
+  "mode": "forecasting",
   "universe": ["SPY", "TLT", "GLD"],
   "target": "excess_return",
   "horizon": "20d",
   "frequency": "daily",
   "cutoff": "2026-09-26",
+  "output_level": "research_grade",
   "costs": {"transaction_cost_bps": 10},
   "constraints": {"max_turnover": 0.25, "max_drawdown": 0.20},
   "risk_measure": "cvar",
@@ -12,8 +14,39 @@
   "models": {
     "baselines": ["historical_mean", "arma_garch"],
     "challengers": ["lstm", "transformer", "ensemble"],
-    "selection": {"primary_metric": "mae", "calibration_metric": "coverage", "economic_metric": "net_cvar_adjusted_return"}
+    "selection": {
+      "primary_metric": "mae",
+      "calibration_metric": "coverage",
+      "economic_metric": "net_cvar_adjusted_return",
+      "stability_metric": "regime_seed_window_score",
+      "regime_slices": ["low_vol", "high_vol", "drawdown"],
+      "seed_count": 3,
+      "window_sensitivity_metric": "rolling_score_iqr",
+      "feature_ablation_required": true,
+      "benchmark_required": true,
+      "criteria": {
+        "statistical_validity": 0.20,
+        "predictive_performance": 0.30,
+        "economic_effectiveness": 0.25,
+        "regime_stability": 0.15,
+        "seed_window_sensitivity": 0.10
+      }
+    }
   },
+  "feature_label_contract": {
+    "availability_time_field": "availability_time",
+    "purge_period": 20,
+    "embargo_period": 5,
+    "lineage_format": "column_path",
+    "features": [
+      {"feature_id": "lagged_return_5d", "formula": "log_return[t-4:t]", "source_ids": ["official_exchange"], "observation_time": "t", "availability_time": "close_timestamp", "forecast_origin": "next_open_timestamp", "label_horizon": "20d", "purge_required": true, "embargo_required": true, "point_in_time_safe": true, "name": "lagged_return_5d", "source_id": "official_exchange", "transform": "lag(return, 5)", "fit_scope": "point_in_time_raw", "lineage": ["prices.close", "prices.observation_date"]},
+      {"feature_id": "realized_vol_20d", "formula": "std(log_return[t-19:t])", "source_ids": ["official_exchange"], "observation_time": "t", "availability_time": "close_timestamp", "forecast_origin": "next_open_timestamp", "label_horizon": "20d", "purge_required": true, "embargo_required": true, "point_in_time_safe": true, "name": "realized_vol_20d", "source_id": "official_exchange", "transform": "rolling_std(return, 20)", "fit_scope": "training_window", "lineage": ["prices.close", "prices.observation_date"]}
+    ],
+    "labels": [
+      {"label_id": "excess_return_20d", "formula": "sum(log_return[t+1:t+20])-risk_free[t+1:t+20]", "source_ids": ["official_exchange", "risk_free"], "observation_time": "t", "availability_time": "label_end_close_timestamp", "forecast_origin": "next_open_timestamp", "label_horizon": "20d", "purge_required": true, "embargo_required": true, "point_in_time_safe": true, "name": "excess_return_20d", "target": "excess_return", "horizon": "20d", "label_start": "t+1", "label_end": "t+20", "overlap_group": "20d_forward_return", "lineage": ["prices.close", "risk_free.rate"]}
+    ]
+  },
+  "preflight": {"require_manifest": true, "require_dataset": false, "require_reconciliation": false},
   "output": {
     "artifact_dir": "artifacts",
     "analysis_json": "analysis.json",

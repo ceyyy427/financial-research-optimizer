@@ -77,13 +77,15 @@ The generator accepts an object with these fields:
     }
   ],
   "backtest_overfitting": {
-    "hard_gate": "warning",
+    "candidate_count": 4,
+    "trial_count": 8,
+    "gate_status": "warning",
     "methods": [
-      {"method": "DM", "status": "pass", "statistic": 1.2, "p_value": 0.23, "interpretation": "no significant loss difference"},
-      {"method": "WRC", "status": "warning", "statistic": 0.08, "p_value": 0.12, "interpretation": "multiple testing remains material"},
-      {"method": "SPA", "status": "pass", "statistic": 0.04, "p_value": 0.18, "interpretation": "no superior model at the gate"},
-      {"method": "DSR", "status": "warning", "statistic": 0.71, "p_value": 0.39, "interpretation": "Sharpe is not fully deflated"},
-      {"method": "PBO", "status": "pass", "statistic": 0.18, "p_value": 0.18, "interpretation": "low overfit probability"}
+      {"method": "DM", "applicable": true, "reason": "paired losses exist", "input_requirements": ["paired_loss"], "blocking_level": "selection_blocker", "status": "pass", "statistic": 1.2, "p_value": 0.23, "interpretation": "no significant loss difference"},
+      {"method": "WRC", "applicable": false, "reason": "one candidate family only", "input_requirements": ["multiple_candidates"], "blocking_level": "none", "status": "not_applicable", "interpretation": "not triggered"},
+      {"method": "SPA", "applicable": false, "reason": "one candidate family only", "input_requirements": ["multiple_candidates"], "blocking_level": "none", "status": "not_applicable", "interpretation": "not triggered"},
+      {"method": "DSR", "applicable": false, "reason": "no strategy returns", "input_requirements": ["portfolio_returns"], "blocking_level": "none", "status": "not_applicable", "interpretation": "not triggered"},
+      {"method": "PBO", "applicable": false, "reason": "no multiple trials", "input_requirements": ["multiple_trials"], "blocking_level": "none", "status": "not_applicable", "interpretation": "not triggered"}
     ]
   },
   "source_reconciliation": {
@@ -128,7 +130,9 @@ The generator accepts an object with these fields:
 
 `experiment_id` and `reproducibility_status` are required for every completed run. The generator may obtain them from `experiment_manifest.json`, but the final HTML and decision table must expose them. A complete status means that snapshot hash, code version, environment, seeds, model parameters, feature version, train/evaluation windows, and output files are all recorded.
 
-`model_cards`, `backtest_overfitting`, `source_reconciliation`, and `portfolio_robustness` are required top-level audit blocks. The five backtest methods are exactly DM, WRC, SPA, DSR, and PBO. Source reconciliation must include tolerance, source priority, conflict status/counts, and `stop_dependency_analysis`. Portfolio robustness must include the four covariance families when they are applicable, perturbation results, and a documented infeasibility fallback.
+`model_cards`, `selection_protocol`, `backtest_overfitting`, `source_reconciliation`, and `portfolio_robustness` are required top-level audit blocks. The five backtest methods are exactly DM, WRC, SPA, DSR, and PBO; each method must declare `applicable`, `applicability_reason`, and `status`. `not_applicable` is not a failure. Source reconciliation must include tolerance, source priority, conflict status/counts, and `stop_dependency_analysis`. Portfolio robustness must include benchmark, active return, risk contribution, factor exposure, turnover/cost attribution, binding constraints, the four covariance families when applicable, perturbation results, and a documented infeasibility fallback.
+
+The selected `output_level` is shown in the header and controls which blocks are required by preflight: `minimal`, `standard`, `research_grade`, or `portfolio_grade`.
 
 The `analysis.json` must include a non-empty `charts` list. Metric figures are not decorative: at minimum include a forecast-vs-actual or forecast-distribution figure and the most decision-relevant risk or model-comparison figure. If a figure cannot be supported, record the reason and use a clearly labeled `not_available` chart rather than fabricating values.
 

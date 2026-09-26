@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ceyyy427/financial-research-optimizer/blob/main/portfolio_output.schema.json",
+  "title": "Portfolio decision and robustness output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["benchmark", "active_return", "risk_contribution", "factor_exposures", "industry_exposure", "turnover_contribution", "cost_attribution", "return_attribution", "binding_constraints", "weight_drift", "covariance_models", "fallback"],
+  "properties": {
+    "benchmark": {"type": "string", "minLength": 1},
+    "active_return": {},
+    "risk_contribution": {"type": "object", "additionalProperties": {"type": "number"}},
+    "factor_exposures": {"type": "object", "additionalProperties": {"type": "number"}},
+    "industry_exposure": {"type": "object", "additionalProperties": {"type": "number"}},
+    "factor_exposure": {"type": "object", "additionalProperties": {"type": "number"}},
+    "turnover_contribution": {"type": "object", "additionalProperties": {"type": "number"}},
+    "turnover_attribution": {"type": "object", "additionalProperties": {"type": "number"}},
+    "cost_attribution": {"type": "object", "additionalProperties": {"type": "number"}},
+    "return_attribution": {"type": "object", "additionalProperties": {"type": "number"}},
+    "binding_constraints": {"type": "array", "items": {"type": "string"}},
+    "weight_drift": {"type": "object", "additionalProperties": {"type": "number"}},
+    "covariance_models": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "fallback": {"type": "object", "required": ["status", "trigger", "action"], "properties": {"status": {"type": "string"}, "trigger": {"type": "string"}, "action": {"type": "string"}}, "additionalProperties": true},
+    "perturbation_summary": {"type": "string"}
+  }
+}

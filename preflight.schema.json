@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ceyyy427/financial-research-optimizer/blob/main/preflight.schema.json",
+  "title": "Research run preflight result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "mode", "output_level", "checks", "blocking_reasons"],
+  "properties": {
+    "status": {"type": "string", "enum": ["ready", "blocked"]},
+    "output_level": {"type": "string", "enum": ["minimal", "standard", "research_grade", "portfolio_grade"]},
+    "mode": {"type": "string", "enum": ["data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"]},
+    "checks": {"type": "array", "items": {"type": "object", "required": ["check_id", "status", "message"], "properties": {"check_id": {"type": "string"}, "status": {"type": "string", "enum": ["pass", "warning", "fail", "skip"]}, "message": {"type": "string"}}, "additionalProperties": true}},
+    "blocking_reasons": {"type": "array", "items": {"type": "string"}},
+    "config_fingerprint": {"type": "string"},
+    "manifest_fingerprint": {"type": "string"}
+  }
+}

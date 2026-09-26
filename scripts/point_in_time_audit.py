@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Point-in-time leakage checks for tabular financial data."""
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError as exc:  # pragma: no cover - exercised in dependency-free environments
+    raise SystemExit("point_in_time_audit.py requires pandas; install with python3 -m pip install -e .") from exc
 
 
 def audit_point_in_time(frame, forecast_origin):

@@ -1,16 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/ceyyy427/financial-research-optimizer/blob/main/research_config.schema.json",
+  "$id": "research_config.schema.json",
   "title": "Financial Research Optimizer configuration",
   "type": "object",
   "additionalProperties": false,
-  "required": ["universe", "target", "horizon", "frequency", "cutoff", "costs", "constraints", "risk_measure", "confidence_level", "evaluation", "models", "output"],
+  "required": ["mode", "universe", "target", "horizon", "frequency", "cutoff", "output_level", "costs", "constraints", "risk_measure", "confidence_level", "evaluation", "feature_label_contract", "models", "output"],
   "properties": {
+    "mode": {"type": "string", "enum": ["data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"]},
     "universe": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "target": {"type": "string", "enum": ["return", "excess_return", "direction", "price", "volatility", "quantile", "spread", "option_value"]},
     "horizon": {"oneOf": [{"type": "integer", "minimum": 1}, {"type": "string", "pattern": "^[1-9][0-9]*d$"}]},
     "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly", "intraday"]},
     "cutoff": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "output_level": {"type": "string", "enum": ["minimal", "standard", "research_grade", "portfolio_grade"]},
     "costs": {
       "type": "object", "additionalProperties": false, "required": ["transaction_cost_bps"],
       "properties": {
@@ -52,14 +54,40 @@
         "baselines": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "challengers": {"type": "array", "items": {"type": "string"}},
         "selection": {
-          "type": "object", "additionalProperties": false, "required": ["primary_metric", "calibration_metric", "economic_metric"],
+          "type": "object", "additionalProperties": false, "required": ["primary_metric", "calibration_metric", "economic_metric", "stability_metric", "criteria"],
           "properties": {
             "primary_metric": {"type": "string"},
             "calibration_metric": {"type": "string"},
             "economic_metric": {"type": "string"},
-            "max_candidates": {"type": "integer", "minimum": 1}
+            "stability_metric": {"type": "string"},
+            "regime_slices": {"type": "array", "items": {"type": "string"}},
+            "seed_count": {"type": "integer", "minimum": 1},
+            "window_sensitivity_metric": {"type": "string"},
+            "feature_ablation_required": {"type": "boolean"},
+            "benchmark_required": {"type": "boolean"},
+            "max_candidates": {"type": "integer", "minimum": 1},
+            "criteria": {
+              "type": "object", "additionalProperties": false,
+              "required": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"],
+              "properties": {
+                "statistical_validity": {"type": "number", "minimum": 0, "maximum": 1},
+                "predictive_performance": {"type": "number", "minimum": 0, "maximum": 1},
+                "economic_effectiveness": {"type": "number", "minimum": 0, "maximum": 1},
+                "regime_stability": {"type": "number", "minimum": 0, "maximum": 1},
+                "seed_window_sensitivity": {"type": "number", "minimum": 0, "maximum": 1}
+              }
+            }
           }
         }
+      }
+    },
+    "feature_label_contract": {"$ref": "feature_label_contract.schema.json"},
+    "preflight": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "require_manifest": {"type": "boolean"},
+        "require_dataset": {"type": "boolean"},
+        "require_reconciliation": {"type": "boolean"}
       }
     },
     "output": {

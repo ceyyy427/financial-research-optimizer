@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ceyyy427/financial-research-optimizer/blob/main/feature_label_audit.schema.json",
+  "title": "Feature and label audit result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["availability", "lineage_fields", "computed_purge_gap", "safe"],
+  "properties": {
+    "availability": {"type": "object", "required": ["availability_field", "future_rows", "invalid_rows", "point_in_time_safe"]},
+    "lineage_fields": {"type": "integer", "minimum": 0},
+    "computed_purge_gap": {"type": "integer", "minimum": 0},
+    "label_split": {"type": "object"},
+    "safe": {"type": "boolean"}
+  }
+}

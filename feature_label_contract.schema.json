@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ceyyy427/financial-research-optimizer/blob/main/feature_label_contract.schema.json",
+  "title": "Feature and label information-set contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["availability_time_field", "purge_period", "embargo_period", "features", "labels"],
+  "properties": {
+    "availability_time_field": {"type": "string", "minLength": 1},
+    "purge_period": {"type": "integer", "minimum": 0},
+    "embargo_period": {"type": "integer", "minimum": 0},
+    "lineage_format": {"type": "string", "enum": ["column_path", "expression", "query_id"]},
+    "features": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["feature_id", "formula", "source_ids", "observation_time", "availability_time", "forecast_origin", "label_horizon", "purge_required", "embargo_required", "point_in_time_safe", "lineage"],
+        "properties": {
+          "feature_id": {"type": "string", "minLength": 1},
+          "formula": {"type": "string", "minLength": 1},
+          "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "observation_time": {"type": "string", "minLength": 1},
+          "name": {"type": "string", "minLength": 1},
+          "availability_time": {"type": "string", "minLength": 1},
+          "forecast_origin": {"type": "string", "minLength": 1},
+          "label_horizon": {"type": "string", "minLength": 1},
+          "purge_required": {"type": "boolean"},
+          "embargo_required": {"type": "boolean"},
+          "point_in_time_safe": {"type": "boolean"},
+          "source_id": {"type": "string"},
+          "transform": {"type": "string"},
+          "fit_scope": {"type": "string", "enum": ["training_window", "expanding_history", "point_in_time_raw"]},
+          "lineage": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "labels": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["label_id", "formula", "source_ids", "observation_time", "availability_time", "forecast_origin", "label_horizon", "purge_required", "embargo_required", "point_in_time_safe", "name", "target", "horizon", "label_start", "label_end", "overlap_group", "lineage"],
+        "properties": {
+          "label_id": {"type": "string", "minLength": 1},
+          "formula": {"type": "string", "minLength": 1},
+          "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "observation_time": {"type": "string", "minLength": 1},
+          "name": {"type": "string", "minLength": 1},
+          "target": {"type": "string", "minLength": 1},
+          "horizon": {"oneOf": [{"type": "integer", "minimum": 1}, {"type": "string", "pattern": "^[1-9][0-9]*d$"}]},
+          "label_start": {"type": "string", "minLength": 1},
+          "label_end": {"type": "string", "minLength": 1},
+          "availability_time": {"type": "string", "minLength": 1},
+          "forecast_origin": {"type": "string", "minLength": 1},
+          "label_horizon": {"type": "string", "minLength": 1},
+          "purge_required": {"type": "boolean"},
+          "embargo_required": {"type": "boolean"},
+          "point_in_time_safe": {"type": "boolean"},
+          "overlap_group": {"type": "string", "minLength": 1},
+          "lineage": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

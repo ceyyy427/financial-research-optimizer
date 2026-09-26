@@ -3,7 +3,10 @@
 import argparse
 import json
 from pathlib import Path
-from config_utils import load_config
+try:
+    from .config_utils import load_config
+except ImportError:
+    from config_utils import load_config
 
 
 def main():

@@ -3,7 +3,10 @@
 import argparse
 import json
 from pathlib import Path
-from manifest_utils import load_manifest
+try:
+    from .manifest_utils import load_manifest
+except ImportError:
+    from manifest_utils import load_manifest
 
 
 def main():

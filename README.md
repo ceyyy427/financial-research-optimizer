@@ -2,6 +2,8 @@
 
 一个面向金融统计、深度学习和组合优化的可审计 Codex Skill。读取金融数据后，它会按模块分析、形成条件预测，并强制生成精炼的离线 HTML 摘要和决策表。
 
+它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
+
 ## 适用场景
 
 - 搜索公开股票、指数、基金、期货、利率、汇率、商品或宏观数据；
@@ -41,11 +43,23 @@ HTML 会把预测后的指标直接绘制成内嵌 SVG 图，包括实际值与�
 
 ![风险与尾部指标](assets/risk-metrics.svg)
 
-## 标准流程
+## 分层流程
 
-scope -> source discovery -> data audit -> feature/label build -> baselines -> deep challengers -> rolling validation -> calibration -> portfolio optimization -> stress test -> selection -> modular summary -> HTML + decision table
+preflight -> scope -> source discovery -> reconciliation -> point-in-time audit -> feature/label contract -> baselines -> challengers -> rolling validation -> applicable diagnostics -> calibration -> covariance robustness -> portfolio optimization -> selection -> manifest -> HTML + decision table
 
 每个阶段都要保存可检查的中间结果，避免只输出一个无法追溯的预测数字。任何完成的数据分析都必须至少产出：`analysis.json`、精炼 HTML、决策表和数据/模型审计记录。
+
+可执行模式：
+
+| 模式 | 最低交付物 |
+|---|---|
+| `data_audit` | 数据字典、质量报告、来源清单 |
+| `descriptive_analysis` | 市场状态、风险指标、图表 |
+| `forecasting` | 基线、滚动预测、区间、校准 |
+| `backtest` | 成本、换手、风险、适用的过拟合诊断 |
+| `portfolio_research` | 权重、约束、协方差稳健性、压力测试和归因 |
+
+只有 `backtest` 和 `portfolio_research` 强制进入完整适用性审计；`not_applicable` 不被当作失败。
 
 ## 标准呈现
 
@@ -68,10 +82,18 @@ scope -> source discovery -> data audit -> feature/label build -> baselines -> d
 
 ## HTML 与决策表
 
-结构化分析完成后运行：
+结构化分析完成后先运行 preflight，再生成 HTML：
 
 ```bash
-python scripts/generate_financial_html.py analysis.json --output-dir artifacts --decision-format both
+python3 scripts/run_preflight.py \
+  --config examples/research_config.json \
+  --manifest examples/experiment_manifest.json \
+  --analysis examples/demo_analysis.json \
+  --output artifacts/preflight.json
+python3 scripts/generate_financial_html.py examples/demo_analysis.json \
+  --config examples/research_config.json \
+  --manifest examples/experiment_manifest.json \
+  --output-dir artifacts --decision-format both
 ```
 
 HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、预测与风险指标图、模型卡、反过拟合审计、数据源冲突审计、组合稳健性、情景预测、风险提示和决策表。页首和决策层展示 `experiment_id` 与 `reproducibility_status`；它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字；完成的预测运行不得省略指标图。
@@ -79,9 +101,10 @@ HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间
 推荐显式绑定同一份研究配置和实验 Manifest：
 
 ```bash
-python scripts/validate_research_config.py examples/research_config.json
-python scripts/validate_experiment_manifest.py examples/experiment_manifest.json
-python scripts/generate_financial_html.py analysis.json \
+python3 scripts/validate_research_config.py examples/research_config.json
+python3 scripts/validate_experiment_manifest.py examples/experiment_manifest.json
+python3 scripts/validate_schemas.py
+python3 scripts/generate_financial_html.py examples/demo_analysis.json \
   --config examples/research_config.json \
   --manifest examples/experiment_manifest.json \
   --output-dir artifacts --decision-format both
@@ -102,6 +125,9 @@ python scripts/generate_financial_html.py analysis.json \
 - references/java_data_layer.md：Java/MyBatis 数据接入、时间序列 SQL、类型映射与溯源规范；
 - references/data_provenance.md：公开数据来源与溯源规范；
 - references/rolling_evaluation.md：滚动评估与组合优化规范；
+- references/preflight_contract.md：输出等级、启动门禁和阻断规则；
+- references/feature_label_contract.md：可用时间、lineage、purge、embargo 和标签重叠规则；
+- references/model_selection_protocol.md：五维模型选择协议；
 - references/backtest_overfitting.md：多重回测和模型试验的反过拟合检验；
 - references/point_in_time_data.md：发布日期、可用时间、版本和生存者偏差规则；
 - references/source_reconciliation.md：多数据源字段冲突、容差、优先级和阻断规则；
@@ -110,13 +136,17 @@ python scripts/generate_financial_html.py analysis.json \
 - references/experiment_manifest.md：实验运行账本和复现状态规范；
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
 - experiment_manifest.schema.json：实验可复现性 Manifest JSON Schema；
+- analysis.schema.json、backtest_overfitting.schema.json、model_selection.schema.json、portfolio_output.schema.json、preflight.schema.json、feature_label_contract.schema.json、feature_label_audit.schema.json、source_reconciliation.schema.json：新增输出与数据契约 Schema；
+- pyproject.toml：依赖、pytest 配置和命令入口；
 - scripts/config_utils.py、scripts/manifest_utils.py：统一配置/Manifest 读取与指纹；
 - scripts/validate_financial_dataset.py：CSV 数据质量审计脚本；
 - scripts/reconcile_sources.py、scripts/point_in_time_audit.py：源冲突和未来信息审计；
 - scripts/rolling_split.py、scripts/portfolio_robustness.py：滚动切分和组合稳健性工具；
+- scripts/feature_label_audit.py、scripts/overfitting_applicability.py、scripts/run_preflight.py、scripts/validate_schemas.py：特征/标签审计、适用性触发、运行前门禁和离线 Schema 校验；
 - scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
 - tests/：最小 synthetic financial dataset 和 pytest 回归测试；
 - .github/workflows/ci.yml：配置、Manifest、审计、HTML 和组合 fallback 的 CI。
+- requirements.txt、requirements-dev.txt：运行与测试依赖；测试统一使用 `python3 -m pytest -q`；
 - assets/：HTML 预览、预测指标、模型比较、流程教学和目录说明图片；
 - examples/：示例分析 JSON、生成的 HTML 和决策表。
 - examples/java-mybatis/：只读 Mapper、Java 时间序列 DTO 和 XML 查询示例。
@@ -131,7 +161,7 @@ $financial-research-optimizer
 
 ![快速调用教学图](assets/quick-call-tutorial.svg)
 
-快速调用时至少写清楚五件事：数据源、研究对象、预测目标、风险/成本约束、交付物。Skill 会据此生成模块总结、预测区间、指标图、HTML 和决策表。
+快速调用时至少写清楚六件事：数据源、研究对象、预测目标、风险/成本约束、输出等级、交付物。Skill 会先执行 preflight，再生成模块总结、预测区间、指标图、HTML 和决策表。
 
 ## 免责声明
 
