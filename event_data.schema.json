@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event_data.schema.json",
+  "title": "Point-in-time normalized event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "occurred_at", "published_at", "retrieved_at", "first_visible_at", "impact_window", "source_id", "source_reliability", "point_in_time_safe"],
+  "properties": {
+    "event_id": {"type": "string"},
+    "event_type": {"type": "string"},
+    "headline": {"type": "string"},
+    "occurred_at": {"type": "string"},
+    "published_at": {"type": "string"},
+    "retrieved_at": {"type": "string"},
+    "first_visible_at": {"type": "string"},
+    "impact_window": {"type": "object", "required": ["start", "end"], "properties": {"start": {"type": "string"}, "end": {"type": "string"}}},
+    "source_id": {"type": "string"},
+    "source_reliability": {"type": "number", "minimum": 0, "maximum": 1},
+    "revision_of": {"type": ["string", "null"]},
+    "duplicate_group": {"type": "string"},
+    "point_in_time_safe": {"type": "boolean"}
+  }
+}

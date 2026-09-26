@@ -1,0 +1,23 @@
+{
+  "snapshot_id": "fred_alfred-0123456789abcdef",
+  "provider": "fred_alfred",
+  "provider_version": "fred-api-v1",
+  "request_url": "https://api.stlouisfed.org/fred/series/observations",
+  "request_params": {"series_id": "DGS10", "realtime_start": "2026-09-25", "realtime_end": "2026-09-25", "api_key": "[REDACTED]"},
+  "retrieved_at": "2026-09-25T15:00:00Z",
+  "http_status": 200,
+  "response_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "snapshot_hash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "raw_file": "artifacts/snapshots/fred_alfred/fred_alfred-0123456789abcdef.raw",
+  "cache_expiry": "2026-09-26T15:00:00Z",
+  "license": "FRED terms of use",
+  "revision_policy": "vintage_aware",
+  "from_cache": false,
+  "stale": false,
+  "observation_date": "2026-09-24",
+  "release_date": "2026-09-25",
+  "availability_date": "2026-09-25T15:00:00Z",
+  "vintage_date": "2026-09-25",
+  "first_release_value": "4.12",
+  "revised_value": "4.12"
+}

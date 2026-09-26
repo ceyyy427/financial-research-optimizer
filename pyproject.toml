@@ -16,6 +16,8 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8.0", "jsonschema>=4.20"]
 schema = ["jsonschema>=4.20"]
+browser = ["patchright>=1.0"]
+pdf = ["pdfplumber>=0.11"]
 
 [project.scripts]
 fro-preflight = "scripts.run_preflight:main"
@@ -29,4 +31,4 @@ pythonpath = ["scripts"]
 addopts = "-q"
 
 [tool.setuptools.packages.find]
-include = ["scripts*"]
+include = ["scripts*", "financial_research*"]

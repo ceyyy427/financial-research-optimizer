@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical_record.schema.json",
+  "title": "Canonical point-in-time market record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "observation_time", "availability_time", "effective_time", "field", "value", "unit", "adjustment", "source_id", "snapshot_hash", "transformation_id"],
+  "properties": {
+    "instrument_id": {"type": "string"},
+    "observation_time": {"type": "string"},
+    "availability_time": {"type": "string"},
+    "effective_time": {"type": "string"},
+    "field": {"type": "string"},
+    "value": {},
+    "unit": {"type": "string"},
+    "currency": {"type": ["string", "null"]},
+    "adjustment": {"type": "string"},
+    "source_id": {"type": "string"},
+    "snapshot_hash": {"type": "string"},
+    "transformation_id": {"type": "string"},
+    "transformation_hash": {"type": "string"}
+  }
+}

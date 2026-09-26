@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "result_lineage.schema.json",
+  "title": "Financial result lineage contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "metrics"],
+  "properties": {
+    "status": {"type": "string", "enum": ["pass", "failed", "partial"]},
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric_id", "value", "calculation_id", "input_hash", "code_version", "formula", "source_ids"],
+        "properties": {
+          "metric_id": {"type": "string", "minLength": 1},
+          "value": {},
+          "unit": {"type": "string"},
+          "calculation_id": {"type": "string", "minLength": 1},
+          "input_hash": {"type": "string", "minLength": 8},
+          "input_files": {"type": "array", "items": {"type": "string"}},
+          "code_version": {"type": "string", "minLength": 1},
+          "formula": {"type": "string", "minLength": 1},
+          "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "calculation_fingerprint": {"type": "string"},
+          "computed_at": {"type": "string"},
+          "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

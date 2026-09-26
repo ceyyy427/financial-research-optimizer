@@ -2,6 +2,8 @@
 
 `experiment_manifest.json` is the immutable run ledger. It binds the research configuration, data snapshot, code, environment, randomness, model/feature versions, windows, and produced files. A run is `complete` only when every required field is present and the listed output hashes can be checked.
 
+Online runs additionally record `online_snapshots` using `online_snapshot.schema.json`, plus the frozen `refresh_plan` and any `monitoring_status`. Each snapshot preserves request parameters, HTTP status, provider version, response/snapshot hashes, raw file, license, cache expiry, and revision policy. API credentials are redacted before they enter the manifest.
+
 ## Required fields
 
 | Field | Required content |

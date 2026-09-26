@@ -10,6 +10,7 @@
     "trial_count": {"type": "integer", "minimum": 1},
     "gate_status": {"type": "string", "enum": ["not_triggered", "pass", "warning", "failed"]},
     "note": {"type": "string"},
+    "lineage_refs": {"type": "array", "items": {"type": "string"}},
     "methods": {
       "type": "array", "minItems": 1,
       "items": {

@@ -130,6 +130,8 @@ The generator accepts an object with these fields:
 
 `experiment_id` and `reproducibility_status` are required for every completed run. The generator may obtain them from `experiment_manifest.json`, but the final HTML and decision table must expose them. A complete status means that snapshot hash, code version, environment, seeds, model parameters, feature version, train/evaluation windows, and output files are all recorded.
 
+Every numerical value rendered in a chart, audit block, or decision artifact must resolve through `result_lineage.schema.json` and `scripts/verify_result_lineage.py`. The lineage record must contain source IDs, calculation ID, input hash, code version, and formula. Online runs additionally show `as_of_time`, `data_latency`, `data_status`, `model_status`, `forecast_status`, `source_status`, `cache_status`, `forecast_validity`, and `fallback_used`.
+
 `model_cards`, `selection_protocol`, `backtest_overfitting`, `source_reconciliation`, and `portfolio_robustness` are required top-level audit blocks. The five backtest methods are exactly DM, WRC, SPA, DSR, and PBO; each method must declare `applicable`, `applicability_reason`, and `status`. `not_applicable` is not a failure. Source reconciliation must include tolerance, source priority, conflict status/counts, and `stop_dependency_analysis`. Portfolio robustness must include benchmark, active return, risk contribution, factor exposure, turnover/cost attribution, binding constraints, the four covariance families when applicable, perturbation results, and a documented infeasibility fallback.
 
 The selected `output_level` is shown in the header and controls which blocks are required by preflight: `minimal`, `standard`, `research_grade`, or `portfolio_grade`.

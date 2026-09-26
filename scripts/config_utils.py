@@ -114,4 +114,17 @@ def validate_config(data):
         for key in ("price_abs_tolerance", "price_rel_tolerance", "volume_abs_tolerance", "volume_rel_tolerance"):
             if key in policy and (not isinstance(policy[key], (int, float)) or policy[key] < 0):
                 errors.append(f"source_policy.{key} must be non-negative")
+    online = data.get("online", {})
+    if online:
+        if not isinstance(online, dict):
+            errors.append("online must be an object")
+        elif not isinstance(online.get("enabled", False), bool):
+            errors.append("online.enabled must be boolean")
+        elif online.get("max_staleness_minutes") is not None and (not isinstance(online["max_staleness_minutes"], int) or online["max_staleness_minutes"] < 0):
+            errors.append("online.max_staleness_minutes must be a non-negative integer")
+    refresh = data.get("refresh_policy", {})
+    if refresh:
+        required_refresh = {"prices", "macro_data", "features", "forecast", "retrain", "full_research"}
+        if not isinstance(refresh, dict) or set(refresh) != required_refresh:
+            errors.append("refresh_policy must define prices, macro_data, features, forecast, retrain, and full_research")
     return errors

@@ -2,7 +2,7 @@
   "experiment_id": "spy-tlt-gld-20260926-exp001",
   "mode": "forecasting",
   "output_level": "research_grade",
-  "config_fingerprint": "18f46c39efcf4fef",
+  "config_fingerprint": "a87819334288eca3",
   "data_snapshot_hash": {"algorithm": "sha256", "value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "path": "snapshots/spy_tlt_gld.parquet"},
   "code_version": {"commit": "77c72c4", "repository": "ceyyy427/financial-research-optimizer", "dirty": false},
   "environment": {"python": "3.13", "platform": "macOS-arm64", "packages_lock_hash": "example-lock-hash", "java": "21"},
@@ -17,5 +17,7 @@
     {"path": "decision_table.csv", "sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210", "kind": "decision_table"}
   ],
   "source_reconciliation": {"status": "match", "records": 2070, "material_conflicts": 0},
+  "online_snapshots": [],
+  "refresh_plan": {"status": "frozen", "policy": "examples/research_config.json.refresh_policy"},
   "reproducibility_status": "complete"
 }

@@ -7,7 +7,7 @@ description: Search public financial data, reconcile sources with point-in-time 
 
 Use this skill when the user asks to discover financial data, analyze market direction, forecast prices/returns/volatility, compare statistical and deep-learning models, or optimize a portfolio from model outputs.
 
-The objective is an auditable research result, not a guaranteed “best prediction.” Treat “best” as the model or portfolio that wins a pre-specified, risk-adjusted, out-of-sample comparison under stated costs and constraints. Every completed run that reads financial data must leave two reader-facing artifacts: a compact standalone HTML file and a decision table.
+The objective is an auditable research result, not a guaranteed “best prediction.” Treat “best” as the model or portfolio that wins a pre-specified, risk-adjusted, out-of-sample comparison under stated costs and constraints. The Skill is a Python research engine driven by an upper-layer agent: Patchright accesses dynamic pages, CDP observes browser facts, Python standardizes and analyzes data, Plan DAGs bound agent decisions, and provenance explains why a result is trusted. Every completed run that reads financial data must leave two reader-facing artifacts: a compact standalone HTML file and a decision table.
 
 Use the declared `output_level` to control depth: `minimal` for a compact auditable read, `standard` for feature/model evidence, `research_grade` for reproducibility and applicable backtest diagnostics, and `portfolio_grade` for source reconciliation, covariance robustness and portfolio attribution. Run `scripts/run_preflight.py` before any dependent analysis.
 
@@ -24,6 +24,14 @@ Select exactly one mode before preflight:
 | `portfolio_research` | weights, constraints, covariance robustness, stress test and attribution | yes, overfitting and portfolio |
 
 The mode controls required artifacts; `backtest` cannot run below `research_grade`, and `portfolio_research` cannot run below `research_grade`. The mode and output level are recorded in preflight and HTML.
+
+## Agent-driven execution layers
+
+Use `scripts/agent/planner.py` to turn a task into an immutable Research Contract and bounded Plan DAG. Each node declares dependencies, success/failure conditions, retry count, timeout, budget, degradation permission, artifacts, and provenance. `executor.py` invokes registered Python handlers; `replanner.py` may choose only a declared fallback. `policy_guard.py` blocks orders, CAPTCHA/paywall/access-control bypass, credential leakage, and constraint relaxation.
+
+The access hierarchy is API first, official download second, Patchright browser third, and valid cache last. Patchright is optional and only handles isolated contexts, dynamic pages, authorized sessions, downloads, screenshots, and traces. CDP is an observation layer for Network/Page/Runtime/Target/Storage/Fetch/Performance/Tracing. Neither layer converts a page number directly into a model input.
+
+Read `references/agent_execution_contract.md`, `references/patchright_cdp_contract.md`, and `references/browser_security.md` before using browser access.
 
 ## Introduction and positioning
 
@@ -73,6 +81,8 @@ module_id, title, status, observed_facts, interpretation, forecast, confidence,
 key_metrics, evidence_refs, caveats, next_check
 ```
 
+Every native numerical value rendered in a chart, audit block, or decision artifact must resolve through `result_lineage`: `source_ids`, `calculation_id`, `input_hash`, `code_version`, and `formula` are mandatory. Run `scripts/verify_result_lineage.py` before HTML generation; missing lineage is a blocking artifact error.
+
 Keep observed facts, fitted estimates, model-implied forecasts, and decisions in separate fields. A forecast record must include target, forecast origin, horizon, point or class output, interval or probability, model/version, and validity condition. A decision record must include priority, action/stance, trigger, rationale, risk, horizon, and owner/next check.
 
 At the end of every run, call `scripts/generate_financial_html.py` with the structured analysis JSON. It writes:
@@ -91,9 +101,11 @@ For a short answer, compress these sections but preserve the order and the disti
 
 The workflow is a state machine with explicit handoffs:
 
-`preflight -> scope -> sources -> reconciliation -> point-in-time audit -> feature/label contract -> features -> baselines -> challengers -> rolling validation -> applicability assessment -> calibration -> covariance robustness -> portfolio optimization -> stress test -> multi-criterion selection -> manifest -> modular summary -> HTML + decision table`
+`agent contract -> plan DAG -> preflight -> source routing -> API/cache/browser/CDP capture -> raw snapshot -> canonical transformation -> reconciliation -> point-in-time audit -> feature/label contract -> features -> baselines -> challengers -> rolling validation -> applicability assessment -> calibration -> covariance robustness -> portfolio optimization -> monitoring -> stress test -> multi-criterion selection -> manifest -> modular summary -> HTML + decision table`
 
 Each state must leave an artifact that can be inspected by the next state. A source list is not a data audit; a fitted model is not an out-of-sample forecast; a high forecast score is not a portfolio; and a portfolio backtest is not proof of future returns.
+
+For online sources, add the capture and transformation boundary: `source routing -> API/cache/browser/CDP capture -> raw snapshot -> HTML/JSON/CSV/PDF transformation -> canonical dataset -> provenance -> PIT audit`. The canonical row contains `instrument_id`, `observation_time`, `availability_time`, `effective_time`, `field`, `value`, `unit`, `currency`, `adjustment`, `source_id`, `snapshot_hash`, and `transformation_id`.
 
 At every handoff, preserve the following invariants:
 
@@ -156,7 +168,9 @@ Use web search for current, authoritative or reproducible sources. Apply the sou
 2. public APIs with documented fields and timestamps;
 3. stable public CSV/Parquet repositories with a clear provenance note.
 
-For each source create a provenance record with fields source_id, url, retrieved_at, series, field, frequency, timezone, adjustments, revision_policy, and access_notes. Download a local snapshot when allowed. If an official page is inaccessible, use a mirror only when the mirror identifies the original source and label it as a mirror.
+For each source create a provenance record with fields source_id, url, retrieved_at, series, field, frequency, timezone, adjustments, revision_policy, and access_notes. Download a local snapshot when allowed. If an official page is inaccessible, use a mirror only when the mirror identifies the original source and label it as a mirror. Online adapters in `scripts/online/` preserve request parameters, HTTP status, provider version, response hash, raw file, license, cache expiry, and revision policy. FRED/ALFRED, SEC EDGAR, ECB SDMX, and BIS SDMX are supported through explicit adapters.
+
+Do not treat a new observation as permission to retrain. Apply the declared `refresh_policy`: data refresh, feature refresh, forecast refresh, model retrain, and full research are separate actions. Use `scripts/run_online_refresh.py` to produce the plan and `scripts/check_data_freshness.py` / `scripts/monitoring/model_monitor.py` for dynamic status.
 
 ### 3. Build and audit the dataset
 
@@ -175,6 +189,8 @@ If the data are stored in a relational database or the user requests Java, read 
 
 Read `references/point_in_time_data.md` and `references/source_reconciliation.md` whenever more than one source or a revised macro/filing dataset is involved. Compare timestamps, prices, volume, adjustment conventions, calendars, and missingness before feature construction; record the reconciliation result in the provenance manifest and stop dependent analysis on unresolved material conflicts.
 
+For events, use `raw_event -> normalized_event -> timestamp audit -> point-in-time event feature`. Read `references/event_data_contract.md`; do not feed raw news sentiment directly into a model.
+
 Read `references/feature_label_contract.md` and validate `research_config.json.feature_label_contract` with `scripts/feature_label_audit.py`. Every feature must carry `availability_time` and lineage. Every forward label must carry start/end timestamps and an overlap group. Apply the declared purge and embargo to every rolling boundary.
 
 ### 4. Establish statistical baselines
@@ -188,7 +204,7 @@ Always compare at least one interpretable baseline appropriate to the target:
 - logistic regression for direction;
 - historical or parametric quantiles for tail risk.
 
-Read `references/model_derivations.md` before deriving, explaining, or implementing a model. Keep it in the Skill because it supplies the mathematical contract for model cards, assumptions, stability conditions, uncertainty, and diagnostics rather than describing a model as a black box.
+Read `references/model_derivations.md` before deriving, explaining, or implementing a model. Keep it in the Skill because it supplies the mathematical contract for model cards, assumptions, stability conditions, uncertainty, and diagnostics rather than describing a model as a black box. Route equity, ETF, futures, fixed-income, FX, options, and crypto tasks through the matching file under `references/asset_class_contracts/`.
 
 ### 5. Add deep candidates only when justified
 
@@ -257,6 +273,8 @@ subject to budget, leverage, bounds, liquidity, turnover, sector, factor, and ES
 
 Read `references/portfolio_robustness.md` for the covariance definitions and perturb expected returns, covariance, costs, risk aversion, and constraint bounds. Report weight intervals, turnover intervals, objective changes, and the exact infeasibility reason for every stress cell.
 
+For online portfolio research, also record bid/ask, spread, ADV, market impact, financing/borrow, minimum trade unit, adjustment time, partial-fill assumption, cash, and margin. These are research constraints, not execution authority.
+
 ### 10. Report the result
 
 A complete output includes:
@@ -272,16 +290,18 @@ A complete output includes:
 - limitations, non-stationarity caveats, and no-guarantee statement;
 - experiment manifest, model registry, source reconciliation, backtest-overfitting results, and covariance-robustness comparison;
 - output level and preflight result;
+- online status, data freshness, source/cache fallback, model drift, forecast validity, and browser/CDP trace references when applicable;
 - reproducible code, metadata, charts, and timestamps.
 
 ### 11. Produce the compact reader-facing artifacts
 
-Create a structured `analysis.json` after model selection. It must contain the research contract, source registry, data quality facts, module records, forecast record, decision rows, and reproducibility footer. Run:
+Create a structured `analysis.json` after model selection. It must contain the research contract, source registry, data quality facts, module records, forecast record, decision rows, result lineage, online status when applicable, and reproducibility footer. Run:
 
 ```bash
 python3 scripts/validate_research_config.py examples/research_config.json
 python3 scripts/validate_experiment_manifest.py examples/experiment_manifest.json
 python3 scripts/validate_schemas.py
+python3 scripts/verify_result_lineage.py examples/demo_analysis.json
 python3 scripts/run_preflight.py \
   --config examples/research_config.json \
   --manifest examples/experiment_manifest.json \
@@ -302,6 +322,8 @@ Use language such as “under this sample and protocol” and “model-implied s
 
 Stop and ask for direction when the target, horizon, asset identity, output level, or risk limits materially change the task. Stop dependent analysis if preflight is `blocked`, a source cannot be verified, timestamps/lineage are unavailable, labels cross a purge/embargo boundary, or the data cannot support the requested claim. Stop multi-round search when two consecutive rounds do not improve the pre-specified out-of-sample objective or when the remaining gains are smaller than the uncertainty and implementation cost. Do not continue optimization solely because a more favorable backtest might be found.
 
+For online work, `stale`, `degraded`, and `fallback` must be visible in HTML and decision artifacts. `blocked` stops dependent real-time claims. Never turn a browser timeout into a “latest” conclusion, never use a cached macro value without its vintage status, and never change source, model, or risk constraint silently.
+
 ## Supporting references
 
 - Read references/model_derivations.md for the mathematical assumptions and derivations behind each supported model.
@@ -316,4 +338,8 @@ Stop and ask for direction when the target, horizon, asset identity, output leve
 - Read references/portfolio_robustness.md before covariance selection or perturbation analysis.
 - Read references/model_registry.md and experiment_manifest.schema.json before registering models or declaring a run reproducible.
 - Read references/experiment_manifest.md when creating or reviewing the immutable run ledger.
+- Read references/result_lineage.md before creating any numerical analysis output.
+- Read references/online_data_contract.md and references/online_monitoring.md for online refresh, cache, freshness, and drift behavior.
+- Read references/event_data_contract.md and references/transformation_contract.md for event and browser/API normalization.
+- Read references/asset_class_contracts/<asset>.md before selecting an asset-specific data/return contract.
 - Use the existing gao-multivariate-statistical-analysis, linear-regression-analysis, mao-tang-bayesian-statistics, ross-elementary-mathematical-finance, and tsay-financial-data-analysis skills when available; this skill provides the workflow and audit contract, while those skills provide domain-specific judgment.

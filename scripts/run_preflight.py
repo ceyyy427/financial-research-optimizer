@@ -12,17 +12,19 @@ try:
     from .config_utils import load_config
     from .manifest_utils import load_manifest
     from .feature_label_audit import audit_feature_label_contract
+    from .verify_result_lineage import verify_result_lineage
 except ImportError:
     from config_utils import load_config
     from manifest_utils import load_manifest
     from feature_label_audit import audit_feature_label_contract
+    from verify_result_lineage import verify_result_lineage
 
 
 def _check(checks, check_id, status, message):
     checks.append({"check_id": check_id, "status": status, "message": message})
 
 
-def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_path=None, reconciliation_path=None):
+def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_path=None, reconciliation_path=None, freshness_path=None, monitoring_path=None):
     checks = []
     blocking = []
     try:
@@ -81,6 +83,10 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
             if mode == "portfolio_research" and data.get("portfolio_robustness", {}).get("fallback", {}).get("status") == "infeasible_unresolved":
                 raise ValueError("portfolio fallback is unresolved")
             _check(checks, "analysis", "pass", "analysis JSON contains the executable output blocks")
+            lineage = verify_result_lineage(data, require_metric_for_empty=mode != "data_audit")
+            if lineage["status"] == "failed":
+                raise ValueError("result lineage failed: " + "; ".join(lineage["errors"]))
+            _check(checks, "result_lineage", "pass", f"verified {lineage['metric_count']} result-lineage metrics")
         except Exception as exc:
             blocking.append(str(exc))
             _check(checks, "analysis", "fail", str(exc))
@@ -131,7 +137,28 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
         _check(checks, "source_reconciliation", "fail", blocking[-1])
     else:
         _check(checks, "source_reconciliation", "skip", "source reconciliation not required for this preflight")
-    result = {"status": "blocked" if blocking else "ready", "mode": mode, "output_level": level, "checks": checks, "blocking_reasons": blocking, "config_fingerprint": config.get("_config_fingerprint"), "manifest_fingerprint": (manifest or {}).get("_manifest_fingerprint")}
+    dynamic_status = "ready"
+    for check_id, path, label in (("freshness", freshness_path, "freshness"), ("monitoring", monitoring_path, "model monitoring")):
+        if path:
+            try:
+                dynamic = json.loads(Path(path).read_text(encoding="utf-8"))
+                state = dynamic.get("status", dynamic.get("data_status", dynamic.get("model_status", "ready")))
+                if state == "blocked":
+                    blocking.append(f"{label} status is blocked")
+                    _check(checks, check_id, "fail", blocking[-1])
+                else:
+                    if state in {"stale", "degraded", "fallback", "retrain_required", "warning"} and dynamic_status == "ready":
+                        dynamic_status = "fallback" if state == "fallback" else ("degraded" if state in {"degraded", "retrain_required", "warning"} else state)
+                    _check(checks, check_id, "warning" if state != "ready" else "pass", f"{label} status: {state}")
+            except Exception as exc:
+                blocking.append(f"{label} status unreadable: {exc}")
+                _check(checks, check_id, "fail", blocking[-1])
+        elif config.get("online", {}).get("enabled"):
+            dynamic_status = "degraded" if dynamic_status == "ready" else dynamic_status
+            _check(checks, check_id, "warning", f"online mode enabled but {label} artifact was not supplied")
+        else:
+            _check(checks, check_id, "skip", f"online {label} not required")
+    result = {"status": "blocked" if blocking else dynamic_status, "mode": mode, "output_level": level, "checks": checks, "blocking_reasons": blocking, "config_fingerprint": config.get("_config_fingerprint"), "manifest_fingerprint": (manifest or {}).get("_manifest_fingerprint")}
     return result
 
 
@@ -142,13 +169,15 @@ def main():
     parser.add_argument("--analysis", type=Path)
     parser.add_argument("--dataset", type=Path)
     parser.add_argument("--reconciliation", type=Path)
+    parser.add_argument("--freshness", type=Path)
+    parser.add_argument("--monitoring", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = run_preflight(args.config, args.manifest, args.analysis, args.dataset, args.reconciliation)
+    result = run_preflight(args.config, args.manifest, args.analysis, args.dataset, args.reconciliation, args.freshness, args.monitoring)
     if args.output:
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    raise SystemExit(0 if result["status"] == "ready" else 2)
+    raise SystemExit(0 if result["status"] != "blocked" else 2)
 
 
 if __name__ == "__main__":

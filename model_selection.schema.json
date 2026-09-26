@@ -10,6 +10,7 @@
     "criteria": {"type": "array", "minItems": 5, "items": {"type": "string", "enum": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"]}},
     "weights": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}},
     "selection_rule": {"type": "string", "minLength": 1},
+    "lineage_refs": {"type": "array", "items": {"type": "string"}},
     "stability_thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
     "required_evidence": {"type": "array", "items": {"type": "string"}}
     ,"regime_performance": {"type": "object"},

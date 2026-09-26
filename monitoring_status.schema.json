@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "monitoring_status.schema.json",
+  "title": "Online model monitoring status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["model_status", "drift_status", "retrain_trigger", "fallback", "checks"],
+  "properties": {
+    "model_id": {"type": "string"},
+    "model_status": {"type": "string", "enum": ["active", "warning", "retrain_required", "fallback"]},
+    "last_retrained_at": {"type": "string"},
+    "last_validated_at": {"type": "string"},
+    "drift_status": {"type": "string", "enum": ["ok", "warning", "failed"]},
+    "retrain_trigger": {"type": "string"},
+    "fallback": {"type": "string"},
+    "checks": {"type": "array", "items": {"type": "object"}},
+    "data_status": {"type": "string", "enum": ["ready", "stale", "degraded", "blocked", "fallback"]}
+  }
+}

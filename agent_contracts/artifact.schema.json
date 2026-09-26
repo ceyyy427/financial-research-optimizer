@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "artifact.schema.json",
+  "title": "Auditable research artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact_id", "artifact_type", "path", "sha256", "created_at", "producer_node"],
+  "properties": {
+    "artifact_id": {"type": "string"},
+    "artifact_type": {"type": "string"},
+    "path": {"type": "string"},
+    "sha256": {"type": "string", "minLength": 8},
+    "created_at": {"type": "string"},
+    "producer_node": {"type": "string"},
+    "sensitive": {"type": "boolean"}
+  }
+}

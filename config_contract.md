@@ -26,6 +26,8 @@ python3 scripts/validate_research_config.py examples/research_config.json
 | `models` | baselines, challengers and frozen selection metrics | model card, selection |
 | `output` | canonical artifact paths | audit, HTML and downstream handoff |
 | `source_policy` | reconciliation tolerances and source priority | source conflict detector and provenance |
+| `online` | provider registry, cache/snapshot paths, freshness budget, raw-response and revision policy | online preflight, provider routing, provenance |
+| `refresh_policy` | data, feature, forecast, retrain, and full-research cadences | refresh planner and monitoring |
 
 ## Example
 
@@ -71,6 +73,7 @@ python3 scripts/validate_research_config.py examples/research_config.json
 - `cutoff` is an information cutoff, not merely the last row in a revised dataset.
 - `horizon` and `frequency` determine label overlap and therefore purge/embargo requirements.
 - `transaction_cost_bps` and `max_turnover` are frozen before model selection.
+- Online data refresh and model retraining are separate actions; `refresh_policy` cannot be inferred from a new observation.
 - `max_drawdown` is a risk limit, not a promise that realized drawdown will stay below it.
 - `evaluation` windows are applied chronologically; no random split is allowed for time series.
 - `models.selection` is declared before final-test inspection.

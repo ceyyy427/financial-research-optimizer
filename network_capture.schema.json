@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "network_capture.schema.json",
+  "title": "CDP network response observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "url", "method", "status", "request_headers_hash", "response_headers_hash", "content_type", "body_hash", "retrieved_at", "page_url", "source_id"],
+  "properties": {
+    "request_id": {"type": "string"},
+    "url": {"type": "string"},
+    "method": {"type": "string"},
+    "status": {"type": "integer", "minimum": 100},
+    "request_headers_hash": {"type": "string"},
+    "response_headers_hash": {"type": "string"},
+    "content_type": {"type": "string"},
+    "body_hash": {"type": "string"},
+    "retrieved_at": {"type": "string"},
+    "page_url": {"type": "string"},
+    "source_id": {"type": "string"},
+    "body": {"type": "string"}
+  }
+}

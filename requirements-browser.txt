@@ -1,0 +1,2 @@
+# Optional browser execution; offline CI does not install this file.
+patchright>=1.0

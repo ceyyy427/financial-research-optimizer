@@ -14,6 +14,17 @@ SCHEMAS = [
     "source_reconciliation.schema.json",
     "preflight.schema.json",
     "analysis.schema.json",
+    "result_lineage.schema.json",
+    "online_snapshot.schema.json",
+    "monitoring_status.schema.json",
+    "refresh_policy.schema.json",
+    "event_data.schema.json",
+    "canonical_record.schema.json",
+    "network_capture.schema.json",
+    "agent_contracts/task.schema.json",
+    "agent_contracts/plan.schema.json",
+    "agent_contracts/node_result.schema.json",
+    "agent_contracts/artifact.schema.json",
 ]
 
 
@@ -37,4 +48,4 @@ def test_demo_contains_every_new_contract_block(ROOT):
 def test_examples_validate_against_local_schemas(ROOT):
     result = validate_local_schemas(ROOT)
     assert result["valid"] is True
-    assert result["examples_validated"] == 9
+    assert result["examples_validated"] == 12
