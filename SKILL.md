@@ -1,6 +1,6 @@
 ---
 name: financial-research-optimizer
-description: Search public financial data, reconcile sources with point-in-time controls, audit and analyze it in modules, optionally retrieve data through a Java/MyBatis layer, compare statistical and deep-learning models with mathematical derivations and backtest-overfitting diagnostics, produce reproducible forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios with covariance robustness under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
+description: Search public financial data through a capability-aware source registry, use Python adapters or Patchright/CDP for browser facts, reconcile sources with point-in-time controls, audit and analyze data in modules, optionally retrieve data through a Java/MyBatis layer, compare statistical and deep-learning models with mathematical derivations and applicability-gated backtest diagnostics, execute a bounded Plan DAG with checkpoints, produce reproducible forecasts plus a concise self-contained HTML dashboard and decision table, and optimize portfolios with covariance robustness under explicit risk constraints. Use for evidence-backed financial forecasting or portfolio research; never use it to promise returns or place trades.
 ---
 
 # Financial Research Optimizer
@@ -27,9 +27,9 @@ The mode controls required artifacts; `backtest` cannot run below `research_grad
 
 ## Agent-driven execution layers
 
-Use `scripts/agent/planner.py` to turn a task into an immutable Research Contract and bounded Plan DAG. Each node declares dependencies, success/failure conditions, retry count, timeout, budget, degradation permission, artifacts, and provenance. `executor.py` invokes registered Python handlers; `replanner.py` may choose only a declared fallback. `policy_guard.py` blocks orders, CAPTCHA/paywall/access-control bypass, credential leakage, and constraint relaxation.
+Use `scripts/agent/planner.py` to turn a task into an immutable Research Contract and bounded Plan DAG. Each node declares dependencies, success/failure conditions, retry count, timeout, budget, degradation permission, artifacts, and provenance. `executor.py` topologically schedules independent nodes in parallel, persists checkpoints, retries bounded failures, and invokes the default or caller-supplied handler registry. A missing or capability-gap handler is reported as `planning_only`/`blocked`; it is never reported as completed research. `replanner.py` may choose only a declared fallback. `policy_guard.py` blocks orders, CAPTCHA/paywall/access-control bypass, credential leakage, and constraint relaxation.
 
-The access hierarchy is API first, official download second, Patchright browser third, and valid cache last. Patchright is optional and only handles isolated contexts, dynamic pages, authorized sessions, downloads, screenshots, and traces. CDP is an observation layer for Network/Page/Runtime/Target/Storage/Fetch/Performance/Tracing. Neither layer converts a page number directly into a model input.
+The access hierarchy is API first, official download second, Patchright browser third, and valid cache last. Patchright is optional and only handles isolated contexts, dynamic pages, authorized sessions, downloads, screenshots, and traces. CDP is an observation layer for Network/Page/Runtime/Target/Storage/Fetch/Performance/Tracing; response bodies are requested after `loadingFinished` and stored separately. Neither layer converts a page number directly into a model input. Use `references/adapter_maturity.md` and `references/cdp_capability_contract.md` to distinguish planned, partial, and production capabilities.
 
 Read `references/agent_execution_contract.md`, `references/patchright_cdp_contract.md`, and `references/browser_security.md` before using browser access.
 
@@ -170,7 +170,7 @@ Use web search for current, authoritative or reproducible sources. Apply the sou
 
 For each source create a profile-backed provenance record with fields source_id, source_authority, access_method, url, retrieved_at, series, field, frequency, timezone, adjustments, revision_policy, authorization_status, and access_notes. Route through `config/source_registry.yaml` and `scripts/source_router.py`; save an immutable snapshot with `scripts/source_snapshot.py`, then normalize through `scripts/normalize_observations.py`. Download a local snapshot when allowed. If an official page is inaccessible, use a mirror only when the mirror identifies the original source and label it as a mirror. Online adapters in `scripts/online/` preserve request parameters, HTTP status, provider version, response hash, raw file, license, cache expiry, and revision policy. FRED/ALFRED, SEC EDGAR, ECB SDMX, and BIS SDMX are supported through explicit adapters; China official portals and licensed providers use the declared source-specific adapter and authorization policy.
 
-Do not treat a new observation as permission to retrain. Apply the declared `refresh_policy`: data refresh, feature refresh, forecast refresh, model retrain, and full research are separate actions. Use `scripts/run_online_refresh.py` to produce the plan and `scripts/check_data_freshness.py` / `scripts/monitoring/model_monitor.py` for dynamic status.
+Do not treat a new observation as permission to retrain. Apply the declared `refresh_policy`: data refresh, feature refresh, forecast refresh, model retrain, and full research are separate actions. Use `scripts/build_refresh_plan.py` (or its compatibility alias `scripts/run_online_refresh.py`) to produce the plan and `scripts/execute_online_refresh.py` only for the data snapshot stage. Use `scripts/check_data_freshness.py` / `scripts/monitoring/model_monitor.py` for dynamic status. A retrain requires a separate validated run.
 
 ### 3. Build and audit the dataset
 
@@ -329,7 +329,7 @@ For online work, `stale`, `degraded`, and `fallback` must be visible in HTML and
 - Read references/model_derivations.md for the mathematical assumptions and derivations behind each supported model.
 - Read references/java_data_layer.md when the source is a SQL database or Java/MyBatis retrieval is requested; use it for schema, type, mapper, provenance, and read-only safeguards.
 - Read references/data_provenance.md before public-data retrieval or source selection.
-- Read references/source_adapter_contract.md, references/browser_adapter_contract.md, references/source_priority_rules.md, and references/licensed_data_policy.md before routing a financial website or licensed provider.
+- Read references/source_adapter_contract.md, references/adapter_maturity.md, references/browser_adapter_contract.md, references/cdp_capability_contract.md, references/source_priority_rules.md, and references/licensed_data_policy.md before routing a financial website or licensed provider.
 - Read references/rolling_evaluation.md before any backtest, model selection, or portfolio optimization.
 - Read references/backtest_overfitting.md before comparing multiple backtests or model trials.
 - Read references/preflight_contract.md before selecting an output level or starting a run.

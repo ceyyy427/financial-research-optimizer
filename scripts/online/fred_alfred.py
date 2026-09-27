@@ -5,13 +5,14 @@ from .base_provider import BaseProvider, ProviderError
 
 
 class FredAlfredProvider(BaseProvider):
-    provider_name = "fred_alfred"
+    provider_name = "fred"
     provider_version = "fred-api-v1"
     license_name = "FRED terms of use"
     revision_policy = "vintage_aware"
 
-    def __init__(self, api_key_env="FRED_API_KEY", base_url="https://api.stlouisfed.org/fred", **kwargs):
+    def __init__(self, api_key_env="FRED_API_KEY", base_url="https://api.stlouisfed.org/fred", source_id="fred", **kwargs):
         super().__init__(**kwargs)
+        self.provider_name = source_id
         self.api_key = os.environ.get(api_key_env)
         self.api_key_env = api_key_env
         self.base_url = base_url.rstrip("/")

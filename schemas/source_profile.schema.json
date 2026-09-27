@@ -4,7 +4,7 @@
   "title": "Financial source adapter profile",
   "type": "object",
   "additionalProperties": false,
-  "required": ["source_id", "name", "authority", "kind", "asset_classes", "data_types", "access_methods", "primary_method", "fallback_methods", "point_in_time", "revision_aware", "access_policy", "parser", "normalizer", "quality_checks"],
+  "required": ["source_id", "name", "authority", "kind", "implementation_status", "parser_status", "asset_classes", "data_types", "access_methods", "primary_method", "fallback_methods", "point_in_time", "revision_aware", "access_policy", "parser", "normalizer", "quality_checks"],
   "properties": {
     "source_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
     "name": {"type": "string", "minLength": 1},
@@ -12,6 +12,8 @@
     "authority": {"type": "string", "minLength": 1},
     "priority": {"type": "integer", "minimum": 0},
     "kind": {"type": "string", "enum": ["official_api", "official_portal", "exchange", "regulator", "secondary_aggregator", "licensed_market_data", "licensed_provider", "library_adapter"]},
+    "implementation_status": {"type": "string", "enum": ["planned", "partial", "production"]},
+    "parser_status": {"type": "string", "enum": ["unavailable", "partial", "available", "tested"]},
     "asset_classes": {"type": "array", "items": {"type": "string"}, "minItems": 1},
     "data_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
     "access_methods": {"type": "array", "items": {"type": "string", "enum": ["api", "official_download", "authorized_database", "browser", "cdp", "dom", "cached_snapshot", "user_upload"]}, "minItems": 1},

@@ -53,6 +53,9 @@ class SourceCandidate:
             "authorization_required": profile.get("authentication", {}).get("required", False),
             "authorization_status": self.authorization_status,
             "access_policy": profile.get("access_policy"),
+            "implementation_status": profile.get("implementation_status", "planned"),
+            "parser_status": profile.get("parser_status", "unavailable"),
+            "execution_ready": profile.get("implementation_status") in {"partial", "production"} and profile.get("parser_status") in {"partial", "available", "tested"},
             "priority_score": round(self.score, 4),
         }
 
@@ -103,7 +106,9 @@ class SourceRouter:
             return capability.split(":", 1)[1] in profile.get("data_types", [])
         return capability in profile.get("access_methods", []) or capability in profile.get("data_types", [])
 
-    def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes):
+    def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable=False):
+        if require_executable and (profile.get("implementation_status") == "planned" or profile.get("parser_status") == "unavailable"):
+            return None, [f"adapter is not executable: implementation_status={profile.get('implementation_status')}, parser_status={profile.get('parser_status')}" ]
         missing = [cap for cap in required_capabilities if not self._capability_ok(profile, cap)]
         fields = set(profile.get("required_fields", []))
         missing_fields = [field for field in required_fields if field not in fields]
@@ -143,7 +148,7 @@ class SourceRouter:
             score += 2
         return SourceCandidate(profile, score, tuple(reasons), authorization_status), []
 
-    def resolve(self, topic, universe=None, required_capabilities=None, required_fields=None, authorization_status="unknown", freshness_minutes=None, allow_secondary=False):
+    def resolve(self, topic, universe=None, required_capabilities=None, required_fields=None, authorization_status="unknown", freshness_minutes=None, allow_secondary=False, require_executable=False):
         required_capabilities = list(required_capabilities or [])
         required_fields = list(required_fields or [])
         candidates, rejected = [], {}
@@ -151,7 +156,7 @@ class SourceRouter:
             if profile.get("kind") == "secondary_aggregator" and not allow_secondary and required_capabilities:
                 # Secondary sources remain eligible only when no higher-grade source can satisfy the contract.
                 pass
-            candidate, reasons = self._candidate(profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes)
+            candidate, reasons = self._candidate(profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable)
             if candidate:
                 candidates.append(candidate)
             else:
@@ -190,10 +195,11 @@ def main():
     parser.add_argument("--authorization-status", default="unknown")
     parser.add_argument("--freshness-minutes", type=int, default=None)
     parser.add_argument("--allow-secondary", action="store_true")
+    parser.add_argument("--execute", action="store_true", help="reject planned/unimplemented adapters")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
     router = SourceRouter.from_file(args.registry)
-    payload = router.resolve(args.topic, args.universe, args.capability, args.field, args.authorization_status, args.freshness_minutes, args.allow_secondary)
+    payload = router.resolve(args.topic, args.universe, args.capability, args.field, args.authorization_status, args.freshness_minutes, args.allow_secondary, args.execute)
     rendered = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

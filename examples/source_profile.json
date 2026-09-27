@@ -5,6 +5,8 @@
   "authority": "federal_reserve",
   "priority": 105,
   "kind": "official_api",
+  "implementation_status": "production",
+  "parser_status": "tested",
   "asset_classes": ["macro", "rates", "fx"],
   "data_types": ["time_series", "releases", "vintages"],
   "access_methods": ["api", "cached_snapshot"],

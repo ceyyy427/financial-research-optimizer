@@ -19,7 +19,8 @@ class ProviderRoute:
 
 
 ROUTES = {
-    "fred_alfred": ProviderRoute("fred_alfred", "api", ("browser_download", "cached_snapshot"), True, True, True),
+    "fred": ProviderRoute("fred", "api", ("cached_snapshot",), True, False, True),
+    "alfred": ProviderRoute("alfred", "api", ("cached_snapshot",), True, True, True),
     "sec_edgar": ProviderRoute("sec_edgar", "api", ("browser_download", "cached_snapshot"), False, True, True),
     "ecb_sdmx": ProviderRoute("ecb_sdmx", "api", ("browser_download", "cached_snapshot"), False, True, True),
     "bis_sdmx": ProviderRoute("bis_sdmx", "api", ("browser_download", "cached_snapshot"), False, True, True),

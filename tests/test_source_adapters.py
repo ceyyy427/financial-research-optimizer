@@ -5,10 +5,12 @@ import pytest
 
 from adapters.base import AdapterError
 from adapters.catalog import CatalogSourceAdapter
+from adapters.stats_gov_cn import StatsGovCnAdapter
 from scripts.normalize_observations import canonicalize_observation
 from scripts.source_router import SourceRouter, SourceRoutingError
 from scripts.source_snapshot import create_snapshot
 from scripts.validate_source_registry import validate_registry
+from parsers import parse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +25,8 @@ def test_registry_profiles_validate_and_route_alfred():
     assert plan["source_plan"][0]["source_id"] == "alfred"
     assert "cached_snapshot" in plan["fallback_plan"]
     assert "material_price_conflict" in plan["blocking_rules"]
+    executable = router.resolve("China official macro", ["CPI"], ["point_in_time"], require_executable=True)
+    assert executable["source_plan"][0]["source_id"] in {"stats_gov_cn", "pbc", "sse", "szse", "sec_edgar", "alfred", "ecb_sdmx", "bis_sdmx"}
 
 
 def test_router_rejects_missing_capability():
@@ -59,3 +63,26 @@ def test_licensed_adapter_blocks_expired_login():
     adapter = CatalogSourceAdapter(profile, authorization_status="expired")
     with pytest.raises(AdapterError, match="requires authorized access"):
         adapter.planned_request(topic="财务数据")
+
+
+def test_stats_gov_adapter_fetches_snapshots_and_parses_records(tmp_path):
+    profile = json.loads((ROOT / "examples/source_profile.json").read_text(encoding="utf-8"))
+    profile.update({"source_id": "stats_gov_cn", "authority": "national_statistics", "parser": "stats_gov_json", "primary_method": "api", "point_in_time": True, "revision_aware": True, "base_urls": ["https://data.stats.gov.cn/"]})
+
+    def transport(method, url, headers, timeout):
+        return 200, {"content-type": "application/json"}, b'{"data": [{"indicator": "CPI", "date": "2026-08-01", "release_date": "2026-09-10T12:30:00Z", "value": 101.2, "unit": "%"}]}'
+
+    adapter = StatsGovCnAdapter(profile, cache_dir=tmp_path / "cache", snapshot_dir=tmp_path / "snapshots", transport=transport)
+    result = adapter.fetch("https://data.stats.gov.cn/api/cpi", instrument_id="CPI")
+    assert len(result["observations"]) == 1
+    assert result["snapshot"]["source_id"] == "stats_gov_cn"
+    assert result["snapshot"]["snapshot_hash"].startswith("sha256:")
+
+
+def test_offline_parser_fixture_replay(ROOT):
+    payload = json.loads((ROOT / "tests/fixtures/http/stats_gov.json").read_text(encoding="utf-8"))
+    rows = parse("stats_gov_json", payload, instrument_id="CPI", source_url="https://data.stats.gov.cn/")
+    assert rows[0]["value"] == 101.2
+    assert rows[0]["availability_time"] == "2026-09-10T12:30:00Z"
+    ecb = parse("ecb_sdmx_json", (ROOT / "tests/fixtures/http/ecb_sdmx.csv").read_text(encoding="utf-8"), instrument_id="PCPI")
+    assert ecb[0]["value"] == 101.2

@@ -17,6 +17,8 @@
     "retrieved_at": {"type": "string"},
     "page_url": {"type": "string"},
     "source_id": {"type": "string"},
-    "body": {"type": "string"}
+    "body_size": {"type": "integer", "minimum": 0},
+    "body_file": {"type": "string"},
+    "body_capture_status": {"type": "string", "enum": ["skipped_size_limit", "hash_only_no_raw_body_dir"]}
   }
 }

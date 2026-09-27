@@ -170,7 +170,7 @@
     ]
   },
   "online_status": {
-    "source_id": "fred_alfred",
+    "source_id": "alfred",
     "access_method": "api",
     "as_of_time": "2026-09-25T15:00:00Z",
     "freshness": "35 minutes",

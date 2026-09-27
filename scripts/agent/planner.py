@@ -15,6 +15,12 @@ def create_research_contract(task, mode="forecasting", output_level="research_gr
     scope = validate_task_scope(task)
     if not scope["allowed"]:
         raise ValueError(f"task violates policy: {scope['violations']}")
+    if mode not in {"data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"}:
+        raise ValueError(f"unsupported research mode: {mode}")
+    if output_level not in {"minimal", "standard", "research_grade", "portfolio_grade"}:
+        raise ValueError(f"unsupported output level: {output_level}")
+    if mode in {"backtest", "portfolio_research"} and output_level not in {"research_grade", "portfolio_grade"}:
+        raise ValueError(f"{mode} requires output_level research_grade or portfolio_grade")
     return {
         "task": task,
         "mode": mode,

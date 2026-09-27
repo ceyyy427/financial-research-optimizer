@@ -6,8 +6,10 @@ from pathlib import Path
 
 try:
     from .source_router import load_registry
+    from .parsers import get_parser
 except ImportError:
     from source_router import load_registry
+    from parsers import get_parser
 
 
 def validate_registry(registry_path, schema_path):
@@ -21,6 +23,8 @@ def validate_registry(registry_path, schema_path):
     validator = Draft202012Validator(schema)
     for source_id, profile in profiles.items():
         errors.extend(f"{source_id}: {error.message}" for error in validator.iter_errors(profile))
+        if profile.get("parser_status") in {"available", "tested"} and get_parser(profile.get("parser")) is None:
+            errors.append(f"{source_id}: parser_status={profile.get('parser_status')} but parser is not registered: {profile.get('parser')}")
     if errors:
         raise ValueError("source registry validation failed:\n- " + "\n- ".join(errors))
     return {"valid": True, "profile_count": len(profiles), "source_ids": sorted(profiles)}

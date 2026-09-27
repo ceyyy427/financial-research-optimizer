@@ -1,5 +1,8 @@
 """SEC EDGAR official API adapter facade."""
-from online.sec_edgar import SecEdgarProvider
+try:
+    from ..online.sec_edgar import SecEdgarProvider
+except ImportError:
+    from online.sec_edgar import SecEdgarProvider
 
 from .base import SourceAdapter
 

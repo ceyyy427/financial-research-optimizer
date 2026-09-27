@@ -28,6 +28,9 @@ fro-manifest = "scripts.validate_experiment_manifest:main"
 fro-source-router = "scripts.source_router:main"
 fro-source-snapshot = "scripts.source_snapshot:main"
 fro-source-registry = "scripts.validate_source_registry:main"
+fro-build-refresh = "scripts.build_refresh_plan:main"
+fro-execute-refresh = "scripts.execute_online_refresh:main"
+fro-adapter-status = "scripts.adapters.status:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

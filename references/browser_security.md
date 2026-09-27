@@ -2,6 +2,7 @@
 
 - Browser contexts are isolated; anonymous access is the default.
 - Authorized contexts require explicit user authorization and are never copied into an analysis artifact.
+- `scripts/browser/auth_checkpoint.py` writes cookie/local-storage values only to an explicit-opt-in `auth_state.private.json` with restrictive permissions; the safe manifest contains counts/hashes and can be audited without secrets.
 - Cookies, localStorage, authorization headers, API keys, and response bodies are not logged by default.
 - Trace and network capture use redacted headers; body capture is opt-in and must be justified by a source contract.
 - API keys come from environment variables or runtime arguments, never committed files or HTML.

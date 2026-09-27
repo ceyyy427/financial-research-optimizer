@@ -21,10 +21,12 @@
 | `covariance_model` | if portfolio-related: sample, Ledoit-Wolf, factor, robust, or N/A |
 | `failure_mode` | known drift, instability, infeasibility, data requirement, or rejection reason |
 | `status` | candidate, rejected, selected, challenger, fallback |
+| `implementation_status` | `documented`, `implemented`, `tested`, or `production` |
+| `runtime` / `dependency_group` | Python entry point and optional dependency boundary |
 
 ## Selection rule
 
-Register all candidates before inspecting the final test result. The selected model must pass data-quality, point-in-time, source-reconciliation, calibration, and overfitting gates, or be explicitly labeled conditional/insufficient. The registry is part of the experiment manifest and should be hashed with the code and configuration.
+Register all candidates before inspecting the final test result. The selected model must pass data-quality, point-in-time, source-reconciliation, calibration, and applicable overfitting gates, or be explicitly labeled conditional/insufficient. `implementation_status` is independent of model-selection `status`: a model may be mathematically documented but not executable. The registry is part of the experiment manifest and should be hashed with the code and configuration.
 
 ## Minimal entry
 
@@ -46,4 +48,3 @@ overfitting_diagnostics: {DM: pass, WRC: pass, SPA: pass, DSR: warning, PBO: war
 failure_mode: regime drift and covariance error
 status: selected
 ```
-

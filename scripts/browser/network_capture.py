@@ -13,9 +13,11 @@ def redact_headers(headers):
 
 
 class NetworkRecorder:
-    def __init__(self, source_id, capture_bodies=False):
+    def __init__(self, source_id, capture_bodies=False, raw_body_dir=None, max_body_bytes=25_000_000):
         self.source_id = source_id
         self.capture_bodies = capture_bodies
+        self.raw_body_dir = Path(raw_body_dir) if raw_body_dir else None
+        self.max_body_bytes = max_body_bytes
         self.records = []
 
     def record_response(self, request_id, url, method, status, request_headers=None, response_headers=None, body=None, page_url=""):
@@ -33,8 +35,17 @@ class NetworkRecorder:
             "page_url": page_url,
             "source_id": self.source_id,
         }
-        if self.capture_bodies:
-            record["body"] = body_bytes.decode("utf-8", errors="replace")
+        record["body_size"] = len(body_bytes)
+        if self.capture_bodies and self.raw_body_dir and len(body_bytes) <= self.max_body_bytes:
+            self.raw_body_dir.mkdir(parents=True, exist_ok=True)
+            body_file = self.raw_body_dir / f"{hashlib.sha256((self.source_id + ':' + request_id).encode()).hexdigest()[:24]}.body"
+            if not body_file.exists():
+                body_file.write_bytes(body_bytes)
+            record["body_file"] = str(body_file)
+        elif self.capture_bodies and len(body_bytes) > self.max_body_bytes:
+            record["body_capture_status"] = "skipped_size_limit"
+        elif self.capture_bodies:
+            record["body_capture_status"] = "hash_only_no_raw_body_dir"
         self.records.append(record)
         return record
 

@@ -98,10 +98,17 @@ python3 scripts/verify_result_lineage.py examples/demo_analysis.json
 刷新被拆为 `data_refresh`、`feature_refresh`、`forecast_refresh`、`model_retrain` 和 `full_research`。新数据不会自动触发重训；只有预定周期或漂移阈值满足时才进入重训流程：
 
 ```bash
-python3 scripts/run_online_refresh.py --config examples/research_config.json --output artifacts/refresh_plan.json
+python3 scripts/build_refresh_plan.py --config examples/research_config.json --output artifacts/refresh_plan.json
+# compatibility alias: python3 scripts/run_online_refresh.py ...
+python3 scripts/execute_online_refresh.py --source-id sec_edgar --url https://data.sec.gov/submissions/CIK0000320193.json --output-dir artifacts/online
 python3 scripts/check_data_freshness.py artifacts/snapshots/provider/snapshot.json --output artifacts/freshness.json
 python3 scripts/monitoring/model_monitor.py artifacts/monitor_input.json --output artifacts/monitoring_status.json
 ```
+
+`execute_online_refresh.py` only acquires and snapshots data. It does not
+retrain models, refresh features, or produce a forecast implicitly. Planned
+adapters are rejected by `--execute` routing and return an explicit blocked
+status.
 
 动态 preflight 状态为 `ready`、`stale`、`degraded`、`fallback` 或 `blocked`。只有 `blocked` 禁止继续依赖分析；其余状态必须在 HTML 中显示数据延迟、缓存、模型和预测有效期。
 
@@ -111,12 +118,18 @@ python3 scripts/monitoring/model_monitor.py artifacts/monitor_input.json --outpu
 
 ```bash
 python3 scripts/validate_source_registry.py
+python3 scripts/adapters/status.py
 python3 scripts/source_router.py \
   --topic "美国 CPI 历史修订值" \
   --universe CPIAUCSL \
   --capability point_in_time \
   --capability vintage_data
 ```
+
+Adapter maturity is recorded in `implementation_status` and `parser_status`;
+see [`references/adapter_maturity.md`](references/adapter_maturity.md). The
+Patchright/CDP lifecycle, body capture boundary, and authentication checkpoint
+are specified in [`references/cdp_capability_contract.md`](references/cdp_capability_contract.md).
 
 适配链路固定为：`官方 API → 官方下载 → 已授权数据库 → Patchright → CDP → DOM → 合法缓存`。原始响应先通过 `scripts/source_snapshot.py` 保存哈希和请求元数据，再由 `scripts/normalize_observations.py` 转成 `schemas/canonical_observation.schema.json`；未经 canonicalization 的记录不能进入模型。Wind、CSMAR、Nasdaq Data Link 和 JoinQuant 只接受授权 API、数据库、CSV/Excel 或快照导入，不进行未授权爬取。
 
@@ -196,7 +209,8 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
 - references/result_lineage.md：结果数值、计算、输入快照和来源血缘契约；
 - references/online_data_contract.md、references/patchright_cdp_contract.md：在线 provider、缓存、快照、浏览器和 CDP 观测契约；
-- references/source_adapter_contract.md、references/browser_adapter_contract.md：金融网站 source profile、访问优先级和浏览器适配器契约；
+- references/source_adapter_contract.md、references/browser_adapter_contract.md、references/adapter_maturity.md：金融网站 source profile、访问优先级、实现/解析成熟度和浏览器适配器契约；
+- references/cdp_capability_contract.md：Patchright 连接、CDP 生命周期、响应体落盘和崩溃恢复边界；
 - references/source_priority_rules.md、references/licensed_data_policy.md：来源权威性、冲突阻断和授权数据政策；
 - references/agent_execution_contract.md：Research Contract、Plan DAG、预算、重试和降级规则；
 - references/event_data_contract.md、references/transformation_contract.md：事件时间和网页/API 到 canonical dataset 的转换规则；
@@ -221,7 +235,9 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - scripts/adapters/：国家数据、人民银行、巨潮、交易所、聚合器、FRED/ALFRED、SEC、授权数据和库适配器；
 - scripts/browser/：Patchright runtime、隔离 context、CDP network recorder、下载、页面快照和 trace；
 - scripts/transform/、scripts/events/：HTML/JSON/PDF/canonical 转换与事件时间审计；
-- scripts/agent/、scripts/monitoring/：Plan DAG、执行/重规划、安全策略、新鲜度和模型漂移监控；
+- scripts/agent/、scripts/monitoring/：Plan DAG、默认 handler registry、执行/重规划、安全策略、新鲜度和模型漂移监控；
+- scripts/parsers/：按 source profile 注册的离线解析器；`scripts/validate_source_registry.py` 会阻止声明可用但未注册解析器的来源；
+- scripts/build_refresh_plan.py、scripts/execute_online_refresh.py：分别构建刷新计划和执行数据快照；刷新不会隐式重训模型；
 - financial_research/：上层 agent 的统一 `run()` 接口；
 - scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
 - tests/：最小 synthetic financial dataset 和 pytest 回归测试；

@@ -1,0 +1,7 @@
+{
+  "events": [
+    {"method": "Network.responseReceived", "params": {"requestId": "r1", "response": {"url": "https://example.test/data", "status": 200}}},
+    {"method": "Network.loadingFinished", "params": {"requestId": "r1"}}
+  ],
+  "body_file_policy": "separate_raw_file_after_loadingFinished"
+}
