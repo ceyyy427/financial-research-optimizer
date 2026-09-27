@@ -27,6 +27,7 @@ def test_artifact_reads_are_manifest_bounded(tmp_path):
             constraints={"cutoff": "2026-09-26", "calendar": "XNYS"},
         )
         assert created["status"] == "accepted"
+        assert created["status_uri"].endswith("/status")
         run_id = created["run_id"]
         await service._tasks[run_id]
         artifact = await service.read_research_artifact(run_id, "contract")

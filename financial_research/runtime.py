@@ -141,7 +141,8 @@ async def run_research(
         store.save_execution(run_id, execution)
         all_artifacts = [artifact for result in execution.get("results", []) for artifact in result.get("artifacts", [])]
         store.register_artifacts(run_id, all_artifacts)
-        lifecycle = "completed" if execution.get("status") in {"completed", "planning_only"} else execution.get("status", "failed")
+        fallback_used = any(item.get("status") == "fallback" or item.get("fallback_used") for item in execution.get("results", []))
+        lifecycle = "degraded" if execution.get("status") in {"completed", "planning_only"} and fallback_used else ("completed" if execution.get("status") in {"completed", "planning_only"} else execution.get("status", "failed"))
         store.update_status(run_id, status=lifecycle, stage="artifacts" if lifecycle == "completed" else lifecycle, last_message=f"run {lifecycle}")
 
     return {"run_id": run_id, "contract": contract, "plan": plan, "handler_validation": handler_validation, "execution": execution}

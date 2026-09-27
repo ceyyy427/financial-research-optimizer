@@ -9,6 +9,7 @@
     "run_id": {"type": "string", "pattern": "^run_[A-Za-z0-9][A-Za-z0-9_.-]{2,127}$"},
     "status": {"type": "string", "enum": ["accepted", "running", "completed", "blocked", "failed", "cancelled", "planning_only"]},
     "plan_id": {"type": ["string", "null"]},
+    "status_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "artifact_base_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "reason_code": {"type": "string"},
     "message": {"type": "string"},

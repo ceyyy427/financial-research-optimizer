@@ -39,7 +39,7 @@ class ResearchMcpService:
             task = asyncio.create_task(self._execute(run_id, normalized))
             self._tasks[run_id] = task
             task.add_done_callback(lambda _: self._tasks.pop(run_id, None))
-            return {"run_id": run_id, "status": "accepted", "plan_id": prepared["plan"]["plan_id"], "artifact_base_uri": f"research://runs/{run_id}"}
+            return {"run_id": run_id, "status": "accepted", "plan_id": prepared["plan"]["plan_id"], "status_uri": f"research://runs/{run_id}/status", "artifact_base_uri": f"research://runs/{run_id}"}
         except McpPolicyError as exc:
             return exc.as_dict()
         except (ValueError, RunStoreError) as exc:

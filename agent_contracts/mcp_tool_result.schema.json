@@ -11,6 +11,7 @@
     "user_action_required": {"type": "boolean"},
     "run_id": {"type": "string"},
     "plan_id": {"type": "string"},
+    "status_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "artifact_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "artifact_base_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "blocking_reasons": {"type": "array", "items": {"type": "string"}},

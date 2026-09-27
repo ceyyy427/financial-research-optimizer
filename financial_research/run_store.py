@@ -221,8 +221,9 @@ class RunStore:
         blocked = [item.get("node_id") for item in results if item.get("status") in {"blocked", "failed"}]
         total = len(plan.get("nodes", []))
         execution_status = execution.get("status")
+        fallback_used = any(item.get("status") == "fallback" or item.get("fallback_used") for item in results)
         if execution_status in {"completed", "planning_only"}:
-            lifecycle = "completed"
+            lifecycle = "degraded" if fallback_used else "completed"
         elif execution_status == "blocked":
             lifecycle = "blocked"
         elif execution_status == "failed":
@@ -236,7 +237,7 @@ class RunStore:
             "progress": {"completed": len(completed), "total": total},
             "completed_nodes": completed,
             "blocked_nodes": blocked,
-            "fallback_used": any(item.get("status") == "fallback" or item.get("fallback_used") for item in results),
+            "fallback_used": fallback_used,
             "last_message": (results[-1].get("message") if results else current.get("last_message", "")),
             "plan_id": plan.get("plan_id") or execution.get("plan_id"),
             "mode": run.get("mode"),
