@@ -51,7 +51,9 @@ Aliases include `contract`, `plan`, `status`, `manifest`, `analysis`,
 `preflight`, `report_html`, and `decision_table`. An MCP caller cannot read
 `/etc/passwd`, `../../secret`, or an unregistered file by passing a path.
 
-The `mcp_run.schema.json` response schema covers accepted, status, blocked,
+The `mcp_run.schema.json` envelope plus `agent_contracts/mcp_run_request.schema.json`,
+`agent_contracts/mcp_run_status.schema.json`, and
+`agent_contracts/mcp_tool_result.schema.json` cover accepted, status, blocked,
 and artifact responses. The run directory stores `run.json`, `contract.json`,
 `plan.json`, `status.json`, `execution.json`, `checkpoint.json`, and the
 manifest; only manifest-registered output files are reader-facing resources.

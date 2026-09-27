@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp_run_request.schema.json",
+  "title": "MCP research run request",
+  "type": "object",
+  "required": ["task", "mode", "output_level"],
+  "properties": {
+    "task": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "mode": {"type": "string", "enum": ["data_audit", "descriptive_analysis", "forecasting", "backtest", "portfolio_research"]},
+    "output_level": {"type": "string", "enum": ["minimal", "standard", "research_grade", "portfolio_grade"]},
+    "universe": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
+    "target": {"type": ["string", "null"]},
+    "horizon": {"type": ["string", "integer", "null"]},
+    "constraints": {"type": "object", "maxProperties": 100}
+  },
+  "additionalProperties": false
+}

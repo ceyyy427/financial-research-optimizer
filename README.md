@@ -256,7 +256,7 @@ python3 scripts/verify_result_lineage.py analysis.json --recompute
 - experiment_manifest.schema.json：实验可复现性 Manifest JSON Schema；
 - analysis.schema.json、result_lineage.schema.json、online_snapshot.schema.json、monitoring_status.schema.json、refresh_policy.schema.json、event_data.schema.json、canonical_record.schema.json、network_capture.schema.json：分析、结果血缘、在线状态、规范化记录和 CDP 网络 Schema；
 - schemas/source_profile.schema.json、schemas/source_snapshot.schema.json、schemas/canonical_observation.schema.json、schemas/mcp_run.schema.json：来源注册、原始快照、canonical observation 和 MCP 响应 Schema；
-- agent_contracts/：task、plan、node result 和 artifact Schema；
+- agent_contracts/：task、plan、node result、artifact 和 MCP request/status/tool-result Schema；
 - config/source_registry.yaml：可执行金融网站 Source Adapter Registry；
 - backtest_overfitting.schema.json、model_selection.schema.json、portfolio_output.schema.json、preflight.schema.json、feature_label_contract.schema.json、feature_label_audit.schema.json、source_reconciliation.schema.json：研究、特征、组合和来源契约 Schema；
 - pyproject.toml：依赖、pytest 配置和命令入口；

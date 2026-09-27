@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp_tool_result.schema.json",
+  "title": "MCP tool result envelope",
+  "type": "object",
+  "required": ["status"],
+  "properties": {
+    "status": {"type": "string"},
+    "reason_code": {"type": "string"},
+    "message": {"type": "string"},
+    "user_action_required": {"type": "boolean"},
+    "run_id": {"type": "string"},
+    "plan_id": {"type": "string"},
+    "artifact_uri": {"type": "string", "pattern": "^research://runs/run_"},
+    "artifact_base_uri": {"type": "string", "pattern": "^research://runs/run_"},
+    "blocking_reasons": {"type": "array", "items": {"type": "string"}},
+    "missing_capabilities": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

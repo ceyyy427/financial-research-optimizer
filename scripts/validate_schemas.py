@@ -9,7 +9,7 @@ SCHEMA_FILES = [
     "research_config.schema.json", "experiment_manifest.schema.json", "feature_label_contract.schema.json",
     "backtest_overfitting.schema.json", "model_selection.schema.json", "portfolio_output.schema.json", "feature_label_audit.schema.json", "source_reconciliation.schema.json",
     "preflight.schema.json", "analysis.schema.json", "result_lineage.schema.json", "online_snapshot.schema.json", "monitoring_status.schema.json", "refresh_policy.schema.json", "event_data.schema.json", "canonical_record.schema.json", "network_capture.schema.json", "data_quality.schema.json", "schema_drift.schema.json", "execution_contract.schema.json", "forecast_contract.schema.json", "source_health.schema.json",
-    "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json",
+    "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json", "agent_contracts/mcp_run_request.schema.json", "agent_contracts/mcp_run_status.schema.json", "agent_contracts/mcp_tool_result.schema.json",
     "schemas/source_profile.schema.json", "schemas/source_snapshot.schema.json", "schemas/canonical_observation.schema.json",
     "schemas/mcp_run.schema.json",
 ]
