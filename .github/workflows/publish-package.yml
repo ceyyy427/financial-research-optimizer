@@ -4,10 +4,14 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to receive the built distributions
+        required: true
+        default: v0.4.0
 
 permissions:
-  contents: read
-  packages: write
+  contents: write
 
 jobs:
   publish:
@@ -25,11 +29,25 @@ jobs:
       - name: Build distributions
         run: python3 -m build
 
-      - name: Publish to GitHub Packages
+      - name: Attach distributions to GitHub Release
+        if: ${{ github.event_name == 'release' || inputs.release_tag != '' }}
         env:
-          TWINE_USERNAME: ${{ github.actor }}
-          TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          python3 -m twine upload
-          --repository-url https://pypi.pkg.github.com/${{ github.repository_owner }}
-          dist/*
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.release_tag }}"
+          gh release upload "$tag" dist/* \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+      - name: Publish to PyPI when token is configured
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$PYPI_API_TOKEN" ]; then
+            echo "PYPI_API_TOKEN is not configured; skipping PyPI upload."
+            exit 0
+          fi
+          TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_API_TOKEN" \
+            python3 -m twine upload \
+            --repository-url https://upload.pypi.org/legacy/ \
+            dist/*
