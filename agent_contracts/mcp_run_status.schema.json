@@ -15,7 +15,13 @@
     "plan_id": {"type": ["string", "null"]},
     "completion_level": {"type": ["string", "null"]},
     "blocking_reasons": {"type": "array", "items": {"type": "string"}},
-    "missing_capabilities": {"type": "array", "items": {"type": "string"}}
+    "missing_capabilities": {"type": "array", "items": {"type": "string"}},
+    "worker_id": {"type": ["string", "null"]},
+    "lease_until": {"type": ["string", "null"], "format": "date-time"},
+    "heartbeat_at": {"type": ["string", "null"], "format": "date-time"},
+    "attempt": {"type": "integer", "minimum": 0},
+    "owner_id": {"type": ["string", "null"]},
+    "tenant_id": {"type": ["string", "null"]}
   },
   "additionalProperties": true
 }

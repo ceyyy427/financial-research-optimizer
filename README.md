@@ -273,7 +273,7 @@ python3 scripts/verify_result_lineage.py analysis.json --recompute
 - scripts/transform/、scripts/events/：HTML/JSON/PDF/canonical 转换与事件时间审计；
 - scripts/agent/、scripts/monitoring/：Plan DAG、默认 handler registry、全局预算、可恢复 checkpoint、执行/重规划、安全策略、新鲜度和模型漂移监控；
 - financial_research/runtime.py、financial_research/run_store.py：统一运行入口和受控 run store；
-- mcp_server/：可选 MCP 薄适配层，仅暴露 `create_research_run`、`get_run_status`、`read_research_artifact` 和 `research://` 资源；详见 [`references/mcp_interface.md`](references/mcp_interface.md)；
+- mcp_server/：可选 MCP 薄适配层，暴露创建、状态、产物读取、取消、恢复、重试、列表和 `research://` 资源；详见 [`references/mcp_interface.md`](references/mcp_interface.md)；
 - scripts/parsers/：按 source profile 注册的离线解析器；`scripts/validate_source_registry.py` 会阻止声明可用但未注册解析器的来源；
 - scripts/build_refresh_plan.py、scripts/execute_online_refresh.py：分别构建刷新计划和执行数据快照；刷新不会隐式重训模型；
 - financial_research/：上层 agent 的统一 `run_research()` / 兼容 `run()` 接口、run store 和生命周期状态；
@@ -334,8 +334,11 @@ fro-mcp
 fro-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
-三项工具都返回结构化状态；研究结果只能通过 `research://runs/...` 读取
-已登记产物，不接受任意文件路径。MCP 适配层最终调用统一的
+所有生命周期工具都返回结构化状态；研究结果只能通过 `research://runs/...` 读取
+已登记产物，不接受任意文件路径。默认 JSON run store 使用跨进程锁、原子
+fsync/replace 写入、请求哈希、幂等键、租约/心跳、陈旧租约恢复和 checkpoint
+指纹校验；设置 `FRO_RUN_STORE=sqlite` 可切换到 SQLite WAL 元数据后端，设置
+`FRO_MCP_RUN_ROOT` 可指定运行目录。MCP 适配层最终调用统一的
 `financial_research.run_research`，所以 CLI、MCP 和未来 Web API 共用同一套
 preflight、策略、数据血缘、checkpoint 和 HTML/decision table 规则。
 

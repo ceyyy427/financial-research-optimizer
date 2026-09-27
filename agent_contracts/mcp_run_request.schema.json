@@ -11,7 +11,11 @@
     "universe": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
     "target": {"type": ["string", "null"]},
     "horizon": {"type": ["string", "integer", "null"]},
-    "constraints": {"type": "object", "maxProperties": 100}
+    "constraints": {"type": "object", "maxProperties": 100},
+    "idempotency_key": {"type": ["string", "null"], "maxLength": 256},
+    "client_id": {"type": ["string", "null"], "maxLength": 128},
+    "owner_id": {"type": ["string", "null"], "maxLength": 128},
+    "tenant_id": {"type": ["string", "null"], "maxLength": 128}
   },
   "additionalProperties": false
 }

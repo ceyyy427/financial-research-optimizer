@@ -17,6 +17,8 @@ OUTPUT_LEVELS = {"minimal", "standard", "research_grade", "portfolio_grade"}
 MAX_TASK_CHARS = 2_000
 MAX_UNIVERSE_ITEMS = 100
 MAX_CONSTRAINT_BYTES = 20_000
+MAX_IDEMPOTENCY_KEY_CHARS = 256
+MAX_CLIENT_ID_CHARS = 128
 
 
 @dataclass
@@ -39,6 +41,10 @@ def validate_create_request(
     target: str | None = None,
     horizon: str | int | None = None,
     constraints: dict[str, Any] | None = None,
+    idempotency_key: str | None = None,
+    client_id: str | None = None,
+    owner_id: str | None = None,
+    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """Normalize a create request without accepting executable capabilities."""
     if not isinstance(task, str) or not task.strip():
@@ -66,6 +72,9 @@ def validate_create_request(
         raise McpPolicyError("invalid_constraints", "constraints must be a JSON object")
     if len(json.dumps(normalized_constraints, ensure_ascii=False, default=str)) > MAX_CONSTRAINT_BYTES:
         raise McpPolicyError("constraints_too_large", f"constraints exceed {MAX_CONSTRAINT_BYTES} bytes")
+    for field, value in (("idempotency_key", idempotency_key), ("client_id", client_id), ("owner_id", owner_id), ("tenant_id", tenant_id)):
+        if value is not None and (not isinstance(value, str) or len(value) > (MAX_IDEMPOTENCY_KEY_CHARS if field == "idempotency_key" else MAX_CLIENT_ID_CHARS) or any(ord(char) < 32 for char in value)):
+            raise McpPolicyError(f"invalid_{field}", f"{field} is invalid or too long")
     return {
         "task": task.strip(),
         "mode": mode,
@@ -74,4 +83,8 @@ def validate_create_request(
         "target": target.strip() if isinstance(target, str) else target,
         "horizon": horizon,
         "constraints": normalized_constraints,
+        "idempotency_key": idempotency_key,
+        "client_id": client_id,
+        "owner_id": owner_id or client_id,
+        "tenant_id": tenant_id,
     }

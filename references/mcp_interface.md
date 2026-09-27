@@ -19,13 +19,17 @@ deployment authentication and network policy before exposing it beyond
 localhost. The server does not accept credentials, arbitrary handler names,
 arbitrary output directories, or arbitrary filesystem paths from tool calls.
 
-## Phase-one tools
+## Lifecycle tools
 
 | Tool | Input | Output |
 |---|---|---|
-| `create_research_run` | `task`, `mode`, `output_level`, optional `universe`, `target`, `horizon`, `constraints` | `run_id`, `plan_id`, accepted status and artifact base URI |
-| `get_run_status` | `run_id` | lifecycle status, stage, progress, fallbacks, blocked nodes, completion level |
-| `read_research_artifact` | `run_id`, logical artifact name | metadata, SHA-256, MIME type, and bounded text content |
+| `create_research_run` | `task`, `mode`, `output_level`, optional scope, `idempotency_key`, `client_id`, `owner_id`, `tenant_id` | `run_id`, `plan_id`, accepted status, status URI and artifact base URI |
+| `get_run_status` | `run_id`, client/owner/tenant identity | lifecycle status, stage, progress, lease, fallbacks, blocked nodes, completion level |
+| `read_research_artifact` | `run_id`, logical artifact name, client/owner/tenant identity | metadata, SHA-256, MIME type, and bounded text content |
+| `cancel_research_run` | `run_id`, client/owner/tenant identity | cancellation status; a terminal run is never rewritten |
+| `resume_research_run` | `run_id`, client/owner/tenant identity | queued status and checkpoint-based restart |
+| `retry_research_run` | `run_id`, client/owner/tenant identity | queued status for failed/blocked runs |
+| `list_research_runs` | filters, cursor, client/owner/tenant identity | isolated status page and next cursor |
 
 `mode` is one of `data_audit`, `descriptive_analysis`, `forecasting`,
 `backtest`, and `portfolio_research`. `output_level` is one of `minimal`,
@@ -57,6 +61,14 @@ The `mcp_run.schema.json` envelope plus `agent_contracts/mcp_run_request.schema.
 and artifact responses. The run directory stores `run.json`, `contract.json`,
 `plan.json`, `status.json`, `execution.json`, `checkpoint.json`, and the
 manifest; only manifest-registered output files are reader-facing resources.
+
+The default JSON backend uses atomic `fsync` + replace writes and a cross-process
+`flock`/marker lock. Set `FRO_RUN_STORE=sqlite` to use the SQLite metadata backend
+(WAL and busy timeout) while retaining bounded artifact files. `FRO_MCP_RUN_ROOT`
+selects the run root. The store persists request hashes, idempotency keys, owner and
+tenant identity, attempts, durable leases, heartbeats, stale-lease recovery, event
+records, and checkpoint fingerprints. A key reused with different request content is
+an explicit `idempotency_conflict`; it never silently creates a second run.
 
 ## Boundary rule
 

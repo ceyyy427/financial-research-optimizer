@@ -14,6 +14,8 @@
     "status_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "artifact_uri": {"type": "string", "pattern": "^research://runs/run_"},
     "artifact_base_uri": {"type": "string", "pattern": "^research://runs/run_"},
+    "reused": {"type": "boolean"},
+    "next_cursor": {"type": ["integer", "null"]},
     "blocking_reasons": {"type": "array", "items": {"type": "string"}},
     "missing_capabilities": {"type": "array", "items": {"type": "string"}}
   },

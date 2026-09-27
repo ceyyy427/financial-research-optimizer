@@ -39,3 +39,34 @@ def test_artifact_reads_are_manifest_bounded(tmp_path):
         assert blocked["reason_code"] == "artifact_not_registered"
 
     asyncio.run(scenario())
+
+
+def test_mcp_lifecycle_controls_and_tenant_isolation(tmp_path):
+    async def scenario():
+        service = ResearchMcpService(run_root=str(tmp_path), execution_mode="planning", worker_id="test-worker")
+        created = await service.create_research_run(
+            task="Describe a synthetic market dataset",
+            mode="descriptive_analysis",
+            output_level="standard",
+            client_id="client-a",
+            tenant_id="tenant-a",
+            idempotency_key="same-request",
+        )
+        assert created["status"] == "accepted"
+        run_id = created["run_id"]
+        assert (await service.get_run_status(run_id, client_id="client-b", tenant_id="tenant-a"))["reason_code"] == "run_not_found"
+        assert (await service.get_run_status(run_id, client_id="client-a", tenant_id="tenant-a"))["run_id"] == run_id
+        assert (await service.cancel_research_run(run_id, client_id="client-a", tenant_id="tenant-a"))["status"] == "cancelled"
+        reused = await service.create_research_run(
+            task="Describe a synthetic market dataset",
+            mode="descriptive_analysis",
+            output_level="standard",
+            client_id="client-a",
+            tenant_id="tenant-a",
+            idempotency_key="same-request",
+        )
+        assert reused["reused"] is True
+        listed = await service.list_research_runs(client_id="client-a", tenant_id="tenant-a")
+        assert any(item["run_id"] == run_id for item in listed["runs"])
+
+    asyncio.run(scenario())

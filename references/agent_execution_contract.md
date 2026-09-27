@@ -14,9 +14,12 @@ browser contexts and wall-clock time are reserved atomically across parallel
 nodes. Node budgets are lower-level limits and cannot override the global cap.
 
 Checkpoints are safe-resume records, not progress logs. They include
-`plan_hash`, `contract_hash`, environment/config fingerprints, node attempts,
-artifact hashes, the last completed node and `checkpoint_version`. A mismatch
-or corrupt checkpoint rejects resume rather than replaying an unverified state.
+`run_id`, `plan_hash`, `contract_hash`, `schema_version`, environment/config
+fingerprints, node attempts, artifact hashes, the last completed node and
+`checkpoint_version`. A mismatch or corrupt checkpoint rejects resume with a
+`checkpoint_mismatch` error rather than replaying an unverified state. The run
+store keeps the same checkpoint in its JSON or SQLite backend, so a process
+restart can resume without trusting an in-memory progress log.
 
 The permitted recovery order is:
 

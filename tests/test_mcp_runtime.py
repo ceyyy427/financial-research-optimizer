@@ -23,6 +23,6 @@ def test_runtime_persists_auditable_run(tmp_path):
         assert (run_dir / "plan.json").exists()
         assert (run_dir / "execution.json").exists()
         status = json.loads((run_dir / "status.json").read_text(encoding="utf-8"))
-        assert status["status"] == "completed"
+        assert status["status"] == "planning_only"
 
     asyncio.run(scenario())

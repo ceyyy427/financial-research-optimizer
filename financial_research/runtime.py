@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .run_store import RunStore
+from .run_store import create_run_store
+from .store_protocol import RunStoreProtocol
 
 try:
     from scripts.agent.executor import execute_plan_async
@@ -16,12 +17,12 @@ except ImportError:  # pragma: no cover - supports execution from scripts/
     from agent.planner import build_plan, create_research_contract
 
 
-def get_run_status(store: RunStore, run_id: str) -> dict[str, Any]:
+def get_run_status(store: RunStoreProtocol, run_id: str) -> dict[str, Any]:
     """Read a persisted run through the core runtime boundary."""
     return store.status(run_id)
 
 
-def read_research_artifact(store: RunStore, run_id: str, artifact: str) -> dict[str, Any]:
+def read_research_artifact(store: RunStoreProtocol, run_id: str, artifact: str) -> dict[str, Any]:
     """Read a manifest-registered artifact through the core runtime boundary."""
     return store.artifact(run_id, artifact, include_content=True)
 
@@ -79,7 +80,7 @@ async def run_research(
     execution_mode: str = "execution",
     run_id: str | None = None,
     resume: bool = True,
-    run_store: RunStore | None = None,
+    run_store: RunStoreProtocol | None = None,
     run_root: str = "artifacts/runs",
     checkpoint_path: str | None = None,
     max_workers: int = 4,
@@ -92,7 +93,7 @@ async def run_research(
     """
     store = run_store
     if store is None and run_root:
-        store = RunStore(run_root)
+        store = create_run_store(run_root)
     if store is not None and run_id is None:
         run_id = store.create(
             task,
@@ -135,6 +136,8 @@ async def run_research(
         max_workers=max_workers,
         resume=resume,
         global_budget=global_budget,
+        run_store=store,
+        run_id=run_id,
     )
     execution["requested_execution_mode"] = execution_mode
     if store is not None and run_id is not None:
@@ -142,8 +145,12 @@ async def run_research(
         all_artifacts = [artifact for result in execution.get("results", []) for artifact in result.get("artifacts", [])]
         store.register_artifacts(run_id, all_artifacts)
         fallback_used = any(item.get("status") == "fallback" or item.get("fallback_used") for item in execution.get("results", []))
-        lifecycle = "degraded" if execution.get("status") in {"completed", "planning_only"} and fallback_used else ("completed" if execution.get("status") in {"completed", "planning_only"} else execution.get("status", "failed"))
-        store.update_status(run_id, status=lifecycle, stage="artifacts" if lifecycle == "completed" else lifecycle, last_message=f"run {lifecycle}")
+        current = store.status(run_id)
+        if current.get("status") == "cancelled":
+            lifecycle = "cancelled"
+        else:
+            lifecycle = "planning_only" if execution.get("status") == "planning_only" else ("degraded" if execution.get("status") == "completed" and fallback_used else ("completed" if execution.get("status") == "completed" else execution.get("status", "failed")))
+            store.update_status(run_id, status=lifecycle, stage="artifacts" if lifecycle == "completed" else lifecycle, last_message=f"run {lifecycle}")
 
     return {"run_id": run_id, "contract": contract, "plan": plan, "handler_validation": handler_validation, "execution": execution}
 

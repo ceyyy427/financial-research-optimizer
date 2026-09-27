@@ -1,4 +1,4 @@
-"""Optional MCP server exposing the phase-one research workflow boundary."""
+"""Optional MCP server exposing the auditable research workflow boundary."""
 
 from __future__ import annotations
 
@@ -37,19 +37,52 @@ def create_server(service: ResearchMcpService | None = None):
         target: str | None = None,
         horizon: str | int | None = None,
         constraints: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        client_id: str | None = None,
+        owner_id: str | None = None,
+        tenant_id: str | None = None,
     ) -> dict[str, Any]:
         """Create an asynchronous research run and return its run_id and plan_id."""
-        return await service.create_research_run(task=task, mode=mode, output_level=output_level, universe=universe, target=target, horizon=horizon, constraints=constraints)
+        return await service.create_research_run(task=task, mode=mode, output_level=output_level, universe=universe, target=target, horizon=horizon, constraints=constraints, idempotency_key=idempotency_key, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
 
     @mcp.tool()
-    async def get_run_status(run_id: str) -> dict[str, Any]:
+    async def get_run_status(run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:
         """Read lifecycle, progress, stage, fallback, and execution status for a run."""
-        return await service.get_run_status(run_id)
+        return await service.get_run_status(run_id, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
 
     @mcp.tool()
-    async def read_research_artifact(run_id: str, artifact: str) -> dict[str, Any]:
+    async def read_research_artifact(run_id: str, artifact: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:
         """Read one manifest-registered artifact by logical name or safe alias."""
-        return await service.read_research_artifact(run_id, artifact)
+        return await service.read_research_artifact(run_id, artifact, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
+
+    @mcp.tool()
+    async def cancel_research_run(run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:
+        """Request cancellation of a queued or running run."""
+        return await service.cancel_research_run(run_id, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
+
+    @mcp.tool()
+    async def resume_research_run(run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:
+        """Resume an interrupted, failed, or blocked run from its checkpoint."""
+        return await service.resume_research_run(run_id, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
+
+    @mcp.tool()
+    async def retry_research_run(run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:
+        """Retry a failed or blocked run with its original contract."""
+        return await service.retry_research_run(run_id, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
+
+    @mcp.tool()
+    async def list_research_runs(
+        status: str | None = None,
+        mode: str | None = None,
+        created_after: str | None = None,
+        limit: int = 50,
+        cursor: int = 0,
+        client_id: str | None = None,
+        owner_id: str | None = None,
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List only runs visible to the requesting client and tenant."""
+        return await service.list_research_runs(status=status, mode=mode, created_after=created_after, limit=limit, cursor=cursor, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
 
     @mcp.resource("research://runs/{run_id}/{artifact}")
     async def research_resource(run_id: str, artifact: str) -> str:

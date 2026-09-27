@@ -144,13 +144,15 @@ def _atomic_write_json(path, payload):
     temporary.replace(path)
 
 
-def _save_checkpoint(path, plan, statuses, results, budget):
-    if not path:
+def _save_checkpoint(path, plan, statuses, results, budget, run_store=None, run_id=None):
+    if not path and not (run_store and run_id):
         return
     attempts = {item.get("node_id"): item.get("attempt", 0) for item in results if isinstance(item, dict) and item.get("node_id")}
     completed = [item.get("node_id") for item in results if item.get("status") in TERMINAL_SUCCESS]
-    _atomic_write_json(path, {
+    payload = {
         "checkpoint_version": 2,
+        "schema_version": "checkpoint.v2",
+        "run_id": run_id or plan.get("immutable_contract", {}).get("run_id"),
         "plan_id": plan["plan_id"],
         "plan_hash": _fingerprint(plan),
         "contract_hash": _fingerprint(plan.get("immutable_contract", {})),
@@ -164,10 +166,42 @@ def _save_checkpoint(path, plan, statuses, results, budget):
         "resume_policy": "safe",
         "results": results,
         "budget": budget.snapshot(),
-    })
+    }
+    if run_store is not None and run_id:
+        run_store.save_checkpoint(run_id, payload)
+    elif path:
+        _atomic_write_json(path, payload)
 
 
-def execute_plan(plan, handlers=None, authorized_context=False, checkpoint_path=None, max_workers=4, resume=True, global_budget=None):
+def _load_checkpoint(path, run_store=None, run_id=None):
+    if run_store is not None and run_id:
+        return run_store.load_checkpoint(run_id)
+    if path and Path(path).exists():
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    return None
+
+
+def _validate_checkpoint(saved, plan, node_map, run_id=None):
+    mismatches = []
+    if saved.get("checkpoint_version") != 2:
+        mismatches.append("checkpoint_version")
+    expected_run_id = run_id or plan.get("immutable_contract", {}).get("run_id")
+    if expected_run_id and saved.get("run_id") not in {None, expected_run_id}:
+        mismatches.append("run_id")
+    if saved.get("plan_hash") != _fingerprint(plan):
+        mismatches.append("plan_hash")
+    if saved.get("contract_hash") != _fingerprint(plan.get("immutable_contract", {})):
+        mismatches.append("contract_hash")
+    if saved.get("environment_fingerprint") != _environment_fingerprint():
+        mismatches.append("environment_fingerprint")
+    result_ids = {item.get("node_id") for item in saved.get("results", []) if isinstance(item, dict)}
+    if not result_ids.issubset(node_map):
+        mismatches.append("result_node_ids")
+    if mismatches:
+        raise ValueError("checkpoint_mismatch: cannot resume safely; mismatched " + ", ".join(mismatches))
+
+
+def execute_plan(plan, handlers=None, authorized_context=False, checkpoint_path=None, max_workers=4, resume=True, global_budget=None, run_store=None, run_id=None):
     """Execute independent ready nodes in parallel and persist state after each batch."""
     handlers = handlers or {}
     nodes = plan.get("nodes", [])
@@ -176,19 +210,9 @@ def execute_plan(plan, handlers=None, authorized_context=False, checkpoint_path=
     statuses = {node_id: "pending" for node_id in node_map}
     results = []
     budget_manager = BudgetManager(global_budget or plan.get("immutable_contract", {}).get("global_budget", {}))
-    if checkpoint_path and resume and Path(checkpoint_path).exists():
-        saved = json.loads(Path(checkpoint_path).read_text(encoding="utf-8"))
-        mismatches = []
-        if saved.get("checkpoint_version") != 2:
-            mismatches.append("checkpoint_version")
-        if saved.get("plan_hash") != _fingerprint(plan):
-            mismatches.append("plan_hash")
-        if saved.get("contract_hash") != _fingerprint(plan.get("immutable_contract", {})):
-            mismatches.append("contract_hash")
-        if saved.get("environment_fingerprint") != _environment_fingerprint():
-            mismatches.append("environment_fingerprint")
-        if mismatches:
-            raise ValueError("checkpoint cannot resume safely; mismatched " + ", ".join(mismatches))
+    saved = _load_checkpoint(checkpoint_path, run_store, run_id) if resume else None
+    if saved:
+        _validate_checkpoint(saved, plan, node_map, run_id=run_id)
         for node_id, status in saved.get("statuses", {}).items():
             if node_id in statuses and status in ALL_STATUSES:
                 statuses[node_id] = "pending" if status in {"running", "retrying"} else status
@@ -196,7 +220,7 @@ def execute_plan(plan, handlers=None, authorized_context=False, checkpoint_path=
     if not handlers and not results:
         results = [{"node_id": node["id"], "status": "warning", "attempt": 0, "message": "planning_only: no handler registry was supplied", "artifacts": [], "provenance": {}, "execution_mode": "planning_only"} for node in nodes]
         statuses = {node["id"]: "warning" for node in nodes}
-        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager)
+        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager, run_store, run_id)
         return {"plan_id": plan["plan_id"], "status": "planning_only", "execution_mode": "planning_only", "completion_level": "planning_only", "missing_capabilities": [], "results": results, "budget": budget_manager.snapshot()}
 
     while True:
@@ -219,7 +243,7 @@ def execute_plan(plan, handlers=None, authorized_context=False, checkpoint_path=
             if item["status"] in TERMINAL_FAILURE and node_map[node_id].get("allow_degraded"):
                 statuses[node_id] = "fallback"
                 item["status"] = "fallback"
-        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager)
+        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager, run_store, run_id)
     overall = "blocked" if any(item["status"] == "blocked" for item in results) else ("failed" if any(item["status"] == "failed" for item in results) else "completed")
     missing = sorted({cap for item in results for cap in item.get("missing_capabilities", []) if isinstance(item, dict) and isinstance(item.get("missing_capabilities", []), list)})
     completed_nodes = {item.get("node_id") for item in results if item.get("status") in TERMINAL_SUCCESS}
@@ -281,7 +305,7 @@ async def _execute_node_async(plan, node, handler, authorized_context, budget_ma
     return {"node_id": node_id, "status": "failed", "attempt": max_retries + 1, "message": last_message, "artifacts": [], "provenance": {}, "failure_class": failure_class}
 
 
-async def execute_plan_async(plan, handlers=None, authorized_context=False, checkpoint_path=None, max_workers=4, resume=True, global_budget=None):
+async def execute_plan_async(plan, handlers=None, authorized_context=False, checkpoint_path=None, max_workers=4, resume=True, global_budget=None, run_store=None, run_id=None):
     """Native-async executor for browser/CDP handlers; sync APIs remain supported above."""
     handlers = handlers or {}
     nodes = plan.get("nodes", [])
@@ -290,19 +314,9 @@ async def execute_plan_async(plan, handlers=None, authorized_context=False, chec
     statuses = {node_id: "pending" for node_id in node_map}
     results = []
     budget_manager = BudgetManager(global_budget or plan.get("immutable_contract", {}).get("global_budget", {}))
-    if checkpoint_path and resume and Path(checkpoint_path).exists():
-        saved = json.loads(Path(checkpoint_path).read_text(encoding="utf-8"))
-        mismatches = []
-        if saved.get("checkpoint_version") != 2:
-            mismatches.append("checkpoint_version")
-        if saved.get("plan_hash") != _fingerprint(plan):
-            mismatches.append("plan_hash")
-        if saved.get("contract_hash") != _fingerprint(plan.get("immutable_contract", {})):
-            mismatches.append("contract_hash")
-        if saved.get("environment_fingerprint") != _environment_fingerprint():
-            mismatches.append("environment_fingerprint")
-        if mismatches:
-            raise ValueError("checkpoint cannot resume safely; mismatched " + ", ".join(mismatches))
+    saved = _load_checkpoint(checkpoint_path, run_store, run_id) if resume else None
+    if saved:
+        _validate_checkpoint(saved, plan, node_map, run_id=run_id)
         for node_id, status in saved.get("statuses", {}).items():
             if node_id in statuses and status in ALL_STATUSES:
                 statuses[node_id] = "pending" if status in {"running", "retrying"} else status
@@ -310,7 +324,7 @@ async def execute_plan_async(plan, handlers=None, authorized_context=False, chec
     if not handlers and not results:
         results = [{"node_id": node["id"], "status": "warning", "attempt": 0, "message": "planning_only: no handler registry was supplied", "artifacts": [], "provenance": {}, "execution_mode": "planning_only"} for node in nodes]
         statuses = {node["id"]: "warning" for node in nodes}
-        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager)
+        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager, run_store, run_id)
         return {"plan_id": plan["plan_id"], "status": "planning_only", "execution_mode": "planning_only", "completion_level": "planning_only", "missing_capabilities": [], "results": results, "budget": budget_manager.snapshot()}
     semaphore = asyncio.Semaphore(max(1, max_workers))
 
@@ -336,7 +350,7 @@ async def execute_plan_async(plan, handlers=None, authorized_context=False, chec
             if item["status"] in TERMINAL_FAILURE and node_map[node_id].get("allow_degraded"):
                 statuses[node_id] = "fallback"
                 item["status"] = "fallback"
-        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager)
+        _save_checkpoint(checkpoint_path, plan, statuses, results, budget_manager, run_store, run_id)
     overall = "blocked" if any(item["status"] == "blocked" for item in results) else ("failed" if any(item["status"] == "failed" for item in results) else "completed")
     missing = sorted({cap for item in results for cap in item.get("missing_capabilities", []) if isinstance(item, dict) and isinstance(item.get("missing_capabilities", []), list)})
     completed_nodes = {item.get("node_id") for item in results if item.get("status") in TERMINAL_SUCCESS}
