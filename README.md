@@ -255,7 +255,7 @@ python3 scripts/verify_result_lineage.py analysis.json --recompute
 - references/asset_class_contracts/：equity、ETF、futures、fixed income、FX、options、crypto 契约；
 - experiment_manifest.schema.json：实验可复现性 Manifest JSON Schema；
 - analysis.schema.json、result_lineage.schema.json、online_snapshot.schema.json、monitoring_status.schema.json、refresh_policy.schema.json、event_data.schema.json、canonical_record.schema.json、network_capture.schema.json：分析、结果血缘、在线状态、规范化记录和 CDP 网络 Schema；
-- schemas/source_profile.schema.json、schemas/source_snapshot.schema.json、schemas/canonical_observation.schema.json：来源注册、原始快照和 canonical observation Schema；
+- schemas/source_profile.schema.json、schemas/source_snapshot.schema.json、schemas/canonical_observation.schema.json、schemas/mcp_run.schema.json：来源注册、原始快照、canonical observation 和 MCP 响应 Schema；
 - agent_contracts/：task、plan、node result 和 artifact Schema；
 - config/source_registry.yaml：可执行金融网站 Source Adapter Registry；
 - backtest_overfitting.schema.json、model_selection.schema.json、portfolio_output.schema.json、preflight.schema.json、feature_label_contract.schema.json、feature_label_audit.schema.json、source_reconciliation.schema.json：研究、特征、组合和来源契约 Schema；
@@ -272,9 +272,11 @@ python3 scripts/verify_result_lineage.py analysis.json --recompute
 - scripts/browser/：Patchright runtime、隔离 context、CDP network recorder、下载、页面快照和 trace；
 - scripts/transform/、scripts/events/：HTML/JSON/PDF/canonical 转换与事件时间审计；
 - scripts/agent/、scripts/monitoring/：Plan DAG、默认 handler registry、全局预算、可恢复 checkpoint、执行/重规划、安全策略、新鲜度和模型漂移监控；
+- financial_research/runtime.py、financial_research/run_store.py：统一运行入口和受控 run store；
+- mcp_server/：可选 MCP 薄适配层，仅暴露 `create_research_run`、`get_run_status`、`read_research_artifact` 和 `research://` 资源；详见 [`references/mcp_interface.md`](references/mcp_interface.md)；
 - scripts/parsers/：按 source profile 注册的离线解析器；`scripts/validate_source_registry.py` 会阻止声明可用但未注册解析器的来源；
 - scripts/build_refresh_plan.py、scripts/execute_online_refresh.py：分别构建刷新计划和执行数据快照；刷新不会隐式重训模型；
-- financial_research/：上层 agent 的统一 `run()` 接口；
+- financial_research/：上层 agent 的统一 `run_research()` / 兼容 `run()` 接口、run store 和生命周期状态；
 - scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
 - tests/：最小 synthetic financial dataset 和 pytest 回归测试；
 - .github/workflows/ci.yml：配置、Manifest、审计、HTML 和组合 fallback 的 CI。
@@ -320,6 +322,22 @@ wheel/sdist 是 Python 分发包，位于 Release；GHCR 是可在 GitHub Packag
 页面查看的容器分发包，两者用途不同。
 
 快速调用时至少写清楚六件事：数据源、研究对象、预测目标、风险/成本约束、输出等级、交付物。Skill 会先执行 preflight，再生成模块总结、预测区间、指标图、HTML 和决策表。
+
+### MCP 调用
+
+MCP 只作为外部调用接口，不进入核心研究逻辑。安装可选依赖后，可用
+stdio 供本地宿主启动，或用 Streamable HTTP 供受保护的服务端连接：
+
+```bash
+python3 -m pip install -e '.[mcp]'
+fro-mcp
+fro-mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+三项工具都返回结构化状态；研究结果只能通过 `research://runs/...` 读取
+已登记产物，不接受任意文件路径。MCP 适配层最终调用统一的
+`financial_research.run_research`，所以 CLI、MCP 和未来 Web API 共用同一套
+preflight、策略、数据血缘、checkpoint 和 HTML/decision table 规则。
 
 上层 Python agent 也可使用统一接口；默认只生成计划并执行已注册 handler，不会直接启动浏览器或访问外网：
 

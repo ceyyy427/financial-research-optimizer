@@ -19,6 +19,7 @@ test = ["pytest>=8.0", "jsonschema>=4.20"]
 schema = ["jsonschema>=4.20"]
 browser = ["patchright>=1.0"]
 pdf = ["pdfplumber>=0.11"]
+mcp = ["mcp>=2,<3"]
 
 [project.scripts]
 fro-preflight = "scripts.run_preflight:main"
@@ -33,6 +34,7 @@ fro-execute-refresh = "scripts.execute_online_refresh:main"
 fro-adapter-status = "scripts.adapters.status:main"
 fro-quality = "scripts.validate_financial_dataset:main"
 fro-schema-drift = "scripts.schema_drift:main"
+fro-mcp = "mcp_server.server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -40,4 +42,4 @@ pythonpath = ["scripts"]
 addopts = "-q"
 
 [tool.setuptools.packages.find]
-include = ["scripts*", "financial_research*"]
+include = ["scripts*", "financial_research*", "mcp_server*"]
