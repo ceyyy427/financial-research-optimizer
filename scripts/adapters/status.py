@@ -2,11 +2,15 @@
 """Report adapter maturity without claiming that planned sources execute."""
 import argparse
 import json
+import sys
 from pathlib import Path
 
 try:
     from ..source_router import load_registry
 except ImportError:
+    # ``python3 scripts/adapters/status.py`` does not put ``scripts/`` on
+    # sys.path; installed entry points use the package-relative import above.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from source_router import load_registry
 
 

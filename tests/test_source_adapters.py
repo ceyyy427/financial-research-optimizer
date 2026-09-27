@@ -10,6 +10,7 @@ from scripts.normalize_observations import canonicalize_observation
 from scripts.source_router import SourceRouter, SourceRoutingError
 from scripts.source_snapshot import create_snapshot
 from scripts.validate_source_registry import validate_registry
+from adapters.status import adapter_status
 from parsers import parse
 
 
@@ -27,6 +28,8 @@ def test_registry_profiles_validate_and_route_alfred():
     assert "material_price_conflict" in plan["blocking_rules"]
     executable = router.resolve("China official macro", ["CPI"], ["point_in_time"], require_executable=True)
     assert executable["source_plan"][0]["source_id"] in {"stats_gov_cn", "pbc", "sse", "szse", "sec_edgar", "alfred", "ecb_sdmx", "bis_sdmx"}
+    status = adapter_status(ROOT / "config/source_registry.yaml")
+    assert status["execution_ready_count"] >= 1
 
 
 def test_router_rejects_missing_capability():
