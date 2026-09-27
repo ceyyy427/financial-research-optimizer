@@ -55,7 +55,7 @@ def audit_grain(frame, grain_fields=None):
     }
 
 
-def quality_score(report, source_reliability_score=1.0):
+def quality_score(report, source_reliability_score=None):
     """Return component scores and a conservative usability decision."""
     rows = max(int(report.get("rows", 0)), 1)
     columns = max(len(report.get("columns", [])), 1)
@@ -73,6 +73,10 @@ def quality_score(report, source_reliability_score=1.0):
     # true duplicate observation.
     date_score = 0.0 if invalid_dates else (0.8 if duplicate_dates and not grain.get("grain_pass", True) else 1.0)
     grain_score = 1.0 if grain.get("grain_pass", True) else 0.0
+    # An unbound CSV has unknown source reliability; unknown is deliberately
+    # scored as neutral rather than silently treated as authoritative.
+    if source_reliability_score is None:
+        source_reliability_score = report.get("source_reliability_score", 0.5)
     source_score = max(0.0, min(1.0, float(source_reliability_score)))
     components = {
         "quality_score": round((completeness + freshness + pit + source_score + date_score + grain_score) / 6, 6),
