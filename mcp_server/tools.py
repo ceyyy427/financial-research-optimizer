@@ -86,7 +86,7 @@ class ResearchMcpService:
             try:
                 self.store.acquire_lease(run_id, self.worker_id, self.lease_ttl_seconds)
                 heartbeat = asyncio.create_task(self._heartbeat_loop(run_id))
-                request = {key: value for key, value in request.items() if key not in {"client_id", "tenant_id"}}
+                request = {key: value for key, value in request.items() if key not in {"client_id", "owner_id", "tenant_id"}}
                 await run_research(**request, execution_mode=self.execution_mode, run_id=run_id, run_store=self.store, run_root=str(self.store.root))
             except StoreBusyError:
                 return
