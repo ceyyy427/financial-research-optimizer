@@ -3,6 +3,8 @@
 import argparse
 import hashlib
 import json
+import shlex
+import subprocess
 from pathlib import Path
 
 
@@ -49,7 +51,7 @@ def _refs(node):
     return value if isinstance(value, list) else []
 
 
-def verify_result_lineage(data, input_files=None, require_metric_for_empty=False):
+def verify_result_lineage(data, input_files=None, require_metric_for_empty=False, recompute=False, cwd=None):
     """Return a structured audit; callers should stop artifact generation on failure."""
     errors = []
     warnings = []
@@ -84,6 +86,32 @@ def verify_result_lineage(data, input_files=None, require_metric_for_empty=False
         declared_fp = metric.get("calculation_fingerprint")
         if declared_fp and declared_fp != calculation_fingerprint(metric):
             errors.append(f"{metric_id}: calculation_fingerprint mismatch")
+        if recompute:
+            command = metric.get("recompute_command")
+            if not command:
+                errors.append(f"{metric_id}: recompute_command is required by --recompute")
+            else:
+                try:
+                    completed = subprocess.run(shlex.split(command), cwd=cwd, capture_output=True, text=True, timeout=120, check=False)
+                except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+                    errors.append(f"{metric_id}: recompute command failed to start or timed out: {exc}")
+                else:
+                    if completed.returncode != 0:
+                        errors.append(f"{metric_id}: recompute command exit code {completed.returncode}: {completed.stderr[-240:]}")
+            output_file = metric.get("output_file")
+            output_hash = metric.get("output_hash")
+            if output_file and output_hash:
+                output_path = Path(output_file)
+                if not output_path.is_absolute() and cwd:
+                    output_path = Path(cwd) / output_path
+                if not output_path.exists():
+                    errors.append(f"{metric_id}: declared output_file does not exist: {output_path}")
+                else:
+                    actual = hash_file(output_path)
+                    if output_hash not in {actual, "sha256:" + actual}:
+                        errors.append(f"{metric_id}: output_hash does not match {output_path}")
+            elif output_file or output_hash:
+                errors.append(f"{metric_id}: output_file and output_hash must be declared together")
     if "charts" in data:
         for index, chart in enumerate(data.get("charts", [])):
             if _has_numeric(chart.get("series", [])) or _has_numeric(chart.get("band", {})):
@@ -123,9 +151,10 @@ def main():
     parser.add_argument("input", type=Path, help="analysis JSON")
     parser.add_argument("--input-file", action="append", default=[], help="optional raw input file whose hash must match a metric")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--recompute", action="store_true", help="execute declared recompute commands and verify output hashes")
     args = parser.parse_args()
     data = json.loads(args.input.read_text(encoding="utf-8"))
-    audit = verify_result_lineage(data, args.input_file)
+    audit = verify_result_lineage(data, args.input_file, recompute=args.recompute, cwd=args.input.parent)
     rendered = json.dumps(audit, ensure_ascii=False, indent=2)
     if args.output:
         args.output.write_text(rendered + "\n", encoding="utf-8")

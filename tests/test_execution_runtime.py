@@ -3,6 +3,8 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+
 from agent.executor import execute_plan
 from agent.handlers import HANDLERS, validate_handlers
 from browser.auth_checkpoint import save_auth_checkpoint
@@ -47,6 +49,34 @@ def test_executor_retries_and_checkpoints(tmp_path):
     assert calls["n"] == 2
     saved = json.loads(checkpoint.read_text())
     assert saved["statuses"]["work"] == "passed"
+    assert saved["checkpoint_version"] == 2
+    assert saved["plan_hash"]
+    assert saved["contract_hash"]
+
+
+def test_checkpoint_rejects_plan_or_contract_drift(tmp_path):
+    checkpoint = tmp_path / "checkpoint.json"
+    plan = _plan()
+    execute_plan(plan, handlers={"work": lambda contract, node: {"status": "passed"}}, checkpoint_path=checkpoint)
+    changed = dict(plan)
+    changed["immutable_contract"] = {"target": "changed"}
+    with pytest.raises(ValueError, match="cannot resume safely"):
+        execute_plan(changed, handlers={"work": lambda contract, node: {"status": "passed"}}, checkpoint_path=checkpoint)
+
+
+def test_global_budget_is_reserved_atomically_for_parallel_nodes():
+    plan = {
+        "plan_id": "budget-test",
+        "immutable_contract": {"global_budget": {"max_network_requests": 1, "max_artifacts": 10}},
+        "nodes": [
+            {"id": "a", "tool": "work", "depends_on": [], "max_retries": 0, "timeout_seconds": 1, "budget": {"max_network_requests": 5, "max_artifacts": 5}, "artifacts": []},
+            {"id": "b", "tool": "work", "depends_on": [], "max_retries": 0, "timeout_seconds": 1, "budget": {"max_network_requests": 5, "max_artifacts": 5}, "artifacts": []},
+        ],
+    }
+    result = execute_plan(plan, handlers={"work": lambda contract, node: {"status": "passed", "network_requests": 1}}, max_workers=2)
+    assert result["status"] == "blocked"
+    assert sum(item.get("network_requests", 0) for item in result["results"]) == 1
+    assert any(item.get("failure_class") == "global_budget" for item in result["results"])
 
 
 def test_executor_timeout_is_failure_without_waiting_for_handler():
@@ -78,6 +108,20 @@ def test_data_refresh_acquire_snapshot_parse_and_canonicalize(tmp_path):
     assert result["status"] == "passed"
     assert result["normalized_rows"] == 1
     assert Path(result["normalized_file"]).exists()
+
+
+def test_data_refresh_uses_source_specific_fred_provider(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRED_API_KEY", "test-key")
+
+    def transport(method, url, headers, timeout):
+        assert "api.stlouisfed.org/fred/series/observations" in url
+        assert "series_id=GDP" in url
+        return 200, {"content-type": "application/json"}, b'{"series_id":"GDP","observations":[{"date":"2026-09-25","value":"1.2","realtime_start":"2026-09-26"}]}'
+
+    result = execute_data_refresh("fred", "https://ignored.example", tmp_path, params={"series_id": "GDP"}, transport=transport)
+    assert result["status"] == "passed"
+    assert result["source_id"] == "fred"
+    assert result["normalized_rows"] == 1
 
 
 class _AuthContext:

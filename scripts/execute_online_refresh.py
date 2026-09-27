@@ -10,43 +10,66 @@ import json
 from pathlib import Path
 
 try:
-    from .online.base_provider import BaseProvider, ProviderError
+    from .online.base_provider import ProviderError
     from .online.http_cache import HttpCache
+    from .online.provider_registry import build_provider
     from .online.snapshot_store import SnapshotStore
     from .normalize_observations import normalize
     from .parsers import parse
     from .source_router import SourceRouter, SourceRoutingError
 except ImportError:
-    from online.base_provider import BaseProvider, ProviderError
+    from online.base_provider import ProviderError
     from online.http_cache import HttpCache
+    from online.provider_registry import build_provider
     from online.snapshot_store import SnapshotStore
     from normalize_observations import normalize
     from parsers import parse
     from source_router import SourceRouter, SourceRoutingError
 
 
-def execute_data_refresh(source_id, url, output_dir, params=None, registry_path="config/source_registry.yaml", transport=None, retrain=False):
+def execute_data_refresh(source_id, url, output_dir, params=None, registry_path="config/source_registry.yaml", transport=None, retrain=False, allow_degraded=False, user_agent=None):
     if retrain:
         return {"status": "blocked", "stage": "model_retrain", "failure_class": "policy", "message": "retraining is a separate explicit stage and cannot be enabled by data refresh"}
     if not source_id or not url:
         return {"status": "blocked", "stage": "data_refresh", "failure_class": "contract", "message": "source_id and url are required"}
     try:
         router = SourceRouter.from_file(registry_path)
-        plan = router.resolve("online data refresh", required_capabilities=["api"], authorization_status="unknown", require_executable=True)
         profile = router.profiles.get(source_id)
         if profile is None:
             return {"status": "blocked", "stage": "data_refresh", "failure_class": "source", "message": f"unknown source_id: {source_id}"}
-        if profile.get("implementation_status") == "planned" or profile.get("parser_status") == "unavailable":
-            return {"status": "blocked", "stage": "data_refresh", "failure_class": "source", "message": f"adapter is not executable: {source_id}"}
+        production_ready = profile.get("implementation_status") == "production" and profile.get("parser_status") == "tested"
+        degraded_ready = profile.get("implementation_status") == "partial" and profile.get("parser_status") in {"partial", "available", "tested"}
+        if not production_ready and not (allow_degraded and degraded_ready):
+            return {"status": "blocked", "stage": "data_refresh", "failure_class": "source", "message": f"provider is not production-ready: {source_id}; use --allow-degraded for manual-review execution"}
         root = Path(output_dir)
-        provider = BaseProvider(cache=HttpCache(root / "cache", transport=transport), snapshot_store=SnapshotStore(root / "snapshots"))
-        provider.provider_name = source_id
-        provider.provider_version = f"{source_id}-generic-v1"
-        provider.license_name = profile.get("name", "source terms")
-        provider.revision_policy = "vintage_aware" if profile.get("revision_aware") else "latest_only"
-        response = provider.request(url, params=params or {}, ttl_seconds=3600, snapshot=True)
+        cache = HttpCache(root / "cache", transport=transport)
+        provider = build_provider(source_id, cache, SnapshotStore(root / "snapshots"), user_agent=user_agent)
+        request_params = params or {}
+        if source_id in {"fred", "alfred"}:
+            payload_result = provider.fetch_series(
+                request_params.get("series_id") or request_params.get("instrument_id"),
+                observation_start=request_params.get("observation_start"),
+                observation_end=request_params.get("observation_end"),
+                realtime_start=request_params.get("realtime_start"),
+                realtime_end=request_params.get("realtime_end"),
+            )
+        elif source_id == "sec_edgar":
+            cik = request_params.get("cik") or request_params.get("instrument_id")
+            payload_result = provider.company_facts(cik) if request_params.get("endpoint", "companyfacts") == "companyfacts" else provider.submissions(cik)
+        elif source_id in {"ecb_sdmx", "bis_sdmx"}:
+            payload_result = provider.fetch_data(request_params["flow_ref"], request_params.get("key", ""), request_params.get("start_period"), request_params.get("end_period"))
+        elif source_id == "stats_gov_cn":
+            payload_result = provider.fetch(url, request_params)
+        else:
+            raise ProviderError(f"no source-specific provider registered for {source_id}")
+        response = payload_result["response"]
         try:
-            payload = response.json()
+            payload = payload_result.get("data")
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except ValueError:
+                    pass
         except (UnicodeDecodeError, ValueError):
             payload = response.body.decode("utf-8", errors="replace")
         parser_name = profile.get("parser")
@@ -79,9 +102,11 @@ def main():
     parser.add_argument("--registry", type=Path, default=Path("config/source_registry.yaml"))
     parser.add_argument("--params", type=json.loads, default={})
     parser.add_argument("--retrain", action="store_true")
+    parser.add_argument("--allow-degraded", action="store_true", help="allow partial provider with manual review")
+    parser.add_argument("--user-agent", default=None, help="required contact-bearing User-Agent for SEC")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = execute_data_refresh(args.source_id, args.url, args.output_dir, args.params, args.registry, retrain=args.retrain)
+    result = execute_data_refresh(args.source_id, args.url, args.output_dir, args.params, args.registry, retrain=args.retrain, allow_degraded=args.allow_degraded, user_agent=args.user_agent)
     rendered = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

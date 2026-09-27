@@ -28,6 +28,48 @@ ROUTES = {
 }
 
 
+def build_provider(source_id, cache, snapshot_store, transport=None, user_agent=None, **kwargs):
+    """Construct the source-specific provider; never silently fall back to BaseProvider."""
+    from .bis_sdmx import BisSdmxProvider
+    from .ecb_sdmx import EcbSdmxProvider
+    from .fred_alfred import FredAlfredProvider
+    from .sec_edgar import SecEdgarProvider
+    from .stats_gov_cn import StatsGovCnProvider
+
+    common = {"cache": cache, "snapshot_store": snapshot_store}
+    if transport is not None:
+        # HttpCache owns the injectable transport.  Keeping this explicit makes
+        # provider construction auditable and keeps tests offline.
+        cache.transport = transport
+    factories = {
+        "stats_gov_cn": lambda: StatsGovCnProvider(**common),
+        "fred": lambda: FredAlfredProvider(source_id="fred", **common),
+        "alfred": lambda: FredAlfredProvider(source_id="alfred", **common),
+        "sec_edgar": lambda: SecEdgarProvider(user_agent=user_agent or "financial-research-optimizer/SEC contact@example.invalid", **common),
+        "ecb_sdmx": lambda: EcbSdmxProvider(**common),
+        "bis_sdmx": lambda: BisSdmxProvider(**common),
+    }
+    factory = factories.get(source_id)
+    if factory is None:
+        raise KeyError(f"no executable provider registered for {source_id}")
+    return factory()
+
+
+PROVIDER_IDS = frozenset({"stats_gov_cn", "fred", "alfred", "sec_edgar", "ecb_sdmx", "bis_sdmx"})
+
+
+def provider_alignment(source_id, profile):
+    provider_id = profile.get("provider_id", source_id)
+    adapter_id = profile.get("adapter_id", source_id)
+    return {
+        "source_id": source_id,
+        "provider_id": provider_id,
+        "adapter_id": adapter_id,
+        "aligned": provider_id == source_id and adapter_id == source_id,
+        "provider_registered": source_id in PROVIDER_IDS,
+    }
+
+
 def route_provider(source_id, prefer_browser=False):
     route = ROUTES.get(source_id)
     if not route:

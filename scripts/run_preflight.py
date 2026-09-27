@@ -34,6 +34,23 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
         return {"status": "blocked", "mode": "unknown", "output_level": "unknown", "checks": [{"check_id": "config", "status": "fail", "message": str(exc)}], "blocking_reasons": [str(exc)]}
     level = config["output_level"]
     mode = config["mode"]
+    registry_path = config.get("online", {}).get("registry_path")
+    if not registry_path:
+        registry_path = Path(config["_config_path"]).resolve().parents[1] / "config" / "source_registry.yaml"
+    if Path(registry_path).exists():
+        try:
+            try:
+                from .validate_source_registry import validate_registry
+            except ImportError:
+                from validate_source_registry import validate_registry
+            schema_path = Path(registry_path).parent.parent / "schemas" / "source_profile.schema.json"
+            registry_result = validate_registry(registry_path, schema_path)
+            _check(checks, "source_registry", "pass", f"validated {registry_result['profile_count']} source profiles and provider IDs")
+        except Exception as exc:
+            blocking.append("source registry/provider alignment failed: " + str(exc))
+            _check(checks, "source_registry", "fail", blocking[-1])
+    else:
+        _check(checks, "source_registry", "warning", f"source registry not found: {registry_path}")
     required_manifest = config.get("preflight", {}).get("require_manifest", level in {"research_grade", "portfolio_grade"})
     required_dataset = config.get("preflight", {}).get("require_dataset", level == "portfolio_grade")
     required_reconciliation = config.get("preflight", {}).get("require_reconciliation", level == "portfolio_grade")

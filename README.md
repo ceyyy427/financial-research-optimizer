@@ -100,15 +100,34 @@ python3 scripts/verify_result_lineage.py examples/demo_analysis.json
 ```bash
 python3 scripts/build_refresh_plan.py --config examples/research_config.json --output artifacts/refresh_plan.json
 # compatibility alias: python3 scripts/run_online_refresh.py ...
-python3 scripts/execute_online_refresh.py --source-id sec_edgar --url https://data.sec.gov/submissions/CIK0000320193.json --output-dir artifacts/online
+python3 scripts/execute_online_refresh.py \
+  --source-id sec_edgar \
+  --url https://data.sec.gov \
+  --params '{"cik":"320193","endpoint":"companyfacts"}' \
+  --user-agent 'research@example.com' \
+  --output-dir artifacts/online
 python3 scripts/check_data_freshness.py artifacts/snapshots/provider/snapshot.json --output artifacts/freshness.json
 python3 scripts/monitoring/model_monitor.py artifacts/monitor_input.json --output artifacts/monitoring_status.json
 ```
 
 `execute_online_refresh.py` only acquires and snapshots data. It does not
 retrain models, refresh features, or produce a forecast implicitly. Planned
-adapters are rejected by `--execute` routing and return an explicit blocked
-status.
+adapters and `partial` adapters are rejected for automatic primary use; pass
+`--allow-degraded` only when a manual-review checkpoint is intended. Provider
+construction is source-specific: FRED/ALFRED inject API/vintage parameters,
+SEC enforces a contact-bearing User-Agent, and ECB/BIS use SDMX flow/key
+parameters. A generic provider is never silently substituted.
+
+Maturity states are explicit:
+
+| 状态 | 含义 |
+|---|---|
+| `execution_ready` | `production + tested`，允许自动主路由 |
+| `degraded_ready` | `partial + partial/available/tested`，只能人工复核 |
+| `unavailable` | `planned` 或解析器不可用，阻断获取 |
+
+运行 `python3 scripts/adapters/status.py` 可查看 `execution_ready`、
+`degraded_ready`、`automatic_primary_allowed` 和 `manual_review_required`。
 
 动态 preflight 状态为 `ready`、`stale`、`degraded`、`fallback` 或 `blocked`。只有 `blocked` 禁止继续依赖分析；其余状态必须在 HTML 中显示数据延迟、缓存、模型和预测有效期。
 
@@ -182,6 +201,12 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
   --output-dir artifacts --decision-format both
 ```
 
+可复算指标可以进一步执行声明的命令并校验输出文件哈希：
+
+```bash
+python3 scripts/verify_result_lineage.py analysis.json --recompute
+```
+
 示例文件：[`examples/financial_research_brief.html`](examples/financial_research_brief.html)。
 
 决策表至少包含：优先级、模块、当前判断、建议动作/仓位姿态、触发条件、依据、风险、有效期、下一次检查、实验 ID、复现状态；在线运行还附带 `source_id`、访问方式、freshness、snapshot hash、revision、授权和 Point-in-Time 状态，以及数据/缓存/模型/预测状态。表中的“动作”是研究与决策支持表达，不是自动下单指令。
@@ -229,13 +254,13 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - scripts/reconcile_sources.py、scripts/point_in_time_audit.py：源冲突和未来信息审计；
 - scripts/rolling_split.py、scripts/portfolio_robustness.py：滚动切分和组合稳健性工具；
 - scripts/feature_label_audit.py、scripts/overfitting_applicability.py、scripts/run_preflight.py、scripts/validate_schemas.py：特征/标签审计、适用性触发、运行前门禁和离线 Schema 校验；
-- scripts/verify_result_lineage.py：HTML/decision table 的结果可信度门禁；
+- scripts/verify_result_lineage.py：HTML/decision table 的结果可信度门禁和可复算校验；
 - scripts/online/：FRED/ALFRED、SEC、ECB、BIS、provider registry、缓存、重试和 snapshot store；
 - scripts/source_router.py、scripts/source_snapshot.py、scripts/normalize_observations.py：Source Adapter 路由、快照和标准化入口；
 - scripts/adapters/：国家数据、人民银行、巨潮、交易所、聚合器、FRED/ALFRED、SEC、授权数据和库适配器；
 - scripts/browser/：Patchright runtime、隔离 context、CDP network recorder、下载、页面快照和 trace；
 - scripts/transform/、scripts/events/：HTML/JSON/PDF/canonical 转换与事件时间审计；
-- scripts/agent/、scripts/monitoring/：Plan DAG、默认 handler registry、执行/重规划、安全策略、新鲜度和模型漂移监控；
+- scripts/agent/、scripts/monitoring/：Plan DAG、默认 handler registry、全局预算、可恢复 checkpoint、执行/重规划、安全策略、新鲜度和模型漂移监控；
 - scripts/parsers/：按 source profile 注册的离线解析器；`scripts/validate_source_registry.py` 会阻止声明可用但未注册解析器的来源；
 - scripts/build_refresh_plan.py、scripts/execute_online_refresh.py：分别构建刷新计划和执行数据快照；刷新不会隐式重训模型；
 - financial_research/：上层 agent 的统一 `run()` 接口；
@@ -272,6 +297,16 @@ pip install https://github.com/ceyyy427/financial-research-optimizer/releases/do
 如需同步发布到 PyPI，在仓库 Settings → Secrets and variables → Actions 中增加
 `PYPI_API_TOKEN`，后续 Release 会自动上传到 PyPI。未配置该 Secret 时，工作流会
 明确跳过 PyPI 上传，但 GitHub Release 资产仍会正常发布。
+
+GitHub 不提供 Python/PyPI Packages registry；为使仓库具备真正的 GitHub
+Packages 产物，发布工作流同时构建并推送 GHCR 容器包：
+
+```bash
+docker pull ghcr.io/ceyyy427/financial-research-optimizer:v0.4.0
+```
+
+wheel/sdist 是 Python 分发包，位于 Release；GHCR 是可在 GitHub Packages
+页面查看的容器分发包，两者用途不同。
 
 快速调用时至少写清楚六件事：数据源、研究对象、预测目标、风险/成本约束、输出等级、交付物。Skill 会先执行 preflight，再生成模块总结、预测区间、指标图、HTML 和决策表。
 

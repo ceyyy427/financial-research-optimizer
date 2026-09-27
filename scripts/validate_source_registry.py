@@ -7,9 +7,11 @@ from pathlib import Path
 try:
     from .source_router import load_registry
     from .parsers import get_parser
+    from .online.provider_registry import PROVIDER_IDS
 except ImportError:
     from source_router import load_registry
     from parsers import get_parser
+    from online.provider_registry import PROVIDER_IDS
 
 
 def validate_registry(registry_path, schema_path):
@@ -22,6 +24,16 @@ def validate_registry(registry_path, schema_path):
     errors = []
     validator = Draft202012Validator(schema)
     for source_id, profile in profiles.items():
+        if profile.get("provider_id", source_id) != source_id:
+            errors.append(f"{source_id}: provider_id must equal source_id")
+        if profile.get("adapter_id", source_id) != source_id:
+            errors.append(f"{source_id}: adapter_id must equal source_id")
+        if profile.get("parser_id", profile.get("parser")) != profile.get("parser"):
+            errors.append(f"{source_id}: parser_id must equal parser")
+        if profile.get("normalizer_id", profile.get("normalizer")) != profile.get("normalizer"):
+            errors.append(f"{source_id}: normalizer_id must equal normalizer")
+        if profile.get("implementation_status") == "production" and profile.get("parser_status") == "tested" and source_id not in PROVIDER_IDS:
+            errors.append(f"{source_id}: production+tested source has no registered online provider")
         errors.extend(f"{source_id}: {error.message}" for error in validator.iter_errors(profile))
         if profile.get("parser_status") in {"available", "tested"} and get_parser(profile.get("parser")) is None:
             errors.append(f"{source_id}: parser_status={profile.get('parser_status')} but parser is not registered: {profile.get('parser')}")

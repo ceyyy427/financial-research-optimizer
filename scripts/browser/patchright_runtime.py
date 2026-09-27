@@ -84,8 +84,19 @@ class PatchrightRuntime:
             "authorized": self.authorized,
             "context_count": len(self.contexts),
             "page_count": len(pages),
-            "pages": [getattr(page, "url", "") for page in pages],
+            "pages": [
+                {
+                    "url": getattr(page, "url", ""),
+                    "frame_count": len(list(getattr(page, "frames", []) or [])),
+                    "popup_capable": True,
+                }
+                for page in pages
+            ],
         }
+
+    def target_inventory(self):
+        """Return a safe tab/frame inventory without reading page content."""
+        return self.status().get("pages", [])
 
     async def new_page(self):
         if not self.context:

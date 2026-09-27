@@ -1,7 +1,7 @@
 from agent.planner import build_plan, create_research_contract
 from agent.replanner import replan
 from agent.policy_guard import guard_action
-from browser.network_capture import NetworkRecorder
+from browser.network_capture import NetworkClassifier, NetworkRecorder
 
 
 def test_plan_has_bounded_dependencies_and_immutable_contract():
@@ -29,3 +29,14 @@ def test_network_recorder_redacts_headers_and_hashes_body():
     assert record["body_hash"]
     assert "secret" not in str(record)
     assert record["source_id"] == "provider_x"
+
+
+def test_network_classifier_separates_data_tracking_and_static_requests():
+    data = NetworkClassifier.classify("https://api.example.test/v1/series?page=2", response_headers={"content-type": "application/json"}, body=b'{"data": []}')
+    tracking = NetworkClassifier.classify("https://analytics.example.test/collect", response_headers={"content-type": "image/gif"})
+    static = NetworkClassifier.classify("https://example.test/assets/app.js", response_headers={"content-type": "application/javascript"})
+    assert data["classification"] == "financial_data_api"
+    assert data["is_data_request"] is True
+    assert data["pagination"] is True
+    assert tracking["is_tracking_request"] is True
+    assert static["is_static_asset"] is True

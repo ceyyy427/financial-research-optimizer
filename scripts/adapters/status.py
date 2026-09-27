@@ -20,14 +20,25 @@ def adapter_status(registry_path):
     for source_id, profile in sorted(profiles.items()):
         implementation = profile.get("implementation_status", "planned")
         parser = profile.get("parser_status", "unavailable")
+        execution_ready = implementation == "production" and parser == "tested"
+        degraded_ready = implementation == "partial" and parser in {"partial", "available", "tested"}
         rows.append({
             "source_id": source_id,
             "implementation_status": implementation,
             "parser_status": parser,
-            "execution_ready": implementation in {"partial", "production"} and parser in {"partial", "available", "tested"},
+            "execution_ready": execution_ready,
+            "degraded_ready": degraded_ready,
+            "automatic_primary_allowed": execution_ready,
+            "manual_review_required": degraded_ready,
             "parser": profile.get("parser"),
         })
-    return {"registry": str(registry_path), "profiles": rows, "execution_ready_count": sum(row["execution_ready"] for row in rows)}
+    return {
+        "registry": str(registry_path),
+        "profiles": rows,
+        "execution_ready_count": sum(row["execution_ready"] for row in rows),
+        "degraded_ready_count": sum(row["degraded_ready"] for row in rows),
+        "automatic_primary_rule": "implementation_status=production AND parser_status=tested",
+    }
 
 
 def main():

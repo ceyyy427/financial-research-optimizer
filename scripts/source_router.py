@@ -21,12 +21,20 @@ def load_registry(path):
     if not isinstance(sources, list):
         raise SourceRoutingError("source registry must contain a sources list")
     profiles = {}
-    for profile in sources:
+    for raw_profile in sources:
+        profile = dict(raw_profile) if isinstance(raw_profile, dict) else raw_profile
         if not isinstance(profile, dict) or not profile.get("source_id"):
             raise SourceRoutingError("every source profile needs source_id")
         source_id = profile["source_id"]
         if source_id in profiles:
             raise SourceRoutingError(f"duplicate source_id: {source_id}")
+        # Materialize the identity contract at load time so every downstream
+        # manifest/report sees the same source/provider/adapter IDs even when
+        # older YAML profiles omit the optional aliases.
+        profile.setdefault("provider_id", source_id)
+        profile.setdefault("adapter_id", source_id)
+        profile.setdefault("parser_id", profile.get("parser"))
+        profile.setdefault("normalizer_id", profile.get("normalizer"))
         profiles[source_id] = profile
     return profiles
 
@@ -40,8 +48,14 @@ class SourceCandidate:
 
     def as_dict(self, role="primary", required_fields=None):
         profile = self.profile
+        execution_ready = profile.get("implementation_status") == "production" and profile.get("parser_status") == "tested"
+        degraded_ready = profile.get("implementation_status") == "partial" and profile.get("parser_status") in {"partial", "available", "tested"}
         return {
             "source_id": profile["source_id"],
+            "provider_id": profile.get("provider_id", profile["source_id"]),
+            "adapter_id": profile.get("adapter_id", profile["source_id"]),
+            "parser_id": profile.get("parser_id", profile.get("parser")),
+            "normalizer_id": profile.get("normalizer_id", profile.get("normalizer")),
             "role": role,
             "reason": "; ".join(self.reasons),
             "authority": profile.get("authority"),
@@ -55,7 +69,10 @@ class SourceCandidate:
             "access_policy": profile.get("access_policy"),
             "implementation_status": profile.get("implementation_status", "planned"),
             "parser_status": profile.get("parser_status", "unavailable"),
-            "execution_ready": profile.get("implementation_status") in {"partial", "production"} and profile.get("parser_status") in {"partial", "available", "tested"},
+            "execution_ready": execution_ready,
+            "degraded_ready": degraded_ready,
+            "automatic_primary_allowed": execution_ready,
+            "manual_review_required": degraded_ready,
             "priority_score": round(self.score, 4),
         }
 
@@ -106,9 +123,13 @@ class SourceRouter:
             return capability.split(":", 1)[1] in profile.get("data_types", [])
         return capability in profile.get("access_methods", []) or capability in profile.get("data_types", [])
 
-    def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable=False):
-        if require_executable and (profile.get("implementation_status") == "planned" or profile.get("parser_status") == "unavailable"):
-            return None, [f"adapter is not executable: implementation_status={profile.get('implementation_status')}, parser_status={profile.get('parser_status')}" ]
+    def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable=False, allow_degraded=False):
+        implementation = profile.get("implementation_status", "planned")
+        parser_status = profile.get("parser_status", "unavailable")
+        execution_ready = implementation == "production" and parser_status == "tested"
+        degraded_ready = implementation == "partial" and parser_status in {"partial", "available", "tested"}
+        if require_executable and not execution_ready and not (allow_degraded and degraded_ready):
+            return None, [f"adapter is not executable for automatic primary use: implementation_status={implementation}, parser_status={parser_status}; allow_degraded={allow_degraded}"]
         missing = [cap for cap in required_capabilities if not self._capability_ok(profile, cap)]
         fields = set(profile.get("required_fields", []))
         missing_fields = [field for field in required_fields if field not in fields]
@@ -148,7 +169,7 @@ class SourceRouter:
             score += 2
         return SourceCandidate(profile, score, tuple(reasons), authorization_status), []
 
-    def resolve(self, topic, universe=None, required_capabilities=None, required_fields=None, authorization_status="unknown", freshness_minutes=None, allow_secondary=False, require_executable=False):
+    def resolve(self, topic, universe=None, required_capabilities=None, required_fields=None, authorization_status="unknown", freshness_minutes=None, allow_secondary=False, require_executable=False, allow_degraded=False):
         required_capabilities = list(required_capabilities or [])
         required_fields = list(required_fields or [])
         candidates, rejected = [], {}
@@ -156,7 +177,7 @@ class SourceRouter:
             if profile.get("kind") == "secondary_aggregator" and not allow_secondary and required_capabilities:
                 # Secondary sources remain eligible only when no higher-grade source can satisfy the contract.
                 pass
-            candidate, reasons = self._candidate(profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable)
+            candidate, reasons = self._candidate(profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable, allow_degraded)
             if candidate:
                 candidates.append(candidate)
             else:
@@ -181,6 +202,7 @@ class SourceRouter:
             "fallback_plan": fallback_plan,
             "blocking_rules": blocking_rules,
             "rejected_sources": rejected,
+            "allow_degraded": bool(allow_degraded),
             "selection_rule": "authority → point_in_time → field completeness → freshness → authorization → stability → cost",
         }
 
@@ -196,10 +218,11 @@ def main():
     parser.add_argument("--freshness-minutes", type=int, default=None)
     parser.add_argument("--allow-secondary", action="store_true")
     parser.add_argument("--execute", action="store_true", help="reject planned/unimplemented adapters")
+    parser.add_argument("--allow-degraded", action="store_true", help="allow partial adapters with manual review")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
     router = SourceRouter.from_file(args.registry)
-    payload = router.resolve(args.topic, args.universe, args.capability, args.field, args.authorization_status, args.freshness_minutes, args.allow_secondary, args.execute)
+    payload = router.resolve(args.topic, args.universe, args.capability, args.field, args.authorization_status, args.freshness_minutes, args.allow_secondary, args.execute, args.allow_degraded)
     rendered = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
