@@ -2,6 +2,7 @@ from agent.planner import build_plan, create_research_contract
 from agent.replanner import replan
 from agent.policy_guard import guard_action
 from browser.network_capture import NetworkClassifier, NetworkRecorder
+from source_router import SourceRouter
 
 
 def test_plan_has_bounded_dependencies_and_immutable_contract():
@@ -40,3 +41,21 @@ def test_network_classifier_separates_data_tracking_and_static_requests():
     assert data["pagination"] is True
     assert tracking["is_tracking_request"] is True
     assert static["is_static_asset"] is True
+
+
+def test_failed_source_health_cannot_be_selected(ROOT):
+    router = SourceRouter({
+        "broken": {
+            "source_id": "broken", "authority": "exchange", "priority": 999,
+            "kind": "exchange", "implementation_status": "production", "parser_status": "tested",
+            "source_health": "failed", "point_in_time": True, "revision_aware": True,
+            "access_methods": ["api"], "data_types": ["market_data"], "required_fields": [],
+            "fallback_methods": [], "authentication": {}, "access_policy": "public",
+        }
+    })
+    try:
+        router.resolve("market_data", required_capabilities=["api"])
+    except Exception as exc:
+        assert "no source satisfies contract" in str(exc)
+    else:
+        raise AssertionError("failed provider was selected")

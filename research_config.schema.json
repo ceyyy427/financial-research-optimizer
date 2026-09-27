@@ -54,6 +54,7 @@
         "n_splits": {"type": "integer", "minimum": 2}
       }
     },
+    "execution": {"$ref": "execution_contract.schema.json"},
     "models": {
       "type": "object", "additionalProperties": false, "required": ["baselines", "challengers", "selection"],
       "properties": {
@@ -131,5 +132,8 @@
         "priority": {"type": "array", "minItems": 1, "items": {"type": "string"}}
       }
     }
-  }
+  },
+  "allOf": [
+    {"if": {"properties": {"mode": {"enum": ["backtest", "portfolio_research"]}}, "required": ["mode"]}, "then": {"required": ["execution"]}}
+  ]
 }

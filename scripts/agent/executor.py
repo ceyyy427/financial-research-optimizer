@@ -223,7 +223,7 @@ def execute_plan(plan, handlers=None, authorized_context=False, checkpoint_path=
     overall = "blocked" if any(item["status"] == "blocked" for item in results) else ("failed" if any(item["status"] == "failed" for item in results) else "completed")
     missing = sorted({cap for item in results for cap in item.get("missing_capabilities", []) if isinstance(item, dict) and isinstance(item.get("missing_capabilities", []), list)})
     completed_nodes = {item.get("node_id") for item in results if item.get("status") in TERMINAL_SUCCESS}
-    completion_level = "full" if overall == "completed" else ("source_capture_only" if "data_capture" in completed_nodes else "blocked")
+    completion_level = "full" if overall == "completed" else ("data_capture" if "data_capture" in completed_nodes else "blocked")
     return {"plan_id": plan["plan_id"], "status": overall, "execution_mode": "executed", "completion_level": completion_level, "missing_capabilities": missing, "results": results, "budget": budget_manager.snapshot(), "checkpoint_path": str(checkpoint_path) if checkpoint_path else None}
 
 
@@ -340,5 +340,5 @@ async def execute_plan_async(plan, handlers=None, authorized_context=False, chec
     overall = "blocked" if any(item["status"] == "blocked" for item in results) else ("failed" if any(item["status"] == "failed" for item in results) else "completed")
     missing = sorted({cap for item in results for cap in item.get("missing_capabilities", []) if isinstance(item, dict) and isinstance(item.get("missing_capabilities", []), list)})
     completed_nodes = {item.get("node_id") for item in results if item.get("status") in TERMINAL_SUCCESS}
-    completion_level = "full" if overall == "completed" else ("source_capture_only" if "data_capture" in completed_nodes else "blocked")
+    completion_level = "full" if overall == "completed" else ("data_capture" if "data_capture" in completed_nodes else "blocked")
     return {"plan_id": plan["plan_id"], "status": overall, "execution_mode": "executed", "completion_level": completion_level, "missing_capabilities": missing, "results": results, "budget": budget_manager.snapshot(), "checkpoint_path": str(checkpoint_path) if checkpoint_path else None}

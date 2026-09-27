@@ -13,5 +13,6 @@
     "blocking_reasons": {"type": "array", "items": {"type": "string"}},
     "config_fingerprint": {"type": "string"},
     "manifest_fingerprint": {"type": "string"}
+    ,"execution_contract": {"type": "object"}
   }
 }

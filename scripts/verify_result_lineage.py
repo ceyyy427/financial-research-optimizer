@@ -134,6 +134,16 @@ def verify_result_lineage(data, input_files=None, require_metric_for_empty=False
                 errors.append(f"{key} has numerical values without lineage_refs")
             elif any(ref not in metric_ids for ref in refs):
                 errors.append(f"{key} references unknown metric IDs")
+    data_quality = data.get("data_quality")
+    if isinstance(data_quality, dict) and _has_numeric(data_quality.get("quality", {})):
+        quality_metrics = data_quality.get("metric_lineage")
+        if not isinstance(quality_metrics, list) or not quality_metrics:
+            errors.append("data_quality has numerical values without metric_lineage")
+        else:
+            for index, metric in enumerate(quality_metrics):
+                missing = [field for field in REQUIRED if not isinstance(metric, dict) or field not in metric or metric[field] in (None, "", [])]
+                if missing:
+                    errors.append(f"data_quality.metric_lineage[{index}] missing {missing}")
     for index, module in enumerate(data.get("modules", [])):
         for metric_index, metric in enumerate(module.get("metrics", []) if isinstance(module, dict) else []):
             if isinstance(metric, dict) and _has_numeric(metric.get("value")):

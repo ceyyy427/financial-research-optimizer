@@ -33,3 +33,36 @@ def infeasible_fallback(solver_status, prior_weights, action="prior_weights"):
     if str(solver_status).lower() in {"optimal", "feasible"}:
         return {"used": False, "action": None, "reason": None, "weights": prior_weights}
     return {"used": True, "action": action, "reason": f"solver_status={solver_status}", "weights": prior_weights}
+
+
+def compare_covariance_models(returns):
+    """Return a deterministic comparison table for the four supported estimators."""
+    estimators = {
+        "sample": sample_covariance,
+        "ledoit_wolf": ledoit_wolf_shrinkage,
+        "factor": factor_covariance,
+        "robust": robust_covariance,
+    }
+    rows = []
+    for name, estimator in estimators.items():
+        covariance = np.asarray(estimator(returns), dtype=float)
+        eigenvalues = np.linalg.eigvalsh((covariance + covariance.T) / 2)
+        rows.append({
+            "model": name,
+            "condition_number": float(np.linalg.cond(covariance)),
+            "minimum_eigenvalue": float(np.min(eigenvalues)),
+            "positive_semidefinite": bool(np.min(eigenvalues) >= -1e-10),
+        })
+    return rows
+
+
+def perturbation_ranges(weights_by_scenario, asset_names=None):
+    """Summarize weight, turnover and objective intervals across scenarios."""
+    matrix = np.asarray([item["weights"] for item in weights_by_scenario], dtype=float)
+    names = list(asset_names or [f"asset_{index}" for index in range(matrix.shape[1])])
+    return {
+        "weight_intervals": {name: [float(matrix[:, index].min()), float(matrix[:, index].max())] for index, name in enumerate(names)},
+        "turnover_interval": [float(min(item.get("turnover", 0.0) for item in weights_by_scenario)), float(max(item.get("turnover", 0.0) for item in weights_by_scenario))],
+        "objective_interval": [float(min(item.get("objective", 0.0) for item in weights_by_scenario)), float(max(item.get("objective", 0.0) for item in weights_by_scenario))],
+        "infeasible_reasons": sorted({reason for item in weights_by_scenario for reason in item.get("infeasible_reasons", [])}),
+    }

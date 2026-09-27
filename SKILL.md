@@ -25,6 +25,8 @@ Select exactly one mode before preflight:
 
 The mode controls required artifacts; `backtest` cannot run below `research_grade`, and `portfolio_research` cannot run below `research_grade`. The mode and output level are recorded in preflight and HTML.
 
+`data_audit` must first determine the observation grain (instrument × timestamp × field × vintage where available), schema drift, missingness and source health. Its quality decision is one of `usable`, `usable_with_warning`, `degraded`, or `blocked`; the score is evidence for the decision, not a substitute for a hard leakage or duplicate-grain stop.
+
 ## Agent-driven execution layers
 
 Use `scripts/agent/planner.py` to turn a task into an immutable Research Contract and bounded Plan DAG. Contract resolution is the first node: unresolved universe, target, horizon, cutoff, calendar, currency, or execution convention returns `needs_user_input` and blocks source routing. Each node declares dependencies, success/failure conditions, retry count, timeout, budget, degradation permission, artifacts, and provenance. `executor.py` topologically schedules independent nodes in parallel, reserves a thread-safe global budget through `scripts/agent/budget.py`, persists hash-checked checkpoints, retries bounded failures, and invokes the default or caller-supplied handler registry. A missing or capability-gap handler is reported with `completion_level` and `missing_capabilities`; it is never reported as completed research. `replanner.py` may choose only a declared fallback. `policy_guard.py` blocks orders, CAPTCHA/paywall/access-control bypass, credential leakage, and constraint relaxation.
@@ -117,6 +119,8 @@ At every handoff, preserve the following invariants:
 - failed or rejected candidates remain recorded;
 - every run has an experiment manifest with snapshot, code, environment, seeds, parameters, windows, and outputs;
 - source conflicts are classified and material conflicts stop dependent analysis;
+- source routing includes runtime health (`healthy`, `degraded`, `stale`, `failed`, `unknown`) and provider maturity; a failed provider cannot be silently selected;
+- backtests declare signal/decision/execution timestamps, market calendar, latency, slippage and partial-fill convention before fitting;
 - output level is unchanged across all stages;
 - every feature has availability time and lineage, every label has an overlap group, and purge/embargo are applied before evaluation;
 - every numerical claim can be traced to a source, calculation, or saved output.
@@ -160,6 +164,8 @@ python3 scripts/run_preflight.py --config examples/research_config.json --manife
 
 Treat `blocked` as a stopping state. Do not make a dependent forecast or portfolio claim until the blocking reason is resolved.
 
+For a backtest or portfolio run, `research_config.json` must include `execution` with `signal_time`, `decision_time`, `execution_time`, `execution_price`, `market_calendar`, `latency_bars`, `slippage_bps`, and `partial_fill_rule`. `scripts/execution_contract.py` rejects same-session close execution and undeclared slippage semantics.
+
 ### 2. Search and bind public sources
 
 Use web search for current, authoritative or reproducible sources. Apply the source routing table in `references/data_provenance.md`. Prefer:
@@ -182,6 +188,8 @@ Create a data dictionary and audit:
 - unit consistency and outliers;
 - whether each feature was observable at the forecast cutoff;
 - label overlap and execution-price convention.
+
+`scripts/validate_financial_dataset.py` writes the grain audit and component quality scores. Use `scripts/schema_drift.py` between the reference schema/snapshot and the current snapshot; a detected missing field, type change or unit change must be surfaced as `schema_drift_detected` before model inputs are refreshed.
 
 Use a time-based split. Fit every imputer, scaler, PCA, factor model, graph, and feature selector inside each training window. Keep raw, cleaned, feature, label, and split tables separate. Save a metadata JSON and a reproducible script where possible.
 
@@ -238,6 +246,8 @@ Read `references/backtest_overfitting.md` and run `scripts/overfitting_applicabi
 
 ### 7. Evaluate forecasts statistically and economically
 
+Use `scripts/forecast_contract.py` to record the forecast hierarchy. Point forecasts use MAE/RMSE/MASE; intervals use coverage/width/interval score; quantiles use pinball loss; probabilities use log loss/Brier/calibration; volatility uses QLIKE. A target of raw price must carry the warning to compare return/log-return/excess-return targets. The same module can produce simple-average, inverse-error or regime-conditional combinations and a bounded OOD status; `out_of_distribution` is a forecast validity warning, not a license to retrain silently.
+
 Use metrics matched to the target:
 
 - point: MAE, RMSE, MASE, directional accuracy;
@@ -272,6 +282,8 @@ Separate forecasting from optimization. Given predicted return \hat\mu_t and cov
 subject to budget, leverage, bounds, liquidity, turnover, sector, factor, and ES/CVaR constraints. Record solver status, KKT residuals, active/binding constraints, forecast version, benchmark, active return, risk contribution, factor exposure, turnover attribution, cost attribution, and transaction-cost assumptions. If the optimization is infeasible, use a documented fallback: prior weights, minimum-risk portfolio, or cash; never silently relax constraints.
 
 Read `references/portfolio_robustness.md` for the covariance definitions and perturb expected returns, covariance, costs, risk aversion, and constraint bounds. Report weight intervals, turnover intervals, objective changes, and the exact infeasibility reason for every stress cell.
+
+Use `scripts/portfolio_diagnostics.py` for equal-weight/market-cap/minimum-variance/risk-parity benchmarks, risk contribution, binding max-weight diagnostics and `portfolio_fragile` checks. A solver status of `optimal` is not sufficient when weights are concentrated, turnover breaches limits, covariance is near singular, or scenario weights are unstable.
 
 For online portfolio research, also record bid/ask, spread, ADV, market impact, financing/borrow, minimum trade unit, adjustment time, partial-fill assumption, cash, and margin. These are research constraints, not execution authority.
 
@@ -337,6 +349,7 @@ For online work, `stale`, `degraded`, and `fallback` must be visible in HTML and
 - Read references/model_selection_protocol.md before selecting a model across multiple criteria.
 - Read references/point_in_time_data.md and references/source_reconciliation.md before joining revised, filing, or multi-source data.
 - Read references/portfolio_robustness.md before covariance selection or perturbation analysis.
+- Read references/data_quality.md, references/execution_contract.md, references/forecast_contract.md, and references/source_health.md before data audit, backtest execution, forecast combination/OOD review, or online source routing.
 - Read references/model_registry.md and experiment_manifest.schema.json before registering models or declaring a run reproducible.
 - Read references/experiment_manifest.md when creating or reviewing the immutable run ledger.
 - Read references/result_lineage.md before creating any numerical analysis output; use `python3 scripts/verify_result_lineage.py analysis.json --recompute` when a metric declares a recompute command and output hash.

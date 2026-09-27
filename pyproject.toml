@@ -31,6 +31,8 @@ fro-source-registry = "scripts.validate_source_registry:main"
 fro-build-refresh = "scripts.build_refresh_plan:main"
 fro-execute-refresh = "scripts.execute_online_refresh:main"
 fro-adapter-status = "scripts.adapters.status:main"
+fro-quality = "scripts.validate_financial_dataset:main"
+fro-schema-drift = "scripts.schema_drift:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

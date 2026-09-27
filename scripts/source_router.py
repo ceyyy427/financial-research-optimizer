@@ -4,6 +4,10 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
+try:
+    from .source_health import route_health_score
+except ImportError:
+    from source_health import route_health_score
 
 
 class SourceRoutingError(RuntimeError):
@@ -73,6 +77,8 @@ class SourceCandidate:
             "degraded_ready": degraded_ready,
             "automatic_primary_allowed": execution_ready,
             "manual_review_required": degraded_ready,
+            "source_health": profile.get("source_health", "unknown"),
+            "provider_status": profile.get("provider_status", "unknown"),
             "priority_score": round(self.score, 4),
         }
 
@@ -126,6 +132,8 @@ class SourceRouter:
     def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable=False, allow_degraded=False):
         implementation = profile.get("implementation_status", "planned")
         parser_status = profile.get("parser_status", "unavailable")
+        if profile.get("source_health") == "failed":
+            return None, ["provider health is failed; use a declared fallback or stop"]
         execution_ready = implementation == "production" and parser_status == "tested"
         degraded_ready = implementation == "partial" and parser_status in {"partial", "available", "tested"}
         if require_executable and not execution_ready and not (allow_degraded and degraded_ready):
@@ -146,7 +154,9 @@ class SourceRouter:
                 reasons.append(f"missing fields: {','.join(missing_fields)}")
             return None, reasons
         score = float(profile.get("priority", 0)) + self.AUTHORITY_SCORES.get(profile.get("authority"), 0)
-        reasons = [f"authority={profile.get('authority')}", "declared capabilities satisfy the contract"]
+        health_multiplier = route_health_score(profile)
+        score *= health_multiplier
+        reasons = [f"authority={profile.get('authority')}", f"source_health={profile.get('source_health', 'unknown')}", "declared capabilities satisfy the contract"]
         if profile.get("point_in_time"):
             score += 25
             reasons.append("point-in-time capable")

@@ -12,11 +12,13 @@
 - 进行滚动预测、概率校准、压力测试和多轮模型比较；
 - 在交易成本、换手率、流动性、杠杆和风险预算约束下做组合优化。
 - 当数据位于关系数据库时，通过 Java/MyBatis 做只读、按时间窗口、可溯源的数据读取，再交给统计和深度学习模型。
+- 数据审计按观测粒度检查 instrument × timestamp × field × vintage，输出 completeness、freshness、point-in-time、source reliability 和 `usable/usable_with_warning/degraded/blocked` 决策；schema drift 会单独阻断依赖分析。
 - 将数据质量、市场状态、统计结构、风险尾部、预测比较和决策情景分模块呈现；每个模块同时给出事实、解释、预测、置信度和下一次检查项。
 - 生成单文件、无外部依赖的 HTML 可视化摘要，以及 CSV/Markdown 决策表。
 - 对多模型回测执行 DM、White Reality Check、SPA、DSR 和 PBO 审计；对样本、Ledoit-Wolf、因子和稳健协方差进行扰动比较，并记录可复现实验 Manifest。
 - 通过 FRED/ALFRED、SEC EDGAR、ECB SDMX、BIS SDMX 适配器保存原始响应、缓存、哈希和 revision/vintage 信息；API 优先，浏览器是受控 fallback。
 - 通过 Plan DAG 让上层智能体选择下一步、有限重试和声明式降级，但不得修改研究目标、放宽约束或执行交易。
+- 回测必须显式声明 signal/decision/execution 时间、市场日历、延迟、滑点和部分成交规则；同日 close 信号同日 close 成交会被 preflight 阻断。
 
 ## 输出理念
 
@@ -47,7 +49,7 @@ HTML 会把预测后的指标直接绘制成内嵌 SVG 图，包括实际值与�
 
 ## 分层流程
 
-agent contract -> plan DAG -> preflight -> source routing -> API/cache/browser/CDP capture -> raw snapshot -> canonical transformation -> reconciliation -> point-in-time audit -> feature/label contract -> baselines -> challengers -> rolling validation -> applicable diagnostics -> calibration -> covariance robustness -> portfolio optimization -> monitoring -> selection -> provenance manifest -> HTML + decision table
+agent contract -> plan DAG -> preflight -> source routing + health -> API/cache/browser/CDP capture -> raw snapshot -> canonical transformation -> grain/quality/schema-drift audit -> reconciliation -> point-in-time audit -> feature/label contract -> baselines -> challengers -> rolling validation -> applicable diagnostics -> calibration/OOD -> covariance robustness/fragility -> portfolio optimization -> monitoring -> selection -> provenance manifest -> HTML + decision table
 
 每个阶段都要保存可检查的中间结果，避免只输出一个无法追溯的预测数字。任何完成的数据分析都必须至少产出：`analysis.json`、精炼 HTML、决策表和数据/模型审计记录。
 
@@ -81,6 +83,8 @@ agent contract -> plan DAG -> preflight -> source routing -> API/cache/browser/C
 
 ```bash
 python3 scripts/verify_result_lineage.py examples/demo_analysis.json
+python3 scripts/schema_drift.py tests/fixtures/synthetic_financial.csv tests/fixtures/synthetic_financial.csv --output artifacts/schema_drift.json
+python3 scripts/validate_financial_dataset.py tests/fixtures/synthetic_financial.csv --config examples/research_config.json --output artifacts/data_quality.json
 ```
 
 ## 在线数据与降级
@@ -125,6 +129,8 @@ Maturity states are explicit:
 | `execution_ready` | `production + tested`，允许自动主路由 |
 | `degraded_ready` | `partial + partial/available/tested`，只能人工复核 |
 | `unavailable` | `planned` 或解析器不可用，阻断获取 |
+
+路由评分还会读取 `source_health`、`provider_status`、最近成功/失败时间和延迟；`failed` provider 不得成为候选主来源，`stale/degraded` 只能以显式状态进入结果。
 
 运行 `python3 scripts/adapters/status.py` 可查看 `execution_ready`、
 `degraded_ready`、`automatic_primary_allowed` 和 `manual_review_required`。
@@ -229,6 +235,11 @@ python3 scripts/verify_result_lineage.py analysis.json --recompute
 - references/point_in_time_data.md：发布日期、可用时间、版本和生存者偏差规则；
 - references/source_reconciliation.md：多数据源字段冲突、容差、优先级和阻断规则；
 - references/portfolio_robustness.md：四类协方差与组合扰动分析；
+- references/data_quality.md、references/execution_contract.md、references/forecast_contract.md、references/source_health.md：数据质量、回测成交约定、预测层级/OOD 和在线来源健康；
+- data_quality.schema.json、schema_drift.schema.json：观测粒度、质量分数和 schema drift 输出契约；
+- execution_contract.schema.json、scripts/execution_contract.py：回测成交时间、日历、延迟、滑点和部分成交不变量；
+- forecast_contract.schema.json、scripts/forecast_contract.py：点预测/区间/分位数/概率/分布预测层级、组合和 OOD 状态；
+- source_health.schema.json、scripts/source_health.py：provider 健康、延迟和路由状态；
 - references/model_registry.md：模型卡和版本登记规范；
 - references/experiment_manifest.md：实验运行账本和复现状态规范；
 - references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；

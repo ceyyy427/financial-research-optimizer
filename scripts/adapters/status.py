@@ -31,6 +31,11 @@ def adapter_status(registry_path):
             "automatic_primary_allowed": execution_ready,
             "manual_review_required": degraded_ready,
             "parser": profile.get("parser"),
+            "source_health": profile.get("source_health", "unknown"),
+            "provider_status": profile.get("provider_status", "unknown"),
+            "last_success_at": profile.get("last_success_at"),
+            "last_failure_at": profile.get("last_failure_at"),
+            "latency_ms": profile.get("latency_ms"),
         })
     return {
         "registry": str(registry_path),

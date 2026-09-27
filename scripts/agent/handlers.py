@@ -114,7 +114,7 @@ def _data_capture(contract, node):
             "artifacts": [result.get("normalized_file")] if result.get("normalized_file") else [],
             "network_requests": result.get("network_requests", 0),
             "bytes_downloaded": result.get("bytes_downloaded", 0),
-            "completion_level": "source_capture_only",
+            "completion_level": "data_capture",
             "missing_capabilities": [],
             "provenance": {"refresh": result},
         }

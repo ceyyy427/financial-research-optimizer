@@ -13,6 +13,13 @@
     "drift_status": {"type": "string", "enum": ["ok", "warning", "failed"]},
     "retrain_trigger": {"type": "string"},
     "fallback": {"type": "string"},
+    "monitoring_event_id": {"type": "string"},
+    "trigger_threshold": {"type": "object"},
+    "severity": {"type": "string", "enum": ["info", "warning", "retrain_requested", "research_required", "model_disabled"]},
+    "owner": {"type": "string"},
+    "recommended_action": {"type": "string"},
+    "cooldown_period": {"type": ["string", "number"]},
+    "last_triggered_at": {"type": ["string", "null"]},
     "checks": {"type": "array", "items": {"type": "object"}},
     "data_status": {"type": "string", "enum": ["ready", "stale", "degraded", "blocked", "fallback"]}
   }

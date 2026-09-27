@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source_health.schema.json",
+  "title": "Runtime source health status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "source_health", "provider_status", "latency_ms"],
+  "properties": {
+    "source_id": {"type": "string"},
+    "source_health": {"type": "string", "enum": ["healthy", "degraded", "stale", "failed", "unknown"]},
+    "last_success_at": {"type": ["string", "null"]},
+    "last_failure_at": {"type": ["string", "null"]},
+    "latency_ms": {"type": ["number", "null"], "minimum": 0},
+    "schema_version": {"type": ["string", "null"]},
+    "provider_status": {"type": "string"},
+    "license_expiry": {"type": ["string", "null"]},
+    "health_multiplier": {"type": "number", "minimum": 0, "maximum": 1},
+    "evaluated_at": {"type": "string"}
+  }
+}

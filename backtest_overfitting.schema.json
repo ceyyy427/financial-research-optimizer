@@ -22,6 +22,7 @@
           "reason": {"type": "string"},
           "applicability_reason": {"type": "string"},
           "input_requirements": {"type": "array", "items": {"type": "string"}},
+          "input_valid": {"type": "boolean"},
           "blocking_level": {"type": "string", "enum": ["none", "warning", "selection_blocker"]},
           "status": {"type": "string", "enum": ["not_applicable", "pending", "pass", "warning", "failed"]},
           "statistic": {},
