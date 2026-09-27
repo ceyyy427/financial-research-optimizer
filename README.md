@@ -258,15 +258,20 @@ $financial-research-optimizer
 
 ![快速调用教学图](assets/quick-call-tutorial.svg)
 
-## Release 与 GitHub Packages
+## Release 与 Python 包发布
 
-仓库版本由 `pyproject.toml` 管理。发布 GitHub Release 后，`.github/workflows/publish-package.yml` 会自动构建 wheel/sdist 并上传到 GitHub Packages：
+仓库版本由 `pyproject.toml` 管理。发布 GitHub Release 后，
+`.github/workflows/publish-package.yml` 会自动构建 wheel/sdist 并将它们附加到
+Release。当前版本可从 [v0.4.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.4.0)
+下载：
 
 ```bash
-pip install --index-url https://pypi.pkg.github.com/ceyyy427 financial-research-optimizer==0.4.0
+pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v0.4.0/financial_research_optimizer-0.4.0-py3-none-any.whl
 ```
 
-GitHub Packages 需要用户自己的 GitHub Token 和 `read:packages` 权限；发布流程使用 Actions 的 `GITHUB_TOKEN`，不会把 Token 写入仓库。
+如需同步发布到 PyPI，在仓库 Settings → Secrets and variables → Actions 中增加
+`PYPI_API_TOKEN`，后续 Release 会自动上传到 PyPI。未配置该 Secret 时，工作流会
+明确跳过 PyPI 上传，但 GitHub Release 资产仍会正常发布。
 
 快速调用时至少写清楚六件事：数据源、研究对象、预测目标、风险/成本约束、输出等级、交付物。Skill 会先执行 preflight，再生成模块总结、预测区间、指标图、HTML 和决策表。
 
