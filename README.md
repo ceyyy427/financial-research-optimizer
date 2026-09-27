@@ -4,6 +4,32 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
+## 安装与最小运行
+
+项目要求 Python 3.11 或更高版本。核心依赖、测试依赖、浏览器依赖和 MCP 依赖分别由 `pyproject.toml` 管理：
+
+```bash
+python3 -m pip install -e ".[test]"
+python3 -m pytest -q
+python3 scripts/validate_schemas.py
+```
+
+从示例配置生成一次离线交付物：
+
+```bash
+python3 scripts/run_preflight.py \
+  --config examples/research_config.json \
+  --manifest examples/experiment_manifest.json \
+  --analysis examples/demo_analysis.json \
+  --output artifacts/preflight.json
+python3 scripts/generate_financial_html.py examples/demo_analysis.json \
+  --config examples/research_config.json \
+  --manifest examples/experiment_manifest.json \
+  --output-dir artifacts --decision-format both
+```
+
+输出位于 `artifacts/`：HTML 报告为 `financial_research_brief.html`，决策表为 CSV 和 Markdown；运行状态和 checkpoint 位于 `artifacts/runs/`。
+
 ## 适用场景
 
 - 搜索公开股票、指数、基金、期货、利率、汇率、商品或宏观数据；
@@ -217,74 +243,86 @@ python3 scripts/verify_result_lineage.py analysis.json --recompute
 
 决策表至少包含：优先级、模块、当前判断、建议动作/仓位姿态、触发条件、依据、风险、有效期、下一次检查、实验 ID、复现状态；在线运行还附带 `source_id`、访问方式、freshness、snapshot hash、revision、授权和 Point-in-Time 状态，以及数据/缓存/模型/预测状态。表中的“动作”是研究与决策支持表达，不是自动下单指令。
 
-## 目录
+## 目录与职责
 
 ![目录结构教学图](assets/directory-map.svg)
 
-- SKILL.md：主说明和路由规则；
-- references/content_contract.md：内容呈现契约；
-- references/workflow_blueprint.md：流程状态机和多轮选择规则；
-- references/model_derivations.md：模型数学推导摘要；
-- references/java_data_layer.md：Java/MyBatis 数据接入、时间序列 SQL、类型映射与溯源规范；
-- references/data_provenance.md：公开数据来源与溯源规范；
-- references/rolling_evaluation.md：滚动评估与组合优化规范；
-- references/preflight_contract.md：输出等级、启动门禁和阻断规则；
-- references/feature_label_contract.md：可用时间、lineage、purge、embargo 和标签重叠规则；
-- references/model_selection_protocol.md：五维模型选择协议；
-- references/backtest_overfitting.md：多重回测和模型试验的反过拟合检验；
-- references/point_in_time_data.md：发布日期、可用时间、版本和生存者偏差规则；
-- references/source_reconciliation.md：多数据源字段冲突、容差、优先级和阻断规则；
-- references/portfolio_robustness.md：四类协方差与组合扰动分析；
-- references/data_quality.md、references/execution_contract.md、references/forecast_contract.md、references/source_health.md：数据质量、回测成交约定、预测层级/OOD 和在线来源健康；
-- data_quality.schema.json、schema_drift.schema.json：观测粒度、质量分数和 schema drift 输出契约；
-- execution_contract.schema.json、scripts/execution_contract.py：回测成交时间、日历、延迟、滑点和部分成交不变量；
-- forecast_contract.schema.json、scripts/forecast_contract.py：点预测/区间/分位数/概率/分布预测层级、组合和 OOD 状态；
-- source_health.schema.json、scripts/source_health.py：provider 健康、延迟和路由状态；
-- references/model_registry.md：模型卡和版本登记规范；
-- references/experiment_manifest.md：实验运行账本和复现状态规范；
-- references/html_output_contract.md：结构化分析 JSON、HTML 和决策表契约；
-- references/result_lineage.md：结果数值、计算、输入快照和来源血缘契约；
-- references/online_data_contract.md、references/patchright_cdp_contract.md：在线 provider、缓存、快照、浏览器和 CDP 观测契约；
-- references/source_adapter_contract.md、references/browser_adapter_contract.md、references/adapter_maturity.md：金融网站 source profile、访问优先级、实现/解析成熟度和浏览器适配器契约；
-- references/cdp_capability_contract.md：Patchright 连接、CDP 生命周期、响应体落盘和崩溃恢复边界；
-- references/source_priority_rules.md、references/licensed_data_policy.md：来源权威性、冲突阻断和授权数据政策；
-- references/agent_execution_contract.md：Research Contract、Plan DAG、预算、重试和降级规则；
-- references/event_data_contract.md、references/transformation_contract.md：事件时间和网页/API 到 canonical dataset 的转换规则；
-- references/browser_security.md：授权 context、cookie、token、trace 和只读边界；
-- references/online_monitoring.md：数据新鲜度、漂移、校准、成本和 fallback 监控；
-- references/asset_class_contracts/：equity、ETF、futures、fixed income、FX、options、crypto 契约；
-- experiment_manifest.schema.json：实验可复现性 Manifest JSON Schema；
-- analysis.schema.json、result_lineage.schema.json、online_snapshot.schema.json、monitoring_status.schema.json、refresh_policy.schema.json、event_data.schema.json、canonical_record.schema.json、network_capture.schema.json：分析、结果血缘、在线状态、规范化记录和 CDP 网络 Schema；
-- schemas/source_profile.schema.json、schemas/source_snapshot.schema.json、schemas/canonical_observation.schema.json、schemas/mcp_run.schema.json：来源注册、原始快照、canonical observation 和 MCP 响应 Schema；
-- agent_contracts/：task、plan、node result、artifact 和 MCP request/status/tool-result Schema；
-- config/source_registry.yaml：可执行金融网站 Source Adapter Registry；
-- backtest_overfitting.schema.json、model_selection.schema.json、portfolio_output.schema.json、preflight.schema.json、feature_label_contract.schema.json、feature_label_audit.schema.json、source_reconciliation.schema.json：研究、特征、组合和来源契约 Schema；
-- pyproject.toml：依赖、pytest 配置和命令入口；
-- scripts/config_utils.py、scripts/manifest_utils.py：统一配置/Manifest 读取与指纹；
-- scripts/validate_financial_dataset.py：CSV 数据质量审计脚本；
-- scripts/reconcile_sources.py、scripts/point_in_time_audit.py：源冲突和未来信息审计；
-- scripts/rolling_split.py、scripts/portfolio_robustness.py：滚动切分和组合稳健性工具；
-- scripts/feature_label_audit.py、scripts/overfitting_applicability.py、scripts/run_preflight.py、scripts/validate_schemas.py：特征/标签审计、适用性触发、运行前门禁和离线 Schema 校验；
-- scripts/verify_result_lineage.py：HTML/decision table 的结果可信度门禁和可复算校验；
-- scripts/online/：FRED/ALFRED、SEC、ECB、BIS、provider registry、缓存、重试和 snapshot store；
-- scripts/source_router.py、scripts/source_snapshot.py、scripts/normalize_observations.py：Source Adapter 路由、快照和标准化入口；
-- scripts/adapters/：国家数据、人民银行、巨潮、交易所、聚合器、FRED/ALFRED、SEC、授权数据和库适配器；
-- scripts/browser/：Patchright runtime、隔离 context、CDP network recorder、下载、页面快照和 trace；
-- scripts/transform/、scripts/events/：HTML/JSON/PDF/canonical 转换与事件时间审计；
-- scripts/agent/、scripts/monitoring/：Plan DAG、默认 handler registry、全局预算、可恢复 checkpoint、执行/重规划、安全策略、新鲜度和模型漂移监控；
-- financial_research/runtime.py、financial_research/run_store.py：统一运行入口和受控 run store；
-- mcp_server/：可选 MCP 薄适配层，暴露创建、状态、产物读取、取消、恢复、重试、列表和 `research://` 资源；详见 [`references/mcp_interface.md`](references/mcp_interface.md)；
-- scripts/parsers/：按 source profile 注册的离线解析器；`scripts/validate_source_registry.py` 会阻止声明可用但未注册解析器的来源；
-- scripts/build_refresh_plan.py、scripts/execute_online_refresh.py：分别构建刷新计划和执行数据快照；刷新不会隐式重训模型；
-- financial_research/：上层 agent 的统一 `run_research()` / 兼容 `run()` 接口、run store 和生命周期状态；
-- scripts/generate_financial_html.py：从结构化分析 JSON 生成离线 HTML 与决策表。
-- tests/：最小 synthetic financial dataset 和 pytest 回归测试；
-- .github/workflows/ci.yml：配置、Manifest、审计、HTML 和组合 fallback 的 CI。
-- requirements.txt、requirements-dev.txt：运行与测试依赖；测试统一使用 `python3 -m pytest -q`；
-- assets/：HTML 预览、预测指标、模型比较、风险、五层架构、在线 provenance、流程教学和目录说明图片；
-- examples/：示例分析 JSON、在线 snapshot、生成的 HTML 和决策表。
-- requirements-browser.txt：可选 Patchright 浏览器运行依赖；
-- examples/java-mybatis/：只读 Mapper、Java 时间序列 DTO 和 XML 查询示例。
+仓库按“智能体入口 → 运行时 → 脚本能力 → 契约与参考 → 示例与测试”组织。下面的路径与当前文件结构一致，新增文件应先归入已有职责目录。
+
+```text
+financial-research-optimizer/
+├── SKILL.md                         # 智能体使用规则、阶段路由和停止条件
+├── README.md                        # 面向使用者的安装、运行和输出说明
+├── agents/openai.yaml               # Skill 的界面名称、简介和默认调用提示
+├── financial_research/               # 统一 Python 运行时和 run store
+│   ├── runtime.py                    # run_research() / run() 入口
+│   ├── run_store.py                  # 默认 JSON 后端：锁、原子写入、租约、checkpoint
+│   ├── store_protocol.py             # JSON/SQLite 后端共用协议
+│   ├── json_run_store.py             # JSON 后端兼容别名
+│   └── sqlite_run_store.py            # SQLite WAL 元数据后端
+├── mcp_server/                       # MCP 薄适配层和生命周期工具
+├── scripts/
+│   ├── agent/                        # contract、Plan DAG、执行、预算、策略
+│   ├── online/                       # FRED/ALFRED、SEC、ECB、BIS、缓存和快照
+│   ├── adapters/                     # 金融网站和数据库 source adapter
+│   ├── browser/                      # Patchright context、CDP、下载和 trace
+│   ├── transform/、events/、parsers/ # 原始响应到事件/canonical 数据
+│   ├── monitoring/                   # freshness、drift、calibration 和 fallback
+│   └── *.py                          # preflight、审计、验证、HTML 和组合脚本
+├── references/                       # 按需读取的数学、数据和输出契约
+├── agent_contracts/、schemas/         # 运行、MCP、来源和 canonical Schema
+├── *.schema.json                     # 研究配置、分析、血缘、回测和组合 Schema
+├── config/                           # source registry
+├── examples/                         # 可验证的输入、示例 HTML 和 decision table
+├── tests/                            # synthetic 数据和回归测试
+├── assets/                           # README/HTML 展示图
+└── .github/workflows/                 # CI 和 package 发布流程
+```
+
+### 入口文件
+
+| 任务 | 入口 | 结果 |
+|---|---|---|
+| 选择模式和输出等级 | `SKILL.md`、`references/preflight_contract.md` | 确定阶段、最低交付物和阻断规则 |
+| 运行研究 | `financial_research/runtime.py` | 创建 contract、Plan DAG、checkpoint 和执行结果 |
+| 读取/管理运行 | `financial_research/run_store.py`、`financial_research/store_protocol.py` | JSON 默认；`FRO_RUN_STORE=sqlite` 切换 SQLite |
+| 接入 MCP | `mcp_server/server.py`、`references/mcp_interface.md` | create/status/read/cancel/resume/retry/list 与 `research://` |
+| 获取与审计数据 | `scripts/source_router.py`、`scripts/online/`、`scripts/validate_financial_dataset.py` | source plan、快照、质量和 PIT 审计 |
+| 生成交付物 | `scripts/verify_result_lineage.py`、`scripts/generate_financial_html.py` | 离线 HTML、CSV/Markdown decision table |
+| 执行验证 | `scripts/validate_schemas.py`、`python3 -m pytest -q` | Schema、示例和测试结果 |
+
+### 参考资料路由
+
+| 研究阶段 | 首先阅读 |
+|---|---|
+| 研究模式、启动和停止 | `references/preflight_contract.md`、`references/workflow_blueprint.md` |
+| 数据来源、修订和时间点 | `references/data_provenance.md`、`references/point_in_time_data.md`、`references/source_reconciliation.md` |
+| 特征、标签和滚动评估 | `references/feature_label_contract.md`、`references/rolling_evaluation.md` |
+| 模型假设和数学推导 | `references/model_derivations.md`、`references/model_selection_protocol.md` |
+| 过拟合诊断 | `references/backtest_overfitting.md` |
+| 组合和风险 | `references/portfolio_robustness.md`、`references/execution_contract.md` |
+| 在线刷新和监控 | `references/online_data_contract.md`、`references/online_monitoring.md`、`references/adapter_maturity.md` |
+| 浏览器访问和观测 | `references/patchright_cdp_contract.md`、`references/cdp_capability_contract.md`、`references/browser_security.md` |
+| Java/MyBatis 数据层 | `references/java_data_layer.md`、`examples/java-mybatis/` |
+| 输出、血缘和复现 | `references/content_contract.md`、`references/html_output_contract.md`、`references/result_lineage.md`、`references/experiment_manifest.md` |
+
+### 产物边界
+
+- `examples/` 是稳定的输入和展示样例，可纳入版本控制。
+- `artifacts/` 是本地运行输出；`artifacts/runs/` 保存运行状态、事件和 checkpoint，不应提交到仓库。
+- `tests/fixtures/` 是最小 synthetic financial dataset，测试不依赖在线数据。
+- `assets/` 只放 README 或生成报告需要展示的静态资源。
+- 新的研究契约先增加 Schema，再增加示例，再接入脚本和测试；不要把运行时状态写回 `examples/`。
+
+### 关键契约与 Schema
+
+根目录的 `*.schema.json` 保存研究配置、分析、结果血缘、在线快照、监控、回测过拟合和组合输出契约；`agent_contracts/` 保存 Plan DAG、节点、artifact 和 MCP 请求/状态契约；`schemas/` 保存 source profile、source snapshot、canonical observation 和 MCP envelope。校验统一使用：
+
+```bash
+python3 scripts/validate_research_config.py examples/research_config.json
+python3 scripts/validate_experiment_manifest.py examples/experiment_manifest.json
+python3 scripts/validate_schemas.py
+```
 
 ## 快速调用
 

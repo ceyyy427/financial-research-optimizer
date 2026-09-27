@@ -2,3 +2,6 @@ __pycache__/
 *.py[cod]
 .DS_Store
 artifacts/runs/
+.pytest_cache/
+.coverage
+htmlcov/
