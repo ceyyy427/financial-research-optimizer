@@ -1,4 +1,5 @@
 """Optional Patchright runtime with explicit CDP and auth lifecycles."""
+import os
 from pathlib import Path
 from .session_manager import context_path, validate_context_request
 
@@ -54,7 +55,8 @@ class PatchrightRuntime:
                 self.browser_version = self.browser.version
             except Exception:
                 self.browser_version = None
-        options = {"accept_downloads": True}
+        insecure_tls = os.environ.get("FRO_TLS_INSECURE", "0").lower() in {"1", "true", "yes"}
+        options = {"accept_downloads": True, "ignore_https_errors": insecure_tls}
         if self.context_name == "authorized_context" and self.authorized:
             state_path = context_path(self.root, self.context_name) / "storage_state.json"
             if self.storage_state_path:

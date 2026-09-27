@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 
 try:
+    from .adapters.base import AdapterError
+    from .adapters.tonghuashun import TonghuashunAdapter
     from .online.base_provider import ProviderError
     from .online.http_cache import HttpCache
     from .online.provider_registry import build_provider
@@ -18,6 +20,8 @@ try:
     from .parsers import parse
     from .source_router import SourceRouter, SourceRoutingError
 except ImportError:
+    from adapters.base import AdapterError
+    from adapters.tonghuashun import TonghuashunAdapter
     from online.base_provider import ProviderError
     from online.http_cache import HttpCache
     from online.provider_registry import build_provider
@@ -27,7 +31,7 @@ except ImportError:
     from source_router import SourceRouter, SourceRoutingError
 
 
-def execute_data_refresh(source_id, url, output_dir, params=None, registry_path="config/source_registry.yaml", transport=None, retrain=False, allow_degraded=False, user_agent=None):
+def execute_data_refresh(source_id, url, output_dir, params=None, registry_path="config/source_registry.yaml", transport=None, retrain=False, allow_degraded=False, user_agent=None, navigation=None):
     if retrain:
         return {"status": "blocked", "stage": "model_retrain", "failure_class": "policy", "message": "retraining is a separate explicit stage and cannot be enabled by data refresh"}
     if not source_id or not url:
@@ -42,6 +46,29 @@ def execute_data_refresh(source_id, url, output_dir, params=None, registry_path=
         if not production_ready and not (allow_degraded and degraded_ready):
             return {"status": "blocked", "stage": "data_refresh", "failure_class": "source", "message": f"provider is not production-ready: {source_id}; use --allow-degraded for manual-review execution"}
         root = Path(output_dir)
+        if source_id == "10jqka":
+            adapter = TonghuashunAdapter(
+                profile,
+                browser_root=root / "browser",
+                snapshot_dir=root / "snapshots",
+                navigation=navigation,
+            )
+            result = adapter.fetch(
+                url=url,
+                params=params or {},
+                instrument_id=(params or {}).get("instrument_id") or (params or {}).get("code"),
+            )
+            canonical = normalize(result["observations"], profile, result["snapshot"])
+            normalized_dir = root / "normalized"
+            normalized_dir.mkdir(parents=True, exist_ok=True)
+            normalized_file = normalized_dir / f"{source_id}.json"
+            normalized_file.write_text(json.dumps(canonical, ensure_ascii=False, indent=2), encoding="utf-8")
+            return {
+                "status": "passed", "stage": "data_refresh", "execution_mode": "executed",
+                "source_id": source_id, "snapshot": result["snapshot"], "normalized_file": str(normalized_file),
+                "normalized_rows": len(canonical), "from_cache": False, "stale": False, "network_requests": 1,
+                "message": "Tonghuashun browser snapshot captured and normalized; downstream stages remain separate",
+            }
         cache = HttpCache(root / "cache", transport=transport)
         provider = build_provider(source_id, cache, SnapshotStore(root / "snapshots"), user_agent=user_agent)
         request_params = params or {}
@@ -90,7 +117,7 @@ def execute_data_refresh(source_id, url, output_dir, params=None, registry_path=
             "stale": response.stale, "network_requests": 0 if response.from_cache else 1,
             "message": "data snapshot captured; downstream stages remain separate",
         }
-    except (ProviderError, SourceRoutingError, OSError, ValueError) as exc:
+    except (AdapterError, ProviderError, SourceRoutingError, OSError, ValueError) as exc:
         return {"status": "blocked", "stage": "data_refresh", "failure_class": "acquisition", "message": str(exc)}
 
 

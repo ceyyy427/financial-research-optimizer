@@ -56,6 +56,9 @@ def build_provider(source_id, cache, snapshot_store, transport=None, user_agent=
 
 
 PROVIDER_IDS = frozenset({"stats_gov_cn", "fred", "alfred", "sec_edgar", "ecb_sdmx", "bis_sdmx"})
+# Browser-backed source adapters are executable through execute_online_refresh.py
+# but are intentionally kept separate from low-level API provider factories.
+ADAPTER_IDS = frozenset({"10jqka"})
 
 
 def provider_alignment(source_id, profile):

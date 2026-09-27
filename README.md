@@ -136,6 +136,15 @@ python3 scripts/execute_online_refresh.py \
   --params '{"cik":"320193","endpoint":"companyfacts"}' \
   --user-agent 'research@example.com' \
   --output-dir artifacts/online
+
+# Tonghuashun public daily-line snapshot through the browser adapter
+python3 -m pip install -e '.[browser]'
+python3 -m patchright install chromium
+python3 scripts/execute_online_refresh.py \
+  --source-id 10jqka \
+  --url https://d.10jqka.com.cn/v4/line/hs_000001/01/last.js \
+  --params '{"instrument_id":"000001","market":"SZ"}' \
+  --output-dir artifacts/online-10jqka
 python3 scripts/check_data_freshness.py artifacts/snapshots/provider/snapshot.json --output artifacts/freshness.json
 python3 scripts/monitoring/model_monitor.py artifacts/monitor_input.json --output artifacts/monitoring_status.json
 ```

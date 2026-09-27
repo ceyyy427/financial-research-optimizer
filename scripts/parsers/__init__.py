@@ -5,6 +5,7 @@ from .fred_json import parse_fred_json
 from .sec_xbrl import parse_sec_xbrl
 from .stats_gov_json import parse_stats_gov_json
 from .sdmx import parse_sdmx
+from .tonghuashun_jsonp import parse_tonghuashun_jsonp
 
 
 PARSERS = {
@@ -18,6 +19,7 @@ PARSERS = {
     "chart_data_json": parse_aggregator_json,
     "ecb_sdmx_json": parse_sdmx,
     "bis_sdmx_json": parse_sdmx,
+    "tonghuashun_jsonp": parse_tonghuashun_jsonp,
 }
 
 

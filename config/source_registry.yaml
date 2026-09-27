@@ -125,8 +125,8 @@ sources:
     authority: secondary_aggregator
     priority: 45
     kind: secondary_aggregator
-    implementation_status: planned
-    parser_status: unavailable
+    implementation_status: partial
+    parser_status: available
     asset_classes: [equity, etf, fund, macro]
     data_types: [market_data, financial_indicators, fund_data, capital_flow]
     access_methods: [api, browser, cdp, dom, cached_snapshot]
@@ -149,8 +149,8 @@ sources:
     authority: secondary_aggregator
     priority: 45
     kind: secondary_aggregator
-    implementation_status: planned
-    parser_status: unavailable
+    implementation_status: production
+    parser_status: tested
     asset_classes: [equity, etf, fund, macro]
     data_types: [market_data, financial_indicators, sector_data, screening]
     access_methods: [browser, cdp, dom, cached_snapshot]
@@ -162,7 +162,7 @@ sources:
     access_policy: public
     browser_scraping: true
     roles: [discovery, cross_check, convenience_query]
-    parser: aggregator_html_json
+    parser: tonghuashun_jsonp
     normalizer: market_observation_v1
     quality_checks: [timestamp_order, adjustment, calendar, missingness, source_conflict]
     required_fields: [instrument_id, observation_time, close, volume, adjustment]

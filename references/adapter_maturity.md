@@ -20,3 +20,29 @@ raw response/snapshot metadata, a parser, point-in-time/revision semantics
 appropriate to its profile, and tests. It does not mean the source is always
 fresh, authenticated, or licensed for every user. Those conditions remain
 runtime gates.
+
+## Tonghuashun (`10jqka`)
+
+The Tonghuashun adapter executes public daily-line JSONP snapshots through:
+
+```text
+scripts/browser/navigation.py
+  -> scripts/adapters/tonghuashun.py
+  -> scripts/parsers/tonghuashun_jsonp.py
+  -> scripts/normalize_observations.py
+  -> scripts/source_snapshot.py
+```
+
+It preserves the raw response and records `latest_only` and
+`point_in_time_status=not_available`. It is suitable for discovery,
+cross-checking, and degraded research, but is not a point-in-time primary
+source when an official exchange or licensed historical series is available.
+
+TLS verification is enabled by default. `FRO_TLS_INSECURE=1` is an explicit
+operator override and is recorded in snapshot metadata. Install the browser
+runtime before live execution:
+
+```bash
+python3 -m pip install -e '.[browser]'
+python3 -m patchright install chromium
+```
