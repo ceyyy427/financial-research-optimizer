@@ -4,6 +4,17 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
+当前稳定版本：[`v0.6.0 — Tail Risk & Effective Subset Research`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.6.0)。`v0.5.0` 仍保留为上一版 Adapter Maturity release。
+
+### v0.6.0 更新摘要
+
+- 新增尾部风险计算：VaR、CVaR/ES、Tail Variance、Tail Conditional Variance、超过 VaR 的样本数和 moving-block Bootstrap 区间。
+- 新增分布敏感性注册表：`empirical`、`gaussian`、`student_t`、`generalized_laplace`、`elliptical_mixture`；未实现的分布会明确标记为 `not_available`。
+- 新增有效资产子集检验，输出零假设、统计量、p 值、Bootstrap 区间、滚动窗口稳定性和 power diagnostic。
+- 新增高维 Fisher 因子筛选 challenger，强制声明训练窗口范围，防止全样本筛选泄漏。
+- 新增 `tail_risk.schema.json`、`portfolio_subset_test.schema.json`、`feature_selection.schema.json`，并将三类结果接入 `analysis.json`、离线 HTML 和 lineage。
+- 当前实现仍是研究与决策支持工具，不构成收益保证、投资建议或自动交易指令。
+
 ## 安装与最小运行
 
 项目要求 Python 3.11 或更高版本。核心依赖、测试依赖、浏览器依赖和 MCP 依赖分别由 `pyproject.toml` 管理：
@@ -299,6 +310,9 @@ financial-research-optimizer/
 │   ├── browser/                      # Patchright context、CDP、下载和 trace
 │   ├── transform/、events/、parsers/ # 原始响应到事件/canonical 数据
 │   ├── monitoring/                   # freshness、drift、calibration 和 fallback
+│   ├── tail_risk.py                  # VaR/CVaR/尾部条件方差和 Bootstrap
+│   ├── portfolio_subset_test.py      # 有效资产子集 screening test
+│   ├── factor_selection.py           # 训练窗口内 Fisher 因子筛选
 │   └── *.py                          # preflight、审计、验证、HTML 和组合脚本
 ├── references/                       # 按需读取的数学、数据和输出契约
 ├── agent_contracts/、schemas/         # 运行、MCP、来源和 canonical Schema
@@ -331,7 +345,7 @@ financial-research-optimizer/
 | 特征、标签和滚动评估 | `references/feature_label_contract.md`、`references/rolling_evaluation.md` |
 | 模型假设和数学推导 | `references/model_derivations.md`、`references/model_selection_protocol.md` |
 | 过拟合诊断 | `references/backtest_overfitting.md` |
-| 组合和风险 | `references/portfolio_robustness.md`、`references/execution_contract.md` |
+| 组合和风险 | `references/portfolio_robustness.md`、`references/tail_risk.md`、`references/execution_contract.md` |
 | 在线刷新和监控 | `references/online_data_contract.md`、`references/online_monitoring.md`、`references/adapter_maturity.md` |
 | 浏览器访问和观测 | `references/patchright_cdp_contract.md`、`references/cdp_capability_contract.md`、`references/browser_security.md` |
 | Java/MyBatis 数据层 | `references/java_data_layer.md`、`examples/java-mybatis/` |
