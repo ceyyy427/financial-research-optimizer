@@ -48,6 +48,25 @@ Mean-variance optimization maximizes mu'w-gamma w'Sigma w/2 under stated constra
 
 Always separate forecast from decision. Forecast errors, covariance error, transaction costs, and infeasible constraints all affect the final portfolio.
 
+For a loss (L_w=-w'r), tail-risk optimization may use the declared objective
+
+\[
+\max_w\;\hat\mu'w-\lambda_1\widehat{\operatorname{CVaR}}_\alpha(L_w)
+-\lambda_2\widehat{\operatorname{TV}}_\alpha(L_w)-\kappa\|w-w_{t-1}\|_1.
+\]
+
+CVaR admits the Rockafellar--Uryasev representation
+
+\[
+\operatorname{CVaR}_\alpha(L)=\min_\zeta\left[
+\zeta+\frac{E[(L-\zeta)_+]}{1-\alpha}\right],
+\]
+
+but (operatorname{TV}_\alpha) is generally not convex in (w), because the
+tail membership set changes with (w). Therefore the implementation must
+declare whether tail variance is a scenario objective, a post-optimization
+filter, or an approximation; it must not silently pass it to a convex solver.
+
 ## Pricing and reinforcement learning
 
 In a binomial model, replication of (V_u,V_d) with Delta shares and bond B gives V_0=R^(-1)[q V_u+(1-q)V_d], q=(R-d)/(u-d). In Black--Scholes, Ito's lemma and delta hedging give V_t+sigma^2 S^2 V_SS/2+r S V_S-rV=0. Historical return probabilities are not automatically risk-neutral probabilities.

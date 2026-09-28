@@ -95,6 +95,19 @@ def validate_payload(data, config=None):
         for field in ("benchmark", "active_return", "risk_contribution", "factor_exposures", "industry_exposure", "turnover_contribution", "cost_attribution", "return_attribution", "binding_constraints", "weight_drift", "fallback"):
             if field not in robustness:
                 errors.append(f"portfolio_robustness missing field: {field}")
+    tail_risk = data.get("tail_risk")
+    if tail_risk is not None:
+        required_tail = ("alpha", "loss_definition", "estimator", "var", "cvar", "tail_variance", "tail_conditional_variance", "tail_count", "bootstrap", "distribution_comparison")
+        if not isinstance(tail_risk, dict) or any(field not in tail_risk for field in required_tail):
+            errors.append("tail_risk must declare VaR, CVaR, both tail variance fields, tail count, bootstrap and distribution comparison")
+    subset_test = data.get("portfolio_subset_test")
+    if subset_test is not None:
+        required_subset = ("null_hypothesis", "test_statistic", "p_value", "bootstrap_interval", "spanning_status", "subset_status", "power_diagnostic", "window_stability")
+        if not isinstance(subset_test, dict) or any(field not in subset_test for field in required_subset):
+            errors.append("portfolio_subset_test is missing a required spanning-test field")
+    feature_selection = data.get("feature_selection")
+    if feature_selection is not None and (not isinstance(feature_selection, dict) or any(field not in feature_selection for field in ("method", "selected_features", "scores", "selection_scope"))):
+        errors.append("feature_selection must declare method, selected_features, scores and selection_scope")
     feature_audit = data.get("feature_label_audit")
     if feature_audit is not None and (not isinstance(feature_audit, dict) or "safe" not in feature_audit or "computed_purge_gap" not in feature_audit):
         errors.append("feature_label_audit must contain safe and computed_purge_gap")
@@ -361,6 +374,32 @@ def render_portfolio_robustness(robustness):
     return f'''<div class="recon-grid">{''.join(f'<div><b>{esc(key)}</b><strong>{esc(value)}</strong></div>' for key, value in attribution.items())}</div><div class="table-wrap"><table><thead><tr><th>协方差</th><th>求解状态</th><th>目标函数</th><th>换手率</th><th>权重区间</th><th>主动约束</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div><p class="muted">扰动分析：{esc(robustness.get("perturbation_summary"))} · fallback：{esc(fallback)}</p>'''
 
 
+def render_tail_risk(tail_risk):
+    if not isinstance(tail_risk, dict):
+        return '<p class="muted">未提供尾部风险结果。</p>'
+    metrics = (("VaR", tail_risk.get("var")), ("CVaR/ES", tail_risk.get("cvar")), ("尾部方差", tail_risk.get("tail_variance")), ("条件尾部方差", tail_risk.get("tail_conditional_variance")), ("超过 VaR 样本数", tail_risk.get("tail_count")))
+    bootstrap = tail_risk.get("bootstrap", {})
+    candidates = tail_risk.get("distribution_comparison", {}).get("candidates", []) if isinstance(tail_risk.get("distribution_comparison"), dict) else []
+    distributions = "；".join(f'{esc(item.get("distribution"))}: {esc(item.get("status"))}' for item in candidates if isinstance(item, dict)) or "—"
+    return f'''<div class="recon-grid">{"".join(f'<div><b>{esc(label)}</b><strong>{esc(value)}</strong></div>' for label, value in metrics)}</div><p class="muted">估计量：{esc(tail_risk.get("estimator"))} · α={esc(tail_risk.get("alpha"))} · bootstrap：{esc(bootstrap.get("method"))} / {esc(bootstrap.get("replications"))} 次 / block={esc(bootstrap.get("block_length"))}</p><p class="muted">分布比较：{distributions}</p>'''
+
+
+def render_subset_test(result):
+    if not isinstance(result, dict):
+        return '<p class="muted">未提供有效资产子集检验。</p>'
+    diagnostic = result.get("power_diagnostic", {})
+    stability = result.get("window_stability", {})
+    return f'''<div class="recon-grid"><div><b>检验状态</b><strong>{esc(result.get("status"))}</strong></div><div><b>统计量</b><strong>{esc(result.get("test_statistic"))}</strong></div><div><b>p 值</b><strong>{esc(result.get("p_value"))}</strong></div><div><b>张成结论</b><strong>{esc(result.get("spanning_status"))}</strong></div><div><b>子集结论</b><strong>{esc(result.get("subset_status"))}</strong></div><div><b>窗口稳定</b><strong>{esc(stability.get("stable"))}</strong></div></div><p class="muted">零假设：{esc(result.get("null_hypothesis"))} · block={esc(diagnostic.get("block_length"))} · repetitions={esc(diagnostic.get("replications"))}</p>'''
+
+
+def render_feature_selection(result):
+    if not isinstance(result, dict):
+        return '<p class="muted">未提供高维特征筛选结果。</p>'
+    scores = result.get("scores", {})
+    ranking = "；".join(f"{esc(key)}: {esc(value)}" for key, value in scores.items()) or "—"
+    return f'<div class="recon-grid"><div><b>方法</b><strong>{esc(result.get("method"))}</strong></div><div><b>筛选范围</b><strong>{esc(result.get("selection_scope"))}</strong></div><div><b>样本量</b><strong>{esc(result.get("sample_size"))}</strong></div><div><b>入选因子</b><strong>{esc(result.get("selected_features"))}</strong></div></div><p class="muted">Fisher 排名：{ranking} · 仅允许在训练窗口内筛选。</p>'
+
+
 def render_module(module):
     metrics = module.get("metrics", []) if isinstance(module, dict) else []
     metric_html = "".join(
@@ -438,6 +477,9 @@ def render_html(data, config=None, manifest=None):
     result_lineage_html = render_result_lineage(data.get("result_lineage", {}))
     online_status_html = render_online_status(data.get("online_status", {}))
     portfolio_html = render_portfolio_robustness(data.get("portfolio_robustness", {}))
+    tail_risk_html = render_tail_risk(data.get("tail_risk", {}))
+    subset_test_html = render_subset_test(data.get("portfolio_subset_test", {}))
+    feature_selection_html = render_feature_selection(data.get("feature_selection", {}))
     model_section = f'<h2>模型卡</h2><section class="decision">{model_cards_html}</section>' if data.get("model_cards") else ""
     selection_section = f'<h2>模型选择协议</h2><section class="decision">{selection_html}</section>' if data.get("selection_protocol") else ""
     overfit_section = f'<h2>反过拟合审计</h2><section class="decision">{overfit_html}</section>' if data.get("backtest_overfitting") else ""
@@ -446,6 +488,9 @@ def render_html(data, config=None, manifest=None):
     result_lineage_section = f'<h2>结果 lineage</h2><section class="decision">{result_lineage_html}</section>' if data.get("result_lineage") else ""
     online_status_section = f'<h2>在线状态</h2><section class="decision">{online_status_html}</section>' if data.get("online_status") else ""
     portfolio_section = f'<h2>组合稳健性</h2><section class="decision">{portfolio_html}</section>' if data.get("portfolio_robustness") else ""
+    tail_risk_section = f'<h2>尾部风险与分布敏感性</h2><section class="decision">{tail_risk_html}</section>' if data.get("tail_risk") else ""
+    subset_test_section = f'<h2>有效资产子集检验</h2><section class="decision">{subset_test_html}</section>' if data.get("portfolio_subset_test") else ""
+    feature_selection_section = f'<h2>高维因子筛选</h2><section class="decision">{feature_selection_html}</section>' if data.get("feature_selection") else ""
     source_html = "".join(
         f'<li><code>{esc(source.get("id"))}</code> {esc(source.get("label"))}'
         + (f' — <a href="{safe_url(source.get("url"))}">source</a>' if safe_url(source.get("url")) else "")
@@ -475,6 +520,9 @@ def render_html(data, config=None, manifest=None):
 {result_lineage_section}
 {online_status_section}
 {portfolio_section}
+{tail_risk_section}
+{subset_test_section}
+{feature_selection_section}
 <h2>决策表</h2><section class="decision">{render_decisions(rows)}</section>
 <h2>来源与复现</h2><footer class="foot"><ul>{source_html}</ul><div>数据快照：{esc(reproducibility.get("data_snapshot"))} · 代码：{esc(reproducibility.get("code"))} · 种子：{esc(reproducibility.get("seeds"))} · 评估窗口：{esc(reproducibility.get("evaluation_window"))}</div><div>配置：{esc((config or {}).get("_config_fingerprint"))} · Manifest：{esc((manifest or {}).get("_manifest_fingerprint"))}</div><div>局限：{esc(limitations)}</div><div>本页面是模型研究与决策支持摘要，不是收益保证或自动交易指令。</div></footer>
 </main></body></html>'''

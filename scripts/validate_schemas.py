@@ -7,7 +7,7 @@ from pathlib import Path
 
 SCHEMA_FILES = [
     "research_config.schema.json", "experiment_manifest.schema.json", "feature_label_contract.schema.json",
-    "backtest_overfitting.schema.json", "model_selection.schema.json", "portfolio_output.schema.json", "feature_label_audit.schema.json", "source_reconciliation.schema.json",
+    "backtest_overfitting.schema.json", "model_selection.schema.json", "portfolio_output.schema.json", "tail_risk.schema.json", "portfolio_subset_test.schema.json", "feature_selection.schema.json", "feature_label_audit.schema.json", "source_reconciliation.schema.json",
     "preflight.schema.json", "analysis.schema.json", "result_lineage.schema.json", "online_snapshot.schema.json", "monitoring_status.schema.json", "refresh_policy.schema.json", "event_data.schema.json", "canonical_record.schema.json", "network_capture.schema.json", "data_quality.schema.json", "schema_drift.schema.json", "execution_contract.schema.json", "forecast_contract.schema.json", "source_health.schema.json",
     "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json", "agent_contracts/mcp_run_request.schema.json", "agent_contracts/mcp_run_status.schema.json", "agent_contracts/mcp_tool_result.schema.json",
     "schemas/source_profile.schema.json", "schemas/source_snapshot.schema.json", "schemas/canonical_observation.schema.json",
@@ -38,6 +38,9 @@ def validate_local_schemas(root):
         ("backtest_overfitting.schema.json", root / "examples" / "demo_analysis.json"),
         ("model_selection.schema.json", root / "examples" / "demo_analysis.json"),
         ("portfolio_output.schema.json", root / "examples" / "demo_analysis.json"),
+        ("tail_risk.schema.json", root / "examples" / "demo_analysis.json"),
+        ("portfolio_subset_test.schema.json", root / "examples" / "demo_analysis.json"),
+        ("feature_selection.schema.json", root / "examples" / "demo_analysis.json"),
         ("feature_label_audit.schema.json", root / "examples" / "demo_analysis.json"),
         ("source_reconciliation.schema.json", root / "examples" / "demo_analysis.json"),
         ("result_lineage.schema.json", root / "examples" / "demo_analysis.json"),
@@ -49,7 +52,7 @@ def validate_local_schemas(root):
         ("analysis.schema.json", root / "examples" / "demo_analysis.json"),
         ("schemas/adapter_evidence.schema.json", root / "config" / "adapter_evidence.json"),
     ]
-    selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation", "result_lineage.schema.json": "result_lineage", "refresh_policy.schema.json": "refresh_policy"}
+    selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "tail_risk.schema.json": "tail_risk", "portfolio_subset_test.schema.json": "portfolio_subset_test", "feature_selection.schema.json": "feature_selection", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation", "result_lineage.schema.json": "result_lineage", "refresh_policy.schema.json": "refresh_policy"}
     for schema_name, data_path in examples:
         data = json.loads(data_path.read_text(encoding="utf-8"))
         if schema_name in selectors:

@@ -62,8 +62,19 @@ def validate_config(data):
                 errors.append(f"constraints.{key} must be non-negative")
         if constraints.get("max_drawdown", 0) > 1:
             errors.append("constraints.max_drawdown must be <= 1")
-    if data.get("risk_measure") not in {"volatility", "var", "cvar", "drawdown", "utility"}:
+    if data.get("risk_measure") not in {"volatility", "var", "cvar", "tail_variance", "tail_conditional_variance", "drawdown", "utility"}:
         errors.append("risk_measure is not supported")
+    tail_risk = data.get("tail_risk")
+    if tail_risk is not None:
+        required_tail = ("alpha", "loss_definition", "estimator", "distribution_candidates", "bootstrap")
+        if not isinstance(tail_risk, dict) or any(field not in tail_risk for field in required_tail):
+            errors.append("tail_risk must define alpha, loss_definition, estimator, distribution_candidates, and bootstrap")
+        else:
+            if not isinstance(tail_risk["alpha"], (int, float)) or not 0 < tail_risk["alpha"] < 1:
+                errors.append("tail_risk.alpha must be between 0 and 1")
+            bootstrap = tail_risk["bootstrap"]
+            if not isinstance(bootstrap, dict) or bootstrap.get("method") not in {"moving_block", "stationary"} or not isinstance(bootstrap.get("replications"), int) or bootstrap.get("replications") < 1 or not isinstance(bootstrap.get("block_length"), int) or bootstrap.get("block_length") < 1:
+                errors.append("tail_risk.bootstrap must define a valid method, replications, and block_length")
     if not isinstance(data.get("confidence_level"), (int, float)) or not 0 < data.get("confidence_level", 0) < 1:
         errors.append("confidence_level must be between 0 and 1")
     evaluation = data.get("evaluation", {})

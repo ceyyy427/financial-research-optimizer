@@ -70,7 +70,7 @@ After data retrieval and quality checks, partition the analysis into the modules
 1. **Data and provenance** — coverage, freshness, missingness, duplicates, adjustments, and leakage status.
 2. **Descriptive market state** — returns, trend, liquidity, cross-sectional dispersion, and regime indicators.
 3. **Statistical structure** — dependence, stationarity/transformations, factors, correlation, and volatility structure.
-4. **Risk and tail** — realized volatility, drawdown, VaR/ES or quantiles, stress observations, and risk drivers.
+4. **Risk and tail** — realized volatility, drawdown, VaR/ES, tail conditional variance, distribution sensitivity, stress observations, and risk drivers.
 5. **Forecast and model comparison** — baseline versus challengers, rolling metrics, calibration, and forecast distribution.
 6. **Decision and scenarios** — base/upside/downside conditions, triggers, constraints, costs, and monitoring actions.
 
@@ -206,6 +206,8 @@ Always compare at least one interpretable baseline appropriate to the target:
 
 Read `references/model_derivations.md` before deriving, explaining, or implementing a model. Keep it in the Skill because it supplies the mathematical contract for model cards, assumptions, stability conditions, uncertainty, and diagnostics rather than describing a model as a black box. Route equity, ETF, futures, fixed-income, FX, options, and crypto tasks through the matching file under `references/asset_class_contracts/`.
 
+For tail-risk or portfolio-subset research, also read `references/tail_risk.md`. Use `scripts/tail_risk.py` for empirical VaR/CVaR/tail-conditional variance and moving-block intervals, and `scripts/portfolio_subset_test.py` for the declared effective-asset-subset screening test. The distribution registry may report a registered family as `not_available`; do not silently substitute a Gaussian fit. Tail variance is not assumed convex: use it as a declared scenario objective or post-optimization diagnostic unless a solver-compatible approximation is documented.
+
 ### 5. Add deep candidates only when justified
 
 Choose models by data geometry:
@@ -271,7 +273,7 @@ Separate forecasting from optimization. Given predicted return \hat\mu_t and cov
 \]
 subject to budget, leverage, bounds, liquidity, turnover, sector, factor, and ES/CVaR constraints. Record solver status, KKT residuals, active/binding constraints, forecast version, benchmark, active return, risk contribution, factor exposure, turnover attribution, cost attribution, and transaction-cost assumptions. If the optimization is infeasible, use a documented fallback: prior weights, minimum-risk portfolio, or cash; never silently relax constraints.
 
-Read `references/portfolio_robustness.md` for the covariance definitions and perturb expected returns, covariance, costs, risk aversion, and constraint bounds. Report weight intervals, turnover intervals, objective changes, and the exact infeasibility reason for every stress cell.
+Read `references/portfolio_robustness.md` for the covariance definitions and perturb expected returns, covariance, costs, risk aversion, and constraint bounds. Report weight intervals, turnover intervals, objective changes, and the exact infeasibility reason for every stress cell. Keep robust covariance separate from tail-risk estimation so extreme losses are not clipped out of the tail model.
 
 For online portfolio research, also record bid/ask, spread, ADV, market impact, financing/borrow, minimum trade unit, adjustment time, partial-fill assumption, cash, and margin. These are research constraints, not execution authority.
 
@@ -289,6 +291,7 @@ A complete output includes:
 - selected model/portfolio with selection rule;
 - limitations, non-stationarity caveats, and no-guarantee statement;
 - experiment manifest, model registry, source reconciliation, backtest-overfitting results, and covariance-robustness comparison;
+- tail-risk block with VaR, CVaR, tail variance, tail sample count, moving-block interval and distribution status; effective asset subset test when the question concerns whether a new asset adds opportunity-set information;
 - output level and preflight result;
 - online status, data freshness, source/cache fallback, model drift, forecast validity, and browser/CDP trace references when applicable;
 - reproducible code, metadata, charts, and timestamps.
@@ -337,6 +340,7 @@ For online work, `stale`, `degraded`, and `fallback` must be visible in HTML and
 - Read references/model_selection_protocol.md before selecting a model across multiple criteria.
 - Read references/point_in_time_data.md and references/source_reconciliation.md before joining revised, filing, or multi-source data.
 - Read references/portfolio_robustness.md before covariance selection or perturbation analysis.
+- Read references/tail_risk.md before tail-risk estimation, distribution comparison, or effective asset subset testing.
 - Read references/model_registry.md and experiment_manifest.schema.json before registering models or declaring a run reproducible.
 - Read references/experiment_manifest.md when creating or reviewing the immutable run ledger.
 - Read references/result_lineage.md before creating any numerical analysis output.

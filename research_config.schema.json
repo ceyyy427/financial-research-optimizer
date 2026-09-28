@@ -38,7 +38,26 @@
         "min_trade_unit": {"type": "number", "minimum": 0}
       }
     },
-    "risk_measure": {"type": "string", "enum": ["volatility", "var", "cvar", "drawdown", "utility"]},
+    "risk_measure": {"type": "string", "enum": ["volatility", "var", "cvar", "tail_variance", "tail_conditional_variance", "drawdown", "utility"]},
+    "tail_risk": {
+      "type": "object", "additionalProperties": false,
+      "required": ["alpha", "loss_definition", "estimator", "distribution_candidates", "bootstrap"],
+      "properties": {
+        "alpha": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "loss_definition": {"type": "string", "enum": ["negative_portfolio_return", "negative_excess_return", "custom"]},
+        "estimator": {"type": "string", "enum": ["empirical", "parametric", "scenario"]},
+        "distribution_candidates": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["empirical", "gaussian", "student_t", "generalized_laplace", "elliptical_mixture"]}},
+        "bootstrap": {
+          "type": "object", "additionalProperties": false, "required": ["method", "replications", "block_length"],
+          "properties": {
+            "method": {"type": "string", "enum": ["moving_block", "stationary"]},
+            "replications": {"type": "integer", "minimum": 1},
+            "block_length": {"type": "integer", "minimum": 1},
+            "seed": {"type": "integer"}
+          }
+        }
+      }
+    },
     "confidence_level": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
     "evaluation": {
       "type": "object", "additionalProperties": false,

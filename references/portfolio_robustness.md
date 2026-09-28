@@ -2,6 +2,12 @@
 
 Forecast selection and portfolio construction are separate. For the same expected return vector, compare covariance estimators and perturb the inputs before accepting weights.
 
+Tail-risk distinction: `robust_covariance` limits outlier influence when
+estimating Σ; it must not clip away the observations used by
+`tail_variance`/`tail_conditional_variance`. Tail-risk distributions preserve
+extreme observations, while stress scenarios deliberately reweight or
+resample them.
+
 ## Covariance estimators
 
 1. **Sample covariance**

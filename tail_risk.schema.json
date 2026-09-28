@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tail_risk.schema.json",
+  "title": "Tail risk output",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["alpha", "loss_definition", "estimator", "var", "cvar", "tail_variance", "tail_conditional_variance", "tail_count", "bootstrap", "distribution_comparison"],
+  "properties": {
+    "alpha": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+    "loss_definition": {"type": "string"},
+    "estimator": {"type": "string"},
+    "var": {"type": "number"},
+    "cvar": {"type": "number"},
+    "tail_variance": {"type": "number", "minimum": 0},
+    "tail_conditional_variance": {"type": "number", "minimum": 0},
+    "tail_count": {"type": "integer", "minimum": 0},
+    "bootstrap": {"type": "object"},
+    "distribution_comparison": {"type": "object"},
+    "lineage_refs": {"type": "array", "items": {"type": "string"}}
+  }
+}

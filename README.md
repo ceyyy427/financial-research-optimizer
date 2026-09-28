@@ -42,6 +42,9 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
 - 将数据质量、市场状态、统计结构、风险尾部、预测比较和决策情景分模块呈现；每个模块同时给出事实、解释、预测、置信度和下一次检查项。
 - 生成单文件、无外部依赖的 HTML 可视化摘要，以及 CSV/Markdown 决策表。
 - 对多模型回测执行 DM、White Reality Check、SPA、DSR 和 PBO 审计；对样本、Ledoit-Wolf、因子和稳健协方差进行扰动比较，并记录可复现实验 Manifest。
+- 对尾部风险输出 VaR、CVaR/ES、尾部条件方差、超过 VaR 的样本数和 moving-block Bootstrap 区间；按分布注册表区分 empirical、Gaussian 与尚未启用的 Student-t、广义 Laplace、混合椭球 challenger。
+- 对组合资产集合可运行有效资产子集检验，按预先声明的基准集合、候选集合、块长度、重复次数和滚动窗口判断候选资产是否提供不可替代的均值—方差机会集信息。
+- 在 (p \gg n) 场景提供训练窗口内 Fisher 因子筛选 challenger；筛选范围、类别样本数和稳定性必须写入 lineage，不能把全样本筛选结果带入样本外窗口。
 - 通过 FRED/ALFRED、SEC EDGAR、ECB SDMX、BIS SDMX 适配器保存原始响应、缓存、哈希和 revision/vintage 信息；API 优先，浏览器是受控 fallback。
 - 通过 Plan DAG 让上层智能体选择下一步、有限重试和声明式降级，但不得修改研究目标、放宽约束或执行交易。
 - 回测必须显式声明 signal/decision/execution 时间、市场日历、延迟、滑点和部分成交规则；同日 close 信号同日 close 成交会被 preflight 阻断。
@@ -75,7 +78,7 @@ HTML 会把预测后的指标直接绘制成内嵌 SVG 图，包括实际值与�
 
 ## 分层流程
 
-agent contract -> plan DAG -> preflight -> source routing + health -> API/cache/browser/CDP capture -> raw snapshot -> canonical transformation -> grain/quality/schema-drift audit -> reconciliation -> point-in-time audit -> feature/label contract -> baselines -> challengers -> rolling validation -> applicable diagnostics -> calibration/OOD -> covariance robustness/fragility -> portfolio optimization -> monitoring -> selection -> provenance manifest -> HTML + decision table
+agent contract -> plan DAG -> preflight -> source routing + health -> API/cache/browser/CDP capture -> raw snapshot -> canonical transformation -> grain/quality/schema-drift audit -> reconciliation -> point-in-time audit -> feature/label contract -> baselines -> challengers -> rolling validation -> applicable diagnostics -> calibration/OOD -> tail-risk distribution audit -> covariance robustness/fragility -> effective subset test -> portfolio optimization -> monitoring -> selection -> provenance manifest -> HTML + decision table
 
 每个阶段都要保存可检查的中间结果，避免只输出一个无法追溯的预测数字。任何完成的数据分析都必须至少产出：`analysis.json`、精炼 HTML、决策表和数据/模型审计记录。
 
@@ -247,7 +250,7 @@ python3 scripts/generate_financial_html.py examples/demo_analysis.json \
   --output-dir artifacts --decision-format both
 ```
 
-HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、预测与风险指标图、模型卡、反过拟合审计、数据源冲突审计、组合稳健性、情景预测、风险提示和决策表。页首和决策层展示 `experiment_id` 与 `reproducibility_status`；它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字；完成的预测运行不得省略指标图。
+HTML 默认包含：标题与 as-of 时间、核心结论、目标/概率/区间、模块状态卡、预测与风险指标图、模型卡、反过拟合审计、数据源冲突审计、尾部风险与分布敏感性、有效资产子集检验、组合稳健性、情景预测、风险提示和决策表。页首和决策层展示 `experiment_id` 与 `reproducibility_status`；它内嵌 CSS/SVG，可离线打开，不依赖 CDN，不展示没有来源或不确定性说明的数字；完成的预测运行不得省略指标图。
 
 推荐显式绑定同一份研究配置和实验 Manifest：
 

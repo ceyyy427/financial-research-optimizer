@@ -115,6 +115,45 @@
       {"method": "PBO", "applicable": true, "reason": "候选数、试验数和样本量满足组合切分要求。", "applicability_reason": "候选数、试验数和样本量满足组合切分要求。", "input_requirements": ["candidate_family", "multiple_trials", "40 observations"], "blocking_level": "selection_blocker", "status": "warning", "statistic": "0.42", "p_value": "0.42", "interpretation": "约 42% 的组合切分出现样本外排名低于中位数。"}
     ]
   },
+  "tail_risk": {
+    "alpha": 0.95,
+    "loss_definition": "negative_portfolio_return",
+    "estimator": "empirical",
+    "var": 0.038,
+    "cvar": 0.056,
+    "tail_variance": 0.00084,
+    "tail_conditional_variance": 0.00084,
+    "tail_count": 35,
+    "sample_size": 690,
+    "bootstrap": {"method": "moving_block", "replications": 2000, "block_length": 20, "seed": 7, "intervals": {"var": [0.031, 0.046], "cvar": [0.048, 0.071], "tail_variance": [0.00051, 0.00130], "tail_conditional_variance": [0.00051, 0.00130]}},
+    "distribution_comparison": {"status": "ok", "candidates": [{"distribution": "empirical", "status": "ok"}, {"distribution": "gaussian", "status": "ok"}, {"distribution": "student_t", "status": "not_available"}, {"distribution": "generalized_laplace", "status": "not_available"}, {"distribution": "elliptical_mixture", "status": "not_available"}]},
+    "lineage_refs": ["tail_risk_result"]
+  },
+  "portfolio_subset_test": {
+    "null_hypothesis": "candidate assets cannot expand the base mean-variance opportunity set",
+    "test_statistic": 0.071,
+    "p_value": 0.041,
+    "alpha": 0.05,
+    "bootstrap_interval": [0.0, 0.092],
+    "spanning_status": "reject_null_candidate_expands_set",
+    "subset_status": "candidate_non_redundant",
+    "power_diagnostic": {"observations": 690, "base_count": 2, "candidate_count": 1, "replications": 2000, "block_length": 20, "allow_short": false},
+    "window_stability": {"stable": true, "windows": [{"window": [0, 230], "status": "ok", "spanning_status": "expanded"}, {"window": [230, 460], "status": "ok", "spanning_status": "expanded"}, {"window": [460, 690], "status": "ok", "spanning_status": "expanded"}]},
+    "bootstrap": {"method": "moving_block", "seed": 7, "replications": 2000, "block_length": 20},
+    "status": "ok",
+    "lineage_refs": ["portfolio_subset_test_result"]
+  },
+  "feature_selection": {
+    "method": "fisher_between_within_score",
+    "selected_features": ["macro_surprise", "realized_vol_20d"],
+    "scores": {"macro_surprise": 1.82, "realized_vol_20d": 0.91, "noise_factor": 0.04},
+    "class_counts": {"down": 230, "flat": 230, "up": 230},
+    "sample_size": 690,
+    "feature_count": 3,
+    "selection_scope": "training_window_only",
+    "status": "ok",
+    "lineage_refs": ["feature_selection_result"]
+  },
   "source_reconciliation": {
     "lineage_refs": ["source_reconciliation_audit"],
     "status": "minor_difference",
@@ -167,6 +206,9 @@
       {"metric_id": "source_reconciliation_audit", "value": "minor_difference", "calculation_id": "calc_demo_source_001", "input_hash": "sha256:demo-source-001", "code_version": "financial-research-optimizer@961cee1", "formula": "source comparison under declared tolerances", "source_ids": ["source_1"]},
       {"metric_id": "feature_label_audit_result", "value": true, "calculation_id": "calc_demo_feature_001", "input_hash": "sha256:demo-feature-001", "code_version": "financial-research-optimizer@961cee1", "formula": "availability + overlap + purge + embargo audit", "source_ids": ["source_1"]},
       {"metric_id": "portfolio_robustness_result", "value": "covariance_perturbation_summary", "calculation_id": "calc_demo_portfolio_001", "input_hash": "sha256:demo-portfolio-001", "code_version": "financial-research-optimizer@961cee1", "formula": "robustness across sample/LW/factor/robust covariance", "source_ids": ["source_1"]}
+      ,{"metric_id": "tail_risk_result", "value": "tail_variance_95", "calculation_id": "calc_demo_tail_001", "input_hash": "sha256:demo-tail-001", "code_version": "financial-research-optimizer@961cee1", "formula": "Var(L | L >= VaR_alpha)", "source_ids": ["source_1"]}
+      ,{"metric_id": "portfolio_subset_test_result", "value": "candidate_non_redundant", "calculation_id": "calc_demo_subset_001", "input_hash": "sha256:demo-subset-001", "code_version": "financial-research-optimizer@961cee1", "formula": "moving_block_bootstrap opportunity-set expansion statistic", "source_ids": ["source_1"]}
+      ,{"metric_id": "feature_selection_result", "value": "macro_surprise,realized_vol_20d", "calculation_id": "calc_demo_feature_selection_001", "input_hash": "sha256:demo-selector-001", "code_version": "financial-research-optimizer@961cee1", "formula": "between_class_variance / within_class_variance", "source_ids": ["source_1"]}
     ]
   },
   "online_status": {

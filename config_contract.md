@@ -20,7 +20,13 @@ python3 scripts/validate_research_config.py examples/research_config.json
 | `output_level` | `minimal`, `standard`, `research_grade`, or `portfolio_grade` | preflight and artifact depth |
 | `costs` | transaction, slippage, and borrow assumptions | decision and portfolio layer |
 | `constraints` | turnover, drawdown, leverage and weight limits | optimizer and decision table |
-| `risk_measure` / `confidence_level` | risk objective and tail confidence | CVaR/ES, stress, HTML |
+| `risk_measure` / `confidence_level` | risk objective and tail confidence | CVaR/ES, tail variance, stress, HTML |
+
+When `risk_measure` is `tail_variance` or `tail_conditional_variance`, declare
+the top-level `tail_risk` block. It records the loss definition, alpha,
+distribution candidates, and moving-block bootstrap configuration. A registered
+distribution may be `not_available`; it cannot be silently replaced by a
+Gaussian fit.
 | `evaluation` | expanding/rolling protocol and window sizes | rolling ledger, overfitting tests |
 | `feature_label_contract` | availability time, lineage, purge, embargo, and label intervals | feature audit, rolling split, leakage gate |
 | `models` | baselines, challengers and frozen selection metrics | model card, selection |
