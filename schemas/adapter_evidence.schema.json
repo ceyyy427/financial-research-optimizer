@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "adapter_evidence.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "datasets"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "datasets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "dataset_id", "contract_status", "fixture_status", "integration_status", "quality_gate_status", "live_smoke_status", "health_status", "freshness_status", "point_in_time_status", "revision_status"],
+        "properties": {
+          "source_id": {"type": "string"}, "dataset_id": {"type": "string"},
+          "contract_status": {"type": "string"}, "fixture_status": {"type": "string"}, "integration_status": {"type": "string"}, "quality_gate_status": {"type": "string"}, "live_smoke_status": {"type": "string"}, "health_status": {"type": "string"}, "freshness_status": {"type": "string"}, "point_in_time_status": {"type": "string"}, "revision_status": {"type": "string"},
+          "last_live_success_at": {"type": ["string", "null"]}, "certification_expires_at": {"type": ["string", "null"]}, "snapshot_hash": {"type": ["string", "null"]}, "fallback_fetch_status": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

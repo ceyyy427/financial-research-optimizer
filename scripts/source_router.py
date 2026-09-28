@@ -5,6 +5,13 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    from .adapters.factory import DATASETS, IMPLEMENTED_ADAPTERS
+    from .adapters.evidence import evaluate_maturity, load_evidence
+except ImportError:
+    from adapters.factory import DATASETS, IMPLEMENTED_ADAPTERS
+    from adapters.evidence import evaluate_maturity, load_evidence
+
 
 class SourceRoutingError(RuntimeError):
     """Raised when no source satisfies the declared research contract."""
@@ -40,6 +47,8 @@ class SourceCandidate:
 
     def as_dict(self, role="primary", required_fields=None):
         profile = self.profile
+        dataset_id = profile.get("dataset") or DATASETS.get(profile["source_id"], "default")
+        maturity = evaluate_maturity(profile, profile["source_id"], dataset_id, load_evidence().get(profile["source_id"]), factory_registered=profile["source_id"] in DATASETS, fetch_implemented=profile["source_id"] in IMPLEMENTED_ADAPTERS)
         return {
             "source_id": profile["source_id"],
             "role": role,
@@ -47,6 +56,7 @@ class SourceCandidate:
             "authority": profile.get("authority"),
             "source_authority": profile.get("authority"),
             "access_method": profile.get("primary_method"),
+            "dataset_id": dataset_id,
             "required_fields": required_fields or profile.get("required_fields", []),
             "point_in_time": profile.get("point_in_time", False),
             "revision_aware": profile.get("revision_aware", False),
@@ -55,7 +65,8 @@ class SourceCandidate:
             "access_policy": profile.get("access_policy"),
             "implementation_status": profile.get("implementation_status", "planned"),
             "parser_status": profile.get("parser_status", "unavailable"),
-            "execution_ready": profile.get("implementation_status") in {"partial", "production"} and profile.get("parser_status") in {"partial", "available", "tested"},
+            "execution_ready": maturity["automatic_execution_ready"],
+            "source_capability": maturity,
             "priority_score": round(self.score, 4),
         }
 
@@ -107,8 +118,10 @@ class SourceRouter:
         return capability in profile.get("access_methods", []) or capability in profile.get("data_types", [])
 
     def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable=False):
-        if require_executable and (profile.get("implementation_status") == "planned" or profile.get("parser_status") == "unavailable"):
-            return None, [f"adapter is not executable: implementation_status={profile.get('implementation_status')}, parser_status={profile.get('parser_status')}" ]
+        dataset_id = profile.get("dataset") or DATASETS.get(profile["source_id"], "default")
+        maturity = evaluate_maturity(profile, profile["source_id"], dataset_id, load_evidence().get(profile["source_id"]), factory_registered=profile["source_id"] in DATASETS, fetch_implemented=profile["source_id"] in IMPLEMENTED_ADAPTERS)
+        if require_executable and not maturity["automatic_execution_ready"]:
+            return None, [f"adapter is not executable: maturity={maturity['maturity_level']}, manual_review_only={maturity['manual_review_only']}" ]
         missing = [cap for cap in required_capabilities if not self._capability_ok(profile, cap)]
         fields = set(profile.get("required_fields", []))
         missing_fields = [field for field in required_fields if field not in fields]
@@ -163,12 +176,17 @@ class SourceRouter:
                 rejected[profile["source_id"]] = reasons
         if not candidates:
             raise SourceRoutingError(json.dumps({"reason": "no source satisfies contract", "rejected": rejected}, ensure_ascii=False))
+        if not allow_secondary:
+            authority_candidates = [item for item in candidates if item.profile.get("kind") != "secondary_aggregator" and "primary" in item.profile.get("roles", [])]
+            if authority_candidates:
+                candidates = authority_candidates
         candidates.sort(key=lambda item: (-item.score, item.profile["source_id"]))
         primary = candidates[0]
         secondary = [item for item in candidates[1:] if item.profile.get("source_id") != primary.profile.get("source_id")]
         if not allow_secondary:
             secondary = [item for item in secondary if item.profile.get("kind") != "secondary_aggregator"]
-        source_plan = [primary.as_dict("primary", required_fields)]
+        primary_role = "primary" if "primary" in primary.profile.get("roles", []) and primary.profile.get("kind") != "secondary_aggregator" else "cross_check"
+        source_plan = [primary.as_dict(primary_role, required_fields)]
         source_plan.extend(item.as_dict("cross_check", required_fields) for item in secondary[:3])
         fallback_plan = list(primary.profile.get("fallback_methods", []))
         blocking_rules = ["material_price_conflict", "missing_effective_timestamp", "unknown_adjustment_convention"]

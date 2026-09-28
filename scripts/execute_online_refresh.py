@@ -12,12 +12,16 @@ from pathlib import Path
 
 try:
     from .adapters.base import AdapterError
+    from .adapters.evidence import evaluate_maturity, load_evidence
     from .adapters.factory import AdapterNotReady, build_adapter, build_request, fetch_with_adapter
+    from .monitoring.freshness import check_freshness
     from .normalize_observations import normalize
     from .source_router import SourceRouter, SourceRoutingError
 except ImportError:
     from adapters.base import AdapterError
+    from adapters.evidence import evaluate_maturity, load_evidence
     from adapters.factory import AdapterNotReady, build_adapter, build_request, fetch_with_adapter
+    from monitoring.freshness import check_freshness
     from normalize_observations import normalize
     from source_router import SourceRouter, SourceRoutingError
 
@@ -44,17 +48,21 @@ def execute_data_refresh(
         profile = router.profiles.get(source_id)
         if profile is None:
             return {"status": "blocked", "stage": "data_refresh", "failure_class": "source", "message": f"unknown source_id: {source_id}"}
-        production_ready = profile.get("implementation_status") == "production" and profile.get("parser_status") == "tested"
-        degraded_ready = profile.get("implementation_status") == "partial" and profile.get("parser_status") in {"partial", "available", "tested"}
-        if not production_ready and not (allow_degraded and degraded_ready):
+        request = build_request(source_id, params or {}, requested_url=url)
+        maturity = evaluate_maturity(
+            profile, source_id, request.dataset, load_evidence().get(source_id),
+            factory_registered=True,
+            fetch_implemented=source_id in {"stats_gov_cn", "10jqka", "sec_edgar", "fred", "alfred", "ecb_sdmx", "bis_sdmx"},
+        )
+        if not maturity["automatic_execution_ready"] and not (allow_degraded and maturity["degraded_execution_ready"]):
             return {
                 "status": "blocked",
                 "stage": "data_refresh",
                 "failure_class": "source",
-                "message": f"adapter is not automatic-primary ready: {source_id}; require production/test or explicit --allow-degraded",
+                "message": f"adapter is not executable: {source_id}; maturity={maturity['maturity_level']} manual_review_only={maturity['manual_review_only']}",
+                "source_capability": maturity,
             }
         root = Path(output_dir)
-        request = build_request(source_id, params or {}, requested_url=url)
         adapter = build_adapter(
             source_id,
             profile,
@@ -65,6 +73,12 @@ def execute_data_refresh(
             authorization_status=authorization_status,
         )
         result = fetch_with_adapter(adapter, request)
+        freshness = check_freshness(
+            result.raw_snapshot,
+            max_age_minutes=int((profile.get("slo") or {}).get("max_age_minutes", 1440)),
+        )
+        if freshness["status"] in {"blocked", "stale", "fallback", "degraded"} and not allow_degraded:
+            return {"status": "blocked", "stage": "freshness", "failure_class": "freshness", "source_id": source_id, "freshness": freshness, "source_capability": maturity}
         if result.quality_status == "blocked":
             return {"status": "blocked", "stage": "quality", "failure_class": "quality", "source_id": source_id, "result": result.as_dict()}
         if not result.observations:
@@ -77,6 +91,26 @@ def execute_data_refresh(
         normalized_file = normalized_dir / f"{source_id}-{request.dataset}.json"
         normalized_file.write_text(json.dumps(canonical, ensure_ascii=False, indent=2), encoding="utf-8")
         snapshot = result.raw_snapshot
+        health_dir = root / "health"
+        health_dir.mkdir(parents=True, exist_ok=True)
+        health_file = health_dir / f"{source_id}-{request.dataset}.json"
+        health_payload = {
+            "source_id": source_id,
+            "source_health": "healthy" if freshness["status"] == "ready" else freshness["status"],
+            "provider_status": "passed" if result.quality_status == "pass" else result.quality_status,
+            "last_success_at": snapshot.get("retrieved_at"),
+            "last_failure_at": None,
+            "latency_ms": snapshot.get("latency_ms"),
+            "schema_version": profile.get("parser"),
+            "license_expiry": None,
+            "health_multiplier": 1.0 if freshness["status"] == "ready" else 0.5,
+            "evaluated_at": snapshot.get("retrieved_at"),
+        }
+        health_file.write_text(json.dumps(health_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        result.provenance["source_capability"] = maturity
+        result.provenance["freshness"] = freshness
+        result.source_capability = maturity
+        result.freshness = freshness
         return {
             "status": "passed",
             "stage": "data_refresh",
@@ -85,10 +119,13 @@ def execute_data_refresh(
             "dataset": request.dataset,
             "quality_status": result.quality_status,
             "limitations": result.limitations,
+            "source_capability": maturity,
+            "freshness": freshness,
             "provenance": result.provenance,
             "snapshot": snapshot,
             "normalized_file": str(normalized_file),
             "normalized_rows": len(canonical),
+            "health_file": str(health_file),
             "from_cache": bool(snapshot.get("from_cache", False)),
             "stale": bool(snapshot.get("stale", False)),
             "network_requests": 0 if snapshot.get("from_cache") else 1,

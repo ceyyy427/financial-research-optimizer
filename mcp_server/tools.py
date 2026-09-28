@@ -7,6 +7,7 @@ import os
 import socket
 import uuid
 from typing import Any
+from pathlib import Path
 
 from financial_research.run_store import IdempotencyConflictError, RunStoreError, StateTransitionError, StoreBusyError, create_run_store
 from financial_research.runtime import get_run_status as runtime_get_run_status
@@ -14,6 +15,7 @@ from financial_research.runtime import prepare_research, read_research_artifact 
 from financial_research.store_protocol import RunStoreProtocol
 
 from .policy import McpPolicyError, validate_create_request
+from scripts.adapters.status import adapter_status
 
 
 def _blocked(code: str, message: str) -> dict[str, Any]:
@@ -159,3 +161,15 @@ class ResearchMcpService:
             return self.store.list_runs(status=status, mode=mode, created_after=created_after, limit=limit, cursor=cursor, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id, admin=admin or self.admin)
         except RunStoreError as exc:
             return _blocked(getattr(exc, "code", "list_failed"), str(exc))
+
+    async def get_source_capability(self, source_id: str, dataset_id: str | None = None) -> dict[str, Any]:
+        """Return evidence-driven adapter maturity for MCP routing decisions."""
+        registry = Path(os.environ.get("FRO_SOURCE_REGISTRY", "config/source_registry.yaml"))
+        if not registry.exists():
+            return _blocked("source_registry_missing", str(registry))
+        report = adapter_status(registry)
+        rows = [row for row in report["profiles"] if row["source_id"] == source_id and (dataset_id is None or row["dataset_id"] == dataset_id)]
+        if not rows:
+            return _blocked("source_not_found", f"unknown source/dataset: {source_id}/{dataset_id or '*'}")
+        row = rows[0]
+        return {"status": "passed", "source_capability": {key: value for key, value in row.items() if key not in {"implementation_status", "parser_status"}}, "counts": {key: value for key, value in report.items() if key.endswith("_count")}}

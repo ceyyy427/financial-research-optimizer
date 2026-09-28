@@ -12,7 +12,7 @@ SCHEMA_FILES = [
     "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json", "agent_contracts/mcp_run_request.schema.json", "agent_contracts/mcp_run_status.schema.json", "agent_contracts/mcp_tool_result.schema.json",
     "schemas/source_profile.schema.json", "schemas/source_snapshot.schema.json", "schemas/canonical_observation.schema.json",
     "schemas/mcp_run.schema.json",
-    "schemas/source_request.schema.json", "schemas/source_result.schema.json",
+    "schemas/source_request.schema.json", "schemas/source_result.schema.json", "schemas/adapter_evidence.schema.json",
 ]
 
 
@@ -47,6 +47,7 @@ def validate_local_schemas(root):
         ("schemas/canonical_observation.schema.json", root / "examples" / "canonical_observation.json"),
         ("refresh_policy.schema.json", root / "examples" / "research_config.json"),
         ("analysis.schema.json", root / "examples" / "demo_analysis.json"),
+        ("schemas/adapter_evidence.schema.json", root / "config" / "adapter_evidence.json"),
     ]
     selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation", "result_lineage.schema.json": "result_lineage", "refresh_policy.schema.json": "refresh_policy"}
     for schema_name, data_path in examples:

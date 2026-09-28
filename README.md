@@ -157,18 +157,36 @@ construction is source-specific: FRED/ALFRED inject API/vintage parameters,
 SEC enforces a contact-bearing User-Agent, and ECB/BIS use SDMX flow/key
 parameters. A generic provider is never silently substituted.
 
-Maturity states are explicit:
+Maturity is evidence-driven and evaluated at `source_id + dataset_id + access_method`, not copied directly from YAML:
 
 | 状态 | 含义 |
 |---|---|
-| `execution_ready` | `production + tested`，允许自动主路由 |
-| `degraded_ready` | `partial + partial/available/tested`，只能人工复核 |
-| `unavailable` | `planned` 或解析器不可用，阻断获取 |
+| `automatic_execution_ready` | L3：factory、契约、fixture、集成和质量证据齐全，可执行但不代表在线认证 |
+| `live_certified` | L4：在线 smoke、健康、新鲜度、PIT、快照哈希和最近成功证据齐全 |
+| `degraded_execution_ready` | 有真实可执行 fallback；没有 fallback 的 partial 不计入此类 |
+| `manual_review_only` | 已声明 partial，但进入 `ContractOnlyAdapter`，只能人工复核 |
+| `contract_only` / `blocked` | 只有契约或 planned，禁止获取和依赖分析 |
 
-路由评分还会读取 `source_health`、`provider_status`、最近成功/失败时间和延迟；`failed` provider 不得成为候选主来源，`stale/degraded` 只能以显式状态进入结果。
+权威主路由还要求 `authority_primary_allowed=true`；同花顺、东方财富、Yahoo 等二级来源默认 `cross_check_only=true`。FRED/ALFRED 的 API 授权和 ALFRED vintage 参数仍是运行时门禁。路由评分还会读取 source health、最近成功/失败时间和延迟；`stale/degraded` 只能以显式状态进入结果。
 
-运行 `python3 scripts/adapters/status.py` 可查看 `execution_ready`、
-`degraded_ready`、`automatic_primary_allowed` 和 `manual_review_required`。
+运行 `python3 scripts/adapters/status.py` 可查看
+`automatic_execution_count`、`live_certified_count`、`degraded_execution_count`、
+`manual_review_only_count`、`authority_primary_count` 和 `cross_check_only_count`。
+
+离线回放 smoke（不访问网络）和在线 smoke 入口：
+
+```bash
+python3 scripts/run_adapter_smoke.py \
+  --source-id stats_gov_cn --dataset macro_series --mode replay \
+  --fixture tests/fixtures/http/stats_gov.json --instrument CPI \
+  --output artifacts/smoke/stats_gov_cn.json
+python3 scripts/run_adapter_smoke.py \
+  --source-id sec_edgar --dataset company_facts --mode live \
+  --url https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json \
+  --params '{"cik":"0000320193"}' --output artifacts/smoke/sec_edgar.json
+```
+
+smoke 结果只作为证据写入输出，不会自动把来源提升为 `live_certified`；提升需要显式更新证据、健康、新鲜度和认证信息。
 
 动态 preflight 状态为 `ready`、`stale`、`degraded`、`fallback` 或 `blocked`。只有 `blocked` 禁止继续依赖分析；其余状态必须在 HTML 中显示数据延迟、缓存、模型和预测有效期。
 
@@ -186,8 +204,9 @@ python3 scripts/source_router.py \
   --capability vintage_data
 ```
 
-Adapter maturity is recorded in `implementation_status` and `parser_status`;
-see [`references/adapter_maturity.md`](references/adapter_maturity.md). The
+Adapter maturity is recorded in `config/adapter_evidence.json` and evaluated
+by `scripts/adapters/evidence.py`; `implementation_status` and `parser_status`
+are only declarations. See [`references/adapter_maturity.md`](references/adapter_maturity.md). The
 Patchright/CDP lifecycle, body capture boundary, and authentication checkpoint
 are specified in [`references/cdp_capability_contract.md`](references/cdp_capability_contract.md).
 
@@ -281,7 +300,7 @@ financial-research-optimizer/
 ├── references/                       # 按需读取的数学、数据和输出契约
 ├── agent_contracts/、schemas/         # 运行、MCP、来源和 canonical Schema
 ├── *.schema.json                     # 研究配置、分析、血缘、回测和组合 Schema
-├── config/                           # source registry
+├── config/                           # source registry 和 adapter evidence
 ├── examples/                         # 可验证的输入、示例 HTML 和 decision table
 ├── tests/                            # synthetic 数据和回归测试
 ├── assets/                           # README/HTML 展示图
@@ -295,7 +314,7 @@ financial-research-optimizer/
 | 选择模式和输出等级 | `SKILL.md`、`references/preflight_contract.md` | 确定阶段、最低交付物和阻断规则 |
 | 运行研究 | `financial_research/runtime.py` | 创建 contract、Plan DAG、checkpoint 和执行结果 |
 | 读取/管理运行 | `financial_research/run_store.py`、`financial_research/store_protocol.py` | JSON 默认；`FRO_RUN_STORE=sqlite` 切换 SQLite |
-| 接入 MCP | `mcp_server/server.py`、`references/mcp_interface.md` | create/status/read/cancel/resume/retry/list 与 `research://` |
+| 接入 MCP | `mcp_server/server.py`、`references/mcp_interface.md` | create/status/read/cancel/resume/retry/list、source capability 与 `research://` |
 | 获取与审计数据 | `scripts/source_router.py`、`scripts/online/`、`scripts/validate_financial_dataset.py` | source plan、快照、质量和 PIT 审计 |
 | 生成交付物 | `scripts/verify_result_lineage.py`、`scripts/generate_financial_html.py` | 离线 HTML、CSV/Markdown decision table |
 | 执行验证 | `scripts/validate_schemas.py`、`python3 -m pytest -q` | Schema、示例和测试结果 |

@@ -14,6 +14,7 @@
     "as_of": {"type": ["string", "null"]},
     "adjustment": {"type": ["string", "null"]},
     "authorization_ref": {"type": ["string", "null"]},
+    "access_method": {"type": ["string", "null"]},
     "params": {"type": "object"},
     "requested_url": {"type": ["string", "null"], "format": "uri"}
   }

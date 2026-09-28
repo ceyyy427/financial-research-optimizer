@@ -25,6 +25,7 @@ class SourceRequest:
     as_of: str | None = None
     adjustment: str | None = None
     authorization_ref: str | None = None
+    access_method: str | None = None
     params: Mapping[str, Any] = field(default_factory=dict)
     requested_url: str | None = None
 
@@ -45,6 +46,7 @@ class SourceRequest:
             "as_of": self.as_of,
             "adjustment": self.adjustment,
             "authorization_ref": self.authorization_ref,
+            "access_method": self.access_method,
             "params": dict(self.params),
             "requested_url": self.requested_url,
         }
@@ -57,6 +59,8 @@ class SourceResult:
     provenance: dict[str, Any]
     quality_status: str
     limitations: list[str] = field(default_factory=list)
+    source_capability: dict[str, Any] = field(default_factory=dict)
+    freshness: dict[str, Any] = field(default_factory=dict)
 
     VALID_STATUSES = frozenset({"pass", "usable_with_warning", "degraded", "blocked"})
 
@@ -75,6 +79,8 @@ class SourceResult:
             "provenance": self.provenance,
             "quality_status": self.quality_status,
             "limitations": list(self.limitations),
+            "source_capability": dict(self.source_capability),
+            "freshness": dict(self.freshness),
         }
 
 

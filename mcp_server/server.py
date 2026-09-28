@@ -84,6 +84,11 @@ def create_server(service: ResearchMcpService | None = None):
         """List only runs visible to the requesting client and tenant."""
         return await service.list_research_runs(status=status, mode=mode, created_after=created_after, limit=limit, cursor=cursor, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
 
+    @mcp.tool()
+    async def get_source_capability(source_id: str, dataset_id: str | None = None) -> dict[str, Any]:
+        """Read evidence-driven source maturity before selecting a data route."""
+        return await service.get_source_capability(source_id, dataset_id)
+
     @mcp.resource("research://runs/{run_id}/{artifact}")
     async def research_resource(run_id: str, artifact: str) -> str:
         """Expose a registered run artifact through a research:// URI."""

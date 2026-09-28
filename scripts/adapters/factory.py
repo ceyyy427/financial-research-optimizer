@@ -57,6 +57,11 @@ DATASETS = {
     "bis_sdmx": "sdmx_series",
 }
 
+# Dataset contracts are deliberately explicit.  A source-level adapter cannot
+# silently claim every endpoint exposed by the website or vendor.
+DATASET_CONTRACTS = {source_id: {dataset_id} for source_id, dataset_id in DATASETS.items()}
+DATASET_CONTRACTS["sec_edgar"].add("submissions")
+
 # These are the only source IDs with a tested end-to-end SourceRequest fetch.
 # Other IDs still have explicit factory entries so they fail with a precise
 # blocked/not-ready result rather than falling through to generic HTTP.
@@ -157,8 +162,13 @@ def build_adapter(source_id: str, profile: dict, output_dir="artifacts/online", 
 
 
 def build_request(source_id: str, params: dict | None = None, requested_url: str | None = None) -> SourceRequest:
+    if source_id not in DATASET_CONTRACTS:
+        raise AdapterNotReady(f"no dataset contract registered for source_id={source_id}")
     params = dict(params or {})
     dataset = str(params.pop("dataset", DATASETS.get(source_id, "default")))
+    if dataset not in DATASET_CONTRACTS[source_id]:
+        allowed = ", ".join(sorted(DATASET_CONTRACTS[source_id]))
+        raise AdapterNotReady(f"undeclared dataset for {source_id}: {dataset}; allowed={allowed}")
     return SourceRequest(
         source_id=source_id,
         dataset=dataset,
@@ -168,6 +178,7 @@ def build_request(source_id: str, params: dict | None = None, requested_url: str
         as_of=params.pop("as_of", None),
         adjustment=params.pop("adjustment", None),
         authorization_ref=params.pop("authorization_ref", None),
+        access_method=params.pop("access_method", None),
         params=params,
         requested_url=requested_url,
     )

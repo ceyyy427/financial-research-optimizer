@@ -10,6 +10,8 @@
     "observations": {"type": "array", "items": {"type": "object"}},
     "provenance": {"type": "object"},
     "quality_status": {"type": "string", "enum": ["pass", "usable_with_warning", "degraded", "blocked"]},
-    "limitations": {"type": "array", "items": {"type": "string"}}
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "source_capability": {"type": "object"},
+    "freshness": {"type": "object"}
   }
 }
