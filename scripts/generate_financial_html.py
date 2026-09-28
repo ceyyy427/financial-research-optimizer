@@ -24,7 +24,7 @@ DECISION_FIELDS = [
     "priority", "module", "current_view", "action", "trigger",
     "evidence", "risk", "horizon", "next_check"
 ]
-DECISION_METADATA_FIELDS = ["experiment_id", "reproducibility_status", "mode", "output_level", "completion_level", "quality_score", "source_health", "adapter_maturity", "forecast_ood_status", "portfolio_fragility", "fallback_reason", "source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"]
+DECISION_METADATA_FIELDS = ["experiment_id", "reproducibility_status", "source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"]
 DECISION_OUTPUT_FIELDS = DECISION_FIELDS + DECISION_METADATA_FIELDS
 
 
@@ -64,8 +64,6 @@ def validate_payload(data, config=None):
             errors.append(f"missing top-level field: {field}")
     if mode == "data_audit" and not data.get("sources"):
         errors.append("data_audit requires sources")
-    if mode == "data_audit" and not data.get("data_quality"):
-        errors.append("data_audit requires data_quality with lineage_refs")
     if mode in {"descriptive_analysis", "forecasting", "backtest", "portfolio_research"} and "charts" not in data:
         errors.append("mode requires charts")
     if mode in {"forecasting", "backtest", "portfolio_research"}:
@@ -100,8 +98,6 @@ def validate_payload(data, config=None):
     feature_audit = data.get("feature_label_audit")
     if feature_audit is not None and (not isinstance(feature_audit, dict) or "safe" not in feature_audit or "computed_purge_gap" not in feature_audit):
         errors.append("feature_label_audit must contain safe and computed_purge_gap")
-    if data.get("data_quality") is not None and (not isinstance(data.get("data_quality"), dict) or not data["data_quality"].get("lineage_refs") or not data["data_quality"].get("metric_lineage")):
-        errors.append("data_quality requires lineage_refs and metric_lineage before quality numbers may enter HTML")
     forecast = data.get("forecast")
     if mode in {"forecasting", "backtest", "portfolio_research"} and isinstance(forecast, dict):
         for field in ("label", "value", "interval", "probability", "model"):
@@ -161,26 +157,13 @@ def status_class(status):
     return value if value in {"ok", "warning", "failed", "not_available"} else "warning"
 
 
-def normalize_rows(rows, experiment_id=None, reproducibility_status=None, online_status=None, data=None, config=None):
+def normalize_rows(rows, experiment_id=None, reproducibility_status=None, online_status=None):
     normalized = []
     for row in rows if isinstance(rows, list) else []:
         normalized.append({field: text(row.get(field)) if isinstance(row, dict) else "—" for field in DECISION_FIELDS})
         normalized[-1]["experiment_id"] = text(experiment_id)
         normalized[-1]["reproducibility_status"] = text(reproducibility_status)
         status = online_status if isinstance(online_status, dict) else {}
-        quality = (data or {}).get("data_quality", {}).get("quality", {}) if isinstance(data, dict) else {}
-        health = (data or {}).get("source_health", {}) if isinstance(data, dict) else {}
-        forecast_contract = (data or {}).get("forecast_contract", {}) if isinstance(data, dict) else {}
-        robustness = (data or {}).get("portfolio_robustness", {}) if isinstance(data, dict) else {}
-        normalized[-1]["mode"] = text((config or {}).get("mode", (data or {}).get("mode")))
-        normalized[-1]["output_level"] = text((config or {}).get("output_level", (data or {}).get("output_level")))
-        normalized[-1]["completion_level"] = text((data or {}).get("completion_level"))
-        normalized[-1]["quality_score"] = text(quality.get("quality_score"))
-        normalized[-1]["source_health"] = text(health.get("source_health", status.get("source_status")))
-        normalized[-1]["adapter_maturity"] = text(status.get("adapter_maturity", status.get("implementation_status")))
-        normalized[-1]["forecast_ood_status"] = text(forecast_contract.get("ood_status", forecast_contract.get("forecast_validity")))
-        normalized[-1]["portfolio_fragility"] = text(robustness.get("fragility_status", robustness.get("status")))
-        normalized[-1]["fallback_reason"] = text(robustness.get("fallback_reason", status.get("fallback_reason")))
         for field in ("source_id", "access_method", "as_of_time", "freshness", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"):
             normalized[-1][field] = text(status.get(field))
     if not normalized:
@@ -372,8 +355,7 @@ def render_portfolio_robustness(robustness):
         rows.append("<tr>" + "".join(f"<td>{esc(item.get(field))}</td>" for field in ("name", "solver_status", "objective", "turnover", "weight_interval", "active_constraints")) + "</tr>")
     fallback = robustness.get("fallback", {}) if isinstance(robustness, dict) else {}
     attribution = {"benchmark": robustness.get("benchmark"), "active_return": robustness.get("active_return"), "risk_contribution": robustness.get("risk_contribution"), "factor_exposures": robustness.get("factor_exposures", robustness.get("factor_exposure")), "industry_exposure": robustness.get("industry_exposure"), "turnover_contribution": robustness.get("turnover_contribution", robustness.get("turnover_attribution")), "cost_attribution": robustness.get("cost_attribution"), "return_attribution": robustness.get("return_attribution"), "binding_constraints": robustness.get("binding_constraints"), "weight_drift": robustness.get("weight_drift")}
-    fragility = robustness.get("fragility", {}) if isinstance(robustness.get("fragility"), dict) else {}
-    return f'''<div class="recon-grid">{''.join(f'<div><b>{esc(key)}</b><strong>{esc(value)}</strong></div>' for key, value in attribution.items())}<div><b>组合稳定性</b><strong>{esc(robustness.get("fragility_status", fragility.get("status")))}</strong></div><div><b>脆弱性原因</b><strong>{esc(fragility.get("reasons"))}</strong></div></div><div class="table-wrap"><table><thead><tr><th>协方差</th><th>求解状态</th><th>目标函数</th><th>换手率</th><th>权重区间</th><th>主动约束</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div><p class="muted">扰动分析：{esc(robustness.get("perturbation_summary"))} · fallback：{esc(fallback)}</p>'''
+    return f'''<div class="recon-grid">{''.join(f'<div><b>{esc(key)}</b><strong>{esc(value)}</strong></div>' for key, value in attribution.items())}</div><div class="table-wrap"><table><thead><tr><th>协方差</th><th>求解状态</th><th>目标函数</th><th>换手率</th><th>权重区间</th><th>主动约束</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div><p class="muted">扰动分析：{esc(robustness.get("perturbation_summary"))} · fallback：{esc(fallback)}</p>'''
 
 
 def render_module(module):
@@ -405,7 +387,7 @@ def render_decisions(rows):
         "priority": "优先级", "module": "模块", "current_view": "当前判断",
         "action": "动作/姿态", "trigger": "触发条件", "evidence": "依据",
         "risk": "风险", "horizon": "有效期", "next_check": "下一检查",
-        "experiment_id": "实验 ID", "reproducibility_status": "复现状态", "mode": "研究模式", "output_level": "输出等级", "completion_level": "完成度", "quality_score": "质量评分", "source_health": "来源健康", "adapter_maturity": "适配器成熟度", "forecast_ood_status": "预测 OOD", "portfolio_fragility": "组合脆弱性", "fallback_reason": "降级原因", "source_id": "来源 ID", "access_method": "访问方式", "as_of_time": "数据时点", "freshness": "新鲜度", "data_latency": "数据延迟", "data_status": "数据状态", "snapshot_hash": "快照哈希", "revision_status": "修订状态", "source_authority": "来源权威性", "authorization_status": "授权状态", "point_in_time_status": "PIT 状态", "fallback_used": "使用降级", "cache_status": "缓存状态", "model_status": "模型状态", "forecast_status": "预测状态"
+        "experiment_id": "实验 ID", "reproducibility_status": "复现状态", "source_id": "来源 ID", "access_method": "访问方式", "as_of_time": "数据时点", "freshness": "新鲜度", "data_latency": "数据延迟", "data_status": "数据状态", "snapshot_hash": "快照哈希", "revision_status": "修订状态", "source_authority": "来源权威性", "authorization_status": "授权状态", "point_in_time_status": "PIT 状态", "fallback_used": "使用降级", "cache_status": "缓存状态", "model_status": "模型状态", "forecast_status": "预测状态"
     }
     head = "".join(f"<th>{headers[field]}</th>" for field in DECISION_OUTPUT_FIELDS)
     body = "".join("<tr>" + "".join(f"<td>{esc(row.get(field))}</td>" for field in DECISION_OUTPUT_FIELDS) + "</tr>" for row in rows)
@@ -423,7 +405,7 @@ def write_decision_table(rows, output_dir, fmt):
         written.append(path)
     if fmt in {"md", "both"}:
         path = output_dir / "decision_table.md"
-        labels = ["优先级", "模块", "当前判断", "动作/姿态", "触发条件", "依据", "风险", "有效期", "下一检查", "实验 ID", "复现状态", "研究模式", "输出等级", "完成度", "质量评分", "来源健康", "适配器成熟度", "预测 OOD", "组合脆弱性", "降级原因", "来源 ID", "访问方式", "数据时点", "新鲜度", "数据延迟", "数据状态", "快照哈希", "修订状态", "来源权威性", "授权状态", "PIT 状态", "使用降级", "缓存状态", "模型状态", "预测状态"]
+        labels = ["优先级", "模块", "当前判断", "动作/姿态", "触发条件", "依据", "风险", "有效期", "下一检查", "实验 ID", "复现状态", "来源 ID", "访问方式", "数据时点", "新鲜度", "数据延迟", "数据状态", "快照哈希", "修订状态", "来源权威性", "授权状态", "PIT 状态", "使用降级", "缓存状态", "模型状态", "预测状态"]
         lines = ["| " + " | ".join(labels) + " |", "|" + "|".join("---" for _ in labels) + "|"]
         lines.extend("| " + " | ".join(row[field].replace("|", "\\|") for field in DECISION_OUTPUT_FIELDS) + " |" for row in rows)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -442,7 +424,7 @@ def render_html(data, config=None, manifest=None):
     reproducibility_status = (manifest or {}).get("reproducibility_status", data.get("reproducibility_status", "not_available"))
     output_level = (config or {}).get("output_level", data.get("output_level", "not_available"))
     mode = (config or {}).get("mode", data.get("mode", "standard"))
-    rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status, data.get("online_status", {}), data=data, config=config)
+    rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status, data.get("online_status", {}))
     spark = render_sparkline(data.get("series"))
     charts_html = render_metric_charts(data.get("charts", []))
     model_cards_html = render_model_cards(data.get("model_cards", []))
@@ -453,8 +435,6 @@ def render_html(data, config=None, manifest=None):
     result_lineage_html = render_result_lineage(data.get("result_lineage", {}))
     online_status_html = render_online_status(data.get("online_status", {}))
     portfolio_html = render_portfolio_robustness(data.get("portfolio_robustness", {}))
-    quality = data.get("data_quality", {})
-    quality_html = f'<div class="recon-grid"><div><b>质量评分</b><strong>{esc(quality.get("quality", {}).get("quality_score"))}</strong></div><div><b>完整性</b><strong>{esc(quality.get("quality", {}).get("completeness_score"))}</strong></div><div><b>PIT 评分</b><strong>{esc(quality.get("quality", {}).get("point_in_time_score"))}</strong></div><div><b>决策</b><strong>{esc(quality.get("quality", {}).get("decision"))}</strong></div></div>' if quality else ""
     model_section = f'<h2>模型卡</h2><section class="decision">{model_cards_html}</section>' if data.get("model_cards") else ""
     selection_section = f'<h2>模型选择协议</h2><section class="decision">{selection_html}</section>' if data.get("selection_protocol") else ""
     overfit_section = f'<h2>反过拟合审计</h2><section class="decision">{overfit_html}</section>' if data.get("backtest_overfitting") else ""
@@ -463,7 +443,6 @@ def render_html(data, config=None, manifest=None):
     result_lineage_section = f'<h2>结果 lineage</h2><section class="decision">{result_lineage_html}</section>' if data.get("result_lineage") else ""
     online_status_section = f'<h2>在线状态</h2><section class="decision">{online_status_html}</section>' if data.get("online_status") else ""
     portfolio_section = f'<h2>组合稳健性</h2><section class="decision">{portfolio_html}</section>' if data.get("portfolio_robustness") else ""
-    quality_section = f'<h2>数据质量评分</h2><section class="decision">{quality_html}</section>' if quality_html else ""
     source_html = "".join(
         f'<li><code>{esc(source.get("id"))}</code> {esc(source.get("label"))}'
         + (f' — <a href="{safe_url(source.get("url"))}">source</a>' if safe_url(source.get("url")) else "")
@@ -492,7 +471,6 @@ def render_html(data, config=None, manifest=None):
 {feature_label_section}
 {result_lineage_section}
 {online_status_section}
-{quality_section}
 {portfolio_section}
 <h2>决策表</h2><section class="decision">{render_decisions(rows)}</section>
 <h2>来源与复现</h2><footer class="foot"><ul>{source_html}</ul><div>数据快照：{esc(reproducibility.get("data_snapshot"))} · 代码：{esc(reproducibility.get("code"))} · 种子：{esc(reproducibility.get("seeds"))} · 评估窗口：{esc(reproducibility.get("evaluation_window"))}</div><div>配置：{esc((config or {}).get("_config_fingerprint"))} · Manifest：{esc((manifest or {}).get("_manifest_fingerprint"))}</div><div>局限：{esc(limitations)}</div><div>本页面是模型研究与决策支持摘要，不是收益保证或自动交易指令。</div></footer>
@@ -523,7 +501,7 @@ def main():
     html_path.write_text(render_html(data, config=config, manifest=manifest), encoding="utf-8")
     experiment_id = (manifest or {}).get("experiment_id", data.get("experiment_id"))
     reproducibility_status = (manifest or {}).get("reproducibility_status", data.get("reproducibility_status", "not_available"))
-    rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status, data.get("online_status", {}), data=data, config=config)
+    rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status, data.get("online_status", {}))
     outputs = [html_path] + write_decision_table(rows, args.output_dir, args.decision_format)
     for path in outputs:
         print(path)

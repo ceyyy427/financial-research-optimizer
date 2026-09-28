@@ -12,6 +12,7 @@ SCHEMA_FILES = [
     "agent_contracts/task.schema.json", "agent_contracts/plan.schema.json", "agent_contracts/node_result.schema.json", "agent_contracts/artifact.schema.json", "agent_contracts/mcp_run_request.schema.json", "agent_contracts/mcp_run_status.schema.json", "agent_contracts/mcp_tool_result.schema.json",
     "schemas/source_profile.schema.json", "schemas/source_snapshot.schema.json", "schemas/canonical_observation.schema.json",
     "schemas/mcp_run.schema.json",
+    "schemas/source_request.schema.json", "schemas/source_result.schema.json",
 ]
 
 

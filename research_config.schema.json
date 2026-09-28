@@ -54,7 +54,6 @@
         "n_splits": {"type": "integer", "minimum": 2}
       }
     },
-    "execution": {"$ref": "execution_contract.schema.json"},
     "models": {
       "type": "object", "additionalProperties": false, "required": ["baselines", "challengers", "selection"],
       "properties": {
@@ -101,7 +100,6 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "enabled": {"type": "boolean"},
-        "registry_path": {"type": "string", "minLength": 1},
         "provider_registry": {"type": "array", "items": {"type": "string"}},
         "cache_dir": {"type": "string", "minLength": 1},
         "snapshot_dir": {"type": "string", "minLength": 1},
@@ -132,8 +130,5 @@
         "priority": {"type": "array", "minItems": 1, "items": {"type": "string"}}
       }
     }
-  },
-  "allOf": [
-    {"if": {"properties": {"mode": {"enum": ["backtest", "portfolio_research"]}}, "required": ["mode"]}, "then": {"required": ["execution"]}}
-  ]
+  }
 }

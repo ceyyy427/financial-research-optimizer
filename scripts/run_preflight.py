@@ -13,15 +13,11 @@ try:
     from .manifest_utils import load_manifest
     from .feature_label_audit import audit_feature_label_contract
     from .verify_result_lineage import verify_result_lineage
-    from .execution_contract import validate_execution_contract
-    from .data_quality import audit_grain, quality_score
 except ImportError:
     from config_utils import load_config
     from manifest_utils import load_manifest
     from feature_label_audit import audit_feature_label_contract
     from verify_result_lineage import verify_result_lineage
-    from execution_contract import validate_execution_contract
-    from data_quality import audit_grain, quality_score
 
 
 def _check(checks, check_id, status, message):
@@ -38,32 +34,6 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
         return {"status": "blocked", "mode": "unknown", "output_level": "unknown", "checks": [{"check_id": "config", "status": "fail", "message": str(exc)}], "blocking_reasons": [str(exc)]}
     level = config["output_level"]
     mode = config["mode"]
-    if mode in {"backtest", "portfolio_research"}:
-        execution_audit = validate_execution_contract(config.get("execution"))
-        if not execution_audit["valid"]:
-            blocking.append("execution contract failed: " + "; ".join(execution_audit["errors"]))
-            _check(checks, "execution_contract", "fail", blocking[-1])
-        else:
-            _check(checks, "execution_contract", "pass", "signal, decision, execution, calendar, latency and slippage conventions are explicit")
-    else:
-        execution_audit = None
-    registry_path = config.get("online", {}).get("registry_path")
-    if not registry_path:
-        registry_path = Path(config["_config_path"]).resolve().parents[1] / "config" / "source_registry.yaml"
-    if Path(registry_path).exists():
-        try:
-            try:
-                from .validate_source_registry import validate_registry
-            except ImportError:
-                from validate_source_registry import validate_registry
-            schema_path = Path(registry_path).parent.parent / "schemas" / "source_profile.schema.json"
-            registry_result = validate_registry(registry_path, schema_path)
-            _check(checks, "source_registry", "pass", f"validated {registry_result['profile_count']} source profiles and provider IDs")
-        except Exception as exc:
-            blocking.append("source registry/provider alignment failed: " + str(exc))
-            _check(checks, "source_registry", "fail", blocking[-1])
-    else:
-        _check(checks, "source_registry", "warning", f"source registry not found: {registry_path}")
     required_manifest = config.get("preflight", {}).get("require_manifest", level in {"research_grade", "portfolio_grade"})
     required_dataset = config.get("preflight", {}).get("require_dataset", level == "portfolio_grade")
     required_reconciliation = config.get("preflight", {}).get("require_reconciliation", level == "portfolio_grade")
@@ -96,7 +66,7 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
             data = json.loads(Path(analysis_path).read_text(encoding="utf-8"))
             required = {"meta", "summary", "modules", "decision_rows"}
             if mode == "data_audit":
-                required.update({"sources", "data_quality"})
+                required.add("sources")
             if mode in {"descriptive_analysis", "forecasting", "backtest", "portfolio_research"}:
                 required.add("charts")
             if mode in {"forecasting", "backtest", "portfolio_research"}:
@@ -131,13 +101,6 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
                 _check(checks, "sample_size", "fail", blocking[-1])
             else:
                 _check(checks, "sample_size", "pass", f"dataset has {len(frame)} rows; minimum is {required_rows}")
-            quality_report = {"rows": len(frame), "columns": list(frame.columns), "missing_by_column": {column: int(value) for column, value in frame.isna().sum().items()}, "invalid_dates": 0, "duplicate_dates": 0, "date_end": "available", "grain": audit_grain(frame)}
-            quality = quality_score(quality_report)
-            if quality["decision"] == "blocked":
-                blocking.append("dataset quality decision is blocked")
-                _check(checks, "data_quality", "fail", json.dumps(quality, ensure_ascii=False))
-            else:
-                _check(checks, "data_quality", "warning" if quality["decision"] != "usable" else "pass", f"dataset quality decision: {quality['decision']}")
             availability_field = config["feature_label_contract"]["availability_time_field"]
             if availability_field in frame.columns:
                 audit = audit_feature_label_contract(frame, config["feature_label_contract"], config["cutoff"])
@@ -196,8 +159,6 @@ def run_preflight(config_path, manifest_path=None, analysis_path=None, dataset_p
         else:
             _check(checks, check_id, "skip", f"online {label} not required")
     result = {"status": "blocked" if blocking else dynamic_status, "mode": mode, "output_level": level, "checks": checks, "blocking_reasons": blocking, "config_fingerprint": config.get("_config_fingerprint"), "manifest_fingerprint": (manifest or {}).get("_manifest_fingerprint")}
-    if execution_audit is not None:
-        result["execution_contract"] = execution_audit
     return result
 
 

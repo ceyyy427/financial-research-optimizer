@@ -21,7 +21,7 @@
 | `covariance_model` | if portfolio-related: sample, Ledoit-Wolf, factor, robust, or N/A |
 | `failure_mode` | known drift, instability, infeasibility, data requirement, or rejection reason |
 | `status` | candidate, rejected, selected, challenger, fallback |
-| `implementation_status` | `documented`, `prototype`, `tested`, or `production`; this is independent of selection status |
+| `implementation_status` | `documented`, `implemented`, `tested`, or `production` |
 | `runtime` / `dependency_group` | Python entry point and optional dependency boundary |
 
 ## Selection rule
@@ -47,10 +47,4 @@ random_seeds: [7, 11, 19]
 overfitting_diagnostics: {DM: pass, WRC: pass, SPA: pass, DSR: warning, PBO: warning}
 failure_mode: regime drift and covariance error
 status: selected
-implementation_status: tested
-runtime_dependencies: [numpy, pandas]
-minimum_sample_size: 756
-supports_online_inference: false
-supports_rolling_fit: true
-supports_uncertainty: true
 ```

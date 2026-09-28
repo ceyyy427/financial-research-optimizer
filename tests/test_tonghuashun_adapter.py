@@ -99,7 +99,7 @@ def test_browser_navigation_retries_and_writes_raw_response(tmp_path):
                 raise RuntimeError("transient browser failure")
             return FakeResponse()
 
-        def locator(self, selector):
+        async def locator(self, selector):
             return self
 
         async def inner_text(self):

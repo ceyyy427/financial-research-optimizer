@@ -8,10 +8,12 @@ try:
     from .source_router import load_registry
     from .parsers import get_parser
     from .online.provider_registry import ADAPTER_IDS, PROVIDER_IDS
+    from .adapters.factory import DATASETS, IMPLEMENTED_ADAPTERS
 except ImportError:
     from source_router import load_registry
     from parsers import get_parser
     from online.provider_registry import ADAPTER_IDS, PROVIDER_IDS
+    from adapters.factory import DATASETS, IMPLEMENTED_ADAPTERS
 
 
 def validate_registry(registry_path, schema_path):
@@ -24,6 +26,8 @@ def validate_registry(registry_path, schema_path):
     errors = []
     validator = Draft202012Validator(schema)
     for source_id, profile in profiles.items():
+        if source_id not in DATASETS:
+            errors.append(f"{source_id}: no dataset capability is registered in adapters.factory")
         if profile.get("provider_id", source_id) != source_id:
             errors.append(f"{source_id}: provider_id must equal source_id")
         if profile.get("adapter_id", source_id) != source_id:
@@ -34,6 +38,8 @@ def validate_registry(registry_path, schema_path):
             errors.append(f"{source_id}: normalizer_id must equal normalizer")
         if profile.get("implementation_status") == "production" and profile.get("parser_status") == "tested" and source_id not in (PROVIDER_IDS | ADAPTER_IDS):
             errors.append(f"{source_id}: production+tested source has no registered online provider or adapter")
+        if profile.get("implementation_status") == "production" and profile.get("parser_status") == "tested" and source_id not in IMPLEMENTED_ADAPTERS:
+            errors.append(f"{source_id}: production+tested source has no implemented SourceRequest fetch")
         errors.extend(f"{source_id}: {error.message}" for error in validator.iter_errors(profile))
         if profile.get("parser_status") in {"available", "tested"} and get_parser(profile.get("parser")) is None:
             errors.append(f"{source_id}: parser_status={profile.get('parser_status')} but parser is not registered: {profile.get('parser')}")

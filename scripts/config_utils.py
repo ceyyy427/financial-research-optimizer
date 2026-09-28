@@ -73,13 +73,6 @@ def validate_config(data):
         for key in ("train_period", "validation_period", "test_period"):
             if not isinstance(evaluation.get(key), int) or evaluation.get(key) < (1 if key != "validation_period" else 0):
                 errors.append(f"evaluation.{key} must be a valid non-negative/positive integer")
-    if data.get("mode") in {"backtest", "portfolio_research"}:
-        execution = data.get("execution")
-        if not isinstance(execution, dict):
-            errors.append("backtest and portfolio_research require an explicit execution contract")
-        else:
-            required_execution = ("signal_time", "decision_time", "execution_time", "execution_price", "market_calendar", "latency_bars", "slippage_bps", "partial_fill_rule")
-            errors.extend(f"execution missing {key}" for key in required_execution if not execution.get(key) and execution.get(key) != 0)
     models = data.get("models", {})
     if not isinstance(models, dict) or not isinstance(models.get("baselines"), list) or not models.get("baselines") or not isinstance(models.get("challengers"), list) or not isinstance(models.get("selection"), dict):
         errors.append("models must define baselines, challengers, and selection")

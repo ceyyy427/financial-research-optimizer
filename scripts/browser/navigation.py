@@ -174,7 +174,7 @@ class BrowserNavigation:
                 if isinstance(headers, dict):
                     content_type = headers.get("content-type", "")
                 return NavigationResult(body, getattr(page, "url", url), status, content_type, retrieved_at, str(raw_path), screenshot_file)
-            except Exception as exc:
+            except Exception as exc:  # browser providers must expose evidence on failure
                 last_error = exc
                 if page is not None:
                     snapshot = await self._failure_snapshot(page, exc, attempt)

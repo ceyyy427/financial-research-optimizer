@@ -1,4 +1,5 @@
 from .catalog import CatalogSourceAdapter
+from .protocol import SourceRequest, SourceResult, source_result_from_legacy
 try:
     from ..online.base_provider import BaseProvider
     from ..online.http_cache import HttpCache
@@ -27,6 +28,8 @@ class StatsGovCnAdapter(CatalogSourceAdapter):
         self.provider.revision_policy = "vintage_aware"
 
     def fetch(self, url, params=None, instrument_id=None):
+        if isinstance(url, SourceRequest):
+            return self.fetch_request(url)
         response = self.provider.request(url, params=params, ttl_seconds=3600, snapshot=True)
         payload = self.provider.parse_json(response)
         rows = parse(self.profile["parser"], payload, instrument_id=instrument_id, source_url=url)
@@ -45,3 +48,9 @@ class StatsGovCnAdapter(CatalogSourceAdapter):
             "fallback_used": response.from_cache,
         })
         return {"source_id": self.profile["source_id"], "data": payload, "observations": rows, "snapshot": snapshot, "response": response}
+
+    def fetch_request(self, request: SourceRequest) -> SourceResult:
+        url = request.requested_url or self.profile.get("base_urls", [None])[0]
+        if not url:
+            raise ValueError("stats_gov_cn requires a declared endpoint or base URL")
+        return source_result_from_legacy(self.fetch(url, dict(request.params), request.instrument), request)

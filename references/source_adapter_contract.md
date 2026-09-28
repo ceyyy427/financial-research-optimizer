@@ -38,3 +38,42 @@ The returned plan contains `source_plan`, `fallback_plan`, and `blocking_rules`.
 ## Required handoff
 
 Every adapter must emit an immutable source snapshot before normalization. Every normalized row must satisfy `schemas/canonical_observation.schema.json` and retain `observation_time`, `release_time`, `availability_time`, `effective_time`, and `vintage_time` (with an explicit `null`/`not_available` status when a source cannot provide one). Canonical observations are the only records eligible for feature construction.
+
+## Formal adapter protocol
+
+The executable boundary is `scripts/adapters/protocol.py`:
+
+```python
+SourceRequest(
+    source_id, dataset, instrument, start, end, as_of,
+    adjustment, authorization_ref, params, requested_url
+)
+SourceResult(
+    raw_snapshot, observations, provenance, quality_status, limitations
+)
+```
+
+`scripts/adapters/factory.py` dispatches by `source_id + dataset`; it has an
+explicit entry for every registry source ID and never falls back to a generic
+HTTP provider. `requested_url` is optional and, when supplied, must match the
+profile's domain allowlist. API, official-file, browser, library, and
+authorized-database adapters retain their own transport. A source result is
+accepted only after raw snapshot, parser, canonical normalization, and quality
+checks succeed.
+
+Automatic primary routing requires all of:
+
+```text
+implementation_status = production
+parser_status = tested
+factory_registered = true
+fetch_implemented = true
+```
+
+`partial` sources are `degraded_ready` only and require explicit manual
+review. `planned` or parser-unavailable sources are blocked. The status is
+reported at `source_id + dataset + access_method`, not only at website level.
+
+The command boundary is `scripts/execute_online_refresh.py`. It accepts an
+authorization reference, never a secret value; it preserves the snapshot
+manifest and writes canonical rows only after the result contract passes.

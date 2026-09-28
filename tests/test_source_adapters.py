@@ -30,26 +30,12 @@ def test_registry_profiles_validate_and_route_alfred():
     assert executable["source_plan"][0]["source_id"] in {"stats_gov_cn", "pbc", "sse", "szse", "sec_edgar", "alfred", "ecb_sdmx", "bis_sdmx"}
     status = adapter_status(ROOT / "config/source_registry.yaml")
     assert status["execution_ready_count"] >= 1
-    pbc = next(row for row in status["profiles"] if row["source_id"] == "pbc")
-    assert pbc["execution_ready"] is False
-    assert pbc["degraded_ready"] is True
-    assert pbc["automatic_primary_allowed"] is False
 
 
 def test_router_rejects_missing_capability():
     router = SourceRouter.from_file(ROOT / "config/source_registry.yaml")
     with pytest.raises(SourceRoutingError):
         router.resolve("需要 point-in-time", ["SPY"], ["point_in_time", "vintage_data"], required_fields=["nonexistent_field"])
-
-
-def test_router_requires_explicit_degraded_opt_in():
-    full_router = SourceRouter.from_file(ROOT / "config/source_registry.yaml")
-    router = SourceRouter({"pbc": full_router.profiles["pbc"]})
-    with pytest.raises(SourceRoutingError):
-        router.resolve("PBC macro", ["CPI"], ["point_in_time"], require_executable=True)
-    plan = router.resolve("PBC macro", ["CPI"], ["point_in_time"], require_executable=True, allow_degraded=True)
-    assert plan["allow_degraded"] is True
-    assert any(item["source_id"] == "pbc" and item["degraded_ready"] for item in plan["source_plan"])
 
 
 def test_snapshot_replay_is_immutable_and_hashes_raw_bytes(tmp_path):

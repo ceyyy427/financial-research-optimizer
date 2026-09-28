@@ -6,52 +6,6 @@ from datetime import datetime, timezone
 from .policy_guard import validate_task_scope
 
 
-KNOWN_ENTITY_ALIASES = {
-    "沪深300": {"entity_id": "000300.SH", "calendar": "XSHG", "currency": "CNY"},
-    "csi300": {"entity_id": "000300.SH", "calendar": "XSHG", "currency": "CNY"},
-    "sp500": {"entity_id": "SPX", "calendar": "XNYS", "currency": "USD"},
-}
-KNOWN_TARGETS = {
-    "波动率": "realized_volatility",
-    "收益率": "excess_return",
-    "方向": "direction",
-}
-
-
-def resolve_contract_fields(task, universe, target, horizon, constraints):
-    """Resolve high-value aliases and return explicit missing-input reasons."""
-    resolved_universe = list(universe or [])
-    resolution_notes = []
-    for item in resolved_universe:
-        alias = KNOWN_ENTITY_ALIASES.get(str(item).strip().lower())
-        if alias:
-            resolved_universe[resolved_universe.index(item)] = alias["entity_id"]
-            resolution_notes.append({"input": item, **alias})
-    resolved_target = target or ""
-    if resolved_target:
-        resolved_target = KNOWN_TARGETS.get(str(resolved_target).strip().lower(), resolved_target)
-    resolved_horizon = horizon or ""
-    missing = []
-    if not resolved_universe:
-        missing.append("universe")
-    if not resolved_target or resolved_target == "unspecified":
-        missing.append("target")
-    if not resolved_horizon or resolved_horizon == "unspecified":
-        missing.append("horizon")
-    if not constraints.get("cutoff"):
-        missing.append("cutoff")
-    if not constraints.get("calendar") and not resolution_notes:
-        missing.append("execution_calendar")
-    return {
-        "universe": resolved_universe,
-        "target": resolved_target or "unspecified",
-        "horizon": resolved_horizon or "unspecified",
-        "resolution_notes": resolution_notes,
-        "needs_user_input": missing,
-        "resolution_status": "needs_user_input" if missing else "resolved",
-    }
-
-
 def _plan_id(task):
     digest = hashlib.sha256(json.dumps(task, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
     return f"plan_{datetime.now(timezone.utc).strftime('%Y%m%d')}_{digest}"
@@ -67,25 +21,14 @@ def create_research_contract(task, mode="forecasting", output_level="research_gr
         raise ValueError(f"unsupported output level: {output_level}")
     if mode in {"backtest", "portfolio_research"} and output_level not in {"research_grade", "portfolio_grade"}:
         raise ValueError(f"{mode} requires output_level research_grade or portfolio_grade")
-    constraints = dict(constraints or {})
-    resolution = resolve_contract_fields(task, universe, target, horizon, constraints)
     return {
         "task": task,
         "mode": mode,
         "output_level": output_level,
-        "universe": resolution["universe"],
-        "target": resolution["target"],
-        "horizon": resolution["horizon"],
-        "constraints": constraints,
-        "resolution": resolution,
-        "needs_user_input": resolution["needs_user_input"],
-        "global_budget": constraints.get("global_budget", {
-            "max_network_requests": 200,
-            "max_bytes_downloaded": 500_000_000,
-            "max_artifacts": 100,
-            "max_wall_time_seconds": 1_800,
-            "max_browser_contexts": 3,
-        }),
+        "universe": universe or [],
+        "target": target or "unspecified",
+        "horizon": horizon or "unspecified",
+        "constraints": dict(constraints or {}),
     }
 
 
@@ -96,8 +39,7 @@ def _node(node_id, tool, depends_on, success, failure, artifacts, allow_degraded
 def build_plan(contract):
     mode = contract["mode"]
     nodes = [
-        _node("contract_resolution", "resolve_contract", [], "contract_fields_resolved", "needs_user_input", ["research_contract.json"]),
-        _node("source_discovery", "discover_sources", ["contract_resolution"], "at_least_one_authoritative_source", "no_verified_source", ["source_registry.json"], allow_degraded=True),
+        _node("source_discovery", "discover_sources", [], "at_least_one_authoritative_source", "no_verified_source", ["source_registry.json"], allow_degraded=True),
         _node("data_capture", "capture_data", ["source_discovery"], "snapshot_saved", "no_snapshot", ["raw_snapshot", "provenance_manifest.json"], allow_degraded=True),
         _node("normalize_dataset", "normalize_dataset", ["data_capture"], "canonical_schema_valid", "schema_or_unit_failure", ["canonical_dataset.csv", "transformation_manifest.json"]),
         _node("preflight", "run_preflight", ["normalize_dataset"], "status_not_blocked", "blocking_contract_failure", ["preflight.json"]),

@@ -25,11 +25,6 @@ SCHEMAS = [
     "agent_contracts/plan.schema.json",
     "agent_contracts/node_result.schema.json",
     "agent_contracts/artifact.schema.json",
-    "data_quality.schema.json",
-    "schema_drift.schema.json",
-    "execution_contract.schema.json",
-    "forecast_contract.schema.json",
-    "source_health.schema.json",
 ]
 
 

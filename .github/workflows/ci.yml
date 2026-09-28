@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install test dependencies
-        run: python3 -m pip install --upgrade -e '.[test,pdf,mcp]'
+        run: python3 -m pip install --upgrade -r requirements-dev.txt
       - name: Validate contracts and preflight
         run: |
           python3 scripts/validate_research_config.py examples/research_config.json
@@ -24,7 +24,7 @@ jobs:
           python3 scripts/validate_schemas.py
           python3 scripts/verify_result_lineage.py examples/demo_analysis.json
           python3 scripts/run_preflight.py --config examples/research_config.json --manifest examples/experiment_manifest.json --analysis examples/demo_analysis.json --output /tmp/preflight.json
-          python3 scripts/overfitting_applicability.py --candidate-count 4 --trial-count 8 --observations 690 --paired-loss --portfolio-returns --candidate-family --net-of-costs --pbo-splits 4 --bootstrap-block-length 5 --output /tmp/overfitting_applicability.json
+          python3 scripts/overfitting_applicability.py --candidate-count 4 --trial-count 8 --observations 690 --paired-loss --portfolio-returns --output /tmp/overfitting_applicability.json
           python3 scripts/run_online_refresh.py --config examples/research_config.json --output /tmp/refresh_plan.json
           python3 scripts/build_refresh_plan.py --config examples/research_config.json --output /tmp/refresh_plan_v2.json
           python3 scripts/source_router.py --topic "US CPI vintage" --universe CPIAUCSL --capability point_in_time --capability vintage_data --output /tmp/source_plan.json

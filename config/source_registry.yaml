@@ -125,8 +125,8 @@ sources:
     authority: secondary_aggregator
     priority: 45
     kind: secondary_aggregator
-    implementation_status: partial
-    parser_status: available
+    implementation_status: planned
+    parser_status: unavailable
     asset_classes: [equity, etf, fund, macro]
     data_types: [market_data, financial_indicators, fund_data, capital_flow]
     access_methods: [api, browser, cdp, dom, cached_snapshot]
@@ -166,7 +166,7 @@ sources:
     normalizer: market_observation_v1
     quality_checks: [timestamp_order, adjustment, calendar, missingness, source_conflict]
     required_fields: [instrument_id, observation_time, close, volume, adjustment]
-    base_urls: [https://www.10jqka.com.cn/]
+    base_urls: [https://www.10jqka.com.cn/, https://d.10jqka.com.cn/]
   - source_id: wind
     name: Wind
     region: global

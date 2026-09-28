@@ -3,7 +3,6 @@ import argparse
 import json
 from pathlib import Path
 import math
-import hashlib
 
 
 def _mean(values):
@@ -57,20 +56,7 @@ def monitor_model(payload):
     warning = any(check["status"] == "warning" for check in checks)
     critical = any(check["value"] > check["threshold"] * 2 for check in checks if isinstance(check.get("value"), (int, float)))
     model_status = "fallback" if critical else ("retrain_required" if warning else "active")
-    event_seed = f"{payload.get('model_id', 'unknown')}|{','.join(check['check'] for check in checks if check['status'] == 'warning')}"
-    event_id = "monitor_" + hashlib.sha256(event_seed.encode()).hexdigest()[:12]
-    severity = "model_disabled" if critical else ("retrain_requested" if warning else "info")
-    return {
-        "model_id": payload.get("model_id", "unknown"), "model_status": model_status,
-        "drift_status": "failed" if critical else ("warning" if warning else "ok"),
-        "retrain_trigger": "; ".join(check["check"] for check in checks if check["status"] == "warning") or "none",
-        "fallback": payload.get("fallback", "benchmark") if model_status == "fallback" else "none",
-        "checks": checks, "data_status": "fallback" if critical else ("degraded" if warning else "ready"),
-        "monitoring_event_id": event_id, "trigger_threshold": thresholds,
-        "severity": severity, "owner": payload.get("owner", "research_owner"),
-        "recommended_action": "create a new research task and rerun preflight" if warning else ("disable model and use benchmark fallback" if critical else "continue monitoring"),
-        "cooldown_period": payload.get("cooldown_period", "7d"), "last_triggered_at": payload.get("last_triggered_at"),
-    }
+    return {"model_id": payload.get("model_id", "unknown"), "model_status": model_status, "drift_status": "failed" if critical else ("warning" if warning else "ok"), "retrain_trigger": "; ".join(check["check"] for check in checks if check["status"] == "warning") or "none", "fallback": payload.get("fallback", "benchmark") if model_status == "fallback" else "none", "checks": checks, "data_status": "fallback" if critical else ("degraded" if warning else "ready")}
 
 
 def main():

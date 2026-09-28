@@ -118,7 +118,7 @@ def test_data_refresh_uses_source_specific_fred_provider(tmp_path, monkeypatch):
         assert "series_id=GDP" in url
         return 200, {"content-type": "application/json"}, b'{"series_id":"GDP","observations":[{"date":"2026-09-25","value":"1.2","realtime_start":"2026-09-26"}]}'
 
-    result = execute_data_refresh("fred", "https://ignored.example", tmp_path, params={"series_id": "GDP"}, transport=transport)
+    result = execute_data_refresh("fred", "https://api.stlouisfed.org/fred/series/observations", tmp_path, params={"series_id": "GDP"}, transport=transport)
     assert result["status"] == "passed"
     assert result["source_id"] == "fred"
     assert result["normalized_rows"] == 1

@@ -20,11 +20,6 @@ Each record declares:
 
 The HTML generator invokes the same verifier before writing any artifact. Missing `source_ids`, `calculation_id`, `input_hash`, `code_version`, or `formula` is a blocking error. The verifier is intentionally conservative: narrative strings and metadata such as dates, seeds, and row counts are not treated as calculated metrics, while native numerical arrays used in figures are.
 
-可复算指标还应记录 `recompute_command`、`output_file`、`output_hash`、
-`dependency_versions` 和 `dependency_lock_hash`。`--recompute` 模式会执行无 shell
-命令、检查退出码，并在声明输出文件时重新计算 SHA-256；缺少复算命令或输出哈希
-会阻止“可复算”状态，但不会把普通演示数据误报成可复算。
-
 For an online run, `input_hash` should be the hash of the immutable snapshot saved by `snapshot_store.py`, and `source_ids` should reference the provenance manifest. For a model run, `calculation_id` should be stable across the HTML, decision table, model card, and experiment manifest.
 
 Run:

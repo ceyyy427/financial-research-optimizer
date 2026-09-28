@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source_result.schema.json",
+  "title": "Financial source adapter result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["raw_snapshot", "observations", "provenance", "quality_status", "limitations"],
+  "properties": {
+    "raw_snapshot": {"type": ["object", "null"]},
+    "observations": {"type": "array", "items": {"type": "object"}},
+    "provenance": {"type": "object"},
+    "quality_status": {"type": "string", "enum": ["pass", "usable_with_warning", "degraded", "blocked"]},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  }
+}

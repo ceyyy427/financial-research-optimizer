@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .base import AdapterError
 from .catalog import CatalogSourceAdapter
+from .protocol import SourceRequest, SourceResult, source_result_from_legacy
 
 try:
     from ..browser.navigation import BrowserNavigation, NavigationError, tls_policy_from_env
@@ -35,6 +36,8 @@ class TonghuashunAdapter(CatalogSourceAdapter):
         return f"https://d.10jqka.com.cn/v4/line/{market_prefix}_{instrument_id}/01/last.js"
 
     def fetch(self, url=None, params=None, instrument_id=None, market_prefix="hs", market="SZ"):
+        if isinstance(url, SourceRequest):
+            return self.fetch_request(url)
         params = dict(params or {})
         instrument_id = str(instrument_id or params.get("instrument_id") or params.get("code") or "")
         if not instrument_id:
@@ -70,3 +73,8 @@ class TonghuashunAdapter(CatalogSourceAdapter):
         )
         snapshot["tls_policy"] = tls_policy_from_env()
         return {"source_id": self.source_id, "data": result.text, "observations": observations, "snapshot": snapshot, "response": result}
+
+    def fetch_request(self, request: SourceRequest) -> SourceResult:
+        params = dict(request.params)
+        params.setdefault("instrument_id", request.instrument)
+        return source_result_from_legacy(self.fetch(request.requested_url, params=params, instrument_id=request.instrument, market=params.get("market", "SZ")), request)

@@ -7,11 +7,16 @@ from pathlib import Path
 
 try:
     from ..source_router import load_registry
+    from .factory import DATASETS, _CONTRACT_ONLY
 except ImportError:
     # ``python3 scripts/adapters/status.py`` does not put ``scripts/`` on
     # sys.path; installed entry points use the package-relative import above.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from source_router import load_registry
+    from adapters.factory import DATASETS, _CONTRACT_ONLY
+
+
+IMPLEMENTED_ADAPTERS = frozenset({"stats_gov_cn", "10jqka", "sec_edgar", "fred", "alfred", "ecb_sdmx", "bis_sdmx"})
 
 
 def adapter_status(registry_path):
@@ -22,13 +27,20 @@ def adapter_status(registry_path):
         parser = profile.get("parser_status", "unavailable")
         execution_ready = implementation == "production" and parser == "tested"
         degraded_ready = implementation == "partial" and parser in {"partial", "available", "tested"}
+        dataset = profile.get("dataset") or DATASETS.get(source_id, "default")
+        factory_registered = source_id in DATASETS
+        fetch_implemented = source_id in IMPLEMENTED_ADAPTERS
         rows.append({
             "source_id": source_id,
+            "dataset": dataset,
+            "access_method": profile.get("primary_method"),
             "implementation_status": implementation,
             "parser_status": parser,
-            "execution_ready": execution_ready,
+            "factory_registered": factory_registered,
+            "fetch_implemented": fetch_implemented,
+            "execution_ready": execution_ready and factory_registered and fetch_implemented,
             "degraded_ready": degraded_ready,
-            "automatic_primary_allowed": execution_ready,
+            "automatic_primary_allowed": execution_ready and factory_registered and fetch_implemented,
             "manual_review_required": degraded_ready,
             "parser": profile.get("parser"),
             "source_health": profile.get("source_health", "unknown"),
@@ -42,7 +54,7 @@ def adapter_status(registry_path):
         "profiles": rows,
         "execution_ready_count": sum(row["execution_ready"] for row in rows),
         "degraded_ready_count": sum(row["degraded_ready"] for row in rows),
-        "automatic_primary_rule": "implementation_status=production AND parser_status=tested",
+        "automatic_primary_rule": "implementation_status=production AND parser_status=tested AND factory_registered AND fetch_implemented",
     }
 
 
