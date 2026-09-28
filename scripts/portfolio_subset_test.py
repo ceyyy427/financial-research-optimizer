@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from tail_risk import moving_block_sample
+try:
+    from .tail_risk import moving_block_sample
+except ImportError:
+    from tail_risk import moving_block_sample
 
 
 def _matrix(values, name):
@@ -105,4 +108,3 @@ def effective_asset_subset_test(
         "bootstrap": {"method": "moving_block", "seed": int(seed), "replications": int(replications), "block_length": int(block_length)},
         "status": "ok",
     }
-
