@@ -2,10 +2,110 @@
 """Decide which backtest-overfitting diagnostics are applicable to a run."""
 import argparse
 import json
+import math
 from pathlib import Path
+
+import numpy as np
 
 
 METHODS = ("DM", "WRC", "SPA", "DSR", "PBO")
+
+
+def moving_block_bootstrap(values, block_length=5, replications=1000, seed=7):
+    """Generate dependent bootstrap samples by drawing circular blocks."""
+    values = np.asarray(values, dtype=float)
+    if values.ndim == 1:
+        values = values[:, None]
+    if values.shape[0] == 0 or block_length < 1:
+        raise ValueError("bootstrap requires observations and a positive block length")
+    rng = np.random.default_rng(seed)
+    blocks = [values[(start + np.arange(block_length)) % len(values)] for start in range(len(values))]
+    samples = []
+    for _ in range(replications):
+        selected = []
+        while len(selected) < len(values):
+            selected.extend(blocks[int(rng.integers(0, len(blocks)))])
+        samples.append(np.asarray(selected[:len(values)]))
+    return np.asarray(samples)
+
+
+def _normal_sf(value):
+    return 0.5 * math.erfc(float(value) / math.sqrt(2.0))
+
+
+def dm_test(loss_a, loss_b, block_length=5, replications=1000, seed=7):
+    """Diebold-Mariano test with a HAC variance and moving-block CI."""
+    differential = np.asarray(loss_a, dtype=float) - np.asarray(loss_b, dtype=float)
+    if differential.size < 20 or differential.size != np.asarray(loss_b).size:
+        return {"status": "failed", "reason": "paired loss vectors must have equal length >= 20"}
+    mean = float(differential.mean())
+    centered = differential - mean
+    variance = float(np.mean(centered ** 2))
+    for lag in range(1, min(block_length - 1, len(differential) - 1) + 1):
+        variance += 2.0 * (1.0 - lag / (block_length + 1.0)) * float(np.mean(centered[lag:] * centered[:-lag]))
+    variance = max(variance, 1e-14)
+    statistic = mean / math.sqrt(variance / len(differential))
+    samples = moving_block_bootstrap(differential, block_length, replications, seed)[:, 0].mean(axis=1)
+    interval = np.quantile(samples, [0.025, 0.975]).tolist()
+    p_value = min(1.0, 2.0 * _normal_sf(abs(statistic)))
+    return {"status": "passed", "method": "DM", "statistic": float(statistic), "p_value": float(p_value), "confidence_interval": [float(interval[0]), float(interval[1])], "block_length": block_length, "replications": replications, "n": int(len(differential)), "interpretation": "reject equal predictive accuracy" if p_value < 0.05 else "insufficient evidence of a loss difference"}
+
+
+def white_reality_check(candidate_returns, block_length=5, replications=1000, seed=7):
+    """White's Reality Check for the maximum mean net return across candidates."""
+    values = np.asarray(candidate_returns, dtype=float)
+    if values.ndim != 2 or values.shape[1] < 3 or values.shape[0] < 30:
+        return {"status": "failed", "reason": "WRC requires >=3 candidate return series and >=30 observations"}
+    centered = values - values.mean(axis=0, keepdims=True)
+    observed = float(values.mean(axis=0).max())
+    boot = moving_block_bootstrap(centered, block_length, replications, seed).mean(axis=1).max(axis=1)
+    p_value = float((1.0 + np.sum(boot >= observed)) / (replications + 1.0))
+    interval = np.quantile(boot, [0.025, 0.975]).tolist()
+    return {"status": "passed", "method": "WRC", "statistic": observed, "p_value": p_value, "confidence_interval": [float(interval[0]), float(interval[1])], "block_length": block_length, "replications": replications, "n": int(values.shape[0]), "candidate_count": int(values.shape[1]), "interpretation": "candidate family survives the reality check" if p_value < 0.05 else "family-level outperformance is not established"}
+
+
+def spa_test(candidate_returns, block_length=5, replications=1000, seed=7):
+    """Hansen SPA-style studentized superior predictive ability diagnostic."""
+    values = np.asarray(candidate_returns, dtype=float)
+    if values.ndim != 2 or values.shape[1] < 3 or values.shape[0] < 30:
+        return {"status": "failed", "reason": "SPA requires >=3 candidate return series and >=30 observations"}
+    means = values.mean(axis=0)
+    standard_errors = np.maximum(values.std(axis=0, ddof=1) / math.sqrt(values.shape[0]), 1e-12)
+    observed = float(np.max(np.maximum(means, 0.0) / standard_errors))
+    centered = values - means
+    boot = moving_block_bootstrap(centered, block_length, replications, seed)
+    boot_stat = np.max(np.maximum(boot.mean(axis=1), 0.0) / standard_errors, axis=1)
+    p_value = float((1.0 + np.sum(boot_stat >= observed)) / (replications + 1.0))
+    return {"status": "passed", "method": "SPA", "statistic": observed, "p_value": p_value, "confidence_interval": [float(np.quantile(boot_stat, 0.025)), float(np.quantile(boot_stat, 0.975))], "block_length": block_length, "replications": replications, "n": int(values.shape[0]), "candidate_count": int(values.shape[1]), "interpretation": "superior predictive ability supported" if p_value < 0.05 else "superior predictive ability not established"}
+
+
+def deflated_sharpe_ratio(returns, trials=1, skew=0.0, kurtosis=3.0):
+    """Approximate Deflated Sharpe Ratio using the expected maximum Sharpe."""
+    values = np.asarray(returns, dtype=float).ravel()
+    if values.size < 30 or trials < 1:
+        return {"status": "failed", "reason": "DSR requires >=30 net-of-cost observations"}
+    sharpe = float(values.mean() / max(values.std(ddof=1), 1e-12) * math.sqrt(252))
+    expected_max = math.sqrt(2.0 * math.log(max(1, trials)))
+    variance = (1.0 - skew * sharpe + (kurtosis - 1.0) * sharpe * sharpe / 4.0) / max(values.size - 1, 1)
+    z = (sharpe - expected_max) / math.sqrt(max(variance, 1e-12))
+    p_value = float(_normal_sf(z))
+    return {"status": "passed", "method": "DSR", "statistic": sharpe, "deflated_sharpe": float(z), "p_value": p_value, "confidence_interval": [float(sharpe - 1.96 * math.sqrt(max(variance, 1e-12))), float(sharpe + 1.96 * math.sqrt(max(variance, 1e-12)))], "trials": int(trials), "n": int(values.size), "interpretation": "Sharpe survives multiple-testing deflation" if p_value < 0.05 else "Sharpe is not significant after deflation"}
+
+
+def probability_of_backtest_overfitting(candidate_returns, splits=8):
+    """Estimate PBO by selecting on train halves and checking test underperformance."""
+    values = np.asarray(candidate_returns, dtype=float)
+    if values.ndim != 2 or values.shape[1] < 3 or values.shape[0] < 40 or splits < 2:
+        return {"status": "failed", "reason": "PBO requires >=3 candidates, >=40 observations and >=2 splits"}
+    half = values.shape[0] // 2
+    outcomes = []
+    for index in range(splits):
+        order = np.roll(np.arange(values.shape[0]), index * max(1, values.shape[0] // splits))
+        train, test = values[order[:half]], values[order[half:]]
+        selected = int(np.argmax(train.mean(axis=0)))
+        outcomes.append(float(test[:, selected].mean() < np.median(test.mean(axis=0))))
+    probability = float(np.mean(outcomes))
+    return {"status": "passed", "method": "PBO", "statistic": probability, "p_value": probability, "confidence_interval": [float(max(0.0, probability - 1.96 * math.sqrt(probability * (1 - probability) / len(outcomes)))), float(min(1.0, probability + 1.96 * math.sqrt(probability * (1 - probability) / len(outcomes))))], "splits": int(splits), "n": int(values.shape[0]), "candidate_count": int(values.shape[1]), "interpretation": "high overfitting probability" if probability > 0.5 else "overfitting probability is not dominant"}
 
 
 def assess_applicability(candidate_count, trial_count, observations, paired_loss=False, portfolio_returns=False, diagnostic_inputs=None):

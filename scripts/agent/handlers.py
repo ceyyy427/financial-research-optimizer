@@ -11,6 +11,8 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
+
 
 def _blocked(node, message, **extra):
     return {
@@ -297,15 +299,16 @@ def _run_models(contract, node):
     residual_std = statistics.stdev(selected_errors) if len(selected_errors) > 1 else None
     point = {"naive_last_value": forecasts[-1] if forecasts else values[-1], "historical_mean_baseline": mean_forecasts[-1] if mean_forecasts else statistics.fmean(values), "rolling_mean_baseline": rolling_forecasts[-1] if rolling_forecasts else statistics.fmean(values)}[selected]
     interval = [point - 1.645 * residual_std, point + 1.645 * residual_std] if residual_std is not None else None
-    rolling = {"status": "pass" if errors else "not_available", "models": [{"model_id": model, "n_predictions": len(errors), "rmse": score, "lineage_refs": metric_refs} for model, score in scores.items()], "selected_model": selected, "selection_metric": "rmse", "protocol": {"type": "expanding_window", "minimum_train": 1, "horizon": 1, "evaluation_window": len(errors)}, "residuals": selected_errors, "residual_interval": interval, "interval_method": "1.645 residual standard deviations", "calibration_status": "not_calibrated", "ood_status": "not_checked", "input_hash": source_hash}
+    candidate_errors = {"naive_last_value": errors, "historical_mean_baseline": mean_errors, "rolling_mean_baseline": rolling_errors}
+    rolling = {"status": "pass" if errors else "not_available", "models": [{"model_id": model, "n_predictions": len(errors), "rmse": score, "lineage_refs": metric_refs} for model, score in scores.items()], "selected_model": selected, "selection_metric": "rmse", "protocol": {"type": "expanding_window", "minimum_train": 1, "horizon": 1, "evaluation_window": len(errors)}, "residuals": selected_errors, "residual_interval": interval, "interval_method": "1.645 residual standard deviations", "calibration_status": "not_calibrated", "calibration_state": "uncalibrated", "calibration_warning": "interval coverage and interval score require a declared calibration split", "coverage": None, "interval_score": None, "ood_status": "not_checked", "regime_slice": "not_available", "research_grade_warning": "calibration and OOD checks are not available for this minimum baseline path", "candidate_losses": candidate_errors, "candidate_family": list(candidate_errors), "trial_count": 1, "bootstrap_block_length": max(2, min(10, len(errors) // 5 or 2)), "input_hash": source_hash}
     rolling_path = _write_json(_artifact_dir(contract) / "rolling_evaluation.json", rolling)
-    forecast_contract = {"target": str(contract.get("target", "value")), "forecast_origin": datetime.now(timezone.utc).isoformat(), "horizon": contract.get("horizon", 1), "forecast_types": ["point", "interval"], "selected_model": selected, "selection_metric": "rmse", "evaluation_window": len(errors), "interval_method": "1.645 residual standard deviations", "calibration_status": "not_calibrated", "metrics": {"primary": ["rmse"], "calibration": ["not_calibrated"]}, "validity_conditions": ["point-in-time audit passes", "rolling evaluation is out of sample", "interval is an uncalibrated residual approximation"], "known_failure_modes": ["regime change", "small sample", "window sensitivity"], "ood_status": "not_checked"}
+    forecast_contract = {"target": str(contract.get("target", "value")), "forecast_origin": datetime.now(timezone.utc).isoformat(), "horizon": contract.get("horizon", 1), "forecast_types": ["point", "interval"], "selected_model": selected, "selection_metric": "rmse", "evaluation_window": len(errors), "interval_method": "1.645 residual standard deviations", "calibration_status": "not_calibrated", "calibration_state": "uncalibrated", "metrics": {"primary": ["rmse"], "calibration": ["coverage", "interval_score"]}, "validity_conditions": ["point-in-time audit passes", "rolling evaluation is out of sample", "interval is an uncalibrated residual approximation"], "known_failure_modes": ["regime change", "small sample", "window sensitivity"], "ood_status": "not_checked", "regime_status": "not_available", "warning": "research grade output requires a calibration/OOD artifact before high-confidence use"}
     analysis["forecast"].update({"value": point, "interval": interval or "not_available", "model": selected, "calibration_status": "not_calibrated", "ood_status": "not_checked"})
     analysis["forecast_contract"] = forecast_contract
     for card in analysis["model_cards"]:
         card["status"] = "selected" if card["model_id"] == selected else "challenger"
     path = _write_json(_artifact_dir(contract) / "analysis.json", analysis)
-    return {"status": "passed", "message": "naive and historical-mean baselines with rolling evaluation created", "artifacts": [path, rolling_path], "provenance": {"model": "historical_mean_baseline+naive_last_value", "experiment_id": analysis["experiment_id"], "uncertainty_status": "not_calibrated"}}
+    return {"status": "passed", "message": "naive, historical-mean and rolling-mean baselines with rolling evaluation created", "artifacts": [path, rolling_path], "provenance": {"model": "historical_mean_baseline+naive_last_value+rolling_mean_baseline", "experiment_id": analysis["experiment_id"], "uncertainty_status": "uncalibrated", "research_grade_warning": rolling["research_grade_warning"]}}
 
 
 def _render_artifacts(contract, node):
@@ -329,7 +332,7 @@ def _render_artifacts(contract, node):
 
 
 def _run_overfitting_diagnostics(contract, node):
-    """Run the applicability gate and save a non-fabricated diagnostic record."""
+    """Run applicable statistical diagnostics; pending is never a success."""
     path = _artifact_dir(contract) / "rolling_evaluation.json"
     if not path.exists():
         return _blocked(node, "rolling evaluation is required before overfitting diagnostics", reason_code="ROLLING_EVALUATION_REQUIRED", next_action="complete model evaluation")
@@ -340,14 +343,47 @@ def _run_overfitting_diagnostics(contract, node):
         from ..overfitting_applicability import assess_applicability
     except ImportError:
         from overfitting_applicability import assess_applicability
-    result = assess_applicability(len(models), 1, observations, paired_loss=False, portfolio_returns=False)
-    result.update({"status": "passed", "execution": "applicability_gated", "selected_model": payload.get("selected_model"), "input_hash": payload.get("input_hash")})
+    losses = payload.get("candidate_losses", {})
+    returns = payload.get("candidate_returns")
+    net_returns = payload.get("net_of_cost_returns")
+    candidate_count = len(models)
+    result = assess_applicability(candidate_count, int(payload.get("trial_count", 1)), observations, paired_loss=len(losses) >= 2, portfolio_returns=bool(net_returns), diagnostic_inputs={"paired_losses": next(iter(losses.values()), None), "candidate_family": list(losses), "net_of_costs": bool(net_returns), "pbo_splits": payload.get("pbo_splits", 8), "bootstrap_block_length": payload.get("bootstrap_block_length", 5)})
+    try:
+        from ..overfitting_applicability import dm_test, white_reality_check, spa_test, deflated_sharpe_ratio, probability_of_backtest_overfitting
+    except ImportError:
+        from overfitting_applicability import dm_test, white_reality_check, spa_test, deflated_sharpe_ratio, probability_of_backtest_overfitting
+    block_length = int(payload.get("bootstrap_block_length", 5))
+    replications = int(payload.get("bootstrap_replications", 500))
+    diagnostics = {}
+    loss_values = list(losses.values()) if isinstance(losses, dict) else []
+    if len(loss_values) >= 2 and all(len(item) >= 20 for item in loss_values[:2]):
+        diagnostics["DM"] = dm_test(loss_values[0], loss_values[1], block_length, replications)
+    if returns is not None:
+        if np.asarray(returns).ndim == 2 and np.asarray(returns).shape[1] >= 3:
+            diagnostics["WRC"] = white_reality_check(returns, block_length, replications)
+            diagnostics["SPA"] = spa_test(returns, block_length, replications)
+            diagnostics["PBO"] = probability_of_backtest_overfitting(returns, int(payload.get("pbo_splits", 8)))
+    if net_returns is not None:
+        diagnostics["DSR"] = deflated_sharpe_ratio(net_returns, int(payload.get("trial_count", max(1, candidate_count))))
+    for item in result["methods"]:
+        method = item["method"]
+        if item["applicable"]:
+            item.update(diagnostics.get(method, {"status": "pending", "reason": "applicable diagnostic has not been executed"}))
+        elif method not in diagnostics:
+            item["status"] = "not_applicable"
+    applicable = [item for item in result["methods"] if item["applicable"]]
+    result["gate_status"] = "failed" if any(item.get("status") == "failed" for item in applicable) else ("pending" if any(item.get("status") == "pending" for item in applicable) else ("passed" if applicable else "not_triggered"))
+    result.update({"execution": "applicability_gated", "selected_model": payload.get("selected_model"), "input_hash": payload.get("input_hash"), "candidate_family": list(losses) if isinstance(losses, dict) else [], "net_of_costs": bool(net_returns)})
     output = _write_json(_artifact_dir(contract) / "backtest_overfitting.json", result)
-    return {"status": "passed", "message": "overfitting diagnostics evaluated by applicability; non-triggered tests remain not_applicable", "artifacts": [output], "provenance": {"diagnostics": result}, "reason_code": None, "next_action": "continue to portfolio or render artifacts", "user_action_required": False}
+    if result["gate_status"] == "failed":
+        return _blocked(node, "an applicable overfitting diagnostic failed", reason_code="OVERFITTING_DIAGNOSTIC_FAILED", next_action="review candidate family, costs, and selection protocol", artifacts=[output], provenance={"diagnostics": result})
+    if result["gate_status"] == "pending":
+        return _blocked(node, "an applicable overfitting diagnostic is pending", reason_code="OVERFITTING_DIAGNOSTIC_PENDING", next_action="supply losses/returns and execute the applicable diagnostics", artifacts=[output], provenance={"diagnostics": result})
+    return {"status": "passed", "message": "applicable overfitting diagnostics executed; non-triggered tests remain not_applicable", "artifacts": [output], "provenance": {"diagnostics": result}, "reason_code": None, "next_action": "continue to portfolio or render artifacts", "user_action_required": False}
 
 
 def _run_portfolio_optimization(contract, node):
-    """Build an auditable long-only equal-risk baseline or explicit fallback."""
+    """Solve each declared covariance model under the same explicit constraints."""
     rows, _ = _dataset_rows(contract)
     grouped = {}
     for row in rows:
@@ -366,36 +402,84 @@ def _run_portfolio_optimization(contract, node):
         output = _write_json(artifact, result)
         return {"status": "fallback", "message": result["fallback"]["reason"], "artifacts": [output], "fallback_used": True, "reason_code": "PORTFOLIO_INSUFFICIENT_ASSETS", "next_action": "provide a multi-asset dataset or use descriptive/forecasting mode", "user_action_required": True, "provenance": result}
     try:
-        import numpy as np
         from ..portfolio_diagnostics import benchmark_weights, risk_contribution
-        from ..portfolio_robustness import compare_covariance_models
+        from ..portfolio_robustness import compare_covariance_models, solve_constrained_portfolio, sample_covariance, ledoit_wolf_shrinkage, factor_covariance, robust_covariance
     except ImportError:
         import numpy as np
         from portfolio_diagnostics import benchmark_weights, risk_contribution
-        from portfolio_robustness import compare_covariance_models
+        from portfolio_robustness import compare_covariance_models, solve_constrained_portfolio, sample_covariance, ledoit_wolf_shrinkage, factor_covariance, robust_covariance
     length = min(len(grouped[name]) for name in assets)
     matrix = np.asarray([grouped[name][-length:] for name in assets], dtype=float).T
     returns = matrix[1:] / matrix[:-1] - 1.0
-    covariance_comparison = compare_covariance_models(returns)
-    weights = benchmark_weights(len(assets), "equal_weight")
-    covariance = np.cov(returns, rowvar=False, ddof=1)
+    constraints = dict(contract.get("constraints") or {})
+    transaction_cost_bps = float(contract.get("transaction_cost_bps", constraints.get("transaction_cost_bps", 0.0)))
+    risk_aversion = float(contract.get("risk_aversion", constraints.get("risk_aversion", 1.0)))
+    prior = constraints.get("prior_weights")
+    if prior is None:
+        prior = benchmark_weights(len(assets), "equal_weight").tolist()
+    expected_returns = returns.mean(axis=0)
+    covariance_functions = {
+        "sample": lambda: sample_covariance(returns),
+        "ledoit_wolf": lambda: ledoit_wolf_shrinkage(returns),
+        "factor": lambda: factor_covariance(returns),
+        "robust": lambda: robust_covariance(returns),
+    }
+    solutions = []
+    for model, covariance_factory in covariance_functions.items():
+        covariance = covariance_factory()
+        solved = solve_constrained_portfolio(expected_returns, covariance, constraints, prior, risk_aversion, transaction_cost_bps)
+        weights = np.asarray(solved["weights"], dtype=float)
+        solutions.append({"model": model, "solver_status": solved["status"], "objective": solved.get("objective"), "weights": {asset: float(weight) for asset, weight in zip(assets, weights)}, "constraint_diagnostics": solved.get("constraints", {}), "active_constraints": solved.get("constraints", {}).get("active_constraints", []), "turnover": solved.get("constraints", {}).get("turnover"), "transaction_cost": solved.get("transaction_cost", 0.0), "covariance": covariance.tolist()})
+    feasible = [item for item in solutions if item["solver_status"] == "optimal" and item["constraint_diagnostics"].get("feasible")]
+    if not feasible:
+        result = {"status": "fallback", "solver_status": "infeasible", "fallback": {"used": True, "action": "cash", "reason": "all covariance-specific constrained solves were infeasible", "weights": {}}, "solutions": solutions, "covariance_models": solutions, "infeasible_reasons": [item["constraint_diagnostics"].get("residuals", {}) for item in solutions], "binding_constraints": []}
+        output = _write_json(artifact, result)
+        return {"status": "fallback", "message": result["fallback"]["reason"], "artifacts": [output], "fallback_used": True, "reason_code": "PORTFOLIO_INFEASIBLE", "next_action": "relax the declared contract or use cash/prior weights", "user_action_required": True, "provenance": result}
+    selected_solution = max(feasible, key=lambda item: item["objective"] if item["objective"] is not None else -float("inf"))
+    weights = np.asarray(list(selected_solution["weights"].values()), dtype=float)
+    covariance = np.asarray(selected_solution["covariance"], dtype=float)
+    benchmark = np.asarray(prior, dtype=float)
     risk = risk_contribution(weights, covariance)
-    max_weight = float((contract.get("constraints") or {}).get("max_weight", 1.0))
-    binding = [{"constraint": "max_weight", "asset": assets[index], "binding": bool(abs(weight - max_weight) <= 1e-8), "limit": max_weight} for index, weight in enumerate(weights)]
-    result = {"status": "passed", "solver_status": "feasible_baseline", "weights": {asset: float(weight) for asset, weight in zip(assets, weights)}, "benchmark": "equal_weight", "active_return": 0.0, "risk_contribution": {asset: float(value) for asset, value in zip(assets, risk)}, "factor_exposures": {}, "turnover_attribution": {}, "cost_attribution": {}, "binding_constraints": binding, "covariance_comparison": covariance_comparison, "stress": {"weight_intervals": {asset: [float(weight), float(weight)] for asset, weight in zip(assets, weights)}, "turnover_interval": [0.0, 0.0], "objective_interval": [0.0, 0.0], "infeasible_reasons": []}}
+    covariance_comparison = compare_covariance_models(returns)
+    result = {"status": "passed", "solver_status": "optimal", "selected_covariance_model": selected_solution["model"], "weights": selected_solution["weights"], "benchmark": "prior_or_equal_weight", "active_return": float((weights - benchmark) @ expected_returns), "risk_contribution": {asset: float(value) for asset, value in zip(assets, risk)}, "factor_exposures": {}, "industry_exposure": {}, "turnover_contribution": {asset: float(abs(weights[index] - benchmark[index])) for index, asset in enumerate(assets)}, "cost_attribution": {"transaction_cost_bps": transaction_cost_bps, "estimated_cost": float(selected_solution.get("transaction_cost", 0.0))}, "binding_constraints": selected_solution["active_constraints"], "constraint_diagnostics": selected_solution["constraint_diagnostics"], "covariance_comparison": covariance_comparison, "covariance_models": solutions, "solutions": solutions, "return_matrix": returns.tolist(), "asset_order": assets, "expected_returns": expected_returns.tolist(), "prior_weights": benchmark.tolist(), "risk_aversion": risk_aversion, "transaction_cost_bps": transaction_cost_bps, "fallback": {"used": False, "reason": None}, "stress": {"weight_intervals": {asset: [float(weights[index]), float(weights[index])] for index, asset in enumerate(assets)}, "turnover_interval": [float(selected_solution["turnover"] or 0.0), float(selected_solution["turnover"] or 0.0)], "objective_interval": [float(selected_solution["objective"] or 0.0), float(selected_solution["objective"] or 0.0)], "infeasible_reasons": []}}
     output = _write_json(artifact, result)
     return {"status": "passed", "message": "equal-weight constrained portfolio baseline created", "artifacts": [output], "provenance": result}
 
 
 def _post_selection_stress_test(contract, node):
-    """Persist post-selection stress status even when the portfolio is fallback."""
+    """Recompute return, risk, cost and constraint status for every scenario."""
     portfolio_path = _artifact_dir(contract) / "portfolio_robustness.json"
     rolling_path = _artifact_dir(contract) / "rolling_evaluation.json"
     if not portfolio_path.exists() and not rolling_path.exists():
         return _blocked(node, "post-selection stress requires model or portfolio output", reason_code="SELECTION_OUTPUT_REQUIRED", next_action="complete model evaluation")
     portfolio = json.loads(portfolio_path.read_text(encoding="utf-8")) if portfolio_path.exists() else {}
     scenarios = [{"scenario": "base", "return_shock": 0.0, "cost_shock_bps": 0.0}, {"scenario": "adverse", "return_shock": -0.10, "cost_shock_bps": 10.0}, {"scenario": "severe", "return_shock": -0.20, "cost_shock_bps": 25.0}]
-    result = {"status": "passed", "model_status": "active", "stress_status": "completed", "scenarios": scenarios, "fallback": portfolio.get("fallback", {"used": False}), "binding_constraints": portfolio.get("binding_constraints", []), "next_action": "monitor drift and refresh on material change"}
+    if portfolio.get("fallback", {}).get("used") or not portfolio.get("weights"):
+        result = {"status": "degraded", "model_status": "fallback", "stress_status": "not_available", "scenarios": [{**scenario, "status": "not_available", "reason": "portfolio solver fallback has no investable weights"} for scenario in scenarios], "fallback": portfolio.get("fallback", {"used": True}), "binding_constraints": portfolio.get("binding_constraints", []), "next_action": "resolve portfolio infeasibility before relying on stress metrics"}
+    else:
+        try:
+            from ..portfolio_robustness import validate_constraints
+        except ImportError:
+            from portfolio_robustness import validate_constraints
+        weights = np.asarray(list(portfolio["weights"].values()), dtype=float)
+        prior = np.asarray(portfolio.get("prior_weights", weights), dtype=float)
+        returns = np.asarray(portfolio.get("return_matrix", []), dtype=float)
+        constraints = dict(contract.get("constraints") or {})
+        scenarios_out = []
+        for scenario in scenarios:
+            scenario_returns = returns + float(scenario["return_shock"])
+            portfolio_returns = scenario_returns @ weights if scenario_returns.size else np.asarray([])
+            turnover = float(np.abs(weights - prior).sum())
+            cost = turnover * (float(portfolio.get("transaction_cost_bps", 0.0)) + float(scenario["cost_shock_bps"])) / 10000.0
+            net = portfolio_returns - cost if portfolio_returns.size else np.asarray([])
+            wealth = np.cumprod(1.0 + net) if net.size else np.asarray([])
+            drawdown = (wealth / np.maximum.accumulate(wealth) - 1.0) if wealth.size else np.asarray([])
+            losses = -net if net.size else np.asarray([])
+            alpha = float(contract.get("confidence_level", 0.95))
+            var = float(np.quantile(losses, alpha)) if losses.size else None
+            tail = losses[losses >= var] if losses.size and var is not None else np.asarray([])
+            scenarios_out.append({"scenario": scenario["scenario"], "status": "passed", "return_shock": scenario["return_shock"], "cost_shock_bps": scenario["cost_shock_bps"], "return": float(net.sum()) if net.size else None, "volatility": float(net.std(ddof=1)) if net.size > 1 else None, "max_drawdown": float(drawdown.min()) if drawdown.size else None, "var": var, "es": float(tail.mean()) if tail.size else var, "turnover": turnover, "transaction_cost": cost, "weight_change": {asset: float(weights[index] - prior[index]) for index, asset in enumerate(portfolio.get("asset_order", []))}, "constraint_status": validate_constraints(weights, constraints, prior), "fallback": portfolio.get("fallback", {"used": False})})
+        result = {"status": "passed", "model_status": "active", "stress_status": "completed", "scenarios": scenarios_out, "fallback": portfolio.get("fallback", {"used": False}), "binding_constraints": portfolio.get("binding_constraints", []), "next_action": "monitor drift and refresh on material change"}
     output = _write_json(_artifact_dir(contract) / "monitoring_status.json", result)
     return {"status": "passed", "message": "post-selection stress scenarios saved", "artifacts": [output], "provenance": result}
 

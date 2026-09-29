@@ -63,10 +63,13 @@ def fragility_report(weights, prior_weights=None, covariance=None, weight_scenar
 
 
 def constraint_diagnostics(weights, constraints):
+    from portfolio_robustness import validate_constraints
     weights = np.asarray(weights, dtype=float)
-    rows = []
+    constraints = constraints or {}
+    checked = validate_constraints(weights, constraints, constraints.get("prior_weights"))
+    rows = [{"constraint": name, "residual": float(value), "binding": bool(value <= 1e-8), "feasible": checked["feasible"]} for name, value in checked["residuals"].items()]
     if "max_weight" in constraints:
         limit = float(constraints["max_weight"])
         for index, value in enumerate(weights):
-            rows.append({"constraint": "max_weight", "asset_index": index, "limit": limit, "solution": float(value), "binding": bool(abs(value - limit) <= 1e-8), "marginal_value": None, "interpretation": "weight cap limits the unconstrained allocation"})
+            rows.append({"constraint": "max_weight", "asset_index": index, "limit": limit, "solution": float(value), "binding": bool(abs(value - limit) <= 1e-8), "residual": float(max(0.0, value - limit)), "marginal_value": None, "interpretation": "weight cap limits the unconstrained allocation"})
     return rows

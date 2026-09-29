@@ -455,7 +455,7 @@ def write_decision_table(rows, output_dir, fmt):
     return written
 
 
-def render_html(data, config=None, manifest=None):
+def _render_legacy_html(data, config=None, manifest=None):
     meta = data.get("meta", {})
     summary = data.get("summary", {})
     forecast = data.get("forecast", {})
@@ -526,6 +526,15 @@ def render_html(data, config=None, manifest=None):
 <h2>决策表</h2><section class="decision">{render_decisions(rows)}</section>
 <h2>来源与复现</h2><footer class="foot"><ul>{source_html}</ul><div>数据快照：{esc(reproducibility.get("data_snapshot"))} · 代码：{esc(reproducibility.get("code"))} · 种子：{esc(reproducibility.get("seeds"))} · 评估窗口：{esc(reproducibility.get("evaluation_window"))}</div><div>配置：{esc((config or {}).get("_config_fingerprint"))} · Manifest：{esc((manifest or {}).get("_manifest_fingerprint"))}</div><div>局限：{esc(limitations)}</div><div>本页面是模型研究与决策支持摘要，不是收益保证或自动交易指令。</div></footer>
 </main></body></html>'''
+
+
+def render_html(data, config=None, manifest=None):
+    """Render through the independent offline presentation layer."""
+    try:
+        from .ui.template import render_dashboard
+    except ImportError:
+        from ui.template import render_dashboard
+    return render_dashboard(data, config or {}, manifest or {}, _render_legacy_html)
 
 
 def main():

@@ -1,0 +1,22 @@
+"""Dashboard shell around the existing artifact renderer."""
+from .layout import anchor_sections, dashboard_chrome
+from .components import source_matrix
+try:
+    from ..knowledge.explanation_engine import build_explanations
+except ImportError:
+    from knowledge.explanation_engine import build_explanations
+from .theme import theme_css
+
+
+def render_dashboard(data, config, manifest, legacy_renderer):
+    """Enhance legacy HTML without calculating or mutating financial results."""
+    if not data.get("knowledge_explanations"):
+        data = dict(data)
+        data["knowledge_explanations"] = build_explanations(data)
+    document = legacy_renderer(data, config=config, manifest=manifest)
+    chrome = dashboard_chrome(data)
+    document = document.replace("<body><main>", "<body><main>" + chrome, 1)
+    document = document.replace("<h2>来源与复现</h2>", source_matrix(data) + "<h2>来源与复现</h2>", 1)
+    document = anchor_sections(document)
+    document = document.replace("</style>", theme_css() + "</style>", 1)
+    return document

@@ -4,66 +4,26 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v1.0.0 — Stable Auditable Research Runtime`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.0.0)。
+当前稳定版本：[`v1.1.0 — Reliable Research Calculations`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.1.0)。
+
+### v1.1.0 更新摘要
+
+- 组合层从 baseline 升级为真实约束求解：分别求解 sample、Ledoit-Wolf、factor 和 robust covariance，并输出 solver status、约束残差、绑定约束、换手与成本归因；不可行问题明确 fallback。
+- 过拟合诊断现在按适用性触发并实际执行 DM、White Reality Check、SPA、Deflated Sharpe Ratio、PBO 与 block bootstrap；pending/failed 会阻断模型选择，not_applicable 保持中性。
+- 压力测试对每个情景重新计算收益、波动率、最大回撤、VaR/ES、换手、成本、权重变化和约束状态，不复用固定占位结果。
+- Forecasting 增加校准、OOD、样本量和 regime 状态；新增稳定 Python API、离线 Dashboard、来源可信度矩阵和 Explainable Research cards，公式、证据、计算引用与失败边界均可追溯。
 
 ### v1.0.0 更新摘要
 
-- 三个研究节点已接入默认 Plan DAG：过拟合适用性诊断、组合 baseline/协方差比较/约束与 fallback、post-selection stress test。节点失败会保留 `reason_code`、`next_action` 和 `user_action_required`，不会伪装成 completed。
-- 冻结 `SourceRequest.v1`、`SourceResult.v1`、`RunStatus.v1`、`ForecastResult.v1`、MCP response envelope 和 artifact manifest 的 `schema_version=1.0` 协议；v0.9 JSON 保持兼容读取。
-- MCP/多客户端默认使用 SQLite WAL 状态层；JSON 仍可通过 `FRO_RUN_STORE=json` 作为离线兼容后端。
-- 新增 `fro-run-store migrate|doctor|backup|restore` 和 `fro-release-gate`，覆盖并发状态、协议、研究节点、来源成熟度、schema、skill validator 和发布前检查。
-- 当前成熟度保持诚实：至少两个 L4 认证、三个显式 degraded fallback，其余来源继续区分 manual/blocked/planned。
+- 冻结 SourceRequest、SourceResult、RunStatus、ForecastResult、MCP response 和 artifact manifest 的 v1 协议；SQLite WAL 为多客户端默认状态层，JSON 保留离线兼容。
+- 五种研究模式和 release gate 具备明确的 completed、degraded、blocked 语义，未实现节点不能伪装成功。
+- 每次完成运行继续生成可复现的 HTML、decision table、lineage、provenance 和实验清单。
 
 ### v0.9.0 更新摘要
 
-- 接入国家数据新版公开接口的真实 live smoke；记录 HTTP、快照哈希、schema fingerprint、freshness、health 和 revision。由于该接口不提供历史 release/availability 时间，结果明确保持 `point_in_time_status=not_available`，不会错误升级为 L4。
-- ECB SDMX 完成真实 live smoke 与 L4 认证；认证仍要求 live smoke、health、freshness、PIT/vintage、revision、snapshot hash 和有效期。
-- SSE、PBC、CNINFO 均提供显式 `verified_snapshot` 降级记录，状态网格将其标记为 degraded，不与实时官方抓取混淆。
-- 默认 forecasting baseline 现在比较 historical mean、naive last value 和 rolling mean，并输出 expanding-window RMSE、残差区间、selection metric、calibration status 和 OOD status。
-- 新增 `fro-maturity-report`、`fro-forecast`；MCP 状态返回 stage、progress、source_status、freshness_status、next_action 和 user_action_required。
-
-### v0.8.2 更新摘要
-
-- 本地闭环执行真实 canonicalization、日期/重复 grain/时间顺序/未来泄漏/PIT 审计，并保留输入中的 `availability_time`。
-- baseline 现在显式比较 naive 与 historical mean；模型卡、代码版本和 lineage 公式统一为 `0.8.2`，数值结果仍必须通过 provenance lineage 门禁。
-- adapter evidence 强制使用 `source_id + dataset_id + access_method`；L4 认证直接检查 revision 状态、snapshot、健康度、新鲜度和有效期。
-- 新增 `fro-certification-cycle`，支持 smoke 成功重置失败计数、连续失败触发 circuit 状态，并在过期时降级为 L3 而非继续宣称 L4。
-- 浏览器入口限制 HTTPS、公共地址、跨域重定向、下载扩展名和文件大小，降低 SSRF、凭证泄漏和恶意下载风险。
-- SSE `market_file` 已提供经过显式标记的 `verified_snapshot` 降级路径；它保留 stale/fallback 证据，不会被误报为实时官方抓取。
-
-### v0.8.1 更新摘要
-
-- 在 CA 校验恢复后完成 SEC EDGAR `company_facts` 真实 live smoke。
-- 记录 HTTP 200、25,135 行、snapshot hash、freshness ready、health healthy、PIT/revision verified。
-- 完成第二次 schema drift 对比，结果为 `schema_drift_detected=false`。
-- 通过 `certify_adapter.py --write` 显式写入认证证据；当前 `live_certified_count=1`，认证有效期至 2026-10-06。
-
-### v0.8.0 更新摘要
-
-- 默认 `run_research(...)` 支持本地 CSV/JSON forecasting 闭环，无需注入自定义 handler：capture → normalize → audit → features → naive/historical-mean baseline → rolling evaluation → forecast contract → lineage → HTML/decision table。
-- `dataset_path`、`artifact_dir` 和 `require_point_in_time` 进入统一运行 contract；缺少 `availability_time` 时按显式 PIT 要求结构化阻断。
-- 增加 `fro-adapter-smoke`、`fro-certify-adapter`、`fro-validate-schemas`、`fro-data-quality`、`fro-source-health` CLI entry points。
-- SEC EDGAR live smoke 会保留网络/TLS、HTTP、解析和 snapshot 失败原因；没有可验证 live evidence 时不升级 L4。
-- CI 增加 Python 3.11/3.12 wheel clean-install 检查，验证安装后的 CLI、preflight、schema 和离线 HTML。
-- partial 来源支持显式 `fallback_file`/`verified_snapshot` 快照路径；快照会保留 hash、stale 和 `fallback_used`，未提供明确快照时仍然 blocked。
-
-### v0.7.0 更新摘要
-
-- 适配器 evidence 改为 `(source_id, dataset_id, access_method)` 复合身份；factory 是唯一执行能力来源，未知来源不会静默落入通用 HTTP。
-- smoke 流程从 raw response 生成 schema fingerprint，并与上一快照比较；schema drift 会进入质量门禁和输出证据。
-- 增加 `scripts/certify_adapter.py`：L4 在线认证必须由真实 live smoke、健康/新鲜、PIT、snapshot hash 和明确有效期共同满足，且只能显式 `--write` 晋级。
-- 默认运行时支持本地 CSV/JSON 的最小闭环：规范化 → 数据审计 → baseline features → historical-mean forecast → lineage → 离线 HTML + CSV/Markdown decision table；缺少数据时返回带 `reason_code`、`next_action` 的 blocked。
-- MCP/Plan DAG 结果携带可执行状态字段，区分 `capability_gap`、数据缺失、schema drift 和用户需要的下一步。
-
-### v0.6.0 更新摘要
-
-- 新增尾部风险计算：VaR、CVaR/ES、Tail Variance、Tail Conditional Variance、超过 VaR 的样本数和 moving-block Bootstrap 区间。
-- 新增分布敏感性注册表：`empirical`、`gaussian`、`student_t`、`generalized_laplace`、`elliptical_mixture`；未实现的分布会明确标记为 `not_available`。
-- 新增有效资产子集检验，输出零假设、统计量、p 值、Bootstrap 区间、滚动窗口稳定性和 power diagnostic。
-- 新增高维 Fisher 因子筛选 challenger，强制声明训练窗口范围，防止全样本筛选泄漏。
-- 新增 `tail_risk.schema.json`、`portfolio_subset_test.schema.json`、`feature_selection.schema.json`，并将三类结果接入 `analysis.json`、离线 HTML 和 lineage。
-- 当前实现仍是研究与决策支持工具，不构成收益保证、投资建议或自动交易指令。
-
+- stats_gov_cn 和 ECB SDMX 提供 live smoke、schema fingerprint、freshness、health、PIT/revision 与认证有效期证据。
+- SSE、PBC、CNINFO 保留显式 verified-snapshot 降级路径；默认 forecasting 比较 historical mean、naive last value 和 rolling mean。
+- 新增来源成熟度、forecast contract 和 MCP 进度状态，在线刷新失败不会静默切换到未知来源。
 ## 安装与最小运行
 
 以下步骤适用于 macOS、Linux 和已安装 Python 3.11+ 的 Windows 环境。项目要求
@@ -517,11 +477,11 @@ $financial-research-optimizer
 
 仓库版本由 `pyproject.toml` 管理。发布 GitHub Release 后，
 `.github/workflows/publish-package.yml` 会自动构建 wheel/sdist 并将它们附加到
-Release。当前版本可从 [v1.0.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.0.0)
+Release。当前版本可从 [v1.1.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.1.0)
 下载：
 
 ```bash
-python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.0.0/financial_research_optimizer-1.0.0-py3-none-any.whl
+python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.1.0/financial_research_optimizer-1.1.0-py3-none-any.whl
 ```
 
 如需同步发布到 PyPI，在仓库 Settings → Secrets and variables → Actions 中增加
@@ -532,7 +492,7 @@ GitHub 不提供 Python/PyPI Packages registry；为使仓库具备真正的 Git
 Packages 产物，发布工作流同时构建并推送 GHCR 容器包：
 
 ```bash
-docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.0.0
+docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.1.0
 ```
 
 wheel/sdist 是 Python 分发包，位于 Release；GHCR 是可在 GitHub Packages

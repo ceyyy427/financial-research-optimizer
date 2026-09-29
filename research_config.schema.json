@@ -128,6 +128,17 @@
         "revision_policy": {"type": "string", "enum": ["point_in_time", "vintage_aware", "filing_date_aware", "latest_only"]}
       }
     },
+    "ui": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "theme": {"type": "string", "enum": ["system", "light", "dark"]},
+        "density": {"type": "string", "enum": ["comfortable", "compact"]},
+        "default_section": {"type": "string", "enum": ["overview", "forecast", "risk", "portfolio", "provenance", "explainable"]},
+        "show_provenance": {"type": "boolean"},
+        "show_raw_tables": {"type": "boolean"},
+        "chart_interaction": {"type": "string", "enum": ["enabled", "disabled"]}
+      }
+    },
     "refresh_policy": {"$ref": "refresh_policy.schema.json"},
     "output": {
       "type": "object", "additionalProperties": false, "required": ["artifact_dir", "analysis_json", "html_file", "decision_table_csv", "decision_table_md"],

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "formula_manifest.schema.json",
+  "title": "Formula manifest",
+  "type": "object",
+  "required": ["schema_version", "formula_count", "formulas", "render_status"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "formula_count": {"type": "integer", "minimum": 0},
+    "formulas": {"type": "array", "items": {"$ref": "#/$defs/formula"}},
+    "render_status": {"type": "string", "enum": ["passed", "failed", "not_attempted", "not_available"]},
+    "compiler": {"type": ["string", "null"]},
+    "output": {"type": "string"},
+    "reason": {"type": "string"}
+  },
+  "$defs": {"formula": {"type": "object", "required": ["formula_id", "tex", "alt_text", "variables"], "properties": {"formula_id": {"type": "string"}, "tex": {"type": "string"}, "alt_text": {"type": "string"}, "variables": {"type": "object"}, "source": {"type": ["string", "null"]}}, "additionalProperties": true}},
+  "additionalProperties": true
+}
