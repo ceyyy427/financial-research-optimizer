@@ -66,17 +66,62 @@
 
 ## 安装与最小运行
 
-项目要求 Python 3.11 或更高版本。核心依赖、测试依赖、浏览器依赖和 MCP 依赖分别由 `pyproject.toml` 管理：
+以下步骤适用于 macOS、Linux 和已安装 Python 3.11+ 的 Windows 环境。项目要求
+Python 3.11 或更高版本；建议始终使用虚拟环境，避免污染系统 Python。
+
+### 1. 从 GitHub 安装源码版
 
 ```bash
-python3 -m pip install -e ".[test]"
-python3 -m pytest -q
-python3 scripts/validate_schemas.py
+git clone https://github.com/ceyyy427/financial-research-optimizer.git
+cd financial-research-optimizer
+python3 --version                 # 应为 3.11 或更高
+python3 -m venv .venv
+source .venv/bin/activate         # Windows PowerShell: .venv\Scripts\Activate.ps1
+python3 -m pip install --upgrade pip
+python3 -m pip install -e .
 ```
 
-从示例配置生成一次离线交付物：
+`-e` 表示 editable install：修改源码后无需重新安装。核心依赖由 `pyproject.toml`
+中的 `numpy`、`pandas` 和 `PyYAML` 提供。
+
+### 2. 安装可选能力
 
 ```bash
+python3 -m pip install -e '.[test]'       # pytest、jsonschema
+python3 -m pip install -e '.[mcp]'        # MCP 服务
+python3 -m pip install -e '.[browser]'    # Patchright 浏览器适配器
+python3 -m pip install -e '.[pdf]'        # PDF 表格抽取
+python3 -m pip install -e '.[test,browser,mcp,pdf]'  # 全部可选能力
+```
+
+浏览器和在线数据能力不会绕过登录、验证码、付费墙或访问控制；缺少授权时会返回
+`blocked` 或 `manual_review_only`。
+
+安装测试依赖后，先运行本地质量检查：
+
+```bash
+python3 -m pip install -e '.[test]'
+python3 -m pytest -q
+python3 scripts/validate_schemas.py
+python3 scripts/validate_source_registry.py --registry config/source_registry.yaml
+```
+
+安装完成后可确认客户端入口：
+
+```bash
+fro-preflight --help
+fro-forecast --help
+fro-release-gate --help
+fro-run-store --help
+```
+
+### 3. 最小离线运行
+
+下面的命令不访问网络，使用仓库内 synthetic 示例完成 preflight、HTML 和 decision
+table 生成：
+
+```bash
+mkdir -p artifacts
 python3 scripts/run_preflight.py \
   --config examples/research_config.json \
   --manifest examples/experiment_manifest.json \
@@ -85,10 +130,50 @@ python3 scripts/run_preflight.py \
 python3 scripts/generate_financial_html.py examples/demo_analysis.json \
   --config examples/research_config.json \
   --manifest examples/experiment_manifest.json \
-  --output-dir artifacts --decision-format both
+  --output-dir artifacts \
+  --decision-format both
 ```
 
-输出位于 `artifacts/`：HTML 报告为 `financial_research_brief.html`，决策表为 CSV 和 Markdown；运行状态和 checkpoint 位于 `artifacts/runs/`。
+`artifacts/financial_research_brief.html` 是离线 HTML 报告，CSV 和 Markdown decision
+table 位于同一目录。`blocked` 表示前置条件未满足，不能把该次运行当成完成的研究。
+
+### 4. 本地 forecasting 与状态层
+
+实际 forecasting 使用 CSV/JSON 数据时，在研究配置中提供 `dataset_path`；至少需要
+`timestamp` 和一个数值列，推荐同时提供 `instrument_id`、`availability_time`、
+`source_id` 和 `unit`，以便 PIT 审计和 lineage 正常工作。默认比较 historical mean、
+naive persistence 和 rolling mean，并输出滚动评估、残差区间、校准状态、OOD 状态、
+HTML 和 decision table。样本不足或 PIT/schema 审计失败时会返回 reason code，而不会
+生成伪造预测。
+
+v1.0 默认使用 SQLite WAL，适合 MCP 和多客户端；JSON 只作为显式离线兼容模式：
+
+```bash
+python3 -m financial_research.run_store_cli migrate --root artifacts/runs
+python3 -m financial_research.run_store_cli doctor --root artifacts/runs
+FRO_RUN_STORE=json fro-preflight --help  # 需要 JSON 兼容后端时设置
+```
+
+### 5. 最小 MCP 启动
+
+安装 MCP extra 后，可用 stdio 启动本地 MCP，或启动受保护的本地 HTTP 服务：
+
+```bash
+python3 -m pip install -e '.[mcp]'
+fro-mcp
+fro-mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+详细配置见 `references/mcp_interface.md`；MCP 只调用统一 runtime，不替代数据审计、
+来源成熟度和 provenance 规则。
+
+### 6. 常见安装问题
+
+- `python3: command not found`：安装 Python 3.11+ 后重新创建 `.venv`。
+- `ModuleNotFoundError: jsonschema`：执行 `python3 -m pip install -e '.[test]'`。
+- `fro-*` 找不到：确认虚拟环境已激活，并重新执行 `python3 -m pip install -e .`。
+- `preflight` 返回 `blocked`：查看 `reason_code`、`next_action` 和
+  `user_action_required`，不要修改结果 JSON 绕过门禁。
 
 ## 适用场景
 
@@ -432,11 +517,11 @@ $financial-research-optimizer
 
 仓库版本由 `pyproject.toml` 管理。发布 GitHub Release 后，
 `.github/workflows/publish-package.yml` 会自动构建 wheel/sdist 并将它们附加到
-Release。当前版本可从 [v0.4.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.4.0)
+Release。当前版本可从 [v1.0.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.0.0)
 下载：
 
 ```bash
-pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v0.4.0/financial_research_optimizer-0.4.0-py3-none-any.whl
+python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.0.0/financial_research_optimizer-1.0.0-py3-none-any.whl
 ```
 
 如需同步发布到 PyPI，在仓库 Settings → Secrets and variables → Actions 中增加
@@ -447,7 +532,7 @@ GitHub 不提供 Python/PyPI Packages registry；为使仓库具备真正的 Git
 Packages 产物，发布工作流同时构建并推送 GHCR 容器包：
 
 ```bash
-docker pull ghcr.io/ceyyy427/financial-research-optimizer:v0.4.0
+docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.0.0
 ```
 
 wheel/sdist 是 Python 分发包，位于 Release；GHCR 是可在 GitHub Packages
