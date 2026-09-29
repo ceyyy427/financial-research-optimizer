@@ -41,6 +41,9 @@ def prepare_research(
     execute_sources: bool = False,
     execution_mode: str = "execution",
     global_budget: dict[str, Any] | None = None,
+    dataset_path: str | None = None,
+    artifact_dir: str | None = None,
+    require_point_in_time: bool = False,
 ) -> dict[str, Any]:
     """Build the immutable contract and Plan DAG without executing it."""
     contract = create_research_contract(
@@ -60,6 +63,12 @@ def prepare_research(
     contract["execution_mode"] = execution_mode
     if global_budget is not None:
         contract["global_budget"] = global_budget
+    if dataset_path:
+        contract["dataset_path"] = str(dataset_path)
+    if artifact_dir:
+        contract["artifact_dir"] = str(artifact_dir)
+    if require_point_in_time:
+        contract["require_point_in_time"] = True
     plan = build_plan(contract)
     registry = HANDLERS if handlers is None else handlers
     return {"contract": contract, "plan": plan, "handler_validation": validate_handlers(plan, registry)}
@@ -85,6 +94,9 @@ async def run_research(
     checkpoint_path: str | None = None,
     max_workers: int = 4,
     global_budget: dict[str, Any] | None = None,
+    dataset_path: str | None = None,
+    artifact_dir: str | None = None,
+    require_point_in_time: bool = False,
 ) -> dict[str, Any]:
     """Execute one bounded research run and optionally persist its audit trail.
 
@@ -115,6 +127,9 @@ async def run_research(
         execute_sources=execute_sources,
         execution_mode=execution_mode,
         global_budget=global_budget,
+        dataset_path=dataset_path,
+        artifact_dir=artifact_dir,
+        require_point_in_time=require_point_in_time,
     )
     contract = prepared["contract"]
     plan = prepared["plan"]

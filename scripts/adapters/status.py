@@ -20,7 +20,11 @@ except ImportError:
 
 def adapter_status(registry_path, evidence_path=None):
     profiles = load_registry(registry_path)
-    evidence = load_evidence(evidence_path)
+    resolved_evidence = evidence_path
+    if resolved_evidence is None:
+        candidate = Path(registry_path).resolve().parent / "adapter_evidence.json"
+        resolved_evidence = candidate if candidate.exists() else None
+    evidence = load_evidence(resolved_evidence)
     rows = []
     for source_id, profile in sorted(profiles.items()):
         dataset_id = profile.get("dataset") or DATASETS.get(source_id, "default")
@@ -67,7 +71,7 @@ def adapter_status(registry_path, evidence_path=None):
     }
     return {
         "registry": str(registry_path),
-        "evidence": str(evidence_path or Path(__file__).resolve().parents[2] / "config" / "adapter_evidence.json"),
+        "evidence": str(resolved_evidence or Path(__file__).resolve().parents[2] / "config" / "adapter_evidence.json"),
         "profiles": rows,
         **counts,
         "execution_ready_count": counts["automatic_execution_count"],

@@ -8,13 +8,22 @@ from .base import SourceAdapter
 from .protocol import SourceRequest, SourceResult
 try:
     from ..parsers import parse
+    from ..online.http_cache import HttpCache
+    from ..online.snapshot_store import SnapshotStore
 except ImportError:
     from parsers import parse
+    from online.http_cache import HttpCache
+    from online.snapshot_store import SnapshotStore
 
 
 class SecEdgarAdapter(SourceAdapter):
     def __init__(self, profile, user_agent, **kwargs):
         super().__init__(profile, authorization_status="not_required", access_method="api")
+        cache_dir = kwargs.pop("cache_dir", ".cache/financial-research-optimizer")
+        snapshot_dir = kwargs.pop("snapshot_dir", "artifacts/snapshots")
+        transport = kwargs.pop("transport", None)
+        kwargs.setdefault("cache", HttpCache(cache_dir, transport=transport))
+        kwargs.setdefault("snapshot_store", SnapshotStore(snapshot_dir))
         self.provider = SecEdgarProvider(user_agent=user_agent, **kwargs)
 
     def submissions(self, cik):

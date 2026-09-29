@@ -4,7 +4,16 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v0.7.0 — L4 Evidence & Executable Research Loop`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.7.0)。`v0.6.0` 和 `v0.5.0` 仍保留为历史 release。
+当前稳定版本：[`v0.8.0 — Default Forecasting Loop & Clean Install`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.8.0)。`v0.7.0` 仍保留为 L4 evidence 基线。
+
+### v0.8.0 更新摘要
+
+- 默认 `run_research(...)` 支持本地 CSV/JSON forecasting 闭环，无需注入自定义 handler：capture → normalize → audit → features → naive/historical-mean baseline → rolling evaluation → forecast contract → lineage → HTML/decision table。
+- `dataset_path`、`artifact_dir` 和 `require_point_in_time` 进入统一运行 contract；缺少 `availability_time` 时按显式 PIT 要求结构化阻断。
+- 增加 `fro-adapter-smoke`、`fro-certify-adapter`、`fro-validate-schemas`、`fro-data-quality`、`fro-source-health` CLI entry points。
+- SEC EDGAR live smoke 会保留网络/TLS、HTTP、解析和 snapshot 失败原因；没有可验证 live evidence 时不升级 L4。
+- CI 增加 Python 3.11/3.12 wheel clean-install 检查，验证安装后的 CLI、preflight、schema 和离线 HTML。
+- partial 来源支持显式 `fallback_file`/`verified_snapshot` 快照路径；快照会保留 hash、stale 和 `fallback_used`，未提供明确快照时仍然 blocked。
 
 ### v0.7.0 更新摘要
 

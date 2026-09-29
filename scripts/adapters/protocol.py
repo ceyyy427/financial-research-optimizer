@@ -29,6 +29,11 @@ class SourceRequest:
     params: Mapping[str, Any] = field(default_factory=dict)
     requested_url: str | None = None
 
+    @property
+    def dataset_id(self) -> str:
+        """Canonical v0.8 name while preserving the v0.7 ``dataset`` field."""
+        return self.dataset
+
     def __post_init__(self):
         if not self.source_id or not self.dataset:
             raise AdapterContractError("source_id and dataset are required")

@@ -3,3 +3,7 @@ __pycache__/
 .pytest_cache/
 .coverage
 artifacts/runs/
+artifacts/smoke/
+build/
+dist/
+*.egg-info/

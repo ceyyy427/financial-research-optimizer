@@ -17,6 +17,7 @@ try:
     from .monitoring.freshness import check_freshness
     from .normalize_observations import normalize
     from .source_router import SourceRouter, SourceRoutingError
+    from .online.base_provider import ProviderError
 except ImportError:
     from adapters.base import AdapterError
     from adapters.evidence import evaluate_maturity, load_evidence, get_evidence
@@ -24,6 +25,7 @@ except ImportError:
     from monitoring.freshness import check_freshness
     from normalize_observations import normalize
     from source_router import SourceRouter, SourceRoutingError
+    from online.base_provider import ProviderError
 
 
 def execute_data_refresh(
@@ -131,7 +133,7 @@ def execute_data_refresh(
             "network_requests": 0 if snapshot.get("from_cache") else 1,
             "message": "data snapshot captured and canonicalized; feature/model stages remain separate",
         }
-    except (AdapterError, AdapterNotReady, SourceRoutingError, OSError, ValueError, KeyError) as exc:
+    except (AdapterError, AdapterNotReady, ProviderError, SourceRoutingError, OSError, ValueError, KeyError) as exc:
         return {"status": "blocked", "stage": "data_refresh", "failure_class": "acquisition", "message": str(exc), "source_id": source_id}
 
 

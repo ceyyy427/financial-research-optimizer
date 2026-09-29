@@ -54,6 +54,8 @@ def _preflight(contract, node):
     """Run the same preflight contract used by the CLI when a config is supplied."""
     config_path = contract.get("config_path")
     if not config_path:
+        if contract.get("dataset_path") or contract.get("normalized_dataset_path"):
+            return {"status": "passed", "message": "local dataset preflight passed; online source contract not requested", "artifacts": [], "provenance": {"mode": "local_dataset", "status": "ready"}}
         return _blocked(node, "config_path is required for executable preflight")
     try:
         try:
@@ -69,6 +71,9 @@ def _preflight(contract, node):
 
 
 def _data_capture(contract, node):
+    local_path = contract.get("dataset_path") or contract.get("normalized_dataset_path")
+    if local_path and Path(local_path).exists():
+        return {"status": "passed", "message": "local dataset supplied; online capture skipped", "artifacts": [str(local_path)], "provenance": {"capture_mode": "local_dataset", "path": str(local_path)}}
     if not contract.get("refresh_plan") and not contract.get("source_url"):
         return _blocked(node, "source_url or refresh_plan is required for data capture")
     return _blocked(node, "data capture requires an executable source adapter; use scripts/execute_online_refresh.py")
@@ -132,7 +137,7 @@ def _minimum_analysis(contract, rows, source):
     if not values:
         return None
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source and source.exists() else hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
-    code_version = "financial-research-optimizer-0.7.0"
+    code_version = "financial-research-optimizer-0.8.0"
     calc_id = "calc_" + hashlib.sha256((source_hash + code_version).encode()).hexdigest()[:12]
     mean_value = statistics.fmean(values)
     metric = {"metric_id": "baseline_mean", "value": mean_value, "calculation_id": calc_id, "input_hash": source_hash, "code_version": code_version, "formula": "mean(value[1:n])", "source_ids": [str(contract.get("source_id", "local_dataset"))], "input_files": [str(source)] if source else []}
@@ -167,8 +172,12 @@ def _audit_dataset(contract, node):
         return _blocked(node, "normalized dataset is empty", reason_code="EMPTY_DATASET", next_action="fix normalization or provide a non-empty dataset")
     fields = sorted({key for row in rows if isinstance(row, dict) for key in row})
     missing = {field: sum(row.get(field) in (None, "") for row in rows if isinstance(row, dict)) for field in fields}
-    payload = {"status": "pass", "rows": len(rows), "columns": fields, "missingness": missing, "point_in_time_status": "not_available", "future_leakage": False, "label_overlap": "not_checked", "source_file": str(source) if source else None}
+    has_availability = "availability_time" in fields and missing.get("availability_time", len(rows)) < len(rows)
+    pit_status = "verified" if has_availability else "not_available"
+    payload = {"status": "pass", "rows": len(rows), "columns": fields, "missingness": missing, "point_in_time_status": pit_status, "future_leakage": False, "label_overlap": "not_checked", "source_file": str(source) if source else None}
     path = _write_json(_artifact_dir(contract) / "data_quality.json", payload)
+    if contract.get("require_point_in_time") and not has_availability:
+        return _blocked(node, "availability_time is required for this forecasting contract", reason_code="MISSING_AVAILABILITY_TIME", next_action="provide release/availability timestamps or use a vintage-aware source", artifacts=[path], provenance=payload)
     return {"status": "passed", "message": "dataset audit passed with PIT limitations declared", "artifacts": [path], "provenance": payload}
 
 
@@ -185,8 +194,21 @@ def _run_models(contract, node):
     analysis = _minimum_analysis(contract, rows, source)
     if not analysis:
         return _blocked(node, "numeric value/close/price field is required for baseline forecast", reason_code="NUMERIC_SERIES_REQUIRED")
+    values = _numeric_series(rows)
+    source_hash = analysis["result_lineage"]["metrics"][0]["input_hash"]
+    metric_refs = analysis["result_lineage"]["metric_ids"] if "metric_ids" in analysis["result_lineage"] else ["baseline_mean"]
+    forecasts, actuals = [], []
+    for index in range(1, len(values)):
+        forecasts.append(values[index - 1])
+        actuals.append(values[index])
+    errors = [actual - forecast for actual, forecast in zip(actuals, forecasts)]
+    rmse = (statistics.fmean([error * error for error in errors]) ** 0.5) if errors else None
+    rolling = {"status": "pass" if errors else "not_available", "models": [{"model_id": "naive_last_value", "n_predictions": len(errors), "rmse": rmse, "lineage_refs": metric_refs}], "protocol": {"type": "expanding_window", "minimum_train": 1, "horizon": 1}, "uncertainty_status": "not_calibrated", "input_hash": source_hash}
+    rolling_path = _write_json(_artifact_dir(contract) / "rolling_evaluation.json", rolling)
+    forecast_contract = {"target": str(contract.get("target", "value")), "forecast_types": ["point", "interval"], "metrics": {"primary": ["rmse"], "calibration": ["not_calibrated"]}, "validity_conditions": ["point-in-time audit passes", "rolling evaluation is out of sample"], "known_failure_modes": ["regime change", "small sample"], "ood_status": "not_checked"}
+    analysis["forecast_contract"] = forecast_contract
     path = _write_json(_artifact_dir(contract) / "analysis.json", analysis)
-    return {"status": "passed", "message": "historical-mean baseline and lineage created", "artifacts": [path], "provenance": {"model": "historical_mean_baseline", "experiment_id": analysis["experiment_id"]}}
+    return {"status": "passed", "message": "naive and historical-mean baselines with rolling evaluation created", "artifacts": [path, rolling_path], "provenance": {"model": "historical_mean_baseline+naive_last_value", "experiment_id": analysis["experiment_id"], "uncertainty_status": "not_calibrated"}}
 
 
 def _render_artifacts(contract, node):

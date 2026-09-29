@@ -6,6 +6,10 @@ never selected merely because a URL was supplied by a caller.
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -137,6 +141,34 @@ class ContractOnlyAdapter(SourceAdapter):
     def fetch(self, request: SourceRequest) -> SourceResult:
         if self.profile.get("access_policy") in {"authorized_only", "licensed_only"} and not request.authorization_ref:
             raise AdapterAuthorizationRequired(f"{request.source_id}:{request.dataset} requires authorization_ref")
+        fallback_file = request.params.get("fallback_file") or request.params.get("verified_snapshot")
+        if fallback_file:
+            path = Path(fallback_file)
+            if not path.exists() or not path.is_file():
+                raise AdapterNotReady(f"fallback snapshot does not exist: {path}")
+            raw = path.read_bytes()
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+                rows = payload.get("observations", payload.get("rows", payload)) if isinstance(payload, dict) else payload
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                with path.open(newline="", encoding="utf-8-sig") as handle:
+                    rows = list(csv.DictReader(handle))
+            if not isinstance(rows, list) or not rows:
+                raise AdapterNotReady(f"fallback snapshot has no observations: {path}")
+            snapshot = {
+                "source_id": request.source_id,
+                "dataset_id": request.dataset,
+                "request_url": None,
+                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "snapshot_hash": "sha256:" + hashlib.sha256(raw).hexdigest(),
+                "raw_file": str(path),
+                "from_cache": True,
+                "stale": True,
+                "access_method": "verified_snapshot",
+                "point_in_time_status": "not_available",
+                "revision_status": "not_run",
+            }
+            return SourceResult(snapshot, [row for row in rows if isinstance(row, dict)], {"source_id": request.source_id, "dataset": request.dataset, "fallback_used": True, "snapshot_hash": snapshot["snapshot_hash"]}, "usable_with_warning", ["using an explicitly supplied verified snapshot fallback"], {"maturity_level": "L2", "degraded_execution_ready": True}, {"status": "fallback", "stale": True})
         raise AdapterNotReady(
             f"{request.source_id}:{request.dataset} is declared {self.profile.get('implementation_status')}/"
             f"{self.profile.get('parser_status')} and has no executable slice"
@@ -172,7 +204,7 @@ def build_request(source_id: str, params: dict | None = None, requested_url: str
     if source_id not in DATASET_CONTRACTS:
         raise AdapterNotReady(f"no dataset contract registered for source_id={source_id}")
     params = dict(params or {})
-    dataset = str(params.pop("dataset", DATASETS.get(source_id, "default")))
+    dataset = str(params.pop("dataset_id", params.pop("dataset", DATASETS.get(source_id, "default"))))
     if dataset not in DATASET_CONTRACTS[source_id]:
         allowed = ", ".join(sorted(DATASET_CONTRACTS[source_id]))
         raise AdapterNotReady(f"undeclared dataset for {source_id}: {dataset}; allowed={allowed}")

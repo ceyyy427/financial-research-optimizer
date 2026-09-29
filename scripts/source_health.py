@@ -30,3 +30,18 @@ def route_health_score(profile):
     """Return a bounded multiplier; absence of telemetry never beats authority."""
     status = profile.get("source_health", profile.get("health", "unknown"))
     return HEALTH_MULTIPLIER.get(status, HEALTH_MULTIPLIER["unknown"])
+
+
+def main():
+    import argparse
+    import json
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("source_id")
+    parser.add_argument("--input", type=str, help="JSON health payload")
+    args = parser.parse_args()
+    payload = json.loads(open(args.input, encoding="utf-8").read()) if args.input else {}
+    print(json.dumps(normalize_health(args.source_id, payload), ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

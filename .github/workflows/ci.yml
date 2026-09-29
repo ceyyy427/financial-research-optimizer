@@ -32,3 +32,27 @@ jobs:
         run: python3 scripts/generate_financial_html.py examples/demo_analysis.json --config examples/research_config.json --manifest examples/experiment_manifest.json --output-dir /tmp/artifacts --decision-format both
       - name: Run tests
         run: python3 -m pytest -q
+
+  clean-install:
+    name: clean install (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Build and install wheel
+        run: |
+          python3 -m pip install --upgrade build
+          python3 -m build
+          python3 -m venv /tmp/fro-clean
+          /tmp/fro-clean/bin/python -m pip install dist/*.whl jsonschema
+      - name: Exercise installed CLI
+        run: |
+          /tmp/fro-clean/bin/fro-adapter-status --registry "$GITHUB_WORKSPACE/config/source_registry.yaml"
+          /tmp/fro-clean/bin/fro-validate-schemas --root "$GITHUB_WORKSPACE"
+          /tmp/fro-clean/bin/fro-preflight --config "$GITHUB_WORKSPACE/examples/research_config.json" --manifest "$GITHUB_WORKSPACE/examples/experiment_manifest.json" --analysis "$GITHUB_WORKSPACE/examples/demo_analysis.json" --output /tmp/fro-preflight.json
+          /tmp/fro-clean/bin/fro-html "$GITHUB_WORKSPACE/examples/demo_analysis.json" --config "$GITHUB_WORKSPACE/examples/research_config.json" --manifest "$GITHUB_WORKSPACE/examples/experiment_manifest.json" --output-dir /tmp/fro-artifacts --decision-format both

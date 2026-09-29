@@ -67,11 +67,11 @@ def replay(source_id, dataset_id, fixture, instrument, registry, output_dir, par
     }
 
 
-def live(source_id, dataset_id, url, instrument, registry, output_dir, params, authorization_status, previous_output=None):
+def live(source_id, dataset_id, url, instrument, registry, output_dir, params, authorization_status, previous_output=None, user_agent=None):
     started = time.perf_counter()
     from execute_online_refresh import execute_data_refresh
     request_params = {**params, "dataset": dataset_id, "instrument": instrument}
-    result = execute_data_refresh(source_id, url, output_dir, request_params, registry, authorization_status=authorization_status, allow_degraded=False)
+    result = execute_data_refresh(source_id, url, output_dir, request_params, registry, authorization_status=authorization_status, allow_degraded=False, user_agent=user_agent)
     elapsed = round((time.perf_counter() - started) * 1000, 3)
     result["live"] = True
     result["checked_at"] = _now()
@@ -107,6 +107,7 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/smoke"))
     parser.add_argument("--authorization-status", choices=("unknown", "authorized", "expired", "not_required"), default="unknown")
     parser.add_argument("--previous-output", type=Path, default=None, help="prior smoke JSON used for schema drift comparison")
+    parser.add_argument("--user-agent", default=None, help="contact-bearing User-Agent for SEC and other providers")
     args = parser.parse_args()
     # This is the shared dataset contract gate for both modes.
     request = build_request(args.source_id, {**args.params, "dataset": args.dataset, "instrument": args.instrument}, requested_url=args.url)
@@ -117,7 +118,7 @@ def main():
     else:
         if not args.url:
             raise SystemExit("live mode requires --url")
-        result = live(args.source_id, request.dataset, args.url, request.instrument, args.registry, args.output_dir, dict(request.params), args.authorization_status, args.previous_output)
+        result = live(args.source_id, request.dataset, args.url, request.instrument, args.registry, args.output_dir, dict(request.params), args.authorization_status, args.previous_output, args.user_agent)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     rendered = json.dumps(result, ensure_ascii=False, indent=2)
     args.output.write_text(rendered + "\n", encoding="utf-8")

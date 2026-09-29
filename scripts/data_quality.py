@@ -117,3 +117,25 @@ def compare_schema(reference, current):
         "changed_types": changed_types,
         "changed_units": changed_units,
     }
+
+
+def main():
+    import argparse
+    import json
+    import pandas as pd
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input")
+    parser.add_argument("--output", type=str)
+    args = parser.parse_args()
+    frame = pd.read_csv(args.input)
+    grain = audit_grain(frame)
+    report = {"rows": len(frame), "columns": list(frame.columns), "missingness": frame.isna().sum().to_dict(), "grain": grain}
+    report["quality"] = quality_score(report)
+    rendered = json.dumps(report, ensure_ascii=False, indent=2, default=str)
+    if args.output:
+        open(args.output, "w", encoding="utf-8").write(rendered + "\n")
+    print(rendered)
+
+
+if __name__ == "__main__":
+    main()

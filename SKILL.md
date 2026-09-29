@@ -5,6 +5,8 @@ description: Search public financial data through a capability-aware source regi
 
 # Financial Research Optimizer
 
+The v0.8.0 default local-data forecasting path accepts `dataset_path`, writes `rolling_evaluation.json` and a `forecast_contract`, and renders HTML plus decision tables without a custom handler. Explicit `require_point_in_time` contracts block when `availability_time` is missing. Installed clients should use the `fro-*` entry points declared in `pyproject.toml`; live smoke failures remain evidence and never become L4 certification automatically.
+
 Use this skill when the user asks to discover financial data, analyze market direction, forecast prices/returns/volatility, compare statistical and deep-learning models, or optimize a portfolio from model outputs.
 
 The objective is an auditable research result, not a guaranteed “best prediction.” Treat “best” as the model or portfolio that wins a pre-specified, risk-adjusted, out-of-sample comparison under stated costs and constraints. The Skill is a Python research engine driven by an upper-layer agent: Patchright accesses dynamic pages, CDP observes browser facts, Python standardizes and analyzes data, Plan DAGs bound agent decisions, and provenance explains why a result is trusted. Every completed run that reads financial data must leave two reader-facing artifacts: a compact standalone HTML file and a decision table.
