@@ -18,7 +18,9 @@ def test_html_is_offline_and_decision_table_is_complete(ROOT, CONFIG, MANIFEST, 
     assert "complete" in html
     assert "DM" in html and "PBO" in html
     assert "风险与尾部指标" in html
-    assert "<script" not in html and "<link" not in html
+    assert "<link" not in html
+    assert "__FRO_UI_STATE__" in html and "data-ui-control" in html
+    assert "Offline-only UI behavior" in html
     with (output / "decision_table.csv").open(encoding="utf-8-sig", newline="") as handle:
         header = next(csv.reader(handle))
     assert header == ["priority", "module", "current_view", "action", "trigger", "evidence", "risk", "horizon", "next_check", "experiment_id", "reproducibility_status", "source_id", "dataset_id", "access_method", "maturity_level", "automatic_execution_ready", "live_certified", "authority_primary_allowed", "as_of_time", "freshness", "freshness_status", "health_status", "data_latency", "data_status", "snapshot_hash", "revision_status", "source_authority", "authorization_status", "point_in_time_status", "fallback_used", "cache_status", "model_status", "forecast_status"]

@@ -267,7 +267,7 @@ def render_metric_chart(chart, chart_index):
                 xx = left + index * group_width + group_width * 0.18 + series_index * bar_width
                 yy = y(max(0, value))
                 zero = y(0)
-                marks.append(f'<rect x="{xx:.1f}" y="{min(yy, zero):.1f}" width="{bar_width:.1f}" height="{abs(zero-yy):.1f}" class="{palette[series_index % len(palette)]}" data-tooltip="{esc(item["name"])}: {value:.2f}" />')
+                marks.append(f'<rect x="{xx:.1f}" y="{min(yy, zero):.1f}" width="{bar_width:.1f}" height="{abs(zero-yy):.1f}" class="{palette[series_index % len(palette)]}" data-index="{index}" data-tooltip="{esc(item["name"])}: {value:.2f}" />')
     else:
         if band and len(band.get("lower", [])) == len(labels) and len(band.get("upper", [])) == len(labels):
             upper = " ".join(f"{x(i):.1f},{y(float(value)):.1f}" for i, value in enumerate(band["upper"]))
@@ -276,7 +276,7 @@ def render_metric_chart(chart, chart_index):
         for series_index, item in enumerate(clean_series):
             points = " ".join(f"{x(i):.1f},{y(value):.1f}" for i, value in enumerate(item["values"]))
             marks.append(f'<polyline points="{points}" class="{palette[series_index % len(palette)]}" fill="none" />')
-            marks.extend(f'<circle cx="{x(i):.1f}" cy="{y(value):.1f}" r="3" class="{palette[series_index % len(palette)]}" data-tooltip="{esc(item["name"])}: {value:.2f}" />' for i, value in enumerate(item["values"]))
+            marks.extend(f'<circle cx="{x(i):.1f}" cy="{y(value):.1f}" r="3" class="{palette[series_index % len(palette)]}" data-index="{i}" data-tooltip="{esc(item["name"])}: {value:.2f}" />' for i, value in enumerate(item["values"]))
     legend = " ".join(f'<span><i class="legend-swatch {palette[i % len(palette)]}"></i>{esc(item["name"])}</span>' for i, item in enumerate(clean_series))
     desc = text(chart.get("description"), "预测指标图")
     return f'''<figure class="chart" aria-label="{esc(chart.get("title"))}">
@@ -300,11 +300,11 @@ def render_model_cards(cards):
     for card in cards:
         diagnostics = card.get("overfitting_diagnostics", {})
         diag_text = ", ".join(f"{key}:{value}" for key, value in diagnostics.items()) if isinstance(diagnostics, dict) else text(diagnostics)
-        rows.append("<tr>" + "".join(f"<td>{esc(value)}</td>" for value in (
+        rows.append(f'<tr data-model="{html.escape(text(card.get("model_id")), quote=True)}">' + "".join(f"<td>{esc(value)}</td>" for value in (
             card.get("model_id"), card.get("version"), card.get("estimand"), card.get("objective"),
             card.get("validation_protocol"), diag_text, card.get("failure_mode"), card.get("status")
         )) + "</tr>")
-    return f'''<div class="table-wrap"><table><thead><tr><th>模型</th><th>版本</th><th>估计对象</th><th>目标</th><th>验证</th><th>过拟合诊断</th><th>失败边界</th><th>状态</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'''
+    return f'''<div class="table-wrap"><table data-sortable="true"><thead><tr><th>模型</th><th>版本</th><th>估计对象</th><th>目标</th><th>验证</th><th>过拟合诊断</th><th>失败边界</th><th>状态</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'''
 
 
 def render_backtest_overfitting(diagnostics):
@@ -433,7 +433,7 @@ def render_decisions(rows):
     }
     head = "".join(f"<th>{headers[field]}</th>" for field in DECISION_OUTPUT_FIELDS)
     body = "".join("<tr>" + "".join(f"<td>{esc(row.get(field))}</td>" for field in DECISION_OUTPUT_FIELDS) + "</tr>" for row in rows)
-    return f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+    return f'<div class="table-wrap"><table data-sortable="true"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
 def write_decision_table(rows, output_dir, fmt):

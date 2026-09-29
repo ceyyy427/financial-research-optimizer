@@ -13,6 +13,6 @@
     "output": {"type": "string"},
     "reason": {"type": "string"}
   },
-  "$defs": {"formula": {"type": "object", "required": ["formula_id", "tex", "alt_text", "variables"], "properties": {"formula_id": {"type": "string"}, "tex": {"type": "string"}, "alt_text": {"type": "string"}, "variables": {"type": "object"}, "source": {"type": ["string", "null"]}}, "additionalProperties": true}},
+  "$defs": {"formula": {"type": "object", "required": ["formula_id", "tex", "alt_text", "variables"], "properties": {"formula_id": {"type": "string"}, "tex": {"type": "string"}, "alt_text": {"type": "string"}, "variables": {"type": "object"}, "source": {"type": ["string", "null"]}, "tex_source": {"type": "string"}, "compiled_asset": {"type": ["string", "null"]}, "compiler": {"type": ["string", "null"]}, "compiler_version": {"type": ["string", "null"]}, "sha256": {"type": "string"}, "status": {"type": "string"}}, "additionalProperties": true}},
   "additionalProperties": true
 }

@@ -175,6 +175,63 @@ class ResearchMcpService:
         except RunStoreError as exc:
             return _blocked(getattr(exc, "code", "list_failed"), str(exc))
 
+    async def preview_scenario(self, run_id: str, changes: dict[str, Any], client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None, admin: bool = False) -> dict[str, Any]:
+        """Create a new, lineage-bound scenario through the Python runtime."""
+        if not self._authorized(run_id, client_id, owner_id, tenant_id, admin):
+            return _blocked("run_not_found", "run is not available")
+        try:
+            from scripts.scenario import preview_scenario
+            return preview_scenario(self.store, run_id, changes)
+        except Exception as exc:  # noqa: BLE001 - expose structured scenario failure
+            return _blocked("SCENARIO_FAILED", str(exc))
+
+    async def compare_models(self, run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None, admin: bool = False) -> dict[str, Any]:
+        if not self._authorized(run_id, client_id, owner_id, tenant_id, admin):
+            return _blocked("run_not_found", "run is not available")
+        try:
+            evaluation = self.store.read_json(run_id, "rolling_evaluation.json")
+            return {"status": "completed", "run_id": run_id, "models": evaluation.get("models", []), "selected_model": evaluation.get("selected_model"), "selection_metric": evaluation.get("selection_metric"), "evidence_ref": "rolling_evaluation.json"}
+        except RunStoreError as exc:
+            return _blocked("MODEL_EVALUATION_NOT_FOUND", str(exc))
+
+    async def explain_metric(self, run_id: str, metric_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None, admin: bool = False) -> dict[str, Any]:
+        if not self._authorized(run_id, client_id, owner_id, tenant_id, admin):
+            return _blocked("run_not_found", "run is not available")
+        try:
+            payload = self.store.read_json(run_id, "knowledge_explanations.json")
+            claims = payload if isinstance(payload, list) else payload.get("claims", [])
+            matches = [claim for claim in claims if claim.get("claim_id") == metric_id or claim.get("formula_id") == metric_id]
+            return {"status": "completed" if matches else "not_available", "run_id": run_id, "metric_id": metric_id, "explanations": matches, "evidence_ref": "knowledge_explanations.json"}
+        except RunStoreError as exc:
+            return _blocked("EXPLANATION_NOT_FOUND", str(exc))
+
+    async def get_formula(self, formula_id: str) -> dict[str, Any]:
+        from scripts.knowledge.formula_registry import get_formula
+        formula = get_formula(formula_id)
+        return {"status": "completed" if formula.get("tex") else "not_available", "formula": formula}
+
+    async def get_provenance(self, run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None, admin: bool = False) -> dict[str, Any]:
+        if not self._authorized(run_id, client_id, owner_id, tenant_id, admin):
+            return _blocked("run_not_found", "run is not available")
+        values = {}
+        for name in ("manifest.json", "lineage.json", "provenance_manifest.json", "source_reconciliation.json"):
+            try:
+                values[name] = self.store.read_json(run_id, name)
+            except RunStoreError:
+                continue
+        return {"status": "completed" if values else "not_available", "run_id": run_id, "artifacts": values}
+
+    async def refresh_source(self, source_id: str, dataset_id: str | None = None) -> dict[str, Any]:
+        """Return the governed refresh route; actual fetching remains adapter-owned."""
+        capability = await self.get_source_capability(source_id, dataset_id)
+        if capability.get("status") != "passed":
+            return capability
+        row = capability["source_capability"]
+        return {"status": "accepted", "source_id": source_id, "dataset_id": dataset_id, "source_capability": row, "next_action": "run the declared adapter smoke/refresh through Python", "user_action_required": False}
+
+    async def get_plan_progress(self, run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None, admin: bool = False) -> dict[str, Any]:
+        return await self.get_run_status(run_id, client_id, owner_id, tenant_id, admin)
+
     async def get_source_capability(self, source_id: str, dataset_id: str | None = None) -> dict[str, Any]:
         """Return evidence-driven adapter maturity for MCP routing decisions."""
         registry = Path(os.environ.get("FRO_SOURCE_REGISTRY", "config/source_registry.yaml"))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the v1.1.0 release gate and fail closed on incomplete runtime claims."""
+"""Run the v1.2.0 release gate and fail closed on incomplete runtime claims."""
 import argparse
 import json
 import subprocess
@@ -50,6 +50,19 @@ def _mode_contract_check():
     return {"command": "mode_contracts", "returncode": 0 if passed else 1, "output": json.dumps(rows)}
 
 
+def _interactive_boundary_check(root):
+    """Verify the browser bundle is local-only and MCP exposes runtime actions."""
+    script = root / "scripts/ui/interaction.js"
+    required = [root / "scripts/ui/state.py", root / "scripts/ui/charts.py", script, root / "schemas/ui/ui_state.schema.json", root / "references/ui_interaction.md"]
+    text = script.read_text(encoding="utf-8") if script.exists() else ""
+    forbidden = [token for token in ("fetch(", "XMLHttpRequest", "WebSocket") if token in text]
+    from mcp_server.tools import ResearchMcpService
+    methods = {"preview_scenario", "compare_models", "explain_metric", "get_formula", "get_provenance", "refresh_source", "get_plan_progress"}
+    missing = sorted(method for method in methods if not hasattr(ResearchMcpService, method))
+    passed = all(path.exists() for path in required) and not forbidden and not missing
+    return {"command": "interactive_boundary", "returncode": 0 if passed else 1, "output": json.dumps({"missing_files": [str(path) for path in required if not path.exists()], "forbidden_browser_calls": forbidden, "missing_mcp_methods": missing})}
+
+
 def release_gate(root=Path(".")):
     checks = []
     checks.append(_run([sys.executable, "-m", "pytest", "-q"], root))
@@ -66,6 +79,7 @@ def release_gate(root=Path(".")):
     checks.append({"command": "stable_nodes", "returncode": 0 if not missing_nodes else 1, "output": json.dumps({"missing_nodes": missing_nodes})})
     checks.append(_behavioral_check(root))
     checks.append(_mode_contract_check())
+    checks.append(_interactive_boundary_check(root))
     checks.append({"command": "maturity", "returncode": 0 if maturity["live_certified_count"] >= 2 else 1, "output": json.dumps({key: maturity[key] for key in ("live_certified_count", "degraded_execution_count", "blocked_count")})})
     passed = all(item["returncode"] == 0 for item in checks)
     return {"schema_version": "1.0", "status": "passed" if passed else "blocked", "checks": checks, "maturity": {key: maturity[key] for key in ("automatic_execution_count", "live_certified_count", "degraded_execution_count", "manual_review_only_count", "blocked_count")}, "next_action": None if passed else "resolve release gate failures", "user_action_required": not passed}

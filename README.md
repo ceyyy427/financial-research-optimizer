@@ -4,26 +4,27 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v1.1.0 — Reliable Research Calculations`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.1.0)。
+当前稳定版本：[`v1.2.0 — Interactive Explainable Dashboard`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.2.0)。
+
+### v1.2.0 更新摘要
+
+- 离线 Dashboard 增加 Overview、Why this forecast、Forecast、Risk、Portfolio、Provenance 和 Learning mode；支持标签页、模型/来源/时间范围筛选、表格排序、图表 hover、折叠解释卡和深色/浅色主题。
+- 新增统一 UI state schema；浏览器交互只改变展示，不重新计算预测、风险、权重或 RMSE，所有需要改变结果的情景操作回到 Python Runtime。
+- 解释层输出 `knowledge_explanations.json` 和 `formula_manifest.json`，每条结论绑定 evidence、calculation、formula、confidence、caveats 和 next check。
+- 新增 TeX→PDF→SVG 的可选公式构建链；缺少编译器或转换器时明确返回 `FORMULA_COMPILE_FAILED`/`FORMULA_RENDER_FAILED`，不伪装成已编译资产。
+- MCP 新增 `preview_scenario`、`compare_models`、`explain_metric`、`get_formula`、`get_provenance`、`refresh_source` 和 `get_plan_progress`。
 
 ### v1.1.0 更新摘要
 
-- 组合层从 baseline 升级为真实约束求解：分别求解 sample、Ledoit-Wolf、factor 和 robust covariance，并输出 solver status、约束残差、绑定约束、换手与成本归因；不可行问题明确 fallback。
-- 过拟合诊断现在按适用性触发并实际执行 DM、White Reality Check、SPA、Deflated Sharpe Ratio、PBO 与 block bootstrap；pending/failed 会阻断模型选择，not_applicable 保持中性。
-- 压力测试对每个情景重新计算收益、波动率、最大回撤、VaR/ES、换手、成本、权重变化和约束状态，不复用固定占位结果。
-- Forecasting 增加校准、OOD、样本量和 regime 状态；新增稳定 Python API、离线 Dashboard、来源可信度矩阵和 Explainable Research cards，公式、证据、计算引用与失败边界均可追溯。
+- 组合层从 baseline 升级为真实约束求解，并分别比较四类协方差模型；不可行问题明确 fallback。
+- DM、WRC、SPA、DSR、PBO 与 block bootstrap 按适用性实际执行，pending/failed 不会伪装成成功。
+- 压力测试重新计算收益、风险、成本、换手、权重变化和约束状态；新增稳定 Python API、Dashboard 和 Explainable Research 层。
 
 ### v1.0.0 更新摘要
 
-- 冻结 SourceRequest、SourceResult、RunStatus、ForecastResult、MCP response 和 artifact manifest 的 v1 协议；SQLite WAL 为多客户端默认状态层，JSON 保留离线兼容。
+- 冻结 SourceRequest、SourceResult、RunStatus、ForecastResult、MCP response 和 artifact manifest 的 v1 协议；SQLite WAL 为多客户端默认状态层。
 - 五种研究模式和 release gate 具备明确的 completed、degraded、blocked 语义，未实现节点不能伪装成功。
-- 每次完成运行继续生成可复现的 HTML、decision table、lineage、provenance 和实验清单。
-
-### v0.9.0 更新摘要
-
-- stats_gov_cn 和 ECB SDMX 提供 live smoke、schema fingerprint、freshness、health、PIT/revision 与认证有效期证据。
-- SSE、PBC、CNINFO 保留显式 verified-snapshot 降级路径；默认 forecasting 比较 historical mean、naive last value 和 rolling mean。
-- 新增来源成熟度、forecast contract 和 MCP 进度状态，在线刷新失败不会静默切换到未知来源。
+- 每次完成运行生成可复现的 HTML、decision table、lineage、provenance 和实验清单。
 ## 安装与最小运行
 
 以下步骤适用于 macOS、Linux 和已安装 Python 3.11+ 的 Windows 环境。项目要求
@@ -174,6 +175,18 @@ Skill 把结果拆成四层：
 ![生成的 HTML 摘要预览](assets/html-preview.svg)
 
 HTML 会把预测后的指标直接绘制成内嵌 SVG 图，包括实际值与模型均值、预测区间、风险指标和模型比较结果。这样打开单个 HTML 文件即可查看，不依赖 CDN 或外部前端服务。
+
+### 交互式可解释 Dashboard
+
+当前 HTML 仍是单文件离线产物，但增加了本地交互层：Overview、Why this forecast、Forecast、Risk、Portfolio、Provenance 和 Learning mode 标签页；模型/来源/时间范围筛选；表格排序；图表 hover/focus；主题切换；公式、证据、lineage 和限制的折叠查看。上述操作只改变已保存 artifact 的展示，不在浏览器端重新计算金融结果。
+
+需要改变预测、风险或组合结果时，通过 MCP/Python Runtime 调用 `preview_scenario`、`compare_models`、`explain_metric`、`get_formula`、`get_provenance`、`refresh_source` 或 `get_plan_progress`。情景操作会生成新的 `scenario_id`、结果 hash、lineage 和报告，不覆盖原始研究结果。公式可通过以下命令构建：
+
+```bash
+fro-formula-build --input artifacts/run_001/knowledge_explanations.json --output artifacts/run_001/formulas
+```
+
+如果本机没有 Tectonic/XeLaTeX 或 PDF→SVG 转换器，命令会返回 `FORMULA_COMPILE_FAILED` 或 `FORMULA_RENDER_FAILED`，并保留 TeX 源码和 blocked manifest，不把未编译公式伪装成图片。
 
 ![滚动预测与实际指标](assets/forecast-metrics.svg)
 
@@ -477,11 +490,11 @@ $financial-research-optimizer
 
 仓库版本由 `pyproject.toml` 管理。发布 GitHub Release 后，
 `.github/workflows/publish-package.yml` 会自动构建 wheel/sdist 并将它们附加到
-Release。当前版本可从 [v1.1.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.1.0)
+Release。当前版本可从 [v1.2.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.2.0)
 下载：
 
 ```bash
-python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.1.0/financial_research_optimizer-1.1.0-py3-none-any.whl
+python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.2.0/financial_research_optimizer-1.2.0-py3-none-any.whl
 ```
 
 如需同步发布到 PyPI，在仓库 Settings → Secrets and variables → Actions 中增加
@@ -492,7 +505,7 @@ GitHub 不提供 Python/PyPI Packages registry；为使仓库具备真正的 Git
 Packages 产物，发布工作流同时构建并推送 GHCR 容器包：
 
 ```bash
-docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.1.0
+docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.2.0
 ```
 
 wheel/sdist 是 Python 分发包，位于 Release；GHCR 是可在 GitHub Packages

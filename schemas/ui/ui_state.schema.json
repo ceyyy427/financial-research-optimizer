@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ui_state.schema.json",
+  "title": "Offline dashboard UI state",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {"type": ["string", "null"]},
+    "active_tab": {"enum": ["overview", "why", "forecast", "risk", "portfolio", "provenance", "learning"]},
+    "selected_model": {"type": "string"},
+    "selected_source": {"type": "string"},
+    "time_range": {"type": "string"},
+    "horizon": {"type": ["string", "number", "null"]},
+    "scenario_id": {"type": ["string", "null"]},
+    "pending_action": {"type": ["string", "null"]},
+    "theme": {"enum": ["system", "light", "dark"]}
+  }
+}

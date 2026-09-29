@@ -321,12 +321,25 @@ def _render_artifacts(contract, node):
         except ImportError:
             from generate_financial_html import normalize_rows, render_html, write_decision_table, validate_payload
         data = json.loads(analysis_path.read_text(encoding="utf-8"))
+        try:
+            from ..knowledge.explanation_engine import build_explanations
+            from ..tex.compile_formula import build_manifest
+        except ImportError:
+            from knowledge.explanation_engine import build_explanations
+            from tex.compile_formula import build_manifest
+        explanations = data.get("knowledge_explanations") if isinstance(data.get("knowledge_explanations"), list) else build_explanations(data)
+        data["knowledge_explanations"] = explanations
+        explanation_path = _write_json(_artifact_dir(contract) / "knowledge_explanations.json", explanations)
+        formula_ids = [item.get("formula_id") for item in explanations if isinstance(item, dict) and item.get("formula_id")]
+        formula_manifest = data.get("formula_manifest") if isinstance(data.get("formula_manifest"), dict) else build_manifest(_artifact_dir(contract) / "formulas", formula_ids)
+        data["formula_manifest"] = formula_manifest
+        formula_manifest_path = _write_json(_artifact_dir(contract) / "formula_manifest.json", formula_manifest)
         validate_payload(data, {"mode": contract.get("mode", "forecasting"), "output_level": contract.get("output_level", "standard")})
         output_dir = _artifact_dir(contract)
         (output_dir / "financial_research_brief.html").write_text(render_html(data, contract, data), encoding="utf-8")
         rows = normalize_rows(data["decision_rows"], data.get("experiment_id"), data.get("reproducibility_status"), data.get("online_status", {}))
         paths = [str(output_dir / "financial_research_brief.html")] + [str(path) for path in write_decision_table(rows, output_dir, "both")]
-        return {"status": "passed", "message": "offline HTML and decision tables rendered", "artifacts": paths, "provenance": {"experiment_id": data.get("experiment_id")}}
+        return {"status": "passed", "message": "offline HTML, explanation and decision tables rendered", "artifacts": paths + [str(explanation_path), str(formula_manifest_path)], "provenance": {"experiment_id": data.get("experiment_id"), "explanation_artifact": str(explanation_path), "formula_manifest": str(formula_manifest_path)}}
     except Exception as exc:
         return _blocked(node, f"artifact rendering failed: {exc}", reason_code="RENDER_FAILED", next_action="inspect analysis.json lineage and output contract")
 
