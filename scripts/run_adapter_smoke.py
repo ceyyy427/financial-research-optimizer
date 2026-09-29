@@ -89,6 +89,11 @@ def live(source_id, dataset_id, url, instrument, registry, output_dir, params, a
     result["rows"] = result.get("normalized_rows", 0)
     result["snapshot_hash"] = (result.get("snapshot") or {}).get("snapshot_hash")
     result["quality_status"] = result.get("quality_status", result.get("status"))
+    capability = result.get("source_capability", {}) if isinstance(result.get("source_capability"), dict) else {}
+    capability_evidence = capability.get("evidence", {}) if isinstance(capability.get("evidence"), dict) else {}
+    result["health_status"] = "healthy" if result.get("status") == "passed" else "failed"
+    result["point_in_time_status"] = capability_evidence.get("point_in_time_status", "not_available")
+    result["revision_status"] = capability_evidence.get("revision_status", "not_run")
     result["smoke_status"] = "passed" if result.get("status") == "passed" else "blocked"
     return result
 

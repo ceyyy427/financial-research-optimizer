@@ -137,7 +137,7 @@ def _minimum_analysis(contract, rows, source):
     if not values:
         return None
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source and source.exists() else hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
-    code_version = "financial-research-optimizer-0.8.0"
+    code_version = "financial-research-optimizer-0.8.1"
     calc_id = "calc_" + hashlib.sha256((source_hash + code_version).encode()).hexdigest()[:12]
     mean_value = statistics.fmean(values)
     metric = {"metric_id": "baseline_mean", "value": mean_value, "calculation_id": calc_id, "input_hash": source_hash, "code_version": code_version, "formula": "mean(value[1:n])", "source_ids": [str(contract.get("source_id", "local_dataset"))], "input_files": [str(source)] if source else []}

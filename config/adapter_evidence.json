@@ -1,12 +1,99 @@
 {
   "schema_version": "adapter_evidence.v1",
   "datasets": [
-    {"source_id": "stats_gov_cn", "dataset_id": "macro_series", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "verified", "revision_status": "verified"},
-    {"source_id": "10jqka", "dataset_id": "daily_line", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "not_available", "revision_status": "not_available"},
-    {"source_id": "sec_edgar", "dataset_id": "company_facts", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "verified", "revision_status": "verified"},
-    {"source_id": "fred", "dataset_id": "series_observations", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "not_available", "revision_status": "revision_aware"},
-    {"source_id": "alfred", "dataset_id": "vintage_series", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "verified", "revision_status": "vintage_aware"},
-    {"source_id": "ecb_sdmx", "dataset_id": "sdmx_series", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "verified", "revision_status": "revision_aware"},
-    {"source_id": "bis_sdmx", "dataset_id": "sdmx_series", "contract_status": "complete", "fixture_status": "passed", "integration_status": "passed", "quality_gate_status": "passed", "live_smoke_status": "not_run", "health_status": "unknown", "freshness_status": "not_run", "point_in_time_status": "verified", "revision_status": "revision_aware"}
+    {
+      "source_id": "stats_gov_cn",
+      "dataset_id": "macro_series",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "not_run",
+      "point_in_time_status": "verified",
+      "revision_status": "verified"
+    },
+    {
+      "source_id": "10jqka",
+      "dataset_id": "daily_line",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "not_run",
+      "point_in_time_status": "not_available",
+      "revision_status": "not_available"
+    },
+    {
+      "source_id": "sec_edgar",
+      "dataset_id": "company_facts",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "passed",
+      "health_status": "healthy",
+      "freshness_status": "fresh",
+      "point_in_time_status": "verified",
+      "revision_status": "verified",
+      "snapshot_hash": "73a86c6aedc31f77cac2ea4df5f80f0b3bd7e6eb58bb4e01444fbedf3afb9c43",
+      "last_live_success_at": "2026-09-29T05:04:32.031846+00:00",
+      "certification_expires_at": "2026-10-06T00:00:00Z"
+    },
+    {
+      "source_id": "fred",
+      "dataset_id": "series_observations",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "not_run",
+      "point_in_time_status": "not_available",
+      "revision_status": "revision_aware"
+    },
+    {
+      "source_id": "alfred",
+      "dataset_id": "vintage_series",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "not_run",
+      "point_in_time_status": "verified",
+      "revision_status": "vintage_aware"
+    },
+    {
+      "source_id": "ecb_sdmx",
+      "dataset_id": "sdmx_series",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "not_run",
+      "point_in_time_status": "verified",
+      "revision_status": "revision_aware"
+    },
+    {
+      "source_id": "bis_sdmx",
+      "dataset_id": "sdmx_series",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "not_run",
+      "point_in_time_status": "verified",
+      "revision_status": "revision_aware"
+    }
   ]
 }

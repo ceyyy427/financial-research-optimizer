@@ -28,8 +28,14 @@ def evaluate(smoke):
     if freshness and freshness.get("status") not in {"ready", "fresh", "healthy"}:
         blockers.append("freshness is not ready")
     capability = smoke.get("source_capability", {})
-    if isinstance(capability, dict) and not capability.get("live_certified", False):
-        blockers.append("source capability is not live certified")
+    if isinstance(capability, dict) and not capability.get("automatic_execution_ready", False):
+        blockers.append("source capability is not automatically executable")
+    if smoke.get("health_status") not in {"healthy", "pass", "passed"}:
+        blockers.append("health is not healthy")
+    if smoke.get("point_in_time_status") not in {"verified", "vintage_aware"}:
+        blockers.append("point-in-time status is not verified")
+    if smoke.get("revision_status") in {None, "", "not_run", "not_available"}:
+        blockers.append("revision status is not evidenced")
     return {"eligible": not blockers, "blockers": blockers, "checked_at": datetime.now(timezone.utc).isoformat()}
 
 

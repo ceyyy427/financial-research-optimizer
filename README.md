@@ -4,7 +4,14 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v0.8.0 — Default Forecasting Loop & Clean Install`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.8.0)。`v0.7.0` 仍保留为 L4 evidence 基线。
+当前稳定版本：[`v0.8.1 — SEC EDGAR L4 Evidence`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.8.1)。`v0.8.0` 仍保留为默认 forecasting 与 clean-install release。
+
+### v0.8.1 更新摘要
+
+- 在 CA 校验恢复后完成 SEC EDGAR `company_facts` 真实 live smoke。
+- 记录 HTTP 200、25,135 行、snapshot hash、freshness ready、health healthy、PIT/revision verified。
+- 完成第二次 schema drift 对比，结果为 `schema_drift_detected=false`。
+- 通过 `certify_adapter.py --write` 显式写入认证证据；当前 `live_certified_count=1`，认证有效期至 2026-10-06。
 
 ### v0.8.0 更新摘要
 
