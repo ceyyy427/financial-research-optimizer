@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .patchright_runtime import PatchrightRuntime
+from .security import validate_public_https_url, validate_redirect
 
 
 def _now() -> str:
@@ -58,12 +59,14 @@ class BrowserNavigation:
         retries: int = 2,
         backoff_seconds: float = 0.5,
         runtime: PatchrightRuntime | None = None,
+        allowed_hosts: tuple[str, ...] | None = None,
     ):
         self.root = Path(root)
         self.source_id = source_id
         self.timeout_ms = int(timeout_ms)
         self.retries = max(0, int(retries))
         self.backoff_seconds = max(0.0, float(backoff_seconds))
+        self.allowed_hosts = tuple(allowed_hosts or ())
         self.runtime = runtime or PatchrightRuntime(
             root=self.root,
             context_name=context_name,
@@ -129,6 +132,7 @@ class BrowserNavigation:
         screenshot: bool = False,
     ) -> NavigationResult:
         """Navigate to a public endpoint and return the visible response body."""
+        validate_public_https_url(url, self.allowed_hosts)
         last_error: Exception | None = None
         page = None
         for attempt in range(1, self.retries + 2):
@@ -137,6 +141,8 @@ class BrowserNavigation:
                     await self.start()
                 page = await self.runtime.new_page()
                 response = await page.goto(url, wait_until=wait_until, timeout=self.timeout_ms)
+                final_url = getattr(response, "url", None) or getattr(page, "url", url) or url
+                validate_redirect(url, final_url, self.allowed_hosts)
                 if wait_selector:
                     await page.wait_for_selector(wait_selector, timeout=self.timeout_ms)
                 status = getattr(response, "status", None)

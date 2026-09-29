@@ -5,7 +5,7 @@ description: Search public financial data through a capability-aware source regi
 
 # Financial Research Optimizer
 
-The v0.8.0 default local-data forecasting path accepts `dataset_path`, writes `rolling_evaluation.json` and a `forecast_contract`, and renders HTML plus decision tables without a custom handler. Explicit `require_point_in_time` contracts block when `availability_time` is missing. Installed clients should use the `fro-*` entry points declared in `pyproject.toml`; live smoke failures remain evidence and never become L4 certification automatically.
+The v0.8.0 default local-data forecasting path accepts `dataset_path`, writes `rolling_evaluation.json` and a `forecast_contract`, and renders HTML plus decision tables without a custom handler. The v0.8.2 hardening layer performs semantic canonicalization and PIT/grain/order/leakage audits, preserves `availability_time`, compares baselines, requires revision evidence for L4, and guards browser URLs/downloads. Explicit `require_point_in_time` contracts block when `availability_time` is missing. Installed clients should use the `fro-*` entry points declared in `pyproject.toml`; live smoke failures remain evidence and never become L4 certification automatically.
 
 Use this skill when the user asks to discover financial data, analyze market direction, forecast prices/returns/volatility, compare statistical and deep-learning models, or optimize a portfolio from model outputs.
 

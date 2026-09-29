@@ -36,7 +36,7 @@ def adapter_status(registry_path, evidence_path=None):
         row = {
             "source_id": source_id,
             "dataset_id": dataset_id,
-            "access_method": profile.get("primary_method"),
+            "access_method": maturity["evidence"].get("access_method") or profile.get("primary_method"),
             "implementation_status": profile.get("implementation_status", "planned"),
             "parser_status": profile.get("parser_status", "unavailable"),
             "factory_registered": source_id in DATASET_CONTRACTS,

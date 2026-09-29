@@ -45,6 +45,7 @@ def main():
     parser.add_argument("--evidence", type=Path, default=Path("config/adapter_evidence.json"))
     parser.add_argument("--write", action="store_true", help="write only when all certification gates pass")
     parser.add_argument("--expires-at", required=True)
+    parser.add_argument("--access-method", default=None)
     args = parser.parse_args()
     smoke = json.loads(args.smoke.read_text(encoding="utf-8"))
     decision = evaluate(smoke)
@@ -52,13 +53,14 @@ def main():
         payload = json.loads(args.evidence.read_text(encoding="utf-8"))
         source_id = smoke.get("source_id")
         dataset_id = smoke.get("dataset") or smoke.get("dataset_id")
-        candidates = [item for item in payload.get("datasets", []) if item.get("source_id") == source_id and item.get("dataset_id") == dataset_id]
+        access_method = args.access_method or (smoke.get("source_capability") or {}).get("access_method") or "api"
+        candidates = [item for item in payload.get("datasets", []) if item.get("source_id") == source_id and item.get("dataset_id") == dataset_id and item.get("access_method") == access_method]
         if len(candidates) != 1:
             decision["eligible"] = False
             decision["blockers"] = [f"evidence record is not unique for {source_id}:{dataset_id}"]
         else:
             item = candidates[0]
-            item.update({"live_smoke_status": "passed", "health_status": "healthy", "freshness_status": "fresh", "snapshot_hash": smoke["snapshot_hash"], "last_live_success_at": smoke.get("checked_at"), "certification_expires_at": args.expires_at})
+            item.update({"access_method": access_method, "live_smoke_status": "passed", "health_status": "healthy", "freshness_status": "fresh", "snapshot_hash": smoke["snapshot_hash"], "last_live_success_at": smoke.get("checked_at"), "certification_expires_at": args.expires_at})
             args.evidence.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             decision["written"] = str(args.evidence)
     print(json.dumps(decision, ensure_ascii=False, indent=2))

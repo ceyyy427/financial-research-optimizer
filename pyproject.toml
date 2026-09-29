@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-research-optimizer"
-version = "0.8.1"
+version = "0.8.2"
 description = "Auditable, point-in-time financial research workflow with offline artifacts."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,8 +35,10 @@ fro-adapter-status = "scripts.adapters.status:main"
 fro-mcp = "mcp_server.server:main"
 fro-adapter-smoke = "scripts.run_adapter_smoke:main"
 fro-certify-adapter = "scripts.certify_adapter:main"
+fro-certification-cycle = "scripts.run_certification_cycle:main"
 fro-validate-schemas = "scripts.validate_schemas:main"
-fro-data-quality = "scripts.data_quality:main"
+fro-data-quality = "scripts.validate_financial_dataset:main"
+fro-quality-audit = "scripts.data_quality:main"
 fro-source-health = "scripts.source_health:main"
 
 [tool.pytest.ini_options]

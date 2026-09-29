@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import ipaddress
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -107,6 +108,8 @@ def default_dataset(source_id: str) -> str:
 def _host_allowed(url: str, base_urls: list[str] | None) -> bool:
     if not base_urls:
         return False
+    if urlparse(url).scheme != "https":
+        return False
     host = (urlparse(url).hostname or "").lower()
     if not host:
         return False
@@ -120,6 +123,16 @@ def _host_allowed(url: str, base_urls: list[str] | None) -> bool:
 def validate_requested_url(profile: dict, requested_url: str | None) -> None:
     if requested_url and not _host_allowed(requested_url, profile.get("base_urls")):
         raise AdapterError(f"requested URL is outside the source allowlist: {requested_url}")
+    if requested_url:
+        host = (urlparse(requested_url).hostname or "").lower()
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            raise AdapterError(f"requested URL targets a local host: {requested_url}")
+        try:
+            address = ipaddress.ip_address(host)
+            if address.is_private or address.is_loopback or address.is_link_local or address.is_reserved:
+                raise AdapterError(f"requested URL targets a private address: {requested_url}")
+        except ValueError:
+            pass
 
 
 class _LegacyBridge:

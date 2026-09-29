@@ -65,7 +65,7 @@ def test_dataset_contract_rejects_undeclared_endpoint():
 def test_maturity_counts_do_not_call_contract_only_sources_degraded_ready():
     report = adapter_status(ROOT / "config/source_registry.yaml")
     assert report["automatic_execution_count"] == 7
-    assert report["degraded_execution_count"] == 0
+    assert report["degraded_execution_count"] == 1
     assert report["manual_review_only_count"] == 9
     assert report["blocked_count"] == 5
     ten = next(row for row in report["profiles"] if row["source_id"] == "10jqka")

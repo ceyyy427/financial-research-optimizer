@@ -8,7 +8,7 @@ on:
       release_tag:
         description: Existing release tag to receive the built distributions
         required: true
-        default: v0.8.1
+        default: v0.8.2
 
 permissions:
   contents: write

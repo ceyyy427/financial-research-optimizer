@@ -2,8 +2,24 @@
   "schema_version": "adapter_evidence.v1",
   "datasets": [
     {
+      "source_id": "sse",
+      "dataset_id": "market_file",
+      "access_method": "verified_snapshot",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "fallback",
+      "point_in_time_status": "not_available",
+      "revision_status": "not_run",
+      "fallback_fetch_status": "passed"
+    },
+    {
       "source_id": "stats_gov_cn",
       "dataset_id": "macro_series",
+      "access_method": "api",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",
@@ -17,6 +33,7 @@
     {
       "source_id": "10jqka",
       "dataset_id": "daily_line",
+      "access_method": "browser",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",
@@ -30,6 +47,7 @@
     {
       "source_id": "sec_edgar",
       "dataset_id": "company_facts",
+      "access_method": "api",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",
@@ -46,6 +64,7 @@
     {
       "source_id": "fred",
       "dataset_id": "series_observations",
+      "access_method": "api",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",
@@ -59,6 +78,7 @@
     {
       "source_id": "alfred",
       "dataset_id": "vintage_series",
+      "access_method": "api",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",
@@ -72,6 +92,7 @@
     {
       "source_id": "ecb_sdmx",
       "dataset_id": "sdmx_series",
+      "access_method": "api",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",
@@ -85,6 +106,7 @@
     {
       "source_id": "bis_sdmx",
       "dataset_id": "sdmx_series",
+      "access_method": "api",
       "contract_status": "complete",
       "fixture_status": "passed",
       "integration_status": "passed",

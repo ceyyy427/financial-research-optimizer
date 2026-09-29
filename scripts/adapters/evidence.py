@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-PASS = {"passed", "pass", "complete", "healthy", "verified", "fresh", "ready", "not_required"}
+PASS = {"passed", "pass", "complete", "healthy", "verified", "fresh", "ready", "not_required", "revision_aware", "vintage_aware"}
 
 
 def load_evidence(path=None):
@@ -45,6 +45,16 @@ def get_evidence(source_id, dataset_id=None, access_method=None, evidence=None):
         # usable only when the source+dataset match is unique; a populated
         # method is still matched exactly.
         candidates = [item for item in candidates if not item.get("access_method") or str(item.get("access_method")) == str(access_method)]
+        # A reviewed verified snapshot is an explicit degraded fallback, not
+        # interchangeable with the primary transport.  It may be surfaced
+        # only when no primary evidence exists and it declares fallback use.
+        if not candidates:
+            fallback = [item for (sid, did, method), item in records.items()
+                        if sid == str(source_id)
+                        and str(item.get("dataset_id", "")) == str(dataset_id or "")
+                        and _passed(item.get("fallback_fetch_status"))]
+            if len(fallback) == 1:
+                return fallback[0]
     return candidates[0] if len(candidates) == 1 else {}
 
 
@@ -91,15 +101,21 @@ def evaluate_maturity(profile, source_id, dataset_id, evidence=None, factory_reg
         "quality_gate_passed": _passed(quality_status),
         "certification_not_expired": certification_valid,
     }
-    automatic = bool(fetch_implemented and all(l3_evidence.values()))
+    # Expiry removes L4 certification but preserves the tested L3 path.
+    automatic = bool(fetch_implemented and all(value for key, value in l3_evidence.items() if key != "certification_not_expired"))
+    revision_status = evidence.get("revision_status", "not_run")
+    circuit_status = str(evidence.get("circuit_status", "closed")).lower()
     live_certified = bool(
         automatic
         and _passed(live_smoke_status)
-        and _passed(health_status)
-        and _passed(freshness_status)
-        and _passed(pit_status)
+        and str(health_status).lower() == "healthy"
+        and str(freshness_status).lower() in {"fresh", "ready"}
+        and str(pit_status).lower() in {"verified", "vintage_aware"}
+        and str(revision_status).lower() in {"verified", "revision_aware", "vintage_aware"}
+        and certification_valid
         and bool(evidence.get("last_live_success_at"))
         and bool(evidence.get("snapshot_hash"))
+        and circuit_status != "open"
     )
     fallback_fetch = _passed(evidence.get("fallback_fetch_status"))
     degraded_execution = bool(fallback_fetch and not automatic)
@@ -147,5 +163,8 @@ def evaluate_maturity(profile, source_id, dataset_id, evidence=None, factory_reg
             "snapshot_hash": evidence.get("snapshot_hash"),
             "last_live_success_at": evidence.get("last_live_success_at"),
             "certification_expires_at": evidence.get("certification_expires_at"),
+            "access_method": evidence.get("access_method"),
+            "consecutive_failures": evidence.get("consecutive_failures", 0),
+            "circuit_status": circuit_status,
         },
     }

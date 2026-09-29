@@ -4,7 +4,16 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v0.8.1 — SEC EDGAR L4 Evidence`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.8.1)。`v0.8.0` 仍保留为默认 forecasting 与 clean-install release。
+当前稳定版本：[`v0.8.2 — Semantic and Certification Hardening`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.8.2)。
+
+### v0.8.2 更新摘要
+
+- 本地闭环执行真实 canonicalization、日期/重复 grain/时间顺序/未来泄漏/PIT 审计，并保留输入中的 `availability_time`。
+- baseline 现在显式比较 naive 与 historical mean；模型卡、代码版本和 lineage 公式统一为 `0.8.2`，数值结果仍必须通过 provenance lineage 门禁。
+- adapter evidence 强制使用 `source_id + dataset_id + access_method`；L4 认证直接检查 revision 状态、snapshot、健康度、新鲜度和有效期。
+- 新增 `fro-certification-cycle`，支持 smoke 成功重置失败计数、连续失败触发 circuit 状态，并在过期时降级为 L3 而非继续宣称 L4。
+- 浏览器入口限制 HTTPS、公共地址、跨域重定向、下载扩展名和文件大小，降低 SSRF、凭证泄漏和恶意下载风险。
+- SSE `market_file` 已提供经过显式标记的 `verified_snapshot` 降级路径；它保留 stale/fallback 证据，不会被误报为实时官方抓取。
 
 ### v0.8.1 更新摘要
 
