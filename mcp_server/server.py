@@ -105,9 +105,9 @@ def create_server(service: ResearchMcpService | None = None):
         return await service.explain_metric(run_id, metric_id, client_id=client_id, owner_id=owner_id, tenant_id=tenant_id)
 
     @mcp.tool()
-    async def get_formula(formula_id: str) -> dict[str, Any]:
+    async def get_formula(formula_id: str, run_id: str | None = None) -> dict[str, Any]:
         """Read a registered formula and its accessible interpretation."""
-        return await service.get_formula(formula_id)
+        return await service.get_formula(formula_id, run_id=run_id)
 
     @mcp.tool()
     async def get_provenance(run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:

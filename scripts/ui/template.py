@@ -15,6 +15,13 @@ def render_dashboard(data, config, manifest, legacy_renderer):
     if not data.get("knowledge_explanations"):
         data = dict(data)
         data["knowledge_explanations"] = build_explanations(data)
+    if not data.get("learning_cards"):
+        try:
+            from ..knowledge.learning_cards import build_learning_cards
+        except ImportError:
+            from knowledge.learning_cards import build_learning_cards
+        data = dict(data)
+        data["learning_cards"] = build_learning_cards(data, data.get("knowledge_explanations"))
     if isinstance(data.get("formula_manifest"), dict):
         data = dict(data)
         assets = {item.get("formula_id"): item for item in data["formula_manifest"].get("formulas", []) if isinstance(item, dict)}

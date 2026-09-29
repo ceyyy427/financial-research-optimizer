@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the v1.2.1 release gate and fail closed on incomplete runtime claims."""
+"""Run the v1.3.0 release gate and fail closed on incomplete runtime claims."""
 import argparse
 import json
 import subprocess

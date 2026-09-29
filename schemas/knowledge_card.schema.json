@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "knowledge_card.schema.json",
+  "title": "Structured financial knowledge card",
+  "type": "object",
+  "required": ["knowledge_id", "title", "domain", "level", "summary", "definition", "formula_tex", "intuition", "failure_modes", "evidence_requirements", "related", "sources"],
+  "properties": {
+    "knowledge_id": {"type": "string"},
+    "title": {"type": "string"},
+    "domain": {"type": "string"},
+    "level": {"type": "string", "enum": ["beginner", "intermediate", "advanced"]},
+    "summary": {"type": "string"},
+    "definition": {"type": "string"},
+    "formula_tex": {"type": "string"},
+    "intuition": {"type": "array", "items": {"type": "string"}},
+    "interpretation": {"type": "object"},
+    "failure_modes": {"type": "array", "items": {"type": "string"}},
+    "evidence_requirements": {"type": "array", "items": {"type": "string"}},
+    "related": {"type": "array", "items": {"type": "string"}},
+    "sources": {"type": "array", "items": {"type": "object"}},
+    "ui": {"type": "object"}
+  },
+  "additionalProperties": true
+}

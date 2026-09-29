@@ -1,0 +1,13 @@
+knowledge_id: contribution_vs_causality
+title: 特征贡献不等于因果关系
+domain: causality
+level: advanced
+summary: 贡献解释模型如何使用变量，不能自动说明主动改变变量会导致结果改变。
+definition: "预测、统计关联、决策和因果假设是不同证据等级。"
+formula_tex: "\\text{prediction contribution}\\neq\\text{causal effect}"
+intuition: [先读取模型贡献, 查看数据设计, 检查混杂和干预定义, 才能讨论因果]
+interpretation: {default: "金融预测默认只允许预测解释和统计关系解释"}
+failure_modes: [相关不代表干预效果, 遗漏混杂, 时间顺序不足]
+evidence_requirements: [claim_level, evidence_refs, causal_design]
+related: [ood_detection]
+sources: [{source_id: hernan_robins, locator: "https://miguelhernan.org/whatifbook"}, {source_id: sklearn_inspection, locator: "https://scikit-learn.org/stable/api/sklearn.inspection.html"}]

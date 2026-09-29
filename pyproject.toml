@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-research-optimizer"
-version = "1.2.1"
+version = "1.3.0"
 description = "Auditable, point-in-time financial research workflow with offline artifacts."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -45,6 +45,7 @@ fro-forecast = "scripts.forecast:main"
 fro-release-gate = "scripts.release_gate:main"
 fro-run-store = "financial_research.run_store_cli:main"
 fro-formula-build = "scripts.tex.compile_formula:main"
+fro-knowledge = "scripts.knowledge.build_knowledge_artifacts:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -52,7 +53,10 @@ pythonpath = ["scripts"]
 addopts = "-q"
 
 [tool.setuptools.packages.find]
-include = ["scripts*", "financial_research*", "mcp_server*"]
+include = ["scripts*", "financial_research*", "mcp_server*", "knowledge*"]
 
 [tool.setuptools.package-data]
 "scripts.ui" = ["*.js"]
+"knowledge" = ["catalog.yaml"]
+"knowledge.concepts" = ["*.yaml"]
+"knowledge.sources" = ["*.yaml"]

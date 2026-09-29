@@ -14,7 +14,7 @@ SCHEMA_FILES = [
     "schemas/mcp_run.schema.json",
     "schemas/source_request.schema.json", "schemas/source_result.schema.json", "schemas/adapter_evidence.schema.json",
     "schemas/run_status_v1.schema.json", "schemas/source_request_v1.schema.json", "schemas/source_result_v1.schema.json", "schemas/knowledge_explanation.schema.json", "schemas/formula_manifest.schema.json", "ui.schema.json", "schemas/ui/ui_state.schema.json",
-    "schemas/forecast_result_v1.schema.json", "schemas/mcp_response_v1.schema.json", "schemas/artifact_manifest_v1.schema.json",
+    "schemas/forecast_result_v1.schema.json", "schemas/mcp_response_v1.schema.json", "schemas/artifact_manifest_v1.schema.json", "schemas/learning_cards.schema.json", "schemas/knowledge_card.schema.json",
 ]
 
 
@@ -55,6 +55,8 @@ def validate_local_schemas(root):
         ("schemas/adapter_evidence.schema.json", root / "config" / "adapter_evidence.json"),
         ("schemas/source_request.schema.json", root / "examples" / "source_request.json"),
         ("schemas/source_result.schema.json", root / "examples" / "source_result.json"),
+        ("schemas/learning_cards.schema.json", root / "examples" / "learning_cards.json"),
+        ("schemas/knowledge_card.schema.json", root / "examples" / "knowledge_card.json"),
     ]
     selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "tail_risk.schema.json": "tail_risk", "portfolio_subset_test.schema.json": "portfolio_subset_test", "feature_selection.schema.json": "feature_selection", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation", "result_lineage.schema.json": "result_lineage", "refresh_policy.schema.json": "refresh_policy"}
     for schema_name, data_path in examples:

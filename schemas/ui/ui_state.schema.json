@@ -13,6 +13,9 @@
     "horizon": {"type": ["string", "number", "null"]},
     "scenario_id": {"type": ["string", "null"]},
     "pending_action": {"type": ["string", "null"]},
+    "selected_claim_id": {"type": ["string", "null"]},
+    "selected_formula_id": {"type": ["string", "null"]},
+    "learning_card_id": {"type": ["string", "null"]},
     "theme": {"enum": ["system", "light", "dark"]}
   }
 }

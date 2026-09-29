@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "card_count": 1,
+  "generated_from": ["analysis.json", "result_lineage.json"],
+  "cards": [{
+    "card_id": "rmse_metric",
+    "concept": "RMSE",
+    "category": "evaluation",
+    "formula_id": "rmse",
+    "formula": {"formula_id": "rmse", "tex": "\\\\operatorname{RMSE}", "alt_text": "均方根误差", "variables": {}},
+    "variables": {},
+    "derivation_steps": ["计算误差", "平方并求平均", "开平方"],
+    "numeric_example": {"status": "not_available", "values": {}},
+    "applicability": ["有配对的预测和观测"],
+    "failure_boundaries": ["异常值敏感"],
+    "self_test": ["为什么平方会放大大误差？"],
+    "evidence_refs": ["rolling_evaluation.json"],
+    "lineage_refs": [],
+    "knowledge_refs": ["rmse"],
+    "source_ids": [],
+    "input_hash": null,
+    "status": "not_available"
+  }]
+}

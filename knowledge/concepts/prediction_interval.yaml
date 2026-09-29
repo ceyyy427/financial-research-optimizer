@@ -1,0 +1,13 @@
+knowledge_id: prediction_interval
+title: 预测区间
+domain: uncertainty
+level: beginner
+summary: 表示未来观测可能落入的范围，而不是保证未来值。
+definition: "区间需要明确预测误差分布、水平和校准窗口。"
+formula_tex: "[\\hat y-h_{1-\\alpha/2},\\hat y+h_{1-\\alpha/2}]"
+intuition: [得到点预测, 估计误差尺度, 选择覆盖水平, 检查实际覆盖率]
+interpretation: {coverage: "只有经独立校准才可解释为覆盖率"}
+failure_modes: [未校准区间不可当作概率, regime 变化会破坏覆盖率]
+evidence_requirements: [interval, calibration_status, coverage]
+related: [calibration, ood_detection]
+sources: [{source_id: otexts_fpp3, locator: "https://otexts.com/fpp3/forecasting.html"}]

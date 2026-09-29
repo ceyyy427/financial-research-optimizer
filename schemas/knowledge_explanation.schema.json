@@ -3,7 +3,7 @@
   "$id": "knowledge_explanation.schema.json",
   "title": "Explainable research claim",
   "type": "object",
-  "required": ["claim_id", "title", "claim_level", "claim_type", "statement", "formula", "evidence_refs", "calculation_refs", "confidence", "caveats", "next_check"],
+  "required": ["claim_id", "title", "claim_level", "claim_type", "statement", "formula_id", "formula", "evidence_refs", "calculation_refs", "source_ids", "input_hash", "confidence", "caveats", "next_check"],
   "properties": {
     "claim_id": {"type": "string"},
     "title": {"type": "string"},
@@ -14,6 +14,10 @@
     "formula": {"type": "object", "required": ["formula_id", "tex", "alt_text"], "properties": {"formula_id": {"type": "string"}, "tex": {"type": "string"}, "alt_text": {"type": "string"}, "variables": {"type": "object"}}, "additionalProperties": true},
     "evidence_refs": {"type": "array", "items": {"type": "string"}},
     "calculation_refs": {"type": "array", "items": {"type": "string"}},
+    "calculation_id": {"type": ["string", "null"]},
+    "source_ids": {"type": "array", "items": {"type": "string"}},
+    "input_hash": {"type": ["string", "null"]},
+    "status": {"type": "string", "enum": ["available", "not_available"]},
     "confidence": {"type": "string"},
     "caveats": {"type": "array", "items": {"type": "string"}},
     "next_check": {"type": "string"}

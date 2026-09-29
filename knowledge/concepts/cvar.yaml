@@ -1,0 +1,13 @@
+knowledge_id: cvar
+title: 条件风险价值 CVaR
+domain: risk
+level: intermediate
+summary: 在超过 VaR 阈值的尾部损失上的平均损失。
+definition: "CVaR/ES 描述尾部超过分位点后的平均损失，比单点 VaR 更关注尾部。"
+formula_tex: "\\operatorname{CVaR}_{\\alpha}=E[L\\mid L\\geq VaR_{\\alpha}]"
+intuition: [定义损失, 找到 alpha 分位点, 对超出阈值的损失求平均]
+interpretation: {larger_is_worse: true}
+failure_modes: [尾部样本少时不稳定, 依赖损失定义和分布, 压力期可能发生分布漂移]
+evidence_requirements: [var, cvar, alpha, tail_count]
+related: [portfolio_variance]
+sources: [{source_id: rockafellar_uryasev_2000, locator: "https://doi.org/10.21314/jor.2000.038"}]

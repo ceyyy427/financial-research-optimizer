@@ -1,0 +1,13 @@
+knowledge_id: expanding_window
+title: 扩展窗口评估
+domain: model_evaluation
+level: intermediate
+summary: 只使用预测时点之前的数据逐步扩大训练窗口进行样本外评估。
+definition: "每个预测 origin 都只访问当时可用的信息，并保留评估窗口。"
+formula_tex: "\\mathcal{T}_t=\\{1,\\ldots,t\\},\\quad \\hat y_{t+h}=f(\\mathcal{T}_t)"
+intuition: [按时间切分, 训练窗口逐步扩展, 记录逐期损失]
+interpretation: {purpose: "降低随机切分造成的未来信息泄漏"}
+failure_modes: [非平稳环境下历史信息可能过时, 标签重叠需要 purge/embargo]
+evidence_requirements: [train_window, validation_window, test_window, availability_time]
+related: [rmse, overfitting]
+sources: [{source_id: otexts_fpp3, locator: "https://otexts.com/fpp3/basic-steps.html"}]

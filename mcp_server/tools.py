@@ -201,25 +201,49 @@ class ResearchMcpService:
             payload = self.store.read_json(run_id, "knowledge_explanations.json")
             claims = payload if isinstance(payload, list) else payload.get("claims", [])
             matches = [claim for claim in claims if claim.get("claim_id") == metric_id or claim.get("formula_id") == metric_id]
-            return {"status": "completed" if matches else "not_available", "run_id": run_id, "metric_id": metric_id, "explanations": matches, "evidence_ref": "knowledge_explanations.json"}
+            try:
+                learning = self.store.read_json(run_id, "learning_cards.json")
+            except RunStoreError:
+                learning = {"schema_version": "1.0", "card_count": 0, "cards": []}
+            cards = learning.get("cards", []) if isinstance(learning, dict) else []
+            matched_cards = [card for card in cards if card.get("card_id") == metric_id or card.get("formula_id") == metric_id or metric_id in card.get("knowledge_refs", [])]
+            return {"status": "completed" if matches or matched_cards else "not_available", "run_id": run_id, "metric_id": metric_id, "claims": matches, "explanations": matches, "learning_cards": matched_cards, "evidence_refs": sorted({ref for item in matches + matched_cards for ref in item.get("evidence_refs", [])}), "calculation_refs": sorted({ref for item in matches + matched_cards for ref in item.get("calculation_refs", item.get("lineage_refs", []))}), "source_ids": sorted({ref for item in matches + matched_cards for ref in item.get("source_ids", [])}), "evidence_ref": "knowledge_explanations.json"}
         except RunStoreError as exc:
             return _blocked("EXPLANATION_NOT_FOUND", str(exc))
 
-    async def get_formula(self, formula_id: str) -> dict[str, Any]:
+    async def get_formula(self, formula_id: str, run_id: str | None = None) -> dict[str, Any]:
         from scripts.knowledge.formula_registry import get_formula
         formula = get_formula(formula_id)
-        return {"status": "completed" if formula.get("tex") else "not_available", "formula": formula}
+        if run_id:
+            try:
+                manifest = self.store.read_json(run_id, "formula_manifest.json")
+                formula = next((item for item in manifest.get("formulas", []) if item.get("formula_id") == formula_id), formula)
+            except RunStoreError:
+                pass
+        formula.setdefault("compiled_asset", None)
+        formula.setdefault("mathml_asset", None)
+        formula.setdefault("compiler", None)
+        formula.setdefault("compiler_version", None)
+        formula.setdefault("sha256", "")
+        formula.setdefault("status", "not_attempted")
+        formula.setdefault("alt_text", "公式不可用")
+        return {"status": "completed" if formula.get("tex") else "not_available", "formula_id": formula_id, "formula": formula, "tex": formula.get("tex", ""), "compiled_asset": formula.get("compiled_asset"), "alt_text": formula.get("alt_text"), "variables": formula.get("variables", {}), "compiler": formula.get("compiler"), "compiler_version": formula.get("compiler_version"), "formula_hash": formula.get("sha256"), "render_status": formula.get("status")}
 
     async def get_provenance(self, run_id: str, client_id: str | None = None, owner_id: str | None = None, tenant_id: str | None = None, admin: bool = False) -> dict[str, Any]:
         if not self._authorized(run_id, client_id, owner_id, tenant_id, admin):
             return _blocked("run_not_found", "run is not available")
         values = {}
-        for name in ("manifest.json", "lineage.json", "provenance_manifest.json", "source_reconciliation.json"):
+        for name in ("manifest.json", "lineage.json", "provenance_manifest.json", "source_reconciliation.json", "knowledge_explanations.json", "learning_cards.json", "formula_manifest.json"):
             try:
                 values[name] = self.store.read_json(run_id, name)
             except RunStoreError:
                 continue
-        return {"status": "completed" if values else "not_available", "run_id": run_id, "artifacts": values}
+        claims = values.get("knowledge_explanations.json", [])
+        claims = claims if isinstance(claims, list) else claims.get("claims", [])
+        claim_links = []
+        for claim in claims:
+            claim_links.append({"claim_id": claim.get("claim_id"), "evidence_refs": claim.get("evidence_refs", []), "calculation_refs": claim.get("calculation_refs", []), "source_ids": claim.get("source_ids", []), "input_hash": claim.get("input_hash"), "formula_id": claim.get("formula_id"), "artifact": "knowledge_explanations.json"})
+        return {"status": "completed" if values else "not_available", "run_id": run_id, "artifacts": values, "claim_links": claim_links}
 
     async def refresh_source(self, source_id: str, dataset_id: str | None = None) -> dict[str, Any]:
         """Return the governed refresh route; actual fetching remains adapter-owned."""

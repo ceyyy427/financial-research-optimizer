@@ -163,6 +163,10 @@ def _canonical_records(rows, contract, source):
         except ImportError:
             from normalize_observations import canonicalize_observation
         records.append(canonicalize_observation(record, profile, snapshot))
+    # Canonical grain is deterministic and time ordered.  The source order is
+    # not itself a financial fact; preserving it would make equivalent files
+    # produce different rolling windows and false audit failures.
+    records.sort(key=lambda item: (str(item.get("instrument_id", "")), str(item.get("field", "")), str(item.get("observation_time", "")), str(item.get("vintage_time", ""))))
     return records
 
 
@@ -186,7 +190,7 @@ def _minimum_analysis(contract, rows, source):
     if not values:
         return None
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source and source.exists() else hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
-    code_version = "financial-research-optimizer-0.9.0"
+    code_version = "financial-research-optimizer-1.3.0"
     calc_id = "calc_" + hashlib.sha256((source_hash + code_version).encode()).hexdigest()[:12]
     mean_value = statistics.fmean(values)
     metric = {"metric_id": "baseline_mean", "value": mean_value, "calculation_id": calc_id, "input_hash": source_hash, "code_version": code_version, "formula": "mean(value[0:n])", "source_ids": [str(contract.get("source_id", "local_dataset"))], "input_files": [str(source)] if source else []}
@@ -200,7 +204,7 @@ def _minimum_analysis(contract, rows, source):
         "series": values[-60:], "series_lineage_refs": refs,
         "charts": [{"chart_id": "observed_values", "title": "Observed values and baseline", "type": "line", "labels": [str(i + 1) for i in range(len(values[-60:]))], "series": [{"name": "observed", "values": values[-60:]}, {"name": "baseline", "values": [mean_value] * len(values[-60:])}], "description": "Values read from the supplied dataset.", "lineage_refs": refs}],
         "modules": [{"module_id": "baseline", "title": "Baseline forecast", "status": "warning", "summary": "Historical mean baseline; no model comparison was run.", "evidence_refs": refs, "caveats": ["Use rolling evaluation before relying on the estimate."], "next_check": "run forecasting with a point-in-time dataset"}],
-        "model_cards": [{"model_id": "historical_mean_baseline", "version": "0.9.0", "estimand": "conditional mean proxy", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "regime change", "status": "challenger"}, {"model_id": "naive_last_value", "version": "0.9.0", "estimand": "one-step persistence", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "price jump", "status": "challenger"}, {"model_id": "rolling_mean_baseline", "version": "0.9.0", "estimand": "trailing-window mean", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "window sensitivity", "status": "challenger"}],
+        "model_cards": [{"model_id": "historical_mean_baseline", "version": "1.3.0", "estimand": "conditional mean proxy", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "regime change", "status": "challenger"}, {"model_id": "naive_last_value", "version": "1.3.0", "estimand": "one-step persistence", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "price jump", "status": "challenger"}, {"model_id": "rolling_mean_baseline", "version": "1.3.0", "estimand": "trailing-window mean", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "window sensitivity", "status": "challenger"}],
         "selection_protocol": {"layers": ["statistical_validity", "predictive_performance", "economic_effectiveness"], "criteria": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"], "primary_metric": "baseline_mean", "status": "baseline_only"},
         "decision_rows": [{"priority": "P1", "module": "forecast", "current_view": "baseline only", "action": "validate before use", "trigger": "new point-in-time data", "evidence": "baseline_mean", "risk": "model and data uncertainty", "horizon": str(contract.get("horizon", "unspecified")), "next_check": "rolling evaluation"}],
         "result_lineage": {"metrics": [metric], "status": "pass", "lineage_refs": refs}, "sources": [{"id": str(contract.get("source_id", "local_dataset")), "label": "supplied dataset"}],
@@ -321,17 +325,33 @@ def _render_artifacts(contract, node):
         except ImportError:
             from generate_financial_html import normalize_rows, render_html, write_decision_table, validate_payload
         data = json.loads(analysis_path.read_text(encoding="utf-8"))
+        # The renderer consumes the complete saved artifact set.  It does not
+        # re-fit models or derive a browser-only result from analysis.json.
+        for artifact_name, data_key in (("rolling_evaluation.json", "rolling_evaluation"), ("portfolio_robustness.json", "portfolio_robustness"), ("monitoring_status.json", "monitoring_status"), ("source_reconciliation.json", "source_reconciliation"), ("result_lineage.json", "result_lineage")):
+            artifact_path = _artifact_dir(contract) / artifact_name
+            if artifact_path.exists() and data_key not in data:
+                try:
+                    data[data_key] = json.loads(artifact_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    data[data_key] = {"status": "not_available", "artifact": artifact_name}
         try:
             from ..knowledge.explanation_engine import build_explanations
-            from ..tex.compile_formula import build_manifest
+            from ..knowledge.learning_cards import build_learning_cards
+            from ..tex.compile_formula import compile_formulas
         except ImportError:
             from knowledge.explanation_engine import build_explanations
-            from tex.compile_formula import build_manifest
+            from knowledge.learning_cards import build_learning_cards
+            from tex.compile_formula import compile_formulas
         explanations = data.get("knowledge_explanations") if isinstance(data.get("knowledge_explanations"), list) else build_explanations(data)
         data["knowledge_explanations"] = explanations
         explanation_path = _write_json(_artifact_dir(contract) / "knowledge_explanations.json", explanations)
-        formula_ids = [item.get("formula_id") for item in explanations if isinstance(item, dict) and item.get("formula_id")]
-        formula_manifest = data.get("formula_manifest") if isinstance(data.get("formula_manifest"), dict) else build_manifest(_artifact_dir(contract) / "formulas", formula_ids)
+        learning_cards = data.get("learning_cards") if isinstance(data.get("learning_cards"), dict) else build_learning_cards(data, explanations)
+        data["learning_cards"] = learning_cards
+        learning_path = _write_json(_artifact_dir(contract) / "learning_cards.json", learning_cards)
+        # compile_formulas is deliberately the default path; build_manifest is
+        # retained only as an explicit compatibility helper for callers that
+        # want to declare that compilation was not attempted.
+        formula_manifest = compile_formulas(None, _artifact_dir(contract) / "formulas")
         data["formula_manifest"] = formula_manifest
         formula_manifest_path = _write_json(_artifact_dir(contract) / "formula_manifest.json", formula_manifest)
         validate_payload(data, {"mode": contract.get("mode", "forecasting"), "output_level": contract.get("output_level", "standard")})
@@ -339,7 +359,7 @@ def _render_artifacts(contract, node):
         (output_dir / "financial_research_brief.html").write_text(render_html(data, contract, data), encoding="utf-8")
         rows = normalize_rows(data["decision_rows"], data.get("experiment_id"), data.get("reproducibility_status"), data.get("online_status", {}))
         paths = [str(output_dir / "financial_research_brief.html")] + [str(path) for path in write_decision_table(rows, output_dir, "both")]
-        return {"status": "passed", "message": "offline HTML, explanation and decision tables rendered", "artifacts": paths + [str(explanation_path), str(formula_manifest_path)], "provenance": {"experiment_id": data.get("experiment_id"), "explanation_artifact": str(explanation_path), "formula_manifest": str(formula_manifest_path)}}
+        return {"status": "passed", "message": "offline HTML, explanation, learning cards, formulas and decision tables rendered", "artifacts": paths + [str(explanation_path), str(learning_path), str(formula_manifest_path)], "provenance": {"experiment_id": data.get("experiment_id"), "explanation_artifact": str(explanation_path), "learning_cards": str(learning_path), "formula_manifest": str(formula_manifest_path), "formula_render_status": formula_manifest.get("render_status")}}
     except Exception as exc:
         return _blocked(node, f"artifact rendering failed: {exc}", reason_code="RENDER_FAILED", next_action="inspect analysis.json lineage and output contract")
 

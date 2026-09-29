@@ -4,7 +4,13 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v1.2.1 — Interactive Dashboard Packaging Fix`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.2.1)。
+当前稳定版本：[`v1.3.0 — Explainable Forecasting Knowledge System`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.3.0)。
+
+### v1.3.0 更新摘要
+
+- 将 Explainable Research Layer 升级为预测知识学习系统：读取完整研究 artifact，生成 `knowledge_explanations.json`、`learning_cards.json` 和可追溯公式 manifest。
+- 新增 `knowledge/` 结构化知识库，覆盖 RMSE、MAE、滚动/naive 预测、预测区间、校准、OOD、扩展窗口、过拟合、组合方差、CVaR、PIT 和预测贡献/因果边界；只保存原创摘要和权威来源索引。
+- 公式编译状态统一为 `not_attempted`、`compiling`、`compiled`、`blocked`、`failed`、`not_available`；HTML/MCP 展示公式、变量、编译器、哈希、证据和学习卡，缺证据时明确 `not_available`。
 
 ### v1.2.1 更新摘要
 
@@ -16,12 +22,6 @@
 - 离线 Dashboard 增加 Overview、Why this forecast、Forecast、Risk、Portfolio、Provenance 和 Learning mode；支持标签页、模型/来源/时间范围筛选、表格排序、图表 hover、折叠解释卡和深色/浅色主题。
 - 解释层输出 `knowledge_explanations.json` 和 `formula_manifest.json`；公式构建失败会明确返回 `FORMULA_COMPILE_FAILED`/`FORMULA_RENDER_FAILED`。
 - MCP 新增 `preview_scenario`、`compare_models`、`explain_metric`、`get_formula`、`get_provenance`、`refresh_source` 和 `get_plan_progress`。
-
-### v1.1.0 更新摘要
-
-- 组合层升级为真实约束求解并比较四类协方差模型；不可行问题明确 fallback。
-- DM、WRC、SPA、DSR、PBO 与 block bootstrap 按适用性实际执行，pending/failed 不会伪装成成功。
-- 压力测试重新计算收益、风险、成本、换手、权重变化和约束状态；新增稳定 Python API 和 Explainable Research 层。
 ## 安装与最小运行
 
 以下步骤适用于 macOS、Linux 和已安装 Python 3.11+ 的 Windows 环境。项目要求
@@ -165,6 +165,19 @@ Skill 把结果拆成四层：
 
 “最佳模型”只表示在预先声明的样本外指标和风险约束下表现最好的候选，不表示保证未来收益。Skill 不会自动下单。
 
+## 预测知识学习系统
+
+v1.3.0 把解释层和知识库连接成一条可审计的学习链：
+
+```text
+saved artifacts -> evidence linker -> knowledge explanations
+                -> learning cards -> TeX/SVG/MathML manifest -> offline Dashboard/MCP
+```
+
+`knowledge/catalog.yaml` 是入口，`knowledge/concepts/` 保存结构化概念卡，`knowledge/sources/index.yaml` 保存资料元数据和官方链接。`scripts/knowledge/knowledge_registry.py` 负责查询，`evidence_linker.py` 负责把 claim 绑定到 artifact、JSON pointer、calculation_id 和 input_hash，`lesson_engine.py` 负责生成学习叙事。当前知识库覆盖 RMSE、MAE、naive/rolling mean、预测区间、校准、OOD、扩展窗口、过拟合、组合方差、CVaR、PIT 和预测贡献/因果边界。
+
+页面明确区分 observed、predictive、decision 与 causal_hypothesis。没有真实 evidence 或 lineage 的数字和原因显示为 `not_available`；特征/因子贡献只说明模型如何使用变量，不会被写成因果结论。
+
 ## 可视化预览
 
 生成的 HTML 是一个精炼的研究摘要：顶部给出结论、预测值、区间和置信度；中部按模块呈现数据、风险与模型证据；底部给出决策表和复现信息。
@@ -184,6 +197,14 @@ fro-formula-build --input artifacts/run_001/knowledge_explanations.json --output
 ```
 
 如果本机没有 Tectonic/XeLaTeX 或 PDF→SVG 转换器，命令会返回 `FORMULA_COMPILE_FAILED` 或 `FORMULA_RENDER_FAILED`，并保留 TeX 源码和 blocked manifest，不把未编译公式伪装成图片。
+
+知识学习 artifact 也可以独立生成：
+
+```bash
+fro-knowledge artifacts/run_001/analysis.json --output-dir artifacts/run_001/knowledge
+```
+
+该命令生成 `knowledge_explanations.json`、`learning_cards.json`、`formula_manifest.json` 和 `formulas/`。学习卡会解释概念、变量、推导、只来自 lineage 的数值例子、适用条件、失败边界和自测问题。没有 `source_id`、`calculation_id` 或 `input_hash` 的内容显示为 `not_available`，不会由模型猜数值或原因。知识库目录为 `knowledge/catalog.yaml`、`knowledge/concepts/` 和 `knowledge/sources/index.yaml`；`references/explainable_research.md` 记录了观察、预测、决策与因果假设的边界。
 
 ![滚动预测与实际指标](assets/forecast-metrics.svg)
 
@@ -487,11 +508,11 @@ $financial-research-optimizer
 
 仓库版本由 `pyproject.toml` 管理。发布 GitHub Release 后，
 `.github/workflows/publish-package.yml` 会自动构建 wheel/sdist 并将它们附加到
-Release。当前版本可从 [v1.2.1 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.2.1)
+Release。当前版本可从 [v1.3.0 Release](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.3.0)
 下载：
 
 ```bash
-python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.2.1/financial_research_optimizer-1.2.1-py3-none-any.whl
+python3 -m pip install https://github.com/ceyyy427/financial-research-optimizer/releases/download/v1.3.0/financial_research_optimizer-1.3.0-py3-none-any.whl
 ```
 
 如需同步发布到 PyPI，在仓库 Settings → Secrets and variables → Actions 中增加
@@ -502,7 +523,7 @@ GitHub 不提供 Python/PyPI Packages registry；为使仓库具备真正的 Git
 Packages 产物，发布工作流同时构建并推送 GHCR 容器包：
 
 ```bash
-docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.2.1
+docker pull ghcr.io/ceyyy427/financial-research-optimizer:v1.3.0
 ```
 
 wheel/sdist 是 Python 分发包，位于 Release；GHCR 是可在 GitHub Packages

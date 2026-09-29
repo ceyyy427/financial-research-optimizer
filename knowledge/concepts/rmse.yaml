@@ -1,0 +1,13 @@
+knowledge_id: rmse
+title: 均方根误差
+domain: model_evaluation
+level: beginner
+summary: 衡量预测值与真实值偏差的平方根平均量，对大误差更敏感。
+definition: "RMSE = sqrt(mean((y - y_hat)^2))。"
+formula_tex: "\\operatorname{RMSE}=\\sqrt{\\frac{1}{T}\\sum_{t=1}^{T}(y_t-\\hat y_t)^2}"
+intuition: [计算逐期误差, 平方以避免正负抵消, 求平均, 开平方恢复量纲]
+interpretation: {lower_is_better: true}
+failure_modes: [对异常值敏感, 不同量纲不可直接比较, 不能证明未来有效]
+evidence_requirements: [metric_value, evaluation_window, target_column, prediction_column]
+related: [mae, expanding_window]
+sources: [{source_id: otexts_fpp3, locator: "https://otexts.com/fpp3/"}]

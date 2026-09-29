@@ -53,12 +53,35 @@ def preview_scenario(store, run_id: str, changes: dict[str, Any]) -> dict[str, A
         alpha = float(analysis.get("risk_measure", {}).get("confidence_level", 0.95)) if isinstance(analysis.get("risk_measure"), dict) else 0.95
         var = float(np.quantile(losses, alpha))
         result = {**base, "status": "completed", "reason_code": None, "next_action": "compare scenario artifacts", "user_action_required": False, "metrics": {"return": float(net.sum()), "volatility": float(net.std(ddof=1)) if net.size > 1 else None, "max_drawdown": float(drawdown.min()), "var": var, "es": float(losses[losses >= var].mean()), "turnover": turnover, "transaction_cost": cost, "horizon": changes.get("horizon", analysis.get("forecast", {}).get("horizon"))}}
-    lineage = {"status": "pass" if result["status"] == "completed" else "not_available", "metrics": [{"metric_id": key, "value": value, "calculation_id": f"{scenario_id}:{key}", "input_hash": input_hash, "code_version": "1.2.0", "formula": "python_runtime_scenario_recalculation", "source_ids": [run_id]} for key, value in result.get("metrics", {}).items() if value is not None]}
+    lineage = {"status": "pass" if result["status"] == "completed" else "not_available", "metrics": [{"metric_id": key, "value": value, "calculation_id": f"{scenario_id}:{key}", "input_hash": input_hash, "code_version": "1.3.0", "formula": "python_runtime_scenario_recalculation", "source_ids": [run_id]} for key, value in result.get("metrics", {}).items() if value is not None]}
     comparison = {"scenario_id": scenario_id, "run_id": run_id, "base_result_ref": "analysis.json", "result": result, "lineage": lineage, "result_hash": hashlib.sha256(json.dumps(result, sort_keys=True, default=str).encode()).hexdigest()}
+    try:
+        from scripts.knowledge.explanation_engine import build_explanations
+        from scripts.knowledge.learning_cards import build_learning_cards
+        from scripts.tex.compile_formula import compile_formulas
+        scenario_data = {**analysis, **result, "result_lineage": lineage, "experiment_id": scenario_id, "scenarios": [{"scenario": scenario_id, "status": result["status"]}]}
+        scenario_claims = build_explanations(scenario_data)
+        scenario_cards = build_learning_cards(scenario_data, scenario_claims)
+        scenario_explanation_name = f"{scenario_id}_knowledge_explanations.json"
+        scenario_learning_name = f"{scenario_id}_learning_cards.json"
+        scenario_formula_dir = store.run_dir(run_id) / f"{scenario_id}_formulas"
+        scenario_formula_manifest = compile_formulas(None, scenario_formula_dir)
+        scenario_formula_name = f"{scenario_id}_formula_manifest.json"
+        store.write_json(run_id, scenario_explanation_name, scenario_claims)
+        store.write_json(run_id, scenario_learning_name, scenario_cards)
+        store.write_json(run_id, scenario_formula_name, scenario_formula_manifest)
+    except Exception:
+        scenario_explanation_name = None
+        scenario_learning_name = None
+        scenario_formula_name = None
     store.write_json(run_id, f"{scenario_id}_analysis.json", result)
     store.write_json(run_id, f"{scenario_id}_comparison.json", comparison)
-    report = f"<!doctype html><meta charset='utf-8'><title>{scenario_id}</title><h1>Scenario {scenario_id}</h1><pre>{json.dumps(comparison, ensure_ascii=False, indent=2)}</pre>"
+    report = f"<!doctype html><meta charset='utf-8'><title>{scenario_id}</title><h1>Scenario {scenario_id}</h1><p>该情景是新建的不可变 scenario_id；原始运行未被覆盖。</p><pre>{json.dumps(comparison, ensure_ascii=False, indent=2)}</pre>"
     run_dir = store.run_dir(run_id)
     (run_dir / f"{scenario_id}_report.html").write_text(report, encoding="utf-8")
-    store.register_artifacts(run_id, [f"{scenario_id}_analysis.json", f"{scenario_id}_comparison.json", f"{scenario_id}_report.html"])
-    return {"scenario_id": scenario_id, "run_id": run_id, "status": result["status"], "artifacts": [f"{scenario_id}_analysis.json", f"{scenario_id}_comparison.json", f"{scenario_id}_report.html"], "reason_code": result.get("reason_code"), "user_action_required": result.get("user_action_required", False), "result_hash": comparison["result_hash"]}
+    artifacts = [f"{scenario_id}_analysis.json", f"{scenario_id}_comparison.json", f"{scenario_id}_report.html"]
+    for name in (scenario_explanation_name, scenario_learning_name, scenario_formula_name):
+        if name:
+            artifacts.append(name)
+    store.register_artifacts(run_id, artifacts)
+    return {"scenario_id": scenario_id, "run_id": run_id, "status": result["status"], "artifacts": artifacts, "knowledge_artifacts": {"explanations": scenario_explanation_name, "learning_cards": scenario_learning_name, "formula_manifest": scenario_formula_name}, "reason_code": result.get("reason_code"), "user_action_required": result.get("user_action_required", False), "result_hash": comparison["result_hash"]}

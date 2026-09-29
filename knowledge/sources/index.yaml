@@ -1,0 +1,13 @@
+sources:
+  - {id: otexts_fpp3, title: "Forecasting: Principles and Practice", author: "Hyndman and Athanasopoulos", url: "https://otexts.com/fpp3/", access: "open_web", use: "structured summary and citation"}
+  - {id: statsmodels_tsa, title: "statsmodels Time Series Analysis", author: "statsmodels maintainers", url: "https://www.statsmodels.org/stable/tsa.html", access: "open_web", use: "API and diagnostic reference"}
+  - {id: nist_handbook, title: "NIST/SEMATECH Engineering Statistics Handbook", author: "NIST", url: "https://www.itl.nist.gov/div898/handbook/index2.htm", access: "open_web", use: "diagnostic rules"}
+  - {id: white_reality_check, title: "A Reality Check for Data Snooping", author: "White", url: "https://onlinelibrary.wiley.com/doi/pdf/10.1111/1468-0262.00152", access: "citation_only", use: "method summary"}
+  - {id: hansen_spa, title: "A Test for Superior Predictive Ability", author: "Hansen", url: "https://doi.org/10.1198/073500104000000563", access: "citation_only", use: "method summary"}
+  - {id: bailey_pbo_dsr, title: "Backtest Overfitting and Deflated Sharpe Ratio", author: "Bailey and López de Prado", url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253", access: "citation_only", use: "method summary"}
+  - {id: sklearn_inspection, title: "scikit-learn Inspection API", author: "scikit-learn maintainers", url: "https://scikit-learn.org/stable/api/sklearn.inspection.html", access: "open_web", use: "explainability API"}
+  - {id: shap_api, title: "SHAP API Reference", author: "SHAP maintainers", url: "https://shap.readthedocs.io/en/stable/api.html", access: "open_web", use: "explainability API"}
+  - {id: hernan_robins, title: "Causal Inference: What If", author: "Hernán and Robins", url: "https://miguelhernan.org/whatifbook", access: "open_web", use: "causal boundary"}
+  - {id: markowitz_1952, title: "Portfolio Selection", author: "Markowitz", url: "https://onlinelibrary.wiley.com/doi/full/10.1111/j.1540-6261.1952.tb01525.x", access: "citation_only", use: "portfolio theory"}
+  - {id: rockafellar_uryasev_2000, title: "Optimization of Conditional Value-at-Risk", author: "Rockafellar and Uryasev", url: "https://doi.org/10.21314/jor.2000.038", access: "citation_only", use: "CVaR optimization"}
+  - {id: ledoit_wolf, title: "Honey, I Shrunk the Sample Covariance Matrix", author: "Ledoit and Wolf", url: "https://ledoit.net/honey.pdf", access: "citation_only", use: "covariance shrinkage"}

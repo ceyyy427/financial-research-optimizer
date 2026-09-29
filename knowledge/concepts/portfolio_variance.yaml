@@ -1,0 +1,13 @@
+knowledge_id: portfolio_variance
+title: 组合方差
+domain: portfolio
+level: intermediate
+summary: 用权重和协方差矩阵估计组合收益的方差。
+definition: "相关性和协方差会使组合风险不同于单资产风险的简单加总。"
+formula_tex: "\\sigma_p^2=w^{\\mathsf T}\\Sigma w"
+intuition: [估计资产协方差, 组合权重线性组合, 计算二次型]
+interpretation: {sensitivity: "协方差估计误差会传导到权重"}
+failure_modes: [样本协方差不稳定, 相关性在压力期变化, 不含所有流动性成本]
+evidence_requirements: [weights, covariance_matrix, solver_status]
+related: [cvar]
+sources: [{source_id: markowitz_1952, locator: "https://onlinelibrary.wiley.com/doi/full/10.1111/j.1540-6261.1952.tb01525.x"}, {source_id: ledoit_wolf, locator: "https://ledoit.net/honey.pdf"}]

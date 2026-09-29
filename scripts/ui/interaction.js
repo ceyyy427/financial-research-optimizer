@@ -58,6 +58,27 @@
     header.addEventListener("click", sort); header.addEventListener("keydown", function (event) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); sort(); } });
   });
   document.querySelectorAll("[data-tooltip]").forEach(function (mark) { mark.setAttribute("tabindex", "0"); mark.addEventListener("focus", function () { say(mark.dataset.tooltip); }); mark.addEventListener("mouseenter", function () { say(mark.dataset.tooltip); }); });
+  document.querySelectorAll("[data-claim-id]").forEach(function (item) {
+    function selectClaim() {
+      state.selected_claim_id = item.dataset.claimId;
+      say("解释 " + item.dataset.claimId + "：证据=" + (item.dataset.source || "not_available") + "；计算=" + (item.dataset.calculationId || "not_available") + "。页面只展示已保存 lineage，没有在浏览器重新计算。");
+      document.querySelectorAll("[data-claim-id]").forEach(function (other) { other.classList.toggle("is-selected", other === item); });
+    }
+    item.addEventListener("click", selectClaim); item.addEventListener("keydown", function (event) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectClaim(); } });
+  });
+  document.querySelectorAll("[data-formula-id]").forEach(function (item) {
+    item.addEventListener("click", function (event) {
+      if (event.target.closest("details")) return;
+      state.selected_formula_id = item.dataset.formulaId;
+      say("公式 " + item.dataset.formulaId + "：变量、来源和编译状态来自 formula_manifest；计算引用=" + (item.dataset.calculationId || "not_available") + "。");
+    });
+  });
+  document.querySelectorAll(".formula-variable").forEach(function (item) {
+    item.addEventListener("click", function () { say("变量 " + item.dataset.variable + "：当前值=" + (item.dataset.currentValue || "not_available") + "；单位=" + (item.dataset.unit || "not_available") + "；来源=" + (item.dataset.source || "not_available") + "。页面不会自行求值。"); });
+  });
+  document.querySelectorAll("[data-learning-card-id]").forEach(function (item) {
+    item.addEventListener("click", function () { state.learning_card_id = item.dataset.learningCardId; say("已选择学习卡 " + item.dataset.learningCardId + "；请展开推导、例子和自测问题。引用仍来自保存的 artifact。"); });
+  });
   document.querySelectorAll('[data-action="scenario"]').forEach(function (button) { button.addEventListener("click", function () { say("情景重算需要通过 MCP/Python Runtime 创建新 scenario_id；原始结果不会被覆盖。"); }); });
   setVisible(state.active_tab || "overview");
 })();

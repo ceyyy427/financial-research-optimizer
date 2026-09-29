@@ -8,11 +8,12 @@
     "schema_version": {"const": "1.0"},
     "formula_count": {"type": "integer", "minimum": 0},
     "formulas": {"type": "array", "items": {"$ref": "#/$defs/formula"}},
-    "render_status": {"type": "string", "enum": ["passed", "failed", "not_attempted", "not_available"]},
+    "render_status": {"type": "string", "enum": ["not_attempted", "compiling", "compiled", "blocked", "failed", "not_available"]},
     "compiler": {"type": ["string", "null"]},
     "output": {"type": "string"},
-    "reason": {"type": "string"}
+    "reason": {"type": ["string", "null"]},
+    "reason_code": {"type": ["string", "null"]}
   },
-  "$defs": {"formula": {"type": "object", "required": ["formula_id", "tex", "alt_text", "variables"], "properties": {"formula_id": {"type": "string"}, "tex": {"type": "string"}, "alt_text": {"type": "string"}, "variables": {"type": "object"}, "source": {"type": ["string", "null"]}, "tex_source": {"type": "string"}, "compiled_asset": {"type": ["string", "null"]}, "compiler": {"type": ["string", "null"]}, "compiler_version": {"type": ["string", "null"]}, "sha256": {"type": "string"}, "status": {"type": "string"}}, "additionalProperties": true}},
+  "$defs": {"formula": {"type": "object", "required": ["formula_id", "tex", "alt_text", "variables", "status"], "properties": {"formula_id": {"type": "string"}, "tex": {"type": "string"}, "alt_text": {"type": "string"}, "variables": {"type": "object"}, "source": {"type": ["string", "null"]}, "source_knowledge_id": {"type": ["string", "null"]}, "tex_source": {"type": ["string", "null"]}, "compiled_asset": {"type": ["string", "null"]}, "mathml_asset": {"type": ["string", "null"]}, "compiler": {"type": ["string", "null"]}, "compiler_version": {"type": ["string", "null"]}, "sha256": {"type": "string"}, "status": {"type": "string", "enum": ["not_attempted", "compiling", "compiled", "blocked", "failed", "not_available"]}, "reason_code": {"type": ["string", "null"]}}, "additionalProperties": true}},
   "additionalProperties": true
 }

@@ -13,7 +13,7 @@ except ImportError:
 def build_report(registry, evidence=None):
     report = adapter_status(registry, evidence)
     return {
-        "report_version": "0.9.0",
+        "report_version": "1.3.0",
         "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         "counts": {key: value for key, value in report.items() if key.endswith("_count")},
         "profiles": report["profiles"],

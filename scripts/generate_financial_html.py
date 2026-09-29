@@ -259,6 +259,9 @@ def render_metric_chart(chart, chart_index):
 
     marks = []
     palette = ["chart-series-1", "chart-series-2", "chart-series-3", "chart-series-4"]
+    run_id = chart.get("run_id", chart.get("experiment_id", ""))
+    source_id = ",".join(str(item) for item in chart.get("source_ids", []))
+    calculation_id = chart.get("calculation_id", "")
     if is_bar:
         group_width = plot_w / len(labels)
         bar_width = min(26, group_width / max(1, len(clean_series)) * 0.68)
@@ -267,7 +270,7 @@ def render_metric_chart(chart, chart_index):
                 xx = left + index * group_width + group_width * 0.18 + series_index * bar_width
                 yy = y(max(0, value))
                 zero = y(0)
-                marks.append(f'<rect x="{xx:.1f}" y="{min(yy, zero):.1f}" width="{bar_width:.1f}" height="{abs(zero-yy):.1f}" class="{palette[series_index % len(palette)]}" data-index="{index}" data-tooltip="{esc(item["name"])}: {value:.2f}" />')
+                marks.append(f'<rect x="{xx:.1f}" y="{min(yy, zero):.1f}" width="{bar_width:.1f}" height="{abs(zero-yy):.1f}" class="{palette[series_index % len(palette)]}" data-index="{index}" data-model="{html.escape(text(item["name"]), quote=True)}" data-run-id="{html.escape(text(run_id), quote=True)}" data-source="{html.escape(text(source_id), quote=True)}" data-calculation-id="{html.escape(text(calculation_id), quote=True)}" data-tooltip="{esc(item["name"])}: {value:.2f}" />')
     else:
         if band and len(band.get("lower", [])) == len(labels) and len(band.get("upper", [])) == len(labels):
             upper = " ".join(f"{x(i):.1f},{y(float(value)):.1f}" for i, value in enumerate(band["upper"]))
@@ -276,10 +279,10 @@ def render_metric_chart(chart, chart_index):
         for series_index, item in enumerate(clean_series):
             points = " ".join(f"{x(i):.1f},{y(value):.1f}" for i, value in enumerate(item["values"]))
             marks.append(f'<polyline points="{points}" class="{palette[series_index % len(palette)]}" fill="none" />')
-            marks.extend(f'<circle cx="{x(i):.1f}" cy="{y(value):.1f}" r="3" class="{palette[series_index % len(palette)]}" data-index="{i}" data-tooltip="{esc(item["name"])}: {value:.2f}" />' for i, value in enumerate(item["values"]))
+            marks.extend(f'<circle cx="{x(i):.1f}" cy="{y(value):.1f}" r="3" class="{palette[series_index % len(palette)]}" data-index="{i}" data-model="{html.escape(text(item["name"]), quote=True)}" data-run-id="{html.escape(text(run_id), quote=True)}" data-source="{html.escape(text(source_id), quote=True)}" data-calculation-id="{html.escape(text(calculation_id), quote=True)}" data-tooltip="{esc(item["name"])}: {value:.2f}" />' for i, value in enumerate(item["values"]))
     legend = " ".join(f'<span><i class="legend-swatch {palette[i % len(palette)]}"></i>{esc(item["name"])}</span>' for i, item in enumerate(clean_series))
     desc = text(chart.get("description"), "预测指标图")
-    return f'''<figure class="chart" aria-label="{esc(chart.get("title"))}">
+    return f'''<figure class="chart" aria-label="{esc(chart.get("title"))}" data-run-id="{html.escape(text(run_id), quote=True)}" data-source="{html.escape(text(source_id), quote=True)}" data-calculation-id="{html.escape(text(calculation_id), quote=True)}">
       <figcaption><b>{esc(chart.get("title"))}</b><span>{esc(chart.get("unit"))}</span></figcaption>
       <svg viewBox="0 0 {width} {height}" role="img"><title>{esc(chart.get("title"))}</title><desc>{esc(desc)}</desc>
         {"".join(grid)}<line x1="{left}" y1="{top+plot_h}" x2="{width-right}" y2="{top+plot_h}" class="chart-axis" />
@@ -295,12 +298,12 @@ def render_metric_charts(charts):
     return rendered
 
 
-def render_model_cards(cards):
+def render_model_cards(cards, run_id=None):
     rows = []
     for card in cards:
         diagnostics = card.get("overfitting_diagnostics", {})
         diag_text = ", ".join(f"{key}:{value}" for key, value in diagnostics.items()) if isinstance(diagnostics, dict) else text(diagnostics)
-        rows.append(f'<tr data-model="{html.escape(text(card.get("model_id")), quote=True)}">' + "".join(f"<td>{esc(value)}</td>" for value in (
+        rows.append(f'<tr data-model="{html.escape(text(card.get("model_id")), quote=True)}" data-run-id="{html.escape(text(run_id), quote=True)}" data-calculation-id="{html.escape(text(card.get("calculation_id", "")), quote=True)}">' + "".join(f"<td>{esc(value)}</td>" for value in (
             card.get("model_id"), card.get("version"), card.get("estimand"), card.get("objective"),
             card.get("validation_protocol"), diag_text, card.get("failure_mode"), card.get("status")
         )) + "</tr>")
@@ -469,7 +472,7 @@ def _render_legacy_html(data, config=None, manifest=None):
     rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status, data.get("online_status", {}))
     spark = render_sparkline(data.get("series"))
     charts_html = render_metric_charts(data.get("charts", []))
-    model_cards_html = render_model_cards(data.get("model_cards", []))
+    model_cards_html = render_model_cards(data.get("model_cards", []), data.get("run_id", data.get("experiment_id", "")))
     selection_html = render_selection_protocol(data.get("selection_protocol", {}))
     overfit_html = render_backtest_overfitting(data.get("backtest_overfitting", {}))
     reconciliation_html = render_reconciliation(data.get("source_reconciliation", {}))
@@ -537,6 +540,36 @@ def render_html(data, config=None, manifest=None):
     return render_dashboard(data, config or {}, manifest or {}, _render_legacy_html)
 
 
+def write_knowledge_artifacts(data, output_dir):
+    """Persist the knowledge/TeX artifacts used by the dashboard.
+
+    This is presentation preparation only: all values come from ``data`` and
+    its saved lineage.  Formula compilation may be blocked when a local TeX
+    toolchain is unavailable, but the blocked manifest is still an artifact.
+    """
+    try:
+        from .knowledge.explanation_engine import build_explanations
+        from .knowledge.learning_cards import build_learning_cards
+        from .tex.compile_formula import compile_formulas
+    except ImportError:
+        from knowledge.explanation_engine import build_explanations
+        from knowledge.learning_cards import build_learning_cards
+        from tex.compile_formula import compile_formulas
+    explanations = data.get("knowledge_explanations") if isinstance(data.get("knowledge_explanations"), list) else build_explanations(data)
+    cards = data.get("learning_cards") if isinstance(data.get("learning_cards"), dict) else build_learning_cards(data, explanations)
+    explanation_path = output_dir / "knowledge_explanations.json"
+    cards_path = output_dir / "learning_cards.json"
+    explanation_path.write_text(json.dumps(explanations, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    cards_path.write_text(json.dumps(cards, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    formula_manifest = compile_formulas(None, output_dir / "formulas")
+    formula_path = output_dir / "formula_manifest.json"
+    formula_path.write_text(json.dumps(formula_manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    data["knowledge_explanations"] = explanations
+    data["learning_cards"] = cards
+    data["formula_manifest"] = formula_manifest
+    return [explanation_path, cards_path, formula_path]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="structured analysis JSON")
@@ -557,12 +590,13 @@ def main():
         data.setdefault("reproducibility_status", manifest["reproducibility_status"])
     validate_payload(data, config=config)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    knowledge_paths = write_knowledge_artifacts(data, args.output_dir)
     html_path = args.output_dir / "financial_research_brief.html"
     html_path.write_text(render_html(data, config=config, manifest=manifest), encoding="utf-8")
     experiment_id = (manifest or {}).get("experiment_id", data.get("experiment_id"))
     reproducibility_status = (manifest or {}).get("reproducibility_status", data.get("reproducibility_status", "not_available"))
     rows = normalize_rows(data.get("decision_rows"), experiment_id, reproducibility_status, data.get("online_status", {}))
-    outputs = [html_path] + write_decision_table(rows, args.output_dir, args.decision_format)
+    outputs = [html_path] + write_decision_table(rows, args.output_dir, args.decision_format) + knowledge_paths
     for path in outputs:
         print(path)
 

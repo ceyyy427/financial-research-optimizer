@@ -1,0 +1,13 @@
+knowledge_id: overfitting
+title: 回测过拟合
+domain: model_evaluation
+level: advanced
+summary: 策略利用试验噪声获得样本内优势但样本外失效的风险。
+definition: "多次试验、选择和再评估会使最佳结果带有选择偏差。"
+formula_tex: "PBO=Pr(\\text{selected in-sample}\\to\\text{inferior out-of-sample})"
+intuition: [定义候选族, 做样本外比较, 评估选择偏差, 结合成本和稳定性]
+interpretation: {high_risk: "不得只凭最佳回测结果完成模型选择"}
+failure_modes: [依赖切分和候选族, 不能保证未来制度不变, 不等同真实亏损概率]
+evidence_requirements: [candidate_family, pbo, dsr, dm, spa, wrc]
+related: [expanding_window]
+sources: [{source_id: bailey_pbo_dsr, locator: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253"}, {source_id: white_reality_check, locator: "https://onlinelibrary.wiley.com/doi/pdf/10.1111/1468-0262.00152"}]

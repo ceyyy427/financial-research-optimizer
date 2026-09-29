@@ -13,6 +13,9 @@ DEFAULT_UI_STATE = {
     "horizon": None,
     "scenario_id": None,
     "pending_action": None,
+    "selected_claim_id": None,
+    "selected_formula_id": None,
+    "learning_card_id": None,
     "theme": "system",
 }
 

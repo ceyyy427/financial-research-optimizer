@@ -1,0 +1,34 @@
+schema_version: "1.0"
+title: Explainable financial research knowledge base
+license_note: >-
+  This repository stores original structured summaries, formulas, rules and links
+  to source material. It does not redistribute copyrighted books or papers.
+collections:
+  - id: forecasting
+    path: concepts
+    source_ids: [otexts_fpp3, statsmodels_tsa]
+  - id: diagnostics
+    path: concepts
+    source_ids: [nist_handbook]
+  - id: evaluation
+    path: concepts
+    source_ids: [white_reality_check, hansen_spa, bailey_pbo_dsr]
+  - id: explainability
+    path: concepts
+    source_ids: [sklearn_inspection, shap_api, hernan_robins]
+  - id: portfolio
+    path: concepts
+    source_ids: [markowitz_1952, rockafellar_uryasev_2000, ledoit_wolf]
+knowledge_ids:
+  - rmse
+  - mae
+  - rolling_mean
+  - naive_forecast
+  - prediction_interval
+  - calibration
+  - ood_detection
+  - expanding_window
+  - overfitting
+  - portfolio_variance
+  - cvar
+  - contribution_vs_causality

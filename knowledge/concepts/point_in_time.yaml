@@ -1,0 +1,13 @@
+knowledge_id: point_in_time
+title: Point-in-time 数据
+domain: data_quality
+level: intermediate
+summary: 研究只能使用在 forecast origin 当时已经公开且可用的信息。
+definition: "observation_time 描述事实发生时点，availability_time 描述研究者可以使用该事实的时点。"
+formula_tex: "t_{availability}\\leq t_{forecast\\ origin}"
+intuition: [区分观测时间与发布日期, 保存 vintage, 用可用时间审计特征]
+interpretation: {safe: "可用时间不晚于 forecast origin 且修订策略可追溯"}
+failure_modes: [用抓取时间替代发布日期, 宏观数据修订泄漏, 财报发布日期泄漏, 生存者偏差]
+evidence_requirements: [observation_time, release_time, availability_time, vintage_time]
+related: [expanding_window, ood_detection]
+sources: [{source_id: otexts_fpp3, locator: "https://otexts.com/fpp3/"}]
