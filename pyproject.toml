@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-research-optimizer"
-version = "0.9.0"
+version = "1.0.0"
 description = "Auditable, point-in-time financial research workflow with offline artifacts."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -42,6 +42,8 @@ fro-quality-audit = "scripts.data_quality:main"
 fro-source-health = "scripts.source_health:main"
 fro-maturity-report = "scripts.maturity_report:main"
 fro-forecast = "scripts.forecast:main"
+fro-release-gate = "scripts.release_gate:main"
+fro-run-store = "financial_research.run_store_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

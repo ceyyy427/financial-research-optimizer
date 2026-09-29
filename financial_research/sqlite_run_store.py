@@ -33,6 +33,7 @@ class SqliteRunStore(RunStore):
     def _init_db(self) -> None:
         with self._connect() as db:
             db.executescript("""
+            CREATE TABLE IF NOT EXISTS schema_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS runs(
               run_id TEXT PRIMARY KEY, idempotency_key TEXT, request_hash TEXT NOT NULL,
               client_id TEXT, owner_id TEXT, tenant_id TEXT, task TEXT NOT NULL,
@@ -60,6 +61,43 @@ class SqliteRunStore(RunStore):
               FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE
             );
             """)
+            db.execute("INSERT OR IGNORE INTO schema_meta(key,value) VALUES('schema_version','1.0')")
+
+    def migrate(self) -> dict[str, str]:
+        self._init_db()
+        with self._connect() as db:
+            row = db.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()
+        return {"status": "ready", "schema_version": row[0] if row else "1.0"}
+
+    def doctor(self) -> dict[str, object]:
+        with self._connect() as db:
+            integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
+            runs = db.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+            events = db.execute("SELECT COUNT(*) FROM run_events").fetchone()[0]
+        return {"status": "pass" if integrity == "ok" else "blocked", "integrity": integrity, "runs": runs, "events": events, "journal_mode": "WAL", "schema_version": "1.0"}
+
+    def backup(self, target):
+        target = __import__("pathlib").Path(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source = self._connect()
+        destination = sqlite3.connect(target)
+        try:
+            source.backup(destination)
+        finally:
+            destination.close(); source.close()
+        return {"status": "pass", "backup": str(target)}
+
+    def restore(self, source):
+        source = __import__("pathlib").Path(source)
+        if not source.exists():
+            raise FileNotFoundError(source)
+        incoming = sqlite3.connect(source)
+        destination = self._connect()
+        try:
+            incoming.backup(destination)
+        finally:
+            destination.close(); incoming.close()
+        return self.doctor()
 
     def _event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
         with self._connect() as db:

@@ -13,6 +13,8 @@ SCHEMA_FILES = [
     "schemas/source_profile.schema.json", "schemas/source_snapshot.schema.json", "schemas/canonical_observation.schema.json",
     "schemas/mcp_run.schema.json",
     "schemas/source_request.schema.json", "schemas/source_result.schema.json", "schemas/adapter_evidence.schema.json",
+    "schemas/run_status_v1.schema.json", "schemas/source_request_v1.schema.json", "schemas/source_result_v1.schema.json",
+    "schemas/forecast_result_v1.schema.json", "schemas/mcp_response_v1.schema.json", "schemas/artifact_manifest_v1.schema.json",
 ]
 
 

@@ -43,6 +43,7 @@ class SourceRequest:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": "1.0",
             "source_id": self.source_id,
             "dataset": self.dataset,
             "instrument": self.instrument,
@@ -79,6 +80,7 @@ class SourceResult:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": "1.0",
             "raw_snapshot": self.raw_snapshot,
             "observations": self.observations,
             "provenance": self.provenance,

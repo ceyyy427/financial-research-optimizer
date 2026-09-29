@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source_result_v1.schema.json",
+  "title": "SourceResult v1",
+  "type": "object",
+  "required": ["schema_version", "source_id", "dataset", "observations", "provenance", "quality_status"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source_id": {"type": "string", "minLength": 1},
+    "dataset": {"type": "string", "minLength": 1},
+    "observations": {"type": "array"},
+    "provenance": {"type": ["object", "array"]},
+    "quality_status": {"type": "string"},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "raw_snapshot": {"type": ["object", "array", "string", "null"]}
+  },
+  "additionalProperties": true
+}

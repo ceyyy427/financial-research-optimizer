@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "artifact_manifest_v1.schema.json",
+  "title": "HTML artifact manifest v1",
+  "type": "object",
+  "required": ["schema_version", "run_id", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "generated_at": {"type": ["string", "null"]},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind"],
+        "properties": {
+          "path": {"type": "string"},
+          "kind": {"type": "string"},
+          "sha256": {"type": ["string", "null"]},
+          "content_type": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "provenance": {"type": "array"}
+  },
+  "additionalProperties": true
+}

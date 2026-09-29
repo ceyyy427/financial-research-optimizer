@@ -491,7 +491,7 @@ class RunStore:
                 lifecycle = "cancelled"
             else:
                 lifecycle = "planning_only" if execution_status == "planning_only" else ("degraded" if execution_status == "completed" and fallback_used else ("completed" if execution_status == "completed" else execution_status or current.get("status", "accepted")))
-            return {"run_id": run_id, "status": lifecycle, "stage": completed[-1] if completed else current.get("stage", "accepted"), "progress": {"completed": len(completed), "total": len(plan.get("nodes", []))}, "completed_nodes": completed, "blocked_nodes": blocked, "fallback_used": fallback_used, "last_message": (results[-1].get("message") if results else current.get("last_message", "")), "plan_id": plan.get("plan_id") or execution.get("plan_id"), "mode": run.get("mode"), "output_level": run.get("output_level"), "created_at": run.get("created_at"), "updated_at": current.get("updated_at"), "completion_level": execution.get("completion_level"), "worker_id": current.get("worker_id"), "lease_until": current.get("lease_until"), "heartbeat_at": current.get("heartbeat_at"), "attempt": current.get("attempt", 0), "owner_id": run.get("owner_id"), "tenant_id": run.get("tenant_id"), "execution": execution}
+            return {"schema_version": "1.0", "run_id": run_id, "status": lifecycle, "stage": completed[-1] if completed else current.get("stage", "accepted"), "progress": {"completed": len(completed), "total": len(plan.get("nodes", [])), "percent": round(100 * len(completed) / max(1, len(plan.get("nodes", []))), 2)}, "completed_nodes": completed, "blocked_nodes": blocked, "fallback_used": fallback_used, "last_message": (results[-1].get("message") if results else current.get("last_message", "")), "plan_id": plan.get("plan_id") or execution.get("plan_id"), "mode": run.get("mode"), "output_level": run.get("output_level"), "created_at": run.get("created_at"), "updated_at": current.get("updated_at"), "completion_level": execution.get("completion_level"), "worker_id": current.get("worker_id"), "lease_until": current.get("lease_until"), "heartbeat_at": current.get("heartbeat_at"), "attempt": current.get("attempt", 0), "owner_id": run.get("owner_id"), "tenant_id": run.get("tenant_id"), "reason_code": "RUN_BLOCKED" if blocked else None, "next_action": "resolve_blockers" if blocked else ("render_artifacts" if lifecycle in {"completed", "degraded"} else "continue"), "user_action_required": bool(blocked), "provenance": [], "artifacts": [], "execution": execution}
 
     def artifact(self, run_id: str, name: str, include_content: bool = True) -> dict[str, Any]:
         run_dir = self.run_dir(run_id)
@@ -521,8 +521,8 @@ class RunStore:
 
 
 def create_run_store(root: str | os.PathLike[str] = "artifacts/runs", backend: str | None = None):
-    """Select JSON by default or SQLite through FRO_RUN_STORE=sqlite."""
-    selected = (backend or os.environ.get("FRO_RUN_STORE", "json")).lower()
+    """Select SQLite for v1 multi-client runs; JSON remains explicit compatibility mode."""
+    selected = (backend or os.environ.get("FRO_RUN_STORE", "sqlite")).lower()
     if selected == "json":
         return RunStore(root)
     if selected == "sqlite":

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp_response_v1.schema.json",
+  "title": "MCP response envelope v1",
+  "type": "object",
+  "required": ["schema_version", "run_id", "request_id", "status", "progress", "provenance", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "request_id": {"type": "string"},
+    "status": {"type": "string"},
+    "progress": {"type": "number", "minimum": 0, "maximum": 100},
+    "source_status": {"type": ["string", "null"]},
+    "freshness_status": {"type": ["string", "null"]},
+    "reason_code": {"type": ["string", "null"]},
+    "next_action": {"type": ["string", "null"]},
+    "user_action_required": {"type": "boolean"},
+    "provenance": {"type": "array"},
+    "artifacts": {"type": "array"}
+  },
+  "additionalProperties": true
+}

@@ -65,7 +65,19 @@ def _execute_node(plan, node, handler, authorized_context, budget_manager, base_
     if not policy["allowed"]:
         return {"node_id": node_id, "status": "blocked", "attempt": 1, "message": policy["reason"], "artifacts": [], "provenance": {}, "failure_class": "policy"}
     if handler is None:
-        return {"node_id": node_id, "status": "warning", "attempt": 0, "message": "handler not registered; planning_only execution; no work was claimed", "artifacts": [], "provenance": {}, "execution_mode": "planning_only"}
+        return {
+            "node_id": node_id,
+            "status": "blocked",
+            "attempt": 0,
+            "message": "handler not registered; execution is blocked and no result was claimed",
+            "artifacts": [],
+            "provenance": {},
+            "execution_mode": "blocked",
+            "failure_class": "capability_gap",
+            "reason_code": "HANDLER_NOT_IMPLEMENTED",
+            "next_action": "register a verified handler or choose a supported mode",
+            "user_action_required": True,
+        }
     max_retries = int(node.get("max_retries", 0))
     timeout_seconds = float(node.get("timeout_seconds", 300))
     last_message = ""
@@ -267,7 +279,19 @@ async def _execute_node_async(plan, node, handler, authorized_context, budget_ma
     if not policy["allowed"]:
         return {"node_id": node_id, "status": "blocked", "attempt": 1, "message": policy["reason"], "artifacts": [], "provenance": {}, "failure_class": "policy"}
     if handler is None:
-        return {"node_id": node_id, "status": "warning", "attempt": 0, "message": "handler not registered; planning_only execution; no work was claimed", "artifacts": [], "provenance": {}, "execution_mode": "planning_only"}
+        return {
+            "node_id": node_id,
+            "status": "blocked",
+            "attempt": 0,
+            "message": "handler not registered; execution is blocked and no result was claimed",
+            "artifacts": [],
+            "provenance": {},
+            "execution_mode": "blocked",
+            "failure_class": "capability_gap",
+            "reason_code": "HANDLER_NOT_IMPLEMENTED",
+            "next_action": "register a verified handler or choose a supported mode",
+            "user_action_required": True,
+        }
     max_retries = int(node.get("max_retries", 0))
     timeout_seconds = float(node.get("timeout_seconds", 300))
     last_message = ""

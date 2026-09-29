@@ -128,7 +128,7 @@ class ResearchMcpService:
                 source_status = "live_certified" if any((item.get("provenance") or {}).get("source_capability", {}).get("live_certified") for item in results) else "fresh"
             completed = status.get("progress", {}).get("completed", 0)
             total = status.get("progress", {}).get("total", 0)
-            status.update({"progress": {"completed": completed, "total": total, "stage": status.get("stage")}, "source_status": source_status, "freshness_status": "fresh" if source_status in {"fresh", "live_certified"} else source_status, "next_action": "render_artifacts" if status.get("status") in {"completed", "degraded"} else "resolve_blockers" if source_status == "blocked" else "continue", "user_action_required": source_status == "blocked"})
+            status.update({"progress": {"completed": completed, "total": total, "percent": round(100 * completed / max(1, total), 2)}, "source_status": source_status, "freshness_status": "fresh" if source_status in {"fresh", "live_certified"} else source_status, "next_action": "render_artifacts" if status.get("status") in {"completed", "degraded"} else "resolve_blockers" if source_status == "blocked" else "continue", "user_action_required": source_status == "blocked"})
             return status
         except (RunStoreError, FileNotFoundError):
             return _blocked("run_not_found", "run is not available")

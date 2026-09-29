@@ -34,6 +34,16 @@ def test_missing_handlers_are_planning_only_and_default_registry_is_explicit():
     assert "discover_sources" in HANDLERS
 
 
+def test_partially_registered_handlers_block_missing_node_without_claiming_success():
+    result = execute_plan(_plan(tool="unregistered"), handlers={"other": lambda contract, node: {"status": "passed"}})
+    assert result["status"] == "blocked"
+    item = result["results"][0]
+    assert item["status"] == "blocked"
+    assert item["reason_code"] == "HANDLER_NOT_IMPLEMENTED"
+    assert item["user_action_required"] is True
+    assert item["execution_mode"] == "blocked"
+
+
 def test_executor_retries_and_checkpoints(tmp_path):
     calls = {"n": 0}
 

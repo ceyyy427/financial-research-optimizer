@@ -22,6 +22,7 @@ def test_source_request_is_explicit_and_serializable():
         params={"realtime_start": "2026-09-26"},
     )
     payload = request.as_dict()
+    assert payload["schema_version"] == "1.0"
     assert payload["source_id"] == "fred"
     assert payload["dataset"] == "series_observations"
     assert payload["authorization_ref"] == "env:FRED_API_KEY"
@@ -30,6 +31,11 @@ def test_source_request_is_explicit_and_serializable():
 def test_source_result_rejects_unknown_quality_status():
     with pytest.raises(ValueError, match="quality_status"):
         SourceResult(None, [], {}, "completed")
+
+
+def test_source_result_serializes_v1_protocol():
+    payload = SourceResult(None, [], {}, "pass").as_dict()
+    assert payload["schema_version"] == "1.0"
 
 
 def test_factory_rejects_unlisted_url_before_network(tmp_path):

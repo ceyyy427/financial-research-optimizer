@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source_request_v1.schema.json",
+  "title": "SourceRequest v1",
+  "type": "object",
+  "required": ["schema_version", "source_id", "dataset", "instrument", "start", "end"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source_id": {"type": "string", "minLength": 1},
+    "dataset": {"type": "string", "minLength": 1},
+    "instrument": {"type": ["string", "array", "null"]},
+    "start": {"type": ["string", "null"]},
+    "end": {"type": ["string", "null"]},
+    "as_of": {"type": ["string", "null"]},
+    "adjustment": {"type": ["string", "null"]},
+    "authorization_ref": {"type": ["string", "null"]},
+    "access_method": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

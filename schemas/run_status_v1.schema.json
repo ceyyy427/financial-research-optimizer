@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run_status_v1.schema.json",
+  "type": "object",
+  "required": ["schema_version", "run_id", "status", "progress", "reason_code", "next_action", "user_action_required", "provenance", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "status": {"type": "string"},
+    "progress": {"type": "object", "required": ["completed", "total", "percent"], "properties": {"completed": {"type": "integer"}, "total": {"type": "integer"}, "percent": {"type": "number"}}, "additionalProperties": true},
+    "source_status": {"type": "string"}, "freshness_status": {"type": "string"},
+    "reason_code": {"type": ["string", "null"]}, "next_action": {"type": ["string", "null"]},
+    "user_action_required": {"type": "boolean"}, "provenance": {"type": "array"}, "artifacts": {"type": "array"}
+  },
+  "additionalProperties": true
+}

@@ -4,7 +4,15 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v0.9.0 — Online Source Grid & Research-grade Forecasting`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.9.0)。
+当前稳定版本：[`v1.0.0 — Stable Auditable Research Runtime`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.0.0)。
+
+### v1.0.0 更新摘要
+
+- 三个研究节点已接入默认 Plan DAG：过拟合适用性诊断、组合 baseline/协方差比较/约束与 fallback、post-selection stress test。节点失败会保留 `reason_code`、`next_action` 和 `user_action_required`，不会伪装成 completed。
+- 冻结 `SourceRequest.v1`、`SourceResult.v1`、`RunStatus.v1`、`ForecastResult.v1`、MCP response envelope 和 artifact manifest 的 `schema_version=1.0` 协议；v0.9 JSON 保持兼容读取。
+- MCP/多客户端默认使用 SQLite WAL 状态层；JSON 仍可通过 `FRO_RUN_STORE=json` 作为离线兼容后端。
+- 新增 `fro-run-store migrate|doctor|backup|restore` 和 `fro-release-gate`，覆盖并发状态、协议、研究节点、来源成熟度、schema、skill validator 和发布前检查。
+- 当前成熟度保持诚实：至少两个 L4 认证、三个显式 degraded fallback，其余来源继续区分 manual/blocked/planned。
 
 ### v0.9.0 更新摘要
 
@@ -371,7 +379,7 @@ financial-research-optimizer/
 |---|---|---|
 | 选择模式和输出等级 | `SKILL.md`、`references/preflight_contract.md` | 确定阶段、最低交付物和阻断规则 |
 | 运行研究 | `financial_research/runtime.py` | 创建 contract、Plan DAG、checkpoint 和执行结果 |
-| 读取/管理运行 | `financial_research/run_store.py`、`financial_research/store_protocol.py` | JSON 默认；`FRO_RUN_STORE=sqlite` 切换 SQLite |
+| 读取/管理运行 | `financial_research/run_store.py`、`financial_research/store_protocol.py` | SQLite WAL 默认；`FRO_RUN_STORE=json` 保留离线兼容 |
 | 接入 MCP | `mcp_server/server.py`、`references/mcp_interface.md` | create/status/read/cancel/resume/retry/list、source capability 与 `research://` |
 | 获取与审计数据 | `scripts/source_router.py`、`scripts/online/`、`scripts/validate_financial_dataset.py` | source plan、快照、质量和 PIT 审计 |
 | 生成交付物 | `scripts/verify_result_lineage.py`、`scripts/generate_financial_html.py` | 离线 HTML、CSV/Markdown decision table |
@@ -459,9 +467,9 @@ fro-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
 所有生命周期工具都返回结构化状态；研究结果只能通过 `research://runs/...` 读取
-已登记产物，不接受任意文件路径。默认 JSON run store 使用跨进程锁、原子
-fsync/replace 写入、请求哈希、幂等键、租约/心跳、陈旧租约恢复和 checkpoint
-指纹校验；设置 `FRO_RUN_STORE=sqlite` 可切换到 SQLite WAL 元数据后端，设置
+已登记产物，不接受任意文件路径。默认 SQLite run store 使用 WAL、事务、busy
+timeout、幂等键、租约/心跳、陈旧租约恢复和 checkpoint 指纹校验；设置
+`FRO_RUN_STORE=json` 可切换到 JSON 离线兼容后端，设置
 `FRO_MCP_RUN_ROOT` 可指定运行目录。MCP 适配层最终调用统一的
 `financial_research.run_research`，所以 CLI、MCP 和未来 Web API 共用同一套
 preflight、策略、数据血缘、checkpoint 和 HTML/decision table 规则。
