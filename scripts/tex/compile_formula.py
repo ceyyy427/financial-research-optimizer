@@ -10,7 +10,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from scripts.knowledge.formula_registry import FORMULAS
+try:
+    from scripts.knowledge.formula_registry import FORMULAS
+except ImportError:
+    from knowledge.formula_registry import FORMULAS
 
 STATUSES = {"not_attempted", "compiling", "compiled", "blocked", "failed", "not_available"}
 

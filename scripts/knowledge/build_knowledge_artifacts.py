@@ -10,8 +10,8 @@ try:
     from .explanation_engine import build_explanations
     from .learning_cards import build_learning_cards
 except ImportError:
-    from scripts.knowledge.explanation_engine import build_explanations
-    from scripts.knowledge.learning_cards import build_learning_cards
+    from knowledge.explanation_engine import build_explanations
+    from knowledge.learning_cards import build_learning_cards
 from scripts.tex.compile_formula import compile_formulas
 
 
