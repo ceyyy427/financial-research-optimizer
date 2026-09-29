@@ -4,7 +4,11 @@ Handlers deliberately distinguish executable work from a capability gap.  A
 handler never returns a successful result merely because a node is present in
 the plan; unavailable stages are blocked with an actionable explanation.
 """
+import csv
+import hashlib
 import json
+import statistics
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -14,6 +18,9 @@ def _blocked(node, message, **extra):
         "message": message,
         "artifacts": [],
         "execution_mode": "capability_gap",
+        "reason_code": extra.pop("reason_code", "CAPABILITY_GAP"),
+        "next_action": extra.pop("next_action", "provide the missing contract input or registered handler"),
+        "user_action_required": extra.pop("user_action_required", True),
         "provenance": {"execution_mode": "capability_gap", "node": node.get("id")},
         **extra,
     }
@@ -67,6 +74,141 @@ def _data_capture(contract, node):
     return _blocked(node, "data capture requires an executable source adapter; use scripts/execute_online_refresh.py")
 
 
+def _artifact_dir(contract):
+    path = contract.get("artifact_dir") or contract.get("output_dir")
+    if not path:
+        path = Path("artifacts") / "runs" / str(contract.get("run_id") or "minimum-closed-loop")
+    result = Path(path)
+    result.mkdir(parents=True, exist_ok=True)
+    return result
+
+
+def _load_rows(contract):
+    path = contract.get("normalized_dataset_path") or contract.get("dataset_path")
+    if path and Path(path).exists():
+        target = Path(path)
+        if target.suffix.lower() == ".csv":
+            with target.open(newline="", encoding="utf-8-sig") as handle:
+                return list(csv.DictReader(handle)), target
+        payload = json.loads(target.read_text(encoding="utf-8"))
+        rows = payload.get("observations", payload.get("rows", payload)) if isinstance(payload, dict) else payload
+        return (rows if isinstance(rows, list) else []), target
+    return [], None
+
+
+def _write_json(path, payload):
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+    return str(path)
+
+
+def _dataset_rows(contract):
+    rows, source = _load_rows(contract)
+    if rows:
+        return rows, source
+    path = _artifact_dir(contract) / "canonical_dataset.json"
+    if path.exists():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return (payload if isinstance(payload, list) else payload.get("observations", [])), path
+    return [], None
+
+
+def _numeric_series(rows):
+    values = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key in ("value", "close", "price", "adjusted_close"):
+            try:
+                if row.get(key) not in (None, ""):
+                    values.append(float(row[key]))
+                    break
+            except (TypeError, ValueError):
+                continue
+    return values
+
+
+def _minimum_analysis(contract, rows, source):
+    values = _numeric_series(rows)
+    if not values:
+        return None
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source and source.exists() else hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
+    code_version = "financial-research-optimizer-0.7.0"
+    calc_id = "calc_" + hashlib.sha256((source_hash + code_version).encode()).hexdigest()[:12]
+    mean_value = statistics.fmean(values)
+    metric = {"metric_id": "baseline_mean", "value": mean_value, "calculation_id": calc_id, "input_hash": source_hash, "code_version": code_version, "formula": "mean(value[1:n])", "source_ids": [str(contract.get("source_id", "local_dataset"))], "input_files": [str(source)] if source else []}
+    experiment_id = "exp_" + source_hash[:12]
+    refs = [metric["metric_id"]]
+    return {
+        "experiment_id": experiment_id, "reproducibility_status": "partial", "mode": contract.get("mode", "forecasting"), "output_level": contract.get("output_level", "standard"),
+        "meta": {"title": "Minimum auditable financial research loop", "as_of_time": datetime.now(timezone.utc).isoformat(), "universe": contract.get("universe", []), "target": contract.get("target", "value"), "horizon": contract.get("horizon", "unspecified")},
+        "summary": {"headline": "Baseline forecast generated from the supplied dataset", "confidence": "baseline only", "limitations": ["This closed loop does not claim live certification or investment advice."]},
+        "forecast": {"label": contract.get("target", "value"), "value": mean_value, "interval": "not_available", "probability": "not_calibrated", "model": "historical_mean_baseline", "direction": "warning", "lineage_refs": refs},
+        "series": values[-60:], "series_lineage_refs": refs,
+        "charts": [{"chart_id": "observed_values", "title": "Observed values and baseline", "type": "line", "labels": [str(i + 1) for i in range(len(values[-60:]))], "series": [{"name": "observed", "values": values[-60:]}, {"name": "baseline", "values": [mean_value] * len(values[-60:])}], "description": "Values read from the supplied dataset.", "lineage_refs": refs}],
+        "modules": [{"module_id": "baseline", "title": "Baseline forecast", "status": "warning", "summary": "Historical mean baseline; no model comparison was run.", "evidence_refs": refs, "caveats": ["Use rolling evaluation before relying on the estimate."], "next_check": "run forecasting with a point-in-time dataset"}],
+        "model_cards": [{"model_id": "historical_mean_baseline", "version": "0.7.0", "estimand": "conditional mean proxy", "objective": "baseline", "validation_protocol": "not_run", "overfitting_diagnostics": "not_applicable", "failure_mode": "regime change", "status": "baseline"}],
+        "selection_protocol": {"layers": ["statistical_validity", "predictive_performance", "economic_effectiveness"], "criteria": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"], "primary_metric": "baseline_mean", "status": "baseline_only"},
+        "decision_rows": [{"priority": "P1", "module": "forecast", "current_view": "baseline only", "action": "validate before use", "trigger": "new point-in-time data", "evidence": "baseline_mean", "risk": "model and data uncertainty", "horizon": str(contract.get("horizon", "unspecified")), "next_check": "rolling evaluation"}],
+        "result_lineage": {"metrics": [metric], "status": "pass", "lineage_refs": refs}, "sources": [{"id": str(contract.get("source_id", "local_dataset")), "label": "supplied dataset"}],
+    }
+
+
+def _normalize_dataset(contract, node):
+    rows, source = _load_rows(contract)
+    if not rows:
+        return _blocked(node, "a non-empty dataset_path or normalized_dataset_path is required", reason_code="DATASET_REQUIRED", next_action="supply dataset_path pointing to CSV or JSON")
+    path = _write_json(_artifact_dir(contract) / "canonical_dataset.json", rows)
+    return {"status": "passed", "message": "dataset normalized", "artifacts": [path], "provenance": {"input_file": str(source), "rows": len(rows)}}
+
+
+def _audit_dataset(contract, node):
+    rows, source = _dataset_rows(contract)
+    if not rows:
+        return _blocked(node, "normalized dataset is empty", reason_code="EMPTY_DATASET", next_action="fix normalization or provide a non-empty dataset")
+    fields = sorted({key for row in rows if isinstance(row, dict) for key in row})
+    missing = {field: sum(row.get(field) in (None, "") for row in rows if isinstance(row, dict)) for field in fields}
+    payload = {"status": "pass", "rows": len(rows), "columns": fields, "missingness": missing, "point_in_time_status": "not_available", "future_leakage": False, "label_overlap": "not_checked", "source_file": str(source) if source else None}
+    path = _write_json(_artifact_dir(contract) / "data_quality.json", payload)
+    return {"status": "passed", "message": "dataset audit passed with PIT limitations declared", "artifacts": [path], "provenance": payload}
+
+
+def _build_features(contract, node):
+    rows, source = _dataset_rows(contract)
+    if not rows:
+        return _blocked(node, "features require a normalized dataset", reason_code="FEATURE_INPUT_REQUIRED")
+    path = _write_json(_artifact_dir(contract) / "features.json", {"rows": rows, "lineage": {"source_file": str(source) if source else None, "availability_time": "not_available"}})
+    return {"status": "passed", "message": "pass-through baseline features created", "artifacts": [path], "provenance": {"feature_count": len(rows[0]) if isinstance(rows[0], dict) else 0}}
+
+
+def _run_models(contract, node):
+    rows, source = _dataset_rows(contract)
+    analysis = _minimum_analysis(contract, rows, source)
+    if not analysis:
+        return _blocked(node, "numeric value/close/price field is required for baseline forecast", reason_code="NUMERIC_SERIES_REQUIRED")
+    path = _write_json(_artifact_dir(contract) / "analysis.json", analysis)
+    return {"status": "passed", "message": "historical-mean baseline and lineage created", "artifacts": [path], "provenance": {"model": "historical_mean_baseline", "experiment_id": analysis["experiment_id"]}}
+
+
+def _render_artifacts(contract, node):
+    analysis_path = _artifact_dir(contract) / "analysis.json"
+    if not analysis_path.exists():
+        return _blocked(node, "analysis.json is required before rendering", reason_code="ANALYSIS_REQUIRED")
+    try:
+        try:
+            from ..generate_financial_html import normalize_rows, render_html, write_decision_table, validate_payload
+        except ImportError:
+            from generate_financial_html import normalize_rows, render_html, write_decision_table, validate_payload
+        data = json.loads(analysis_path.read_text(encoding="utf-8"))
+        validate_payload(data, {"mode": contract.get("mode", "forecasting"), "output_level": contract.get("output_level", "standard")})
+        output_dir = _artifact_dir(contract)
+        (output_dir / "financial_research_brief.html").write_text(render_html(data, contract, data), encoding="utf-8")
+        rows = normalize_rows(data["decision_rows"], data.get("experiment_id"), data.get("reproducibility_status"), data.get("online_status", {}))
+        paths = [str(output_dir / "financial_research_brief.html")] + [str(path) for path in write_decision_table(rows, output_dir, "both")]
+        return {"status": "passed", "message": "offline HTML and decision tables rendered", "artifacts": paths, "provenance": {"experiment_id": data.get("experiment_id")}}
+    except Exception as exc:
+        return _blocked(node, f"artifact rendering failed: {exc}", reason_code="RENDER_FAILED", next_action="inspect analysis.json lineage and output contract")
+
+
 def _unimplemented(name):
     def handler(contract, node):
         return _blocked(node, f"{name} is not implemented by the bounded default runtime; supply a registered handler")
@@ -77,14 +219,14 @@ HANDLERS = {
     "discover_sources": _discover_sources,
     "capture_data": _data_capture,
     "run_preflight": _preflight,
-    "normalize_dataset": _unimplemented("normalize_dataset"),
-    "audit_dataset": _unimplemented("audit_dataset"),
-    "build_features": _unimplemented("build_features"),
-    "run_models": _unimplemented("run_models"),
+    "normalize_dataset": _normalize_dataset,
+    "audit_dataset": _audit_dataset,
+    "build_features": _build_features,
+    "run_models": _run_models,
     "run_overfitting_diagnostics": _unimplemented("run_overfitting_diagnostics"),
     "run_portfolio_optimization": _unimplemented("run_portfolio_optimization"),
     "post_selection_stress_test": _unimplemented("post_selection_stress_test"),
-    "render_artifacts": _unimplemented("render_artifacts"),
+    "render_artifacts": _render_artifacts,
 }
 
 

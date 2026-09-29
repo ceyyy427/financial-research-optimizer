@@ -1,0 +1,13 @@
+{
+  "source_id": "fred",
+  "dataset": "series_observations",
+  "instrument": "DGS10",
+  "start": "2020-01-01",
+  "end": "2020-01-31",
+  "as_of": "2020-02-01T00:00:00Z",
+  "adjustment": null,
+  "authorization_ref": "env:FRED_API_KEY",
+  "access_method": "api",
+  "params": {"units": "lin"},
+  "requested_url": "https://api.stlouisfed.org/fred/series/observations"
+}

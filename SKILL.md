@@ -11,6 +11,10 @@ The objective is an auditable research result, not a guaranteed “best predicti
 
 Use the declared `output_level` to control depth: `minimal` for a compact auditable read, `standard` for feature/model evidence, `research_grade` for reproducibility and applicable backtest diagnostics, and `portfolio_grade` for source reconciliation, covariance robustness and portfolio attribution. Run `scripts/run_preflight.py` before any dependent analysis.
 
+In v0.7.0, adapter evidence is identified by the composite `(source_id, dataset_id, access_method)` key. Use `scripts/adapters/factory.py` as the only execution registry and `scripts/adapters/evidence.py` for capability evidence; do not add source-name sets in callers. `scripts/run_adapter_smoke.py` creates a schema manifest and compares it with `--previous-output`; a material drift blocks the smoke result. Use `scripts/certify_adapter.py --smoke <live-smoke.json> --expires-at <ISO-8601>` for a dry certification decision and add `--write` only after the live evidence has been reviewed. Replay evidence never becomes L4.
+
+The default runtime has a minimum local-data closed loop when the immutable contract supplies `dataset_path` or `normalized_dataset_path`: normalization, dataset audit, pass-through baseline features, historical-mean baseline, result lineage, and offline HTML/decision-table rendering. It does not fabricate online data, PIT timestamps, calibrated intervals, overfitting gates, or portfolio results. Missing prerequisites are returned with `reason_code`, `next_action`, and `user_action_required`.
+
 ## Research modes
 
 Select exactly one mode before preflight:

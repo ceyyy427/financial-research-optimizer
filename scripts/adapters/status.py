@@ -7,13 +7,15 @@ from pathlib import Path
 
 try:
     from ..source_router import load_registry
-    from .evidence import evaluate_maturity, load_evidence
-    from .factory import DATASETS, DATASET_CONTRACTS, IMPLEMENTED_ADAPTERS
+    from .evidence import evaluate_maturity, load_evidence, get_evidence
+    from .factory import DATASETS, DATASET_CONTRACTS, is_fetch_implemented
+    from .evidence import get_evidence
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from source_router import load_registry
-    from adapters.evidence import evaluate_maturity, load_evidence
-    from adapters.factory import DATASETS, DATASET_CONTRACTS, IMPLEMENTED_ADAPTERS
+    from adapters.evidence import evaluate_maturity, load_evidence, get_evidence
+    from adapters.factory import DATASETS, DATASET_CONTRACTS, is_fetch_implemented
+    from adapters.evidence import get_evidence
 
 
 def adapter_status(registry_path, evidence_path=None):
@@ -23,9 +25,9 @@ def adapter_status(registry_path, evidence_path=None):
     for source_id, profile in sorted(profiles.items()):
         dataset_id = profile.get("dataset") or DATASETS.get(source_id, "default")
         maturity = evaluate_maturity(
-            profile, source_id, dataset_id, evidence.get(source_id),
+            profile, source_id, dataset_id, get_evidence(source_id, dataset_id, profile.get("primary_method"), evidence),
             factory_registered=source_id in DATASET_CONTRACTS,
-            fetch_implemented=source_id in IMPLEMENTED_ADAPTERS,
+            fetch_implemented=is_fetch_implemented(source_id, dataset_id, profile.get("primary_method")),
         )
         row = {
             "source_id": source_id,
@@ -34,7 +36,7 @@ def adapter_status(registry_path, evidence_path=None):
             "implementation_status": profile.get("implementation_status", "planned"),
             "parser_status": profile.get("parser_status", "unavailable"),
             "factory_registered": source_id in DATASET_CONTRACTS,
-            "fetch_implemented": source_id in IMPLEMENTED_ADAPTERS,
+            "fetch_implemented": is_fetch_implemented(source_id, dataset_id, profile.get("primary_method")),
             "parser": profile.get("parser"),
             "source_health": maturity["evidence"]["health_status"],
             "provider_status": profile.get("provider_status", "unknown"),

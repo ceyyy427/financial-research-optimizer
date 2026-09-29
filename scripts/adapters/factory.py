@@ -68,6 +68,13 @@ DATASET_CONTRACTS["sec_edgar"].add("submissions")
 IMPLEMENTED_ADAPTERS = frozenset({"stats_gov_cn", "10jqka", "sec_edgar", "fred", "alfred", "ecb_sdmx", "bis_sdmx"})
 
 
+def is_fetch_implemented(source_id: str, dataset_id: str | None = None, access_method: str | None = None) -> bool:
+    """Single source of truth for formal fetch capability."""
+    if source_id not in IMPLEMENTED_ADAPTERS:
+        return False
+    return dataset_id is None or dataset_id in DATASET_CONTRACTS.get(source_id, set())
+
+
 _CONTRACT_ONLY = {
     "pbc": PbcAdapter,
     "cninfo": CninfoAdapter,

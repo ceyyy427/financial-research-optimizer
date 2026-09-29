@@ -4,7 +4,7 @@
   "title": "Financial source adapter result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["raw_snapshot", "observations", "provenance", "quality_status", "limitations"],
+  "required": ["raw_snapshot", "observations", "provenance", "quality_status", "limitations", "source_capability", "freshness"],
   "properties": {
     "raw_snapshot": {"type": ["object", "null"]},
     "observations": {"type": "array", "items": {"type": "object"}},

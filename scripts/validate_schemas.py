@@ -51,6 +51,8 @@ def validate_local_schemas(root):
         ("refresh_policy.schema.json", root / "examples" / "research_config.json"),
         ("analysis.schema.json", root / "examples" / "demo_analysis.json"),
         ("schemas/adapter_evidence.schema.json", root / "config" / "adapter_evidence.json"),
+        ("schemas/source_request.schema.json", root / "examples" / "source_request.json"),
+        ("schemas/source_result.schema.json", root / "examples" / "source_result.json"),
     ]
     selectors = {"feature_label_contract.schema.json": "feature_label_contract", "backtest_overfitting.schema.json": "backtest_overfitting", "model_selection.schema.json": "selection_protocol", "portfolio_output.schema.json": "portfolio_robustness", "tail_risk.schema.json": "tail_risk", "portfolio_subset_test.schema.json": "portfolio_subset_test", "feature_selection.schema.json": "feature_selection", "feature_label_audit.schema.json": "feature_label_audit", "source_reconciliation.schema.json": "source_reconciliation", "result_lineage.schema.json": "result_lineage", "refresh_policy.schema.json": "refresh_policy"}
     for schema_name, data_path in examples:
@@ -60,7 +62,7 @@ def validate_local_schemas(root):
         errors = list(Draft202012Validator(schemas[schema_name], registry=registry).iter_errors(data))
         if errors:
             raise ValueError(f"{schema_name}: " + "; ".join(error.message for error in errors))
-    return {"valid": True, "schemas": SCHEMA_FILES, "examples_validated": len(examples)}
+    return {"valid": True, "schemas": SCHEMA_FILES, "examples": [schema_name for schema_name, _ in examples], "examples_validated": len(examples)}
 
 
 def main():

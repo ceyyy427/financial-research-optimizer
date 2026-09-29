@@ -20,7 +20,32 @@ def load_evidence(path=None):
     if not target.exists():
         return {}
     payload = json.loads(target.read_text(encoding="utf-8"))
-    return {str(item["source_id"]): item for item in payload.get("datasets", [])}
+    return {
+        (str(item["source_id"]), str(item.get("dataset_id", "")), str(item.get("access_method", ""))): item
+        for item in payload.get("datasets", [])
+    }
+
+
+def get_evidence(source_id, dataset_id=None, access_method=None, evidence=None):
+    """Return the most specific evidence record for one adapter capability.
+
+    Evidence is keyed by the full capability identity.  The controlled
+    source-level fallback is retained for older manifests, but only when it
+    is unambiguous; callers must never silently merge two datasets.
+    """
+    records = evidence if evidence is not None else load_evidence()
+    exact = (str(source_id), str(dataset_id or ""), str(access_method or ""))
+    if exact in records:
+        return records[exact]
+    candidates = [item for (sid, did, method), item in records.items() if sid == str(source_id)]
+    if dataset_id is not None:
+        candidates = [item for item in candidates if str(item.get("dataset_id", "")) == str(dataset_id)]
+    if access_method is not None:
+        # Older evidence manifests did not carry access_method.  They remain
+        # usable only when the source+dataset match is unique; a populated
+        # method is still matched exactly.
+        candidates = [item for item in candidates if not item.get("access_method") or str(item.get("access_method")) == str(access_method)]
+    return candidates[0] if len(candidates) == 1 else {}
 
 
 def _passed(value):

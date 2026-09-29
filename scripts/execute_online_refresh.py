@@ -12,15 +12,15 @@ from pathlib import Path
 
 try:
     from .adapters.base import AdapterError
-    from .adapters.evidence import evaluate_maturity, load_evidence
-    from .adapters.factory import AdapterNotReady, build_adapter, build_request, fetch_with_adapter
+    from .adapters.evidence import evaluate_maturity, load_evidence, get_evidence
+    from .adapters.factory import AdapterNotReady, build_adapter, build_request, fetch_with_adapter, is_fetch_implemented
     from .monitoring.freshness import check_freshness
     from .normalize_observations import normalize
     from .source_router import SourceRouter, SourceRoutingError
 except ImportError:
     from adapters.base import AdapterError
-    from adapters.evidence import evaluate_maturity, load_evidence
-    from adapters.factory import AdapterNotReady, build_adapter, build_request, fetch_with_adapter
+    from adapters.evidence import evaluate_maturity, load_evidence, get_evidence
+    from adapters.factory import AdapterNotReady, build_adapter, build_request, fetch_with_adapter, is_fetch_implemented
     from monitoring.freshness import check_freshness
     from normalize_observations import normalize
     from source_router import SourceRouter, SourceRoutingError
@@ -50,9 +50,9 @@ def execute_data_refresh(
             return {"status": "blocked", "stage": "data_refresh", "failure_class": "source", "message": f"unknown source_id: {source_id}"}
         request = build_request(source_id, params or {}, requested_url=url)
         maturity = evaluate_maturity(
-            profile, source_id, request.dataset, load_evidence().get(source_id),
+            profile, source_id, request.dataset, get_evidence(source_id, request.dataset, profile.get("primary_method")),
             factory_registered=True,
-            fetch_implemented=source_id in {"stats_gov_cn", "10jqka", "sec_edgar", "fred", "alfred", "ecb_sdmx", "bis_sdmx"},
+            fetch_implemented=is_fetch_implemented(source_id, request.dataset, profile.get("primary_method")),
         )
         if not maturity["automatic_execution_ready"] and not (allow_degraded and maturity["degraded_execution_ready"]):
             return {

@@ -27,6 +27,24 @@ def _load(path):
     return payload
 
 
+def schema_manifest(payload):
+    """Build a comparable field/type manifest from a raw response or rows."""
+    if isinstance(payload, dict):
+        for key in ("observations", "data", "results", "rows"):
+            if isinstance(payload.get(key), list):
+                payload = payload[key]
+                break
+    if isinstance(payload, list):
+        rows = [row for row in payload if isinstance(row, dict)]
+        if not rows:
+            return {}
+        fields = sorted({key for row in rows for key in row})
+        return {key: {"type": type(next((row[key] for row in rows if key in row and row[key] is not None), None)).__name__} for key in fields}
+    if isinstance(payload, dict):
+        return {key: {"type": type(value).__name__} for key, value in sorted(payload.items())}
+    return {"value": {"type": type(payload).__name__}}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("reference")

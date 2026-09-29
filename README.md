@@ -4,7 +4,15 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v0.6.0 — Tail Risk & Effective Subset Research`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.6.0)。`v0.5.0` 仍保留为上一版 Adapter Maturity release。
+当前稳定版本：[`v0.7.0 — L4 Evidence & Executable Research Loop`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.7.0)。`v0.6.0` 和 `v0.5.0` 仍保留为历史 release。
+
+### v0.7.0 更新摘要
+
+- 适配器 evidence 改为 `(source_id, dataset_id, access_method)` 复合身份；factory 是唯一执行能力来源，未知来源不会静默落入通用 HTTP。
+- smoke 流程从 raw response 生成 schema fingerprint，并与上一快照比较；schema drift 会进入质量门禁和输出证据。
+- 增加 `scripts/certify_adapter.py`：L4 在线认证必须由真实 live smoke、健康/新鲜、PIT、snapshot hash 和明确有效期共同满足，且只能显式 `--write` 晋级。
+- 默认运行时支持本地 CSV/JSON 的最小闭环：规范化 → 数据审计 → baseline features → historical-mean forecast → lineage → 离线 HTML + CSV/Markdown decision table；缺少数据时返回带 `reason_code`、`next_action` 的 blocked。
+- MCP/Plan DAG 结果携带可执行状态字段，区分 `capability_gap`、数据缺失、schema drift 和用户需要的下一步。
 
 ### v0.6.0 更新摘要
 

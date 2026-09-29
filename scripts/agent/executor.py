@@ -99,7 +99,7 @@ def _execute_node(plan, node, handler, authorized_context, budget_manager, base_
             if not reserved:
                 return {"node_id": node_id, "status": "blocked", "attempt": attempt, "message": "global budget exceeded: " + "; ".join(violations), "artifacts": artifacts, "provenance": result.get("provenance", {}), "failure_class": "global_budget", "budget_violations": violations}
             item = {"node_id": node_id, "status": status, "attempt": attempt, "message": result.get("message", ""), "artifacts": artifacts, "provenance": result.get("provenance", {}), "network_requests": network_requests, "bytes_downloaded": bytes_downloaded, "browser_contexts": browser_contexts}
-            for field in ("execution_mode", "failure_class", "fallback_used", "preflight", "completion_level", "missing_capabilities"):
+            for field in ("execution_mode", "failure_class", "reason_code", "next_action", "user_action_required", "fallback_used", "preflight", "completion_level", "missing_capabilities"):
                 if field in result:
                     item[field] = result[field]
             return item
@@ -292,7 +292,7 @@ async def _execute_node_async(plan, node, handler, authorized_context, budget_ma
             if not reserved:
                 return {"node_id": node_id, "status": "blocked", "attempt": attempt, "message": "global budget exceeded: " + "; ".join(violations), "artifacts": artifacts, "provenance": result.get("provenance", {}), "failure_class": "global_budget", "budget_violations": violations}
             item = {"node_id": node_id, "status": status, "attempt": attempt, "message": result.get("message", ""), "artifacts": artifacts, "provenance": result.get("provenance", {}), "network_requests": network_requests, "bytes_downloaded": bytes_downloaded, "browser_contexts": browser_contexts}
-            for field in ("execution_mode", "failure_class", "fallback_used", "preflight", "completion_level", "missing_capabilities"):
+            for field in ("execution_mode", "failure_class", "reason_code", "next_action", "user_action_required", "fallback_used", "preflight", "completion_level", "missing_capabilities"):
                 if field in result:
                     item[field] = result[field]
             return item

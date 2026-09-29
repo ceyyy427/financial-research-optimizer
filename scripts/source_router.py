@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from .adapters.factory import DATASETS, IMPLEMENTED_ADAPTERS
+    from .adapters.factory import DATASETS, is_fetch_implemented
+    from .adapters.evidence import get_evidence
     from .adapters.evidence import evaluate_maturity, load_evidence
 except ImportError:
-    from adapters.factory import DATASETS, IMPLEMENTED_ADAPTERS
+    from adapters.factory import DATASETS, is_fetch_implemented
+    from adapters.evidence import get_evidence
     from adapters.evidence import evaluate_maturity, load_evidence
 
 
@@ -48,7 +50,7 @@ class SourceCandidate:
     def as_dict(self, role="primary", required_fields=None):
         profile = self.profile
         dataset_id = profile.get("dataset") or DATASETS.get(profile["source_id"], "default")
-        maturity = evaluate_maturity(profile, profile["source_id"], dataset_id, load_evidence().get(profile["source_id"]), factory_registered=profile["source_id"] in DATASETS, fetch_implemented=profile["source_id"] in IMPLEMENTED_ADAPTERS)
+        maturity = evaluate_maturity(profile, profile["source_id"], dataset_id, get_evidence(profile["source_id"], dataset_id, profile.get("primary_method")), factory_registered=profile["source_id"] in DATASETS, fetch_implemented=is_fetch_implemented(profile["source_id"], dataset_id, profile.get("primary_method")))
         return {
             "source_id": profile["source_id"],
             "role": role,
@@ -119,7 +121,7 @@ class SourceRouter:
 
     def _candidate(self, profile, required_capabilities, required_fields, authorization_status, topic, freshness_minutes, require_executable=False):
         dataset_id = profile.get("dataset") or DATASETS.get(profile["source_id"], "default")
-        maturity = evaluate_maturity(profile, profile["source_id"], dataset_id, load_evidence().get(profile["source_id"]), factory_registered=profile["source_id"] in DATASETS, fetch_implemented=profile["source_id"] in IMPLEMENTED_ADAPTERS)
+        maturity = evaluate_maturity(profile, profile["source_id"], dataset_id, get_evidence(profile["source_id"], dataset_id, profile.get("primary_method")), factory_registered=profile["source_id"] in DATASETS, fetch_implemented=is_fetch_implemented(profile["source_id"], dataset_id, profile.get("primary_method")))
         if require_executable and not maturity["automatic_execution_ready"]:
             return None, [f"adapter is not executable: maturity={maturity['maturity_level']}, manual_review_only={maturity['manual_review_only']}" ]
         missing = [cap for cap in required_capabilities if not self._capability_ok(profile, cap)]

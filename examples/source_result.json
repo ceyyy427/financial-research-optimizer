@@ -1,0 +1,9 @@
+{
+  "raw_snapshot": {"snapshot_hash": "sha256:fixture", "retrieved_at": "2026-09-29T00:00:00Z"},
+  "observations": [{"date": "2020-01-02", "value": 1.88}],
+  "provenance": {"source_id": "fred", "dataset": "series_observations", "point_in_time_status": "verified"},
+  "quality_status": "pass",
+  "limitations": [],
+  "source_capability": {"maturity_level": "L3", "live_certified": false},
+  "freshness": {"status": "fresh", "age_minutes": 0}
+}
