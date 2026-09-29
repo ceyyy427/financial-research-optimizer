@@ -41,10 +41,10 @@ class BaseProvider:
         self.snapshot_store = snapshot_store
         self.user_agent = user_agent
 
-    def request(self, url, params=None, headers=None, ttl_seconds=86400, snapshot=True):
+    def request(self, url, params=None, headers=None, ttl_seconds=86400, snapshot=True, method="GET", body=None):
         merged_headers = {"User-Agent": self.user_agent, "Accept": "application/json", **(headers or {})}
         try:
-            response = self.cache.request("GET", url, params=params, headers=merged_headers, ttl_seconds=ttl_seconds)
+            response = self.cache.request(method, url, params=params, headers=merged_headers, ttl_seconds=ttl_seconds, body=body)
         except Exception as exc:
             raise ProviderError(f"{self.provider_name} request failed: {exc}") from exc
         result = ProviderResponse(**response.__dict__)

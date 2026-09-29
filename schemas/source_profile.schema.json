@@ -33,6 +33,6 @@
     "base_urls": {"type": "array", "items": {"type": "string", "format": "uri"}}
     ,"dataset": {"type": "string"}
     ,"datasets": {"type": "array", "items": {"type": "string"}, "minItems": 1}
-    ,"slo": {"type": "object", "additionalProperties": false, "properties": {"max_latency_ms": {"type": "number", "minimum": 0}, "max_age_minutes": {"type": "number", "minimum": 0}, "max_failure_rate": {"type": "number", "minimum": 0, "maximum": 1}, "max_retries": {"type": "integer", "minimum": 0}, "circuit_breaker_failures": {"type": "integer", "minimum": 1}, "recovery_probe_minutes": {"type": "number", "minimum": 0}}}
+    ,"slo": {"type": "object", "additionalProperties": false, "properties": {"max_latency_ms": {"type": "number", "minimum": 0}, "max_age_minutes": {"type": "number", "minimum": 0}, "max_failure_rate": {"type": "number", "minimum": 0, "maximum": 1}, "max_retries": {"type": "integer", "minimum": 0}, "circuit_breaker_failures": {"type": "integer", "minimum": 1}, "max_consecutive_failures": {"type": "integer", "minimum": 1}, "certification_ttl_hours": {"type": "number", "minimum": 0}, "recovery_probe_minutes": {"type": "number", "minimum": 0}}}
   }
 }

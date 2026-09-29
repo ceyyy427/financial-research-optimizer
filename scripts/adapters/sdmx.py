@@ -32,4 +32,11 @@ class SdmxAdapter(SourceAdapter):
         payload = self.provider.fetch_data(flow_ref, request.params.get("key", ""), request.start, request.end)
         response = payload["response"]
         rows = parse("ecb_sdmx_json" if request.source_id == "ecb_sdmx" else "bis_sdmx_json", payload["data"], instrument_id=request.instrument or flow_ref, source_url=response.request_url)
+        # SDMX responses are certified against the provider's current vintage,
+        # not an invented historical release timestamp.  Downstream audits can
+        # therefore use vintage-aware semantics while still rejecting claims
+        # that require an exact release-time join.
+        for row in rows:
+            row["point_in_time_status"] = "vintage_aware"
+            row["revision_status"] = "vintage_aware"
         return SourceResult(response.snapshot, rows, {"source_id": request.source_id, "dataset": request.dataset, "request": request.as_dict()}, "pass" if rows else "degraded", [] if rows else ["empty SDMX response"])

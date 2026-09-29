@@ -47,8 +47,8 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _hash_request(method, url, params, headers):
-    material = json.dumps({"method": method, "url": url, "params": _redact_params(params), "headers": _redact_params(headers)}, sort_keys=True, separators=(",", ":"))
+def _hash_request(method, url, params, headers, body=None):
+    material = json.dumps({"method": method, "url": url, "params": _redact_params(params), "headers": _redact_params(headers), "body": body.decode("utf-8", "replace") if isinstance(body, bytes) else body}, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
@@ -103,12 +103,12 @@ class HttpCache:
         }
         meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    def _network(self, method, url, params, headers, timeout):
+    def _network(self, method, url, params, headers, timeout, body=None):
         request_url = _url_with_params(url, params)
         if self.transport:
             status, response_headers, body = self.transport(method, request_url, headers or {}, timeout)
             return status, dict(response_headers or {}), body if isinstance(body, bytes) else str(body).encode("utf-8"), request_url
-        request = Request(request_url, headers=headers or {}, method=method.upper())
+        request = Request(request_url, data=body, headers=headers or {}, method=method.upper())
         try:
             with urlopen(request, timeout=timeout) as response:
                 return response.status, dict(response.headers.items()), response.read(), request_url
@@ -118,10 +118,10 @@ class HttpCache:
         except URLError as exc:
             raise HttpRequestError(f"network error for {request_url}: {exc.reason}") from exc
 
-    def request(self, method, url, params=None, headers=None, ttl_seconds=86400, timeout=30, allow_stale=True):
+    def request(self, method, url, params=None, headers=None, ttl_seconds=86400, timeout=30, allow_stale=True, body=None):
         params = dict(params or {})
         headers = dict(headers or {})
-        key = _hash_request(method.upper(), url, params, headers)
+        key = _hash_request(method.upper(), url, params, headers, body)
         cached = self._load(key)
         if cached:
             try:
@@ -132,19 +132,19 @@ class HttpCache:
                 return cached
 
         def operation():
-            status, response_headers, body, request_url = self._network(method, url, params, headers, timeout)
+            status, response_headers, response_body, request_url = self._network(method, url, params, headers, timeout, body=body)
             if status >= 400:
                 raise HttpRequestError(f"HTTP {status} for {request_url}", status=status)
             now = self.clock()
             return CachedResponse(
                 status=status,
                 headers=response_headers,
-                body=body,
+                body=response_body,
                 request_url=_redact_url(request_url),
                 request_params=_redact_params(params),
                 retrieved_at=_now(),
                 cache_expiry=str(now + max(0, ttl_seconds)),
-                response_hash=hashlib.sha256(body).hexdigest(),
+                response_hash=hashlib.sha256(response_body).hexdigest(),
                 raw_file="",
             )
 

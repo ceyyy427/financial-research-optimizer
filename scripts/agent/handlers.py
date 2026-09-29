@@ -184,7 +184,7 @@ def _minimum_analysis(contract, rows, source):
     if not values:
         return None
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source and source.exists() else hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
-    code_version = "financial-research-optimizer-0.8.2"
+    code_version = "financial-research-optimizer-0.9.0"
     calc_id = "calc_" + hashlib.sha256((source_hash + code_version).encode()).hexdigest()[:12]
     mean_value = statistics.fmean(values)
     metric = {"metric_id": "baseline_mean", "value": mean_value, "calculation_id": calc_id, "input_hash": source_hash, "code_version": code_version, "formula": "mean(value[0:n])", "source_ids": [str(contract.get("source_id", "local_dataset"))], "input_files": [str(source)] if source else []}
@@ -198,7 +198,7 @@ def _minimum_analysis(contract, rows, source):
         "series": values[-60:], "series_lineage_refs": refs,
         "charts": [{"chart_id": "observed_values", "title": "Observed values and baseline", "type": "line", "labels": [str(i + 1) for i in range(len(values[-60:]))], "series": [{"name": "observed", "values": values[-60:]}, {"name": "baseline", "values": [mean_value] * len(values[-60:])}], "description": "Values read from the supplied dataset.", "lineage_refs": refs}],
         "modules": [{"module_id": "baseline", "title": "Baseline forecast", "status": "warning", "summary": "Historical mean baseline; no model comparison was run.", "evidence_refs": refs, "caveats": ["Use rolling evaluation before relying on the estimate."], "next_check": "run forecasting with a point-in-time dataset"}],
-        "model_cards": [{"model_id": "historical_mean_baseline", "version": "0.8.2", "estimand": "conditional mean proxy", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "regime change", "status": "challenger"}, {"model_id": "naive_last_value", "version": "0.8.2", "estimand": "one-step persistence", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "price jump", "status": "challenger"}],
+        "model_cards": [{"model_id": "historical_mean_baseline", "version": "0.9.0", "estimand": "conditional mean proxy", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "regime change", "status": "challenger"}, {"model_id": "naive_last_value", "version": "0.9.0", "estimand": "one-step persistence", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "price jump", "status": "challenger"}, {"model_id": "rolling_mean_baseline", "version": "0.9.0", "estimand": "trailing-window mean", "objective": "baseline", "validation_protocol": "expanding_window", "overfitting_diagnostics": "not_applicable", "failure_mode": "window sensitivity", "status": "challenger"}],
         "selection_protocol": {"layers": ["statistical_validity", "predictive_performance", "economic_effectiveness"], "criteria": ["statistical_validity", "predictive_performance", "economic_effectiveness", "regime_stability", "seed_window_sensitivity"], "primary_metric": "baseline_mean", "status": "baseline_only"},
         "decision_rows": [{"priority": "P1", "module": "forecast", "current_view": "baseline only", "action": "validate before use", "trigger": "new point-in-time data", "evidence": "baseline_mean", "risk": "model and data uncertainty", "horizon": str(contract.get("horizon", "unspecified")), "next_check": "rolling evaluation"}],
         "result_lineage": {"metrics": [metric], "status": "pass", "lineage_refs": refs}, "sources": [{"id": str(contract.get("source_id", "local_dataset")), "label": "supplied dataset"}],
@@ -278,22 +278,32 @@ def _run_models(contract, node):
     values = _numeric_series(rows)
     source_hash = analysis["result_lineage"]["metrics"][0]["input_hash"]
     metric_refs = analysis["result_lineage"]["metric_ids"] if "metric_ids" in analysis["result_lineage"] else ["baseline_mean"]
-    forecasts, actuals, mean_forecasts = [], [], []
+    forecasts, actuals, mean_forecasts, rolling_forecasts = [], [], [], []
+    rolling_window = max(2, min(20, len(values) // 4 or 2))
     for index in range(1, len(values)):
         forecasts.append(values[index - 1])
         actuals.append(values[index])
         mean_forecasts.append(statistics.fmean(values[:index]))
+        rolling_forecasts.append(statistics.fmean(values[max(0, index - rolling_window):index]))
     errors = [actual - forecast for actual, forecast in zip(actuals, forecasts)]
     mean_errors = [actual - forecast for actual, forecast in zip(actuals, mean_forecasts)]
+    rolling_errors = [actual - forecast for actual, forecast in zip(actuals, rolling_forecasts)]
     rmse = (statistics.fmean([error * error for error in errors]) ** 0.5) if errors else None
     mean_rmse = (statistics.fmean([error * error for error in mean_errors]) ** 0.5) if mean_errors else None
-    selected = "naive_last_value" if rmse is not None and (mean_rmse is None or rmse <= mean_rmse) else "historical_mean_baseline"
-    rolling = {"status": "pass" if errors else "not_available", "models": [{"model_id": "naive_last_value", "n_predictions": len(errors), "rmse": rmse, "lineage_refs": metric_refs}, {"model_id": "historical_mean_baseline", "n_predictions": len(mean_errors), "rmse": mean_rmse, "lineage_refs": metric_refs}], "selected_model": selected, "protocol": {"type": "expanding_window", "minimum_train": 1, "horizon": 1}, "uncertainty_status": "not_calibrated", "input_hash": source_hash}
+    rolling_rmse = (statistics.fmean([error * error for error in rolling_errors]) ** 0.5) if rolling_errors else None
+    scores = {"naive_last_value": rmse, "historical_mean_baseline": mean_rmse, "rolling_mean_baseline": rolling_rmse}
+    selected = min((key for key, value in scores.items() if value is not None), key=lambda key: scores[key], default="historical_mean_baseline")
+    selected_errors = {"naive_last_value": errors, "historical_mean_baseline": mean_errors, "rolling_mean_baseline": rolling_errors}[selected]
+    residual_std = statistics.stdev(selected_errors) if len(selected_errors) > 1 else None
+    point = {"naive_last_value": forecasts[-1] if forecasts else values[-1], "historical_mean_baseline": mean_forecasts[-1] if mean_forecasts else statistics.fmean(values), "rolling_mean_baseline": rolling_forecasts[-1] if rolling_forecasts else statistics.fmean(values)}[selected]
+    interval = [point - 1.645 * residual_std, point + 1.645 * residual_std] if residual_std is not None else None
+    rolling = {"status": "pass" if errors else "not_available", "models": [{"model_id": model, "n_predictions": len(errors), "rmse": score, "lineage_refs": metric_refs} for model, score in scores.items()], "selected_model": selected, "selection_metric": "rmse", "protocol": {"type": "expanding_window", "minimum_train": 1, "horizon": 1, "evaluation_window": len(errors)}, "residuals": selected_errors, "residual_interval": interval, "interval_method": "1.645 residual standard deviations", "calibration_status": "not_calibrated", "ood_status": "not_checked", "input_hash": source_hash}
     rolling_path = _write_json(_artifact_dir(contract) / "rolling_evaluation.json", rolling)
-    forecast_contract = {"target": str(contract.get("target", "value")), "forecast_types": ["point", "interval"], "metrics": {"primary": ["rmse"], "calibration": ["not_calibrated"]}, "validity_conditions": ["point-in-time audit passes", "rolling evaluation is out of sample"], "known_failure_modes": ["regime change", "small sample"], "ood_status": "not_checked"}
+    forecast_contract = {"target": str(contract.get("target", "value")), "forecast_origin": datetime.now(timezone.utc).isoformat(), "horizon": contract.get("horizon", 1), "forecast_types": ["point", "interval"], "selected_model": selected, "selection_metric": "rmse", "evaluation_window": len(errors), "interval_method": "1.645 residual standard deviations", "calibration_status": "not_calibrated", "metrics": {"primary": ["rmse"], "calibration": ["not_calibrated"]}, "validity_conditions": ["point-in-time audit passes", "rolling evaluation is out of sample", "interval is an uncalibrated residual approximation"], "known_failure_modes": ["regime change", "small sample", "window sensitivity"], "ood_status": "not_checked"}
+    analysis["forecast"].update({"value": point, "interval": interval or "not_available", "model": selected, "calibration_status": "not_calibrated", "ood_status": "not_checked"})
     analysis["forecast_contract"] = forecast_contract
-    analysis["model_cards"][0]["status"] = "selected" if selected == "historical_mean_baseline" else "challenger"
-    analysis["model_cards"][1]["status"] = "selected" if selected == "naive_last_value" else "challenger"
+    for card in analysis["model_cards"]:
+        card["status"] = "selected" if card["model_id"] == selected else "challenger"
     path = _write_json(_artifact_dir(contract) / "analysis.json", analysis)
     return {"status": "passed", "message": "naive and historical-mean baselines with rolling evaluation created", "artifacts": [path, rolling_path], "provenance": {"model": "historical_mean_baseline+naive_last_value", "experiment_id": analysis["experiment_id"], "uncertainty_status": "not_calibrated"}}
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 
-HEALTH_MULTIPLIER = {"healthy": 1.0, "degraded": 0.75, "stale": 0.45, "failed": 0.0, "unknown": 0.5}
+HEALTH_MULTIPLIER = {"healthy": 1.0, "degraded": 0.75, "stale": 0.45, "fallback": 0.45, "circuit_open": 0.0, "recovery_probe": 0.35, "blocked": 0.0, "failed": 0.0, "unknown": 0.5}
 
 
 def normalize_health(source_id, health=None):

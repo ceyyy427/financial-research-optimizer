@@ -92,8 +92,14 @@ def live(source_id, dataset_id, url, instrument, registry, output_dir, params, a
     capability = result.get("source_capability", {}) if isinstance(result.get("source_capability"), dict) else {}
     capability_evidence = capability.get("evidence", {}) if isinstance(capability.get("evidence"), dict) else {}
     result["health_status"] = "healthy" if result.get("status") == "passed" else "failed"
-    result["point_in_time_status"] = capability_evidence.get("point_in_time_status", "not_available")
-    result["revision_status"] = capability_evidence.get("revision_status", "not_run")
+    normalized_rows = []
+    if result.get("normalized_file") and Path(result["normalized_file"]).exists():
+        try:
+            normalized_rows = json.loads(Path(result["normalized_file"]).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            normalized_rows = []
+    result["point_in_time_status"] = "verified" if normalized_rows and all(row.get("point_in_time_status") in {"pass", "verified", "vintage_aware"} for row in normalized_rows) else "not_available"
+    result["revision_status"] = "verified" if normalized_rows and all(row.get("revision_status") in {"verified", "revision_aware", "vintage_aware"} for row in normalized_rows) else capability_evidence.get("revision_status", "not_run")
     result["smoke_status"] = "passed" if result.get("status") == "passed" else "blocked"
     return result
 

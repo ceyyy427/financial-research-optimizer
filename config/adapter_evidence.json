@@ -2,6 +2,36 @@
   "schema_version": "adapter_evidence.v1",
   "datasets": [
     {
+      "source_id": "pbc",
+      "dataset_id": "macro_series",
+      "access_method": "verified_snapshot",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "fallback",
+      "point_in_time_status": "not_available",
+      "revision_status": "not_run",
+      "fallback_fetch_status": "passed"
+    },
+    {
+      "source_id": "cninfo",
+      "dataset_id": "announcements_pdf",
+      "access_method": "verified_snapshot",
+      "contract_status": "complete",
+      "fixture_status": "passed",
+      "integration_status": "passed",
+      "quality_gate_status": "passed",
+      "live_smoke_status": "not_run",
+      "health_status": "unknown",
+      "freshness_status": "fallback",
+      "point_in_time_status": "not_available",
+      "revision_status": "not_run",
+      "fallback_fetch_status": "passed"
+    },
+    {
       "source_id": "sse",
       "dataset_id": "market_file",
       "access_method": "verified_snapshot",
@@ -24,11 +54,13 @@
       "fixture_status": "passed",
       "integration_status": "passed",
       "quality_gate_status": "passed",
-      "live_smoke_status": "not_run",
-      "health_status": "unknown",
-      "freshness_status": "not_run",
-      "point_in_time_status": "verified",
-      "revision_status": "verified"
+      "live_smoke_status": "passed",
+      "health_status": "healthy",
+      "freshness_status": "fresh",
+      "point_in_time_status": "not_available",
+      "revision_status": "vintage_aware",
+      "snapshot_hash": "sha256:c915ab1d3a59b7fe37b3da623e907b2a9a7b2cc259d86630307029ab44f8cf97",
+      "last_live_success_at": "2026-09-29T05:45:54.425198+00:00"
     },
     {
       "source_id": "10jqka",
@@ -97,11 +129,14 @@
       "fixture_status": "passed",
       "integration_status": "passed",
       "quality_gate_status": "passed",
-      "live_smoke_status": "not_run",
-      "health_status": "unknown",
-      "freshness_status": "not_run",
+      "live_smoke_status": "passed",
+      "health_status": "healthy",
+      "freshness_status": "fresh",
       "point_in_time_status": "verified",
-      "revision_status": "revision_aware"
+      "revision_status": "revision_aware",
+      "snapshot_hash": "6357ca1aae1fd8c7bc5b704ef574a6070da8ec3dc14156c55931da340cbca57e",
+      "last_live_success_at": "2026-09-29T05:48:25.668140+00:00",
+      "certification_expires_at": "2026-10-06T00:00:00Z"
     },
     {
       "source_id": "bis_sdmx",

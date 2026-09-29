@@ -4,7 +4,15 @@
 
 它按 `minimal`、`standard`、`research_grade`、`portfolio_grade` 四个输出等级运行；每次运行先通过 `run_preflight.py`，再进入数据、模型、回测和组合阶段。
 
-当前稳定版本：[`v0.8.2 — Semantic and Certification Hardening`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.8.2)。
+当前稳定版本：[`v0.9.0 — Online Source Grid & Research-grade Forecasting`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v0.9.0)。
+
+### v0.9.0 更新摘要
+
+- 接入国家数据新版公开接口的真实 live smoke；记录 HTTP、快照哈希、schema fingerprint、freshness、health 和 revision。由于该接口不提供历史 release/availability 时间，结果明确保持 `point_in_time_status=not_available`，不会错误升级为 L4。
+- ECB SDMX 完成真实 live smoke 与 L4 认证；认证仍要求 live smoke、health、freshness、PIT/vintage、revision、snapshot hash 和有效期。
+- SSE、PBC、CNINFO 均提供显式 `verified_snapshot` 降级记录，状态网格将其标记为 degraded，不与实时官方抓取混淆。
+- 默认 forecasting baseline 现在比较 historical mean、naive last value 和 rolling mean，并输出 expanding-window RMSE、残差区间、selection metric、calibration status 和 OOD status。
+- 新增 `fro-maturity-report`、`fro-forecast`；MCP 状态返回 stage、progress、source_status、freshness_status、next_action 和 user_action_required。
 
 ### v0.8.2 更新摘要
 

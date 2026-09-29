@@ -30,7 +30,20 @@ class StatsGovCnAdapter(CatalogSourceAdapter):
     def fetch(self, url, params=None, instrument_id=None):
         if isinstance(url, SourceRequest):
             return self.fetch_request(url)
-        response = self.provider.request(url, params=params, ttl_seconds=3600, snapshot=True)
+        params = dict(params or {})
+        if params.get("cid") and (params.get("indicator_id") or params.get("indicator_ids")):
+            body = {
+                "cid": params["cid"],
+                "indicatorIds": params.get("indicator_ids") or [params["indicator_id"]],
+                "das": params.get("das") or [{"text": "全国", "value": "000000000000"}],
+                "dts": params.get("dts") or ["202501MM-202612MM"],
+                "showType": str(params.get("show_type", "1")),
+                "rootId": params.get("root_id", "fc982599aa684be7969d7b90b1bd0e84"),
+            }
+            endpoint = url.rstrip("/") + "/dg/website/publicrelease/web/external/stream/esData" if "/dg/" not in url else url.rstrip("/") + "/stream/esData"
+            response = self.provider.request(endpoint, headers={"Content-Type": "application/json", "Accept": "application/json"}, ttl_seconds=3600, snapshot=True, method="POST", body=__import__("json").dumps(body, ensure_ascii=False).encode("utf-8"))
+        else:
+            response = self.provider.request(url, params=params, ttl_seconds=3600, snapshot=True)
         payload = self.provider.parse_json(response)
         rows = parse(self.profile["parser"], payload, instrument_id=instrument_id, source_url=url)
         snapshot = dict(response.snapshot or {})
