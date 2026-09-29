@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-research-optimizer"
-version = "1.2.0"
+version = "1.2.1"
 description = "Auditable, point-in-time financial research workflow with offline artifacts."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -53,3 +53,6 @@ addopts = "-q"
 
 [tool.setuptools.packages.find]
 include = ["scripts*", "financial_research*", "mcp_server*"]
+
+[tool.setuptools.package-data]
+"scripts.ui" = ["*.js"]
