@@ -13,10 +13,10 @@ test:
 	$(PYTEST) -q
 
 lint:
-	$(RUFF) check src/finahinking/__init__.py tests/test_environment.py
+	$(RUFF) check src tests scripts
 
 notebook-check:
-	$(PYTHON) -m jupyter nbconvert --to notebook --execute --inplace notebooks/01_research_workflow.ipynb
+	$(PYTHON) -m jupyter nbconvert --to notebook --execute --output /tmp/finahinking_research_workflow_executed.ipynb notebooks/01_research_workflow.ipynb
 
 p1-gate: test lint notebook-check
 	@echo 'P1 gate checks passed'

@@ -10,16 +10,16 @@ when the P1 environment is created.
 P0 uses only the Python standard library for governance validation. There are
 no runtime or development package dependencies in this phase.
 
-## Planned P1 dependencies
+## P1–P3 dependencies
 
 | Package | Role | Scope | Owner | Pinning status |
 | --- | --- | --- | --- | --- |
-| `numpy` | Numerical arrays for feature calculations | Runtime | Finahinking maintainers | To be pinned in P1 |
-| `pandas` | Indexed datasets and tabular transformations | Runtime | Finahinking maintainers | To be pinned in P1 |
-| `pytest` | Test runner | Development | Finahinking maintainers | To be pinned in P1 |
-| `ruff` | Static checks and formatting | Development | Finahinking maintainers | To be pinned in P1 |
-| `jupyterlab` | Reproducible research workspace | Research | Finahinking maintainers | To be pinned in P1 |
-| `ipykernel` | Notebook kernel | Research | Finahinking maintainers | To be pinned in P1 |
+| `numpy` | Numerical arrays for feature calculations | Runtime | Finahinking maintainers | `requirements.lock` |
+| `pandas` | Indexed datasets and tabular transformations | Runtime | Finahinking maintainers | `requirements.lock` |
+| `pytest` | Test runner | Development | Finahinking maintainers | `requirements.lock` |
+| `ruff` | Static checks and formatting | Development | Finahinking maintainers | `requirements.lock` |
+| `jupyterlab` | Reproducible research workspace | Research | Finahinking maintainers | `requirements.lock` |
+| `ipykernel` | Notebook kernel | Research | Finahinking maintainers | `requirements.lock` |
 
 Adding or upgrading a package requires a purpose, a compatibility note, a
 review, and an update to this record and the lock file.

@@ -24,7 +24,8 @@ recorded fixtures by default.
 - `fixtures/` — deterministic, reviewed input data for tests.
 - `tests/` — unit and integration checks that do not require live network access.
 - `docs/` — phase gates and the authoritative project state.
-- `.agents/` — role contracts for research, implementation, and review.
+- `.agents/` — role contracts for orchestration, planning, architecture,
+  implementation, security, dependency control, release, research, and review.
 
 ## Development
 
