@@ -5,17 +5,18 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P4.5 Research OS Validation
+- Current phase: P5 Quant Engine Foundation
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
 - P3 gate: PASS
 - P4 gate: PASS
-- Next action: P5 human approval
-- Next: P5 Human Approval
+- Next action: P5 Gate Review
+- Next: P5 Gate Review
 - P4 status: frozen
-- P5 status: waiting for human approval
-- P5 implementation scope: out of scope until human approval
+- P4.5 Research OS Validation: PASS
+- P5 status: implementation in progress
+- P5 implementation scope: historical research only; no trading or broker integration
 - P4 architecture freeze: `docs/architecture/P4_ARCHITECTURE_FREEZE.md`
 - P4.5 audit plan: `docs/reviews/P4_5_AUDIT_PLAN.md`
 - P4.5 final validation: `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`
@@ -29,6 +30,9 @@ Phase changes require the corresponding gate design and an independent review.
 - P6 readiness audit: `docs/reviews/P6_READINESS_AUDIT.md`
 - Agent readiness audit: `docs/reviews/AGENT_READINESS_AUDIT.md`
 - Dependency audit: `docs/reviews/DEPENDENCY_AUDIT.md`
+- P5 component admission: `docs/p5/COMPONENT_ADMISSION_MATRIX.md`
+- P5 dependency plan: `docs/p5/DEPENDENCY_PLAN.md`
+- P5 gate review: `docs/phases/P5_GATE_REVIEW.md`
 - P4 philosophy review: `docs/reviews/P4_PHILOSOPHY_REVIEW.md`
 - P5 readiness review: `docs/reviews/P5_READINESS_REVIEW.md`
 - P5 dependency decision: `docs/P5_DEPENDENCY_DECISION.md`
@@ -49,10 +53,11 @@ Phase changes require the corresponding gate design and an independent review.
 | P3 | PASS | `docs/phases/P3_GATE_REVIEW.md`, full test and lint evidence |
 | P4 | PASS | `docs/phases/P4_GATE_REVIEW.md`, `docs/architecture/P4_ARCHITECTURE_FREEZE.md`, `docs/P4_FREEZE_COMPLETION_REPORT.md`, 32 tests |
 | P4.5 | PASS | `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`, 36 tests, notebook execution, dependency audit |
+| P5 | IN PROGRESS | `docs/p5/COMPONENT_ADMISSION_MATRIX.md`, `docs/phases/P5_GATE_REVIEW.md` |
 
 ## Constraints
 
 No secrets, trading automation, investment advice, or unsafe network shortcuts
 are permitted. Tests use deterministic fixtures by default. The project stops at
-P4.5 Research OS Validation and waits for P5 human approval. Do not begin P5 without
-explicit approval.
+P5 Quant Engine Foundation and stops at the P5 Gate Review. P6 remains out of scope
+until explicit approval. No broker, live trading, or investment advice is permitted.

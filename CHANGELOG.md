@@ -21,3 +21,6 @@ phase gate where possible.
   experiment lifecycle, provenance, quantitative validity, user workflow, P5/P6,
   future agent boundaries, and dependencies. P4 remains frozen; P5 remains
   unimplemented pending human approval.
+- Began the approved P5 Quant Engine Foundation with component admission,
+  dependency policy, and a P5-specific gate review. The runtime remains
+  research-only and uses no newly installed external quant dependency.

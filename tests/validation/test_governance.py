@@ -205,6 +205,28 @@ class GovernanceValidatorTests(unittest.TestCase):
             output = result.stdout + result.stderr
             self.assertIn("P4 gate: PASS", output)
 
+    def test_validator_accepts_p5_foundation_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P5 Quant Engine Foundation\n"
+                    "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\n"
+                    "P3 gate: PASS\nP4 gate: PASS\n"
+                    "P4.5 Research OS Validation: PASS\n"
+                    "Next action: P5 Gate Review\n"
+                    "P6 implementation scope: out of scope until approval",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_validator(tmp_path)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
