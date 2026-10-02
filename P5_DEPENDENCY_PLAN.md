@@ -1,6 +1,6 @@
 # P5 Dependency Plan
 
-**Status:** Evaluation only; do not install during P4 review.  
+**Status:** Evaluation only; do not install during P4 review.
 **Decision:** No P5 dependency is approved.
 
 This plan compares possible tools for a future backtest/evaluation phase. It is

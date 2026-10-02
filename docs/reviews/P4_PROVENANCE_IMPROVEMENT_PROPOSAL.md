@@ -1,6 +1,6 @@
 # P4 Provenance Improvement Proposal
 
-**Status:** Deferred; not implemented in P4  
+**Status:** Deferred; not implemented in P4
 **Reason:** The current P4 record is reproducible for its local inputs, but a
 complete answer to “How was this result produced?” needs stronger environment,
 source, implementation, and validation identity.

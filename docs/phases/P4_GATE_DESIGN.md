@@ -11,7 +11,7 @@ reproduce it locally.
 - A validated dataset and factor produce a complete ResearchRun.
 - The run round-trips through local JSON storage.
 - Reproduction returns an identical result fingerprint.
-- Dataset or parameter drift is detected and reported.
+- Dataset or resulting experiment drift is detected and reported.
 
 ## Architecture requirements
 

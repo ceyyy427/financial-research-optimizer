@@ -1,6 +1,6 @@
 # P5 Gate Design — Backtest and Evaluation Engine
 
-**Status:** Design only; P5 implementation is forbidden until human approval.  
+**Status:** Design only; P5 implementation is forbidden until human approval.
 **Precondition:** P0–P4 gates PASS and the P4 final review is accepted.
 
 ## 1. P5 objective

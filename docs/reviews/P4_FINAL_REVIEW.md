@@ -1,7 +1,7 @@
 # P4 Final Architecture Review
 
-**Review date:** 2026-10-02  
-**Scope:** P4 foundation only; no P5 implementation  
+**Review date:** 2026-10-02
+**Scope:** P4 foundation only; no P5 implementation
 **Verdict:** **P4 FOUNDATION STABLE**
 
 ## Review question
@@ -35,8 +35,10 @@ record as canonical JSON.
   return horizon and one-period factor shift.
 - Result fingerprints cover the dataset fingerprint, factor definition, method,
   parameters, and result values.
-- Reproduction rejects dataset, factor, and result drift before treating a run
-  as reproduced.
+- Reproduction rejects dataset drift and any resulting factor/method/parameter
+  drift before treating a run as reproduced. It deliberately replays the
+  recorded parameters; it does not yet accept a separate candidate parameter
+  mapping for an explicit parameter-sensitivity comparison.
 - Canonical JSON and local atomic writes make records portable and recoverable
   without pickle or stored-code execution.
 
@@ -73,6 +75,9 @@ requires changing the frozen P4 API before human review:
    simulator, causal estimator, or multiple-testing correction system.
 6. **The storage boundary is local.** There is no index, graph edge model,
    remote collaboration, or conflict-resolution protocol.
+7. **Parameter comparison is replay-only.** `reproduce` reuses the recorded
+   configuration, so explicit alternate-parameter drift reporting remains a
+   future requirement rather than a P4 API capability.
 
 The provenance gaps and proposed future acceptance tests are recorded in
 `docs/reviews/P4_PROVENANCE_IMPROVEMENT_PROPOSAL.md`; they are not implemented
