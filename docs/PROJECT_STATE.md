@@ -5,20 +5,25 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P5 Quant Engine Foundation
+- Current phase: P5.5 Quant Platform Stabilization
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
 - P3 gate: PASS
 - P4 gate: PASS
-- Next action: P6 human approval
-- Next: P6 Human Approval
+- Next action: continue directly into P6 Guided Quant Research & Learning
+- Next: P6 Guided Quant Research & Learning
 - P4 status: frozen
 - P4.5 Research OS Validation: PASS
 - P5 status: PASS
 - P5 implementation scope: historical research only; no trading or broker integration
 - P5 gate: PASS
-- P6 implementation scope: out of scope until human approval
+- P5.5 status: COMPLETE
+- P5.5 gate: PASS
+- P5.5 readiness: A — READY FOR P6
+- P6 implementation scope: guided, typed, human-controlled research and learning only
+- P6 status: ACTIVE after P5.5 Gate A; stop after P6 Gate Review
+- P7: WAITING FOR HUMAN APPROVAL
 - P4 architecture freeze: `docs/architecture/P4_ARCHITECTURE_FREEZE.md`
 - P4.5 audit plan: `docs/reviews/P4_5_AUDIT_PLAN.md`
 - P4.5 final validation: `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`
@@ -39,6 +44,10 @@ Phase changes require the corresponding gate design and an independent review.
 - P5 adapter architecture: `docs/p5/ADAPTER_ARCHITECTURE.md`
 - P5 portfolio layer: `docs/p5/PORTFOLIO_LAYER.md`
 - P5 final validation: `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`
+- P5.5 validity contract: `docs/p5_5/QUANT_RESEARCH_VALIDITY_CONTRACT.md`
+- P5.5 tool API: `docs/p5_5/P5_5_TOOL_API_SPEC.md`
+- P5.5 final validation: `docs/p5_5/P5_5_FINAL_VALIDATION_REPORT.md`
+- P6 readiness: `docs/p5_5/P6_READINESS_REPORT.md`
 - P4 philosophy review: `docs/reviews/P4_PHILOSOPHY_REVIEW.md`
 - P5 readiness review: `docs/reviews/P5_READINESS_REVIEW.md`
 - P5 dependency decision: `docs/P5_DEPENDENCY_DECISION.md`
@@ -64,6 +73,7 @@ Phase changes require the corresponding gate design and an independent review.
 ## Constraints
 
 No secrets, trading automation, investment advice, or unsafe network shortcuts
-are permitted. Tests use deterministic fixtures by default. The project stops at
-P5 Quant Engine Foundation and stops at the P5 Gate Review. P6 remains out of scope
-until explicit approval. No broker, live trading, or investment advice is permitted.
+are permitted. Tests use deterministic fixtures by default. P5.5 is frozen and
+P6 is limited to guided, typed, human-controlled research and learning. The
+project stops after the P6 Gate Review; P7, brokerage, live trading, and
+investment advice remain out of scope.
