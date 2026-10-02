@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
@@ -116,6 +116,10 @@ class PaperSignal:
     target_weight: float
     reason: str
     strategy_version: str
+    feature_versions: tuple[str, ...] = ()
+    observation_time: str | None = None
+    signal_time: str | None = None
+    decision_values: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         weight = _finite(self.target_weight, "target_weight")
@@ -125,9 +129,13 @@ class PaperSignal:
             raise ValueError("reason is required")
         object.__setattr__(self, "target_weight", weight)
         object.__setattr__(self, "timestamp", pd.Timestamp(self.timestamp).isoformat())
+        object.__setattr__(self, "feature_versions", tuple(str(value) for value in self.feature_versions))
+        object.__setattr__(self, "observation_time", pd.Timestamp(self.observation_time or self.timestamp).isoformat())
+        object.__setattr__(self, "signal_time", pd.Timestamp(self.signal_time or self.timestamp).isoformat())
+        object.__setattr__(self, "decision_values", dict(self.decision_values))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"timestamp": self.timestamp, "target_weight": self.target_weight, "reason": self.reason, "strategy_version": self.strategy_version}
+        return {"timestamp": self.timestamp, "target_weight": self.target_weight, "reason": self.reason, "strategy_version": self.strategy_version, "feature_versions": list(self.feature_versions), "observation_time": self.observation_time, "signal_time": self.signal_time, "decision_values": _safe(self.decision_values)}
 
 
 @dataclass(frozen=True)
@@ -138,6 +146,10 @@ class VirtualOrder:
     target_weight: float
     signal_timestamp: str
     reason: str
+    instrument: str = "asset"
+    eligible_fill_time: str | None = None
+    fill_price_rule: str = "next_valid_price"
+    status: str = "filled"
 
     def __post_init__(self) -> None:
         if self.side not in {"buy", "sell"}:
@@ -149,11 +161,20 @@ class VirtualOrder:
         object.__setattr__(self, "target_weight", _finite(self.target_weight, "target_weight"))
         object.__setattr__(self, "timestamp", pd.Timestamp(self.timestamp).isoformat())
         object.__setattr__(self, "signal_timestamp", pd.Timestamp(self.signal_timestamp).isoformat())
+        object.__setattr__(self, "eligible_fill_time", pd.Timestamp(self.eligible_fill_time or self.timestamp).isoformat())
+        if not isinstance(self.instrument, str) or not self.instrument.strip():
+            raise ValueError("instrument is required")
+        if self.status not in {"created", "filled", "cancelled"}:
+            raise ValueError("order status is invalid")
         if not isinstance(self.reason, str) or not self.reason.strip():
             raise ValueError("reason is required")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"timestamp": self.timestamp, "side": self.side, "quantity": self.quantity, "target_weight": self.target_weight, "signal_timestamp": self.signal_timestamp, "reason": self.reason}
+        return {"timestamp": self.timestamp, "side": self.side, "quantity": self.quantity, "target_weight": self.target_weight, "signal_timestamp": self.signal_timestamp, "reason": self.reason, "instrument": self.instrument, "eligible_fill_time": self.eligible_fill_time, "fill_price_rule": self.fill_price_rule, "status": self.status}
+
+    @property
+    def created_at(self) -> str:
+        return self.timestamp
 
 
 @dataclass(frozen=True)
@@ -167,6 +188,7 @@ class VirtualFill:
     fees: float
     slippage: float
     order_timestamp: str
+    instrument: str = "asset"
 
     def __post_init__(self) -> None:
         if self.side not in {"buy", "sell"}:
@@ -182,9 +204,14 @@ class VirtualFill:
             raise ValueError("notional does not match quantity and execution_price")
         object.__setattr__(self, "timestamp", pd.Timestamp(self.timestamp).isoformat())
         object.__setattr__(self, "order_timestamp", pd.Timestamp(self.order_timestamp).isoformat())
+        object.__setattr__(self, "instrument", str(self.instrument))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"timestamp": self.timestamp, "side": self.side, "quantity": self.quantity, "reference_price": self.reference_price, "execution_price": self.execution_price, "notional": self.notional, "fees": self.fees, "slippage": self.slippage, "order_timestamp": self.order_timestamp}
+        return {"timestamp": self.timestamp, "side": self.side, "quantity": self.quantity, "reference_price": self.reference_price, "execution_price": self.execution_price, "notional": self.notional, "fees": self.fees, "slippage": self.slippage, "order_timestamp": self.order_timestamp, "instrument": self.instrument}
+
+    @property
+    def cost(self) -> float:
+        return self.fees
 
 
 @dataclass(frozen=True)
@@ -222,6 +249,14 @@ class PaperRun:
     portfolios: tuple[VirtualPortfolio, ...]
     approved_data_reference: str
     limitations: tuple[str, ...] = ("historical replay only", "not broker-connected", "not a forecast or guarantee")
+    paper_run_id: str = "paper-run"
+    data_source: str = "approved_replay"
+    started_at: str = ""
+    simulation_clock: str = "virtual_clock"
+    initial_capital: float | None = None
+    status: str = "completed"
+    benchmark: str = "buy_and_hold"
+    provenance: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.dataset_fingerprint or not self.approved_data_reference:
@@ -237,14 +272,47 @@ class PaperRun:
         if any(name.casefold() in {"broker", "account", "credential", "secret", "endpoint"} for name in self.__dict__):
             raise ValueError("paper run contains a forbidden broker field")
         object.__setattr__(self, "limitations", tuple(str(item) for item in self.limitations))
+        if not isinstance(self.paper_run_id, str) or not self.paper_run_id.strip():
+            raise ValueError("paper_run_id is required")
+        if self.status not in {"created", "running", "completed", "failed"}:
+            raise ValueError("paper run status is invalid")
+        if self.initial_capital is None:
+            object.__setattr__(self, "initial_capital", float(self.config.get("starting_cash", 0.0)))
+        else:
+            object.__setattr__(self, "initial_capital", _finite(self.initial_capital, "initial_capital"))
+        object.__setattr__(self, "provenance", dict(self.provenance))
 
     def to_dict(self) -> dict[str, Any]:
-        payload = {"schema_version": 1, "dataset_fingerprint": self.dataset_fingerprint, "strategy_id": self.strategy_id, "strategy_version": self.strategy_version, "engine_version": self.engine_version, "config": _safe(self.config), "signals": [item.to_dict() for item in self.signals], "orders": [item.to_dict() for item in self.orders], "fills": [item.to_dict() for item in self.fills], "portfolios": [item.to_dict() for item in self.portfolios], "approved_data_reference": self.approved_data_reference, "limitations": list(self.limitations)}
+        payload = {"schema_version": 1, "paper_run_id": self.paper_run_id, "dataset_fingerprint": self.dataset_fingerprint, "strategy_id": self.strategy_id, "strategy_version": self.strategy_version, "engine_version": self.engine_version, "data_source": self.data_source, "approved_data_reference": self.approved_data_reference, "started_at": self.started_at, "simulation_clock": self.simulation_clock, "initial_capital": self.initial_capital, "status": self.status, "benchmark": self.benchmark, "config": _safe(self.config), "signals": [item.to_dict() for item in self.signals], "orders": [item.to_dict() for item in self.orders], "fills": [item.to_dict() for item in self.fills], "portfolios": [item.to_dict() for item in self.portfolios], "limitations": list(self.limitations), "provenance": _safe(self.provenance)}
         return {**payload, "fingerprint": _digest(payload)}
 
     @property
     def fingerprint(self) -> str:
         return str(self.to_dict()["fingerprint"])
+
+    @property
+    def dataset_reference(self) -> str:
+        return self.approved_data_reference
+
+    @property
+    def configuration(self) -> dict[str, Any]:
+        return dict(self.config)
+
+    @property
+    def current_value(self) -> float | None:
+        return None if not self.portfolios else float(self.portfolios[-1].equity)
+
+    @property
+    def cash(self) -> float | None:
+        return None if not self.portfolios else float(self.portfolios[-1].cash)
+
+    @property
+    def positions(self) -> float | None:
+        return None if not self.portfolios else float(self.portfolios[-1].position)
+
+    @property
+    def transaction_costs(self) -> float:
+        return float(sum(fill.fees for fill in self.fills))
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> PaperRun:
@@ -265,6 +333,14 @@ class PaperRun:
             portfolios=tuple(VirtualPortfolio(**item) for item in payload["portfolios"]),
             approved_data_reference=str(payload["approved_data_reference"]),
             limitations=tuple(str(item) for item in payload["limitations"]),
+            paper_run_id=str(payload.get("paper_run_id", "paper-run")),
+            data_source=str(payload.get("data_source", "approved_replay")),
+            started_at=str(payload.get("started_at", "")),
+            simulation_clock=str(payload.get("simulation_clock", "virtual_clock")),
+            initial_capital=payload.get("initial_capital"),
+            status=str(payload.get("status", "completed")),
+            benchmark=str(payload.get("benchmark", "buy_and_hold")),
+            provenance=dict(payload.get("provenance", {})),
         )
         if payload["fingerprint"] != run.fingerprint:
             raise ValueError("paper run fingerprint is invalid")
@@ -289,7 +365,7 @@ class PaperSimulator:
             if abs(signal) > resolved_config.max_abs_weight + 1e-12:
                 raise ValueError("strategy weight exceeds configured limit")
             timestamp = pd.Timestamp(frame.index[end - 1]).isoformat()
-            signals.append(PaperSignal(timestamp, signal, f"{strategy_id} target-weight signal", version))
+            signals.append(PaperSignal(timestamp, signal, f"{strategy_id} target-weight signal", version, decision_values={"target_weight": signal}))
         prices = frame["close"].astype(float)
         cash = float(resolved_config.starting_cash)
         position = 0.0
@@ -332,7 +408,8 @@ class PaperSimulator:
             benchmark_equity = benchmark_units * price
             portfolios.append(VirtualPortfolio(timestamp_text, cash, position, equity, target, turnover, realized, position * (price - previous_price), position * price, benchmark_equity))
             previous_price = price
-        return PaperRun(dataset_fingerprint=_digest(dataset_payload(approved)), strategy_id=strategy_id, strategy_version=version, engine_version=self.engine_version, config=resolved_config.to_dict(), signals=tuple(signals), orders=tuple(orders), fills=tuple(fills), portfolios=tuple(portfolios), approved_data_reference=approved_data_reference or _digest(dataset_payload(approved)))
+        dataset_reference = approved_data_reference or _digest(dataset_payload(approved))
+        return PaperRun(dataset_fingerprint=_digest(dataset_payload(approved)), strategy_id=strategy_id, strategy_version=version, engine_version=self.engine_version, config=resolved_config.to_dict(), signals=tuple(signals), orders=tuple(orders), fills=tuple(fills), portfolios=tuple(portfolios), approved_data_reference=dataset_reference, paper_run_id=f"paper-{strategy_id}-{version}", data_source=str(approved.provenance.provider), started_at=str(frame.index[0]), provenance={"dataset_fingerprint": _digest(dataset_payload(approved)), "dataset_reference": dataset_reference, "strategy_version": version, "engine_version": self.engine_version})
 
 
 def run_paper(*args: Any, **kwargs: Any) -> PaperRun:
