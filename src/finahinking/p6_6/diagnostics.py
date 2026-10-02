@@ -172,7 +172,9 @@ def feature_drift(baseline: Any, comparison: Any, *, baseline_reference: str = "
         variance_ratio = (cstd / max(bstd, 1e-12)) if bstd else (0.0 if cstd == 0 else math.inf)
         missing_delta = float(rhs.isna().mean() - lhs.isna().mean())
         paired = pd.concat([lhs.rename("baseline"), rhs.rename("comparison")], axis=1).dropna()
-        rank_corr = float(paired["baseline"].rank().corr(paired["comparison"].rank())) if len(paired) > 1 else None
+        rank_corr = None
+        if len(paired) > 1 and paired["baseline"].nunique() > 1 and paired["comparison"].nunique() > 1:
+            rank_corr = float(paired["baseline"].rank().corr(paired["comparison"].rank()))
         metrics[name] = {"baseline_mean": bmean, "comparison_mean": cmean, "baseline_std": bstd, "comparison_std": cstd, "mean_shift": ks_proxy, "ks_statistic": ks_proxy, "variance_ratio": variance_ratio if math.isfinite(variance_ratio) else None, "missing_rate_delta": missing_delta, "rank_correlation": rank_corr, "sample_baseline": int(lhs.notna().sum()), "sample_comparison": int(rhs.notna().sum())}
     ranked = tuple(sorted(names, key=lambda n: float(metrics[n]["mean_shift"] or 0.0), reverse=True))
     detected = any(float(metrics[name]["mean_shift"] or 0) > float(threshold) or abs(float(metrics[name]["missing_rate_delta"] or 0)) > float(threshold) for name in names)
