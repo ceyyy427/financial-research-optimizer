@@ -17,3 +17,7 @@ phase gate where possible.
 - Added the P4 architecture freeze, philosophy review, P5 readiness review, and
   explicit dependency decision. The repository remains stopped at P4 awaiting
   human approval for P5.
+- Completed the P4.5 Research OS validation across architecture, ResearchRun,
+  experiment lifecycle, provenance, quantitative validity, user workflow, P5/P6,
+  future agent boundaries, and dependencies. P4 remains frozen; P5 remains
+  unimplemented pending human approval.

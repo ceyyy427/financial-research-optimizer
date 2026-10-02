@@ -142,6 +142,69 @@ class GovernanceValidatorTests(unittest.TestCase):
             result = _run_validator(tmp_path)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_validator_accepts_p4_5_validation_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P4.5 Research OS Validation\n"
+                    "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\n"
+                    "P3 gate: PASS\nP4 gate: PASS\n"
+                    "Next action: P5 human approval\n"
+                    "P5 implementation scope: out of scope until approval",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_validator(tmp_path)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_validator_rejects_unknown_decimal_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P4.6 Research OS Validation\n"
+                    "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\n"
+                    "P3 gate: PASS\nP4 gate: PASS\n"
+                    "Next action: P5 human approval\n"
+                    "P5 implementation scope: out of scope until approval",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_validator(tmp_path)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("invalid phase", result.stdout + result.stderr)
+
+    def test_validator_rejects_p4_5_state_without_all_completed_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P4.5 Research OS Validation\n"
+                    "P0 gate: PASS\nP5 implementation scope: out of scope until approval",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_validator(tmp_path)
+
+            self.assertNotEqual(result.returncode, 0)
+            output = result.stdout + result.stderr
+            self.assertIn("P4 gate: PASS", output)
+
 
 if __name__ == "__main__":
     unittest.main()
