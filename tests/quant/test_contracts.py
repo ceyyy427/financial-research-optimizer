@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 import pandas as pd
 import pytest
 
@@ -62,4 +60,3 @@ def test_backtest_result_and_evaluation_report_have_stable_fingerprints():
     )
     assert result.fingerprint == BacktestResult.from_dict(result.to_dict()).fingerprint
     assert report.fingerprint == EvaluationReport.from_dict(report.to_dict()).fingerprint
-

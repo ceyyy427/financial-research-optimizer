@@ -1,0 +1,45 @@
+from pathlib import Path
+
+import pandas as pd
+
+from finahinking.data.models import Dataset, Provenance
+from finahinking.experiments.storage import RunStore
+from finahinking.quant.interfaces import BacktestConfig
+from finahinking.quant.runtime import run_quant_experiment
+
+FIXTURE = Path("fixtures/p5/quant_vertical_slice.csv")
+
+
+def test_quant_vertical_slice_replays_and_links_research_run(tmp_path):
+    frame = pd.read_csv(FIXTURE, parse_dates=["date"], index_col="date")
+    dataset = Dataset(frame, Provenance("fixture", "fixture://p5-vertical-slice"))
+    config = BacktestConfig(starting_cash=10_000.0, fee_bps=5.0, slippage_bps=10.0)
+    first = run_quant_experiment(
+        dataset,
+        config,
+        question="Does trailing momentum support a historical allocation experiment?",
+        hypothesis="A positive trailing return receives a long-only target weight.",
+        conclusion="The fixture contains descriptive historical evidence only.",
+        insight="The result is a reproducible experiment record, not a forecast.",
+        run_id="p5-vertical-slice",
+    )
+    second = run_quant_experiment(
+        dataset,
+        config,
+        question="Does trailing momentum support a historical allocation experiment?",
+        hypothesis="A positive trailing return receives a long-only target weight.",
+        conclusion="The fixture contains descriptive historical evidence only.",
+        insight="The result is a reproducible experiment record, not a forecast.",
+        run_id="p5-vertical-slice",
+    )
+    quant_run, research_run, report, backtest = first
+    other_quant_run, other_research_run, other_report, other_backtest = second
+    store = RunStore(tmp_path)
+    store.save(research_run)
+    assert store.load(research_run.run_id) == research_run
+    assert quant_run.research_run_id == research_run.run_id
+    assert quant_run.result_artifact.fingerprint == other_quant_run.result_artifact.fingerprint
+    assert research_run.result_fingerprint == other_research_run.result_fingerprint
+    assert report.fingerprint == other_report.fingerprint
+    assert backtest.fingerprint == other_backtest.fingerprint
+    assert "recommend" not in research_run.to_json().lower()
