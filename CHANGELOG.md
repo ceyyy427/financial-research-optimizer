@@ -14,3 +14,6 @@ phase gate where possible.
 - Added the P4 final architecture review, deferred provenance improvement
   proposal, P5 gate design, and P5 dependency comparison. These documents do
   not implement P5 or install P5 dependencies.
+- Added the P4 architecture freeze, philosophy review, P5 readiness review, and
+  explicit dependency decision. The repository remains stopped at P4 awaiting
+  human approval for P5.
