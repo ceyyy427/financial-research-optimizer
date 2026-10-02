@@ -8,8 +8,9 @@ the applicable phase gate before changing code.
 
 Keep network access inside provider modules, use allowlisted official sources,
 and add a recorded fixture for deterministic tests. Do not add secrets,
-trading automation, or investment advice. P4 experiment persistence remains
-out of scope until a reviewed proposal changes the project state.
+trading automation, or investment advice. The current P6 boundary is guided,
+typed, human-controlled research and learning; P7 and live execution remain
+out of scope until a separately approved phase changes the project state.
 
 ## Change workflow
 

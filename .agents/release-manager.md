@@ -7,7 +7,8 @@ Prepare reviewed phase snapshots with changelog and evidence.
 ## Must
 
 - Confirm tests, gate review, documentation, and dependency records before release.
-- Keep the final P3 state explicitly waiting for human review.
+- Keep the final P6 state explicitly guided/human-controlled, with P7 waiting
+  for human review.
 
 ## Must not
 

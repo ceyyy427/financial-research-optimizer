@@ -25,3 +25,13 @@ Adding or upgrading a package requires a purpose, a compatibility note, a
 review, and an update to this record and the lock file.
 
 P4 adds no dependency; see DEPENDENCY_PROPOSAL.md.
+
+## P5.5–P6 decision
+
+P5.5 and P6 add no core package, plugin, or MCP server. The existing
+`statsmodels==0.15.0` adapter remains admitted only in the isolated
+`.venv-quant` environment; the primary `.venv` stays unpolluted. P6 reaches
+the regression service through the Finahinking-owned normalized adapter seam,
+never through a third-party object. PyPortfolioOpt, bt, vectorbt, Qlib,
+Riskfolio, Alphalens, QuantStats/Pyfolio, LangGraph, Ollama, and live-data
+providers remain deferred because no demonstrated capability gap requires them.

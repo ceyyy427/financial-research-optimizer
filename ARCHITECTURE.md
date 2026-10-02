@@ -31,3 +31,10 @@ The P0–P4 delivery ends with a descriptive, reproducible experiment foundation
 Backtesting, portfolio simulation, brokerage integration, and investment advice
 are out of scope for P4. Any P5 change to this boundary requires human approval,
 an approved gate design, a dependency review, and an independent gate review.
+
+The current governed boundary is P6: guided, typed, human-controlled research
+and learning. The AI layer classifies and explains; Finahinking-owned services
+calculate; ResearchRun/QuantRun/Artifact records preserve evidence. P6 stops at
+its Gate Review. P7, live execution, brokerage integration, unrestricted
+strategy search, and automatic recommendations remain out of scope pending
+explicit human approval.

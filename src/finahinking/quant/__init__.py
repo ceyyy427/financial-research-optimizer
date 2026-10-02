@@ -15,6 +15,11 @@ from .multi_asset import (
     MultiAssetExperimentResult,
     run_cross_sectional_momentum_experiment,
 )
+from .regression import (
+    RegressionDependencyUnavailable,
+    RegressionExperimentResult,
+    run_regression_experiment,
+)
 from .services import (
     ALLOWED_TOOLS,
     QuantServiceGateway,
@@ -50,6 +55,8 @@ __all__ = [
     "ParameterSelectionBoundary",
     "QuantRun",
     "QuantServiceGateway",
+    "RegressionDependencyUnavailable",
+    "RegressionExperimentResult",
     "ResearchValidity",
     "Strategy",
     "StrategyIntent",
@@ -66,4 +73,5 @@ __all__ = [
     "ValidityStatus",
     "evaluate_oos",
     "run_cross_sectional_momentum_experiment",
+    "run_regression_experiment",
 ]

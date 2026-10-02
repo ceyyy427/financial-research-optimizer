@@ -35,3 +35,11 @@ state.
 - Admitted `statsmodels==0.15.0` only in the isolated `.venv-quant` adapter
   sandbox, with a clean dependency check and normalized OLS smoke result; the
   project manifest remains unchanged.
+- Completed P5.5 stabilization: frozen Finahinking-owned quant contracts,
+  validity/OOS metadata, explicit realism warnings, and the deterministic
+  cross-sectional momentum vertical slice. Gate A passed and P6 was authorized.
+- Completed P6 guided quant research and learning: typed task classification,
+  explicit hypotheses and assumption review, plan-bound tool gateway, grounded
+  explanations, predict → reveal → explain, learning cards, minimal learning
+  state, and an isolated regression-learning workflow. The project stops at
+  the P6 Gate Review; P7 remains waiting for explicit human approval.

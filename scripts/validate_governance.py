@@ -132,7 +132,16 @@ def validate_repository(root: Path | str) -> list[str]:
         )
 
     state = contents["docs/PROJECT_STATE.md"]
-    phase_match = re.search(r"current\s+phase\s*:\s*(P\d+(?:\.\d+)?)\b", state, re.IGNORECASE)
+    # PROJECT_STATE retains historical compatibility markers for older phase
+    # fixtures.  The authoritative declaration lives in the Current state
+    # section; scope the lookup there so history cannot mask a completed P6.
+    current_section = re.search(
+        r"^##\s+Current state\s*$([\s\S]*?)(?=^##\s+|\Z)",
+        state,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    phase_source = current_section.group(1) if current_section else state
+    phase_match = re.search(r"current\s+phase\s*:\s*(P\d+(?:\.\d+)?)\b", phase_source, re.IGNORECASE)
     if phase_match is None:
         issues.append("docs/PROJECT_STATE.md must declare the current phase")
     elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6"}:

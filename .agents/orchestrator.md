@@ -6,7 +6,8 @@ Own phase progression, task boundaries, gate evidence, and project state.
 
 ## Must
 
-- Enforce P0–P3 ordering and stop before P4 without explicit approval.
+- Enforce the phase order through P6 and stop after the P6 Gate Review unless
+  the human explicitly authorizes P7.
 - Require independent review before changing a gate to PASS.
 - Record rulings, blockers, and next actions in `docs/PROJECT_STATE.md`.
 

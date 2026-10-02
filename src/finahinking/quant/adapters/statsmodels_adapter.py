@@ -22,11 +22,13 @@ class RegressionResult:
 
     _parameters: dict[str, float]
     _metrics: dict[str, float | None]
+    _uncertainty: dict[str, dict[str, float | None]]
 
     def __init__(
         self,
         parameters: dict[str, float],
         metrics: dict[str, float | None],
+        uncertainty: dict[str, dict[str, float | None]] | None = None,
     ) -> None:
         if not isinstance(parameters, dict) or not isinstance(metrics, dict):
             raise TypeError("regression maps must be dictionaries")
@@ -40,6 +42,18 @@ class RegressionResult:
             raise ValueError("regression metrics must be finite or None")
         object.__setattr__(self, "_parameters", copy.deepcopy(normalized_parameters))
         object.__setattr__(self, "_metrics", copy.deepcopy(normalized_metrics))
+        normalized_uncertainty: dict[str, dict[str, float | None]] = {}
+        for parameter, values in (uncertainty or {}).items():
+            if not isinstance(values, dict):
+                raise TypeError("regression uncertainty must be a mapping")
+            normalized_values: dict[str, float | None] = {}
+            for name, value in values.items():
+                numeric = None if value is None else float(value)
+                if numeric is not None and not math.isfinite(numeric):
+                    raise ValueError("regression uncertainty must be finite or None")
+                normalized_values[str(name)] = numeric
+            normalized_uncertainty[str(parameter)] = normalized_values
+        object.__setattr__(self, "_uncertainty", copy.deepcopy(normalized_uncertainty))
 
     @property
     def parameters(self) -> dict[str, float]:
@@ -50,8 +64,12 @@ class RegressionResult:
         return copy.deepcopy(self._metrics)
 
     @property
+    def uncertainty(self) -> dict[str, dict[str, float | None]]:
+        return copy.deepcopy(self._uncertainty)
+
+    @property
     def fingerprint(self) -> str:
-        return _digest({"parameters": self._parameters, "metrics": self._metrics})
+        return _digest({"parameters": self._parameters, "metrics": self._metrics, "uncertainty": self._uncertainty})
 
 
 class StatsmodelsAdapter:
@@ -88,4 +106,16 @@ class StatsmodelsAdapter:
             "aic": float(fitted.aic) if pd.notna(fitted.aic) else None,
             "bic": float(fitted.bic) if pd.notna(fitted.bic) else None,
         }
-        return RegressionResult(parameters=parameters, metrics=metrics)
+        uncertainty: dict[str, dict[str, float | None]] = {}
+        confidence = fitted.conf_int()
+        for name in parameters:
+            standard_error = fitted.bse.get(name)
+            p_value = fitted.pvalues.get(name)
+            interval = confidence.loc[name] if name in confidence.index else None
+            uncertainty[name] = {
+                "std_error": float(standard_error) if pd.notna(standard_error) else None,
+                "p_value": float(p_value) if pd.notna(p_value) else None,
+                "ci_low": float(interval.iloc[0]) if interval is not None and pd.notna(interval.iloc[0]) else None,
+                "ci_high": float(interval.iloc[1]) if interval is not None and pd.notna(interval.iloc[1]) else None,
+            }
+        return RegressionResult(parameters=parameters, metrics=metrics, uncertainty=uncertainty)

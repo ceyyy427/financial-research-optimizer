@@ -27,6 +27,24 @@ result. Small documentation corrections may be grouped in one entry.
   dependency or plugin/MCP installation; statsmodels remains isolated.
 - Review: P5.5 Gate A PASS; P6 may begin; P7 remains waiting for human approval.
 
+## 2026-10-02 — P6 guided quant research and learning
+
+- Change: added typed question classification, explicit hypotheses and
+  assumption review, plan-bound quant tool execution, grounded explanations,
+  predict → reveal → explain, learning cards/state, and an isolated
+  regression-learning workflow.
+- Reason: make the stabilized quant platform understandable and safely usable
+  by a human without turning the AI layer into a source of quantitative truth.
+- Evidence: `docs/p6/P6_FINAL_VALIDATION_REPORT.md`,
+  `docs/p6/P6_GATE_REVIEW.md`, 136 deterministic test cases (one environment-
+  appropriate skip), notebook/governance/Ruff/pip gates, and independent
+  architecture/security/validity/explanation/reproducibility passes.
+- Compatibility: P5/P5.5 contracts remain additive and deterministic; no new
+  dependency, plugin, MCP server, market-data provider, or agent framework was
+  installed. `statsmodels` remains isolated.
+- Review: P6 Gate PASS; project stops here and P7 remains WAITING FOR HUMAN
+  APPROVAL.
+
 ## 2026-10-02 — P0 foundation
 
 - Change: established repository governance, role contracts, and phase-gate
