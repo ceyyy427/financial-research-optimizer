@@ -38,6 +38,11 @@ fingerprints cover dataset, factor, method, parameters, and result.
 - Dependency integrity (pip check) passed.
 - Existing P1 notebook gate passed.
 - Independent P4 Gate review passed.
+- Final architecture review: `docs/reviews/P4_FINAL_REVIEW.md` — P4 FOUNDATION STABLE.
+- Deferred provenance gaps and acceptance criteria:
+  `docs/reviews/P4_PROVENANCE_IMPROVEMENT_PROPOSAL.md`.
+- P5 gate design and dependency comparison prepared for human approval only:
+  `docs/phases/P5_GATE_DESIGN.md` and `P5_DEPENDENCY_PLAN.md`.
 
 ## Dependencies
 
@@ -53,5 +58,21 @@ execute code and must still be treated as user research artifacts.
 ## P5 recommendation
 
 Do not begin P5 automatically. A future phase should first obtain human
-approval and define any additional scope, storage/indexing requirements, and
-research-quality controls.
+approval of the P5 gate design and dependency plan, then define any additional
+scope, storage/indexing requirements, and research-quality controls.
+
+## Final output checklist
+
+1. **P4 review result:** PASS; final architecture recommendation is **P4 FOUNDATION STABLE**.
+2. **P4 architecture stability:** frozen at the P4 descriptive experiment boundary; no P5 behavior was added.
+3. **P5 Gate Design:** created at `docs/phases/P5_GATE_DESIGN.md`; design only and awaiting human approval.
+4. **Dependencies considered:** vectorbt, Backtrader, Pyfolio Reloaded, and narrowly scoped statistical libraries; evaluated in `P5_DEPENDENCY_PLAN.md`; none installed.
+5. **Tools used:** local Python, Pandas/NumPy, Jupyter/nbconvert, pytest, Ruff, pip checks, Git, and repository governance validation.
+6. **Tests executed:** full P0–P4 pytest suite, Ruff, governance validation, P1 notebook gate, dependency integrity check, and diff checks.
+7. **Files changed:** P4 review/provenance documents, P5 gate/dependency documents, architecture/state/changelog/report links, and the review plan; no P5 source implementation.
+8. **Git status:** must be clean after the final commit; the authoritative state remains P0–P4 PASS and waiting for human review.
+
+## Stop condition
+
+This report intentionally stops at P4. No P5 implementation, package
+installation, or approval is implied.

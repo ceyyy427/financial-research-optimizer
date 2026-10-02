@@ -10,9 +10,9 @@ responsible for their own decisions.
 
 ## Scope
 
-The first delivery establishes a governed foundation through P3:
+The governed foundation is complete through P4:
 
-`provider -> dataset/provenance -> validation -> feature functions -> factors`
+`provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
 
 P4 now provides local experiment persistence and orchestration through
 ResearchRun, ExperimentEngine, and RunStore. P5 is explicitly out of scope.

@@ -11,3 +11,6 @@ phase gate where possible.
   JSON persistence.
 - Recorded all gates as passed; the project is waiting for human review before
   any P5 scope is considered.
+- Added the P4 final architecture review, deferred provenance improvement
+  proposal, P5 gate design, and P5 dependency comparison. These documents do
+  not implement P5 or install P5 dependencies.

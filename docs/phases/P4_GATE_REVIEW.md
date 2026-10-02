@@ -14,3 +14,8 @@ Independent review: PASS after fresh verification. The review confirmed:
 - no new dependency and no P5 behavior.
 
 The P4 objective is satisfied. The project stops for human review.
+
+The final architecture review is recorded in
+`docs/reviews/P4_FINAL_REVIEW.md` and concludes **P4 FOUNDATION STABLE**.
+The deferred provenance gaps are recorded in
+`docs/reviews/P4_PROVENANCE_IMPROVEMENT_PROPOSAL.md`.

@@ -3,13 +3,20 @@
 Finahinking is organized around small boundaries that keep network effects and
 research transformations separate:
 
-`provider -> dataset/provenance -> validation -> feature functions -> factors`
+`provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
 
 Providers are the only network boundary. They return normalized data and
 immutable provenance metadata. Dataset validation checks schema, missingness,
 time ordering, and duplicate observations before feature functions receive a
 series. Features are pure transformations. Factors are named, documented
 computations with explicit evaluation metrics and limitations.
+
+P4 keeps execution, record modeling, and persistence separate. `ExperimentEngine`
+binds a validated dataset and documented factor to an explicit method and
+parameters; `ResearchRun` stores the question, hypothesis, dataset, result,
+conclusion, insight, and limitations as canonical JSON with SHA-256
+fingerprints; `RunStore` persists records locally with path-safe IDs and atomic
+writes. Stored records are data only and never execute code.
 
 ## Research quality
 
@@ -20,6 +27,7 @@ codebase never emits investment advice or trade instructions.
 
 ## Phase boundary
 
-The P0–P3 delivery ends with documented factor evaluation. P4 experiment
-persistence and orchestration are explicitly out of scope. Any change to this
-boundary needs an approved upgrade proposal and a new phase gate.
+The P0–P4 delivery ends with a descriptive, reproducible experiment foundation.
+Backtesting, portfolio simulation, brokerage integration, and investment advice
+are out of scope for P4. Any P5 change to this boundary requires human approval,
+an approved gate design, a dependency review, and an independent gate review.
