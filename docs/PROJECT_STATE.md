@@ -5,13 +5,13 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P6.5 Understanding Engine / Product Reality Integration
+- Current phase: P6.6 Strategy Research & Simulation Lab
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
 - P3 gate: PASS
 - P4 gate: PASS
-- Next action: stop after the P6.5 Gate Review and return control to the human
+- Next action: stop after the P6.6 Gate Review and return control to the human
 - Next: P7 requires explicit human approval
 - P4 status: frozen
 - P4.5 Research OS Validation: PASS
@@ -28,6 +28,9 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.5 implementation scope: one bounded, source-admitted BLS CPI understanding journey
 - P6.5 status: COMPLETE after P6.5 Gate Review
 - P6.5 gate: PASS
+- P6.6 implementation scope: bounded feature engineering, strategy research, historical backtest, OOS/walk-forward, paper replay, learning, and safe export
+- P6.6 status: COMPLETE after P6.6 Gate Review
+- P6.6 gate: PASS
 - Real-World Evidence Vertical Slice: VALIDATED
 - Multi-Tier Source Architecture: VALIDATED
 - P6 foundation: FROZEN FOR PRODUCT CONSUMPTION
@@ -62,6 +65,11 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.5 final validation: `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md`
 - P6.5 gate review: `docs/p6_5/P6_5_GATE_REVIEW.md`
 - P7 readiness: `docs/p6_5/P7_READINESS_REPORT.md`
+- P6.6 execution plan: `docs/p6_6/P6_6_EXECUTION_PLAN.md`
+- P6.6 final validation: `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md`
+- P6.6 gate review: `docs/p6_6/P6_6_GATE_REVIEW.md`
+- P6.6 independent audits A-J: `docs/p6_6/P6_6_INDEPENDENT_AUDITS.md`
+- P7 readiness: `docs/p6_6/P7_READINESS_REPORT.md`
 - P4 philosophy review: `docs/reviews/P4_PHILOSOPHY_REVIEW.md`
 - P5 readiness review: `docs/reviews/P5_READINESS_REVIEW.md`
 - P5 dependency decision: `docs/P5_DEPENDENCY_DECISION.md`
@@ -79,9 +87,15 @@ P5 Quant Foundation: FROZEN
 Finathink P6 Guided Quant Research & Learning: COMPLETE
 P6 FOUNDATION: GUIDED / HUMAN-CONTROLLED
 Finathink P6.5 Understanding Engine: COMPLETE
+Finathink P6.6 Strategy Research & Simulation Lab: COMPLETE
 Real-World Evidence Vertical Slice: VALIDATED
 Multi-Tier Source Architecture: VALIDATED
 P6 FOUNDATION: FROZEN FOR PRODUCT CONSUMPTION
+Feature Engineering Layer: VALIDATED
+Strategy Research Pipeline: VALIDATED
+Educational Code / Math / Finance Learning: VALIDATED
+Historical Backtest: VALIDATED
+Paper Research Simulation: VALIDATED
 P7: WAITING FOR HUMAN APPROVAL
 
 ## Completed gates
@@ -98,6 +112,7 @@ P7: WAITING FOR HUMAN APPROVAL
 | P5.5 | PASS | `docs/p5_5/P5_5_FINAL_VALIDATION_REPORT.md`, `docs/p5_5/P6_READINESS_REPORT.md`, validity/OOS/multi-asset/tool-contract evidence |
 | P6 | PASS | `docs/p6/P6_FINAL_VALIDATION_REPORT.md`, `docs/p6/P6_GATE_REVIEW.md`, guided momentum/regression workflows and independent audit |
 | P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md`, `docs/p6_5/P6_5_GATE_REVIEW.md`, BLS capture/replay, canonical event/claim/evidence chain, quant and learning bridge |
+| P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md`, `docs/p6_6/P6_6_GATE_REVIEW.md`, feature/strategy/IR contracts, P5/P5.5 backtest, OOS, paper replay, learning, safe export |
 
 ## Historical P5 baseline markers
 
@@ -111,7 +126,8 @@ historical baseline, not the current phase above:
 ## Constraints
 
 No secrets, trading automation, investment advice, or unsafe network shortcuts
-are permitted. Tests use deterministic fixtures by default. P5.5 and P6 are
-frozen; P6.5 is limited to one guided, source-bound understanding journey.
-The project stops after the P6.5 Gate Review; P7, brokerage, live trading, and
-investment advice remain out of scope pending explicit human approval.
+are permitted. Tests use deterministic fixtures by default. P5.5, P6, and
+P6.5 remain frozen foundations; P6.6 is limited to strategy research and
+simulation. The project stops after the P6.6 Gate Review; P7, brokerage, live
+trading, and investment advice remain out of scope pending explicit human
+approval.

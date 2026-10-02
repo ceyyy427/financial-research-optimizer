@@ -31,10 +31,10 @@ class StrategyInterpreter:
             raise ValueError("strategy idea is required")
         text = idea.strip()
         normalized = re.sub(r"\s+", " ", text.lower())
-        if any(token in normalized for token in ("moving average", "moving-average", "trend")):
+        if any(token in normalized for token in ("moving average", "moving-average", "trend", "均线", "趋势")):
             template = "moving_average_trend"
             default_id = "moving_average_trend"
-        elif any(token in normalized for token in ("momentum", "low volatility", "low-volatility")):
+        elif any(token in normalized for token in ("momentum", "low volatility", "low-volatility", "动量", "低波动")):
             template = "lagged_momentum_low_volatility"
             default_id = "lagged_momentum_low_volatility"
         else:

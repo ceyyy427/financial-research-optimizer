@@ -10,7 +10,7 @@ responsible for their own decisions.
 
 ## Scope
 
-The governed foundation is complete through P6.5, with P7 intentionally held
+The governed foundation is complete through P6.6, with P7 intentionally held
 for human approval:
 
 `provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
@@ -27,7 +27,10 @@ progressive disclosure, reviewed source admission, explicit temporal and
 revision semantics, a normalized database schema, and a typed bridge back to
 the frozen P6 quant and learning contracts. The first product journey is
 bounded to one real BLS CPI event; discovery providers are never silently
-promoted to authority. It does not execute trades, provide investment advice,
+promoted to authority. P6.6 adds versioned feature graphs, reviewed strategy
+specifications, constrained educational code, P5/P5.5 backtest routing,
+out-of-sample metadata, deterministic paper replay, drift diagnostics, and a
+safe research export. It does not execute trades, provide investment advice,
 or enter P7. Network access is isolated to allowlisted provider code, and
 tests use recorded fixtures by default.
 
@@ -39,6 +42,8 @@ tests use recorded fixtures by default.
 - `docs/` — phase gates and the authoritative project state.
 - `docs/p6_5/` — source admission, temporal/SQL contracts, product journey,
   audits, final validation, and P7 readiness evidence.
+- `docs/p6_6/` — strategy-lab contracts, audits, final validation, and P7
+  readiness evidence.
 - `.agents/` — role contracts for orchestration, planning, architecture,
   implementation, security, dependency control, release, research, and review.
 
@@ -52,6 +57,6 @@ python scripts/validate_governance.py
 ```
 
 The complete test, lint, migration, notebook, and governance commands are
-documented in `CONTRIBUTING.md` and the P6.5 final validation report. The
-P6.5 gate review records the independent A–K audits and the exact stop point
+documented in `CONTRIBUTING.md` and the P6.6 final validation report. The
+P6.6 gate review records the independent A–J audits and the exact stop point
 before P7.

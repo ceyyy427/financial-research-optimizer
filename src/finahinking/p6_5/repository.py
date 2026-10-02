@@ -26,13 +26,17 @@ from .models import (
 )
 
 MIGRATION_PATH = Path(__file__).resolve().parents[3] / "migrations" / "001_p6_5_understanding.sql"
+ADDITIVE_MIGRATION_PATHS = (
+    MIGRATION_PATH,
+    Path(__file__).resolve().parents[3] / "migrations" / "002_p6_6_strategy_lab.sql",
+)
 _SAFE_ARTIFACT_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
 
 def apply_migration(connection: sqlite3.Connection, *, dialect: str = "sqlite") -> None:
     if dialect not in {"sqlite", "postgres"}:
         raise ValueError("unsupported migration dialect")
-    sql = MIGRATION_PATH.read_text(encoding="utf-8")
+    sql = "\n".join(path.read_text(encoding="utf-8") for path in ADDITIVE_MIGRATION_PATHS if path.is_file())
     if isinstance(connection, sqlite3.Connection):
         connection.executescript("PRAGMA foreign_keys = ON;\n" + sql)
         connection.commit()

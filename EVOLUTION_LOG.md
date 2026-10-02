@@ -68,6 +68,22 @@ result. Small documentation corrections may be grouped in one entry.
   writer/source-verified flag and live operational controls remain explicit
   production follow-ups. P7 is waiting for human approval.
 
+## 2026-10-03 — P6.6 strategy research and simulation lab
+
+- Change: added immutable feature definitions/graphs, reviewed strategy specs,
+  constrained IR/compiler adapters, educational code/math/finance traces,
+  P5/P5.5 backtest routing, frozen OOS/walk-forward metadata, deterministic
+  PaperRun replay, comparison/drift diagnostics, LearningCards, safe export,
+  and additive strategy-lab persistence tables.
+- Reason: make strategy ideas testable and teachable while preserving the
+  existing quant execution and provenance authorities.
+- Evidence: `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md`, A–J independent audits,
+  focused P6.6 tests, full 187-pass regression, Ruff/notebook/governance/pip
+  checks, and the P6.5 PostgreSQL migration verification.
+- Compatibility: additive `finahinking.p6_6` modules and migration 002; no
+  new dependency, plugin, broker, provider SDK, or live execution path.
+- Review: P6.6 Gate PASS; P7 is READY but remains WAITING FOR HUMAN APPROVAL.
+
 ## 2026-10-02 — P0 foundation
 
 - Change: established repository governance, role contracts, and phase-gate

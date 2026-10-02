@@ -303,7 +303,14 @@ def _asof_price(frame: pd.DataFrame, asset: str, timestamp: pd.Timestamp) -> flo
     return float(row["close"])
 
 
-def _signal_weights(dataset: MultiAssetDataset, timestamp: pd.Timestamp, config: CrossSectionalMomentumConfig) -> tuple[dict[str, float], tuple[str, ...]]:
+def _signal_weights(
+    dataset: MultiAssetDataset,
+    timestamp: pd.Timestamp,
+    config: CrossSectionalMomentumConfig,
+    *,
+    volatility_window: int | None = None,
+    volatility_threshold: float | None = None,
+) -> tuple[dict[str, float], tuple[str, ...]]:
     values: dict[str, float] = {}
     for asset in dataset.assets:
         eligible = dataset.frame[
@@ -313,6 +320,14 @@ def _signal_weights(dataset: MultiAssetDataset, timestamp: pd.Timestamp, config:
         ].sort_values("date")
         prices = eligible["close"].astype(float).tolist()
         if len(prices) > config.lookback:
+            if volatility_window is not None:
+                if volatility_window < 2:
+                    raise ValueError("volatility_window must be at least two")
+                returns = pd.Series(prices, dtype=float).pct_change()
+                realized = returns.rolling(volatility_window, min_periods=volatility_window).std().iloc[-1]
+                annualized = float(realized * math.sqrt(config.annualization)) if pd.notna(realized) else None
+                if annualized is None or (volatility_threshold is not None and annualized > volatility_threshold):
+                    continue
             values[asset] = prices[-1] / prices[-1 - config.lookback] - 1.0
     if not values:
         return {}, ()
@@ -367,6 +382,10 @@ def run_cross_sectional_momentum_experiment(
     hypothesis: str,
     run_id: str | None = None,
     validity: Any | None = None,
+    strategy_id: str = "cross-sectional-lagged-momentum",
+    strategy_version: str = "v1",
+    volatility_window: int | None = None,
+    volatility_threshold: float | None = None,
 ) -> MultiAssetExperimentResult:
     """Run one fixed, lagged, long-only panel experiment and preserve evidence."""
 
@@ -422,12 +441,18 @@ def run_cross_sectional_momentum_experiment(
         )
         executed_weights = dict(pending)
         # Signals use only information available at the close and execute next period.
-        pending, selected = _signal_weights(dataset, timestamp, config)
+        pending, selected = _signal_weights(
+            dataset,
+            timestamp,
+            config,
+            volatility_window=volatility_window,
+            volatility_threshold=volatility_threshold,
+        )
         selected_assets.append((timestamp.isoformat(), selected))
     backtest = MultiAssetBacktestResult(
         dataset_fingerprint=dataset.fingerprint,
-        strategy_id="cross-sectional-lagged-momentum",
-        strategy_version="v1",
+        strategy_id=strategy_id,
+        strategy_version=strategy_version,
         config=config,
         equity_curve=tuple(equity_curve),
         returns=tuple(returns),
@@ -463,6 +488,8 @@ def run_cross_sectional_momentum_experiment(
         "dataset_version": dataset.fingerprint,
         "panel_schema": "date,asset,close,available_at",
         "strategy_version": backtest.strategy_version,
+        "strategy_template": "lagged_momentum_low_volatility" if volatility_threshold is not None else "cross_sectional_lagged_momentum",
+        "dataset_records": dataset.to_dict()["records"],
         "engine_version": "p5.5-multi-asset-v1",
         "parameters": config.to_dict(),
         "timestamp": timestamp,
@@ -480,7 +507,15 @@ def run_cross_sectional_momentum_experiment(
     artifact = Artifact.create(
         artifact_id=f"artifact-{identifier}",
         artifact_type="cross_sectional_momentum_evaluation",
-        payload={"backtest_result": backtest.to_dict(), "evaluation_report": evaluation.to_dict(), "provenance": provenance},
+        payload={
+            "backtest_result": backtest.to_dict(),
+            "evaluation_report": evaluation.to_dict(),
+            "provenance": provenance,
+            # The P5.5 artifact is the replay boundary for P6.6.  Preserve
+            # the approved panel records explicitly instead of assuming that
+            # a dataset fingerprint alone can reconstruct the input.
+            "dataset_artifact": dataset.to_dict(),
+        },
         created_at=timestamp,
     )
     research_run = ResearchRun.create(

@@ -86,10 +86,8 @@ def _strategy_identity(strategy: Any, strategy_version: Any | None) -> tuple[str
 def _target_series(strategy: Any, as_of: Dataset) -> pd.Series:
     if hasattr(strategy, "generate"):
         values = strategy.generate(as_of)
-    elif callable(strategy):
-        values = strategy(as_of)
     else:
-        raise TypeError("strategy must implement generate(dataset) or be callable")
+        raise TypeError("paper replay requires a validated strategy adapter with generate(dataset)")
     if not isinstance(values, pd.Series):
         if isinstance(values, Mapping):
             values = pd.Series(values)

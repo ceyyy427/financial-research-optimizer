@@ -66,6 +66,18 @@ def test_migration_enforces_foreign_keys_and_show_evidence(tmp_path) -> None:
     assert (tmp_path / "artifact-capture-1.bin").read_text() == '{"status":"REQUEST_SUCCEEDED"}'
 
 
+def test_additive_p6_6_tables_are_applied_without_replacing_p6_5() -> None:
+    connection = sqlite3.connect(":memory:")
+    apply_migration(connection, dialect="sqlite")
+    names = {
+        row[0]
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    }
+    assert "p6_5_sources" in names
+    assert "p6_6_strategy_versions" in names
+    assert "p6_6_paper_runs" in names
+
+
 def test_parameterized_lookup_does_not_execute_sql(tmp_path) -> None:
     repo = _repo(tmp_path)
     assert repo.show_evidence("claim-1' OR 1=1; DROP TABLE p6_5_sources; --") == []

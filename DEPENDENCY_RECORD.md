@@ -49,3 +49,12 @@ data connectors, browser/document extraction, production PostgreSQL drivers,
 and agent frameworks; each was deferred because it would expand scope without
 closing a demonstrated P6.5 gap. This decision is recorded in
 `docs/p6_5/P6_5_CAPABILITY_MATRIX.md` and the final validation report.
+
+## P6.6 capability decision
+
+P6.6 adds no package-manager dependency, plugin, MCP connector, broker SDK,
+market-data adapter, ML framework, or database driver. Python `ast`, pandas,
+NumPy, the existing P5/P5.5 ledgers, P6 learning contracts, and P6.5
+provenance boundaries close the demonstrated feature/strategy/paper/export
+gaps. The decision and residual capability risks are recorded in
+`docs/p6_6/P6_6_CAPABILITY_MATRIX.md`.
