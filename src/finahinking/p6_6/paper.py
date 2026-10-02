@@ -246,6 +246,30 @@ class PaperRun:
     def fingerprint(self) -> str:
         return str(self.to_dict()["fingerprint"])
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> PaperRun:
+        if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
+            raise ValueError("paper run schema is invalid")
+        required = {"dataset_fingerprint", "strategy_id", "strategy_version", "engine_version", "config", "signals", "orders", "fills", "portfolios", "approved_data_reference", "limitations", "fingerprint"}
+        if not required.issubset(payload):
+            raise ValueError("paper run schema is invalid")
+        run = cls(
+            dataset_fingerprint=str(payload["dataset_fingerprint"]),
+            strategy_id=str(payload["strategy_id"]),
+            strategy_version=str(payload["strategy_version"]),
+            engine_version=str(payload["engine_version"]),
+            config=dict(payload["config"]),
+            signals=tuple(PaperSignal(**item) for item in payload["signals"]),
+            orders=tuple(VirtualOrder(**item) for item in payload["orders"]),
+            fills=tuple(VirtualFill(**item) for item in payload["fills"]),
+            portfolios=tuple(VirtualPortfolio(**item) for item in payload["portfolios"]),
+            approved_data_reference=str(payload["approved_data_reference"]),
+            limitations=tuple(str(item) for item in payload["limitations"]),
+        )
+        if payload["fingerprint"] != run.fingerprint:
+            raise ValueError("paper run fingerprint is invalid")
+        return run
+
 
 class PaperSimulator:
     """Run a frozen strategy through a virtual clock and deterministic fills."""
