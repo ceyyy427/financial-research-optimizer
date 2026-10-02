@@ -21,8 +21,10 @@ normalized parameters + metrics + fingerprint
 `StatsmodelsAdapter.fit_ols` is the first seam. It returns a small
 `RegressionResult` containing parameter and metric dictionaries; it never
 returns a fitted statsmodels object, stores source code, fetches data, or
-changes the core dependency manifest. When statsmodels is not installed, the
-adapter raises `OptionalDependencyError` with the isolated-install policy.
+changes the core dependency manifest. The adapter was smoke-tested against
+`statsmodels==0.15.0` in `.venv-quant`; when the package is absent from an
+environment it raises `OptionalDependencyError` with the isolated-install
+policy.
 
 The same shape applies to future PyPortfolioOpt, QuantStats/Pyfolio, Alphalens,
 bt, vectorbt, Riskfolio-Lib, and TA-Lib adapters. Each must have a component

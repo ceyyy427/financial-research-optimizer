@@ -23,8 +23,11 @@ phase gate where possible.
   unimplemented pending human approval.
 - Began the approved P5 Quant Engine Foundation with component admission,
   dependency policy, and a P5-specific gate review. The runtime remains
-  research-only and uses no newly installed external quant dependency.
+  research-only and keeps external quant dependencies out of the core runtime.
 - Completed the P5 Quant Engine Foundation with domain contracts, an in-house
   deterministic backtest engine, evaluation/risk metrics, portfolio validation,
   a ResearchRun-linked vertical slice, and lazy optional adapter seams. P6 is
   held for human approval.
+- Admitted `statsmodels==0.15.0` only in the isolated `.venv-quant` adapter
+  sandbox, with a clean dependency check and normalized OLS smoke result; the
+  project manifest remains unchanged.

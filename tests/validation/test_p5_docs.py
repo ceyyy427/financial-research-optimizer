@@ -37,6 +37,12 @@ def test_p5_dependency_plan_forbids_blind_installation() -> None:
     assert "dependency tree" in plan
 
 
+def test_p5_optional_sandbox_records_controlled_statsmodels_install() -> None:
+    sandbox = _read("docs/p5/OPTIONAL_SANDBOX.md")
+    for marker in ("statsmodels==0.15.0", "BSD-3-Clause", "macOS arm64", "`pip check`: PASS"):
+        assert marker in sandbox
+
+
 def test_p5_gate_review_contains_acceptance_and_forbidden_scope() -> None:
     gate = _read("docs/phases/P5_GATE_REVIEW.md")
     for marker in (

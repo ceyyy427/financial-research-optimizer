@@ -38,8 +38,9 @@ out of scope.
    survives `RunStore` round-trip.
 9. **License / dependency gate:** the component matrix and dependency plan
    review repository, license, maintenance, security, Python/macOS arm64
-   compatibility, and A/B/C/D classification. No candidate package was
-   installed; the optional statsmodels adapter reports a controlled absence.
+   compatibility, and A/B/C/D classification. The only installed candidate is
+   `statsmodels==0.15.0` in the isolated `.venv-quant` sandbox; the project
+   runtime and manifest remain dependency-neutral.
 10. **Serialization and provenance safety:** Artifact and QuantRun creation and
     deserialization enforce JSON-safe bounded payloads, reject non-finite and
     executable values, and expose defensive copies. Benchmark names are
@@ -53,7 +54,7 @@ out of scope.
 ## Verification record
 
 - Governance validator: PASS for P5 state and completed P0–P4.5 gates.
-- Full suite: 66 tests passed.
+- Full suite: 67 tests passed.
 - Ruff: required for `src`, `tests`, and `scripts`.
 - Notebook gate: existing P1 research notebook executes offline.
 - `pip check`: required to be clean.

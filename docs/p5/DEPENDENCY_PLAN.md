@@ -1,6 +1,8 @@
 # P5 Dependency Plan
 
-**Status:** No candidate is installed by P5 foundation work.
+**Status:** No candidate is installed in the project runtime. The approved
+statsmodels adapter was installed and smoke-tested only in the isolated
+`.venv-quant` sandbox; the core manifest and `.venv` remain unchanged.
 
 ## Current environment baseline
 
@@ -39,8 +41,9 @@ version, license, platform wheel/build result, and full dependency tree.
 
 The in-house engine is sufficient for the first vertical slice and keeps the
 domain contract inspectable. Existing NumPy/Pandas provide the numerical
-operations needed for the offline ledger and metrics. No new candidate is
-installed, and no manifest is changed by this phase.
+operations needed for the offline ledger and metrics. The only installed
+candidate is the isolated statsmodels adapter sandbox documented in
+`docs/p5/OPTIONAL_SANDBOX.md`; no project manifest is changed by this phase.
 
 ## Candidate admission order
 
