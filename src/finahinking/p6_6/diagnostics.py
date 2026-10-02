@@ -65,6 +65,13 @@ def _series(value: Any, preferred: tuple[str, ...]) -> pd.Series:
     return pd.to_numeric(result, errors="coerce")
 
 
+def _max_drawdown(series: pd.Series) -> float | None:
+    if series.empty:
+        return None
+    running = series.cummax()
+    return float((series / running - 1.0).min())
+
+
 @dataclass(frozen=True)
 class BacktestPaperComparison:
     backtest_fingerprint: str
@@ -79,14 +86,35 @@ class BacktestPaperComparison:
     paper_fill_count: int
     interpretation: str
     limitations: tuple[str, ...] = ("comparison is descriptive, not validation of future performance",)
+    backtest_turnover: float | None = None
+    paper_turnover: float | None = None
+    backtest_cost: float | None = None
+    paper_cost: float | None = None
+    backtest_drawdown: float | None = None
+    paper_drawdown: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        payload = {"schema_version": 1, "backtest_fingerprint": self.backtest_fingerprint, "paper_fingerprint": self.paper_fingerprint, "aligned_points": self.aligned_points, "backtest_final_equity": self.backtest_final_equity, "paper_final_equity": self.paper_final_equity, "final_equity_delta": self.final_equity_delta, "mean_return_delta": self.mean_return_delta, "max_abs_equity_delta": self.max_abs_equity_delta, "backtest_trade_count": self.backtest_trade_count, "paper_fill_count": self.paper_fill_count, "interpretation": self.interpretation, "limitations": list(self.limitations)}
+        payload = {"schema_version": 1, "backtest_fingerprint": self.backtest_fingerprint, "paper_fingerprint": self.paper_fingerprint, "aligned_points": self.aligned_points, "backtest_final_equity": self.backtest_final_equity, "paper_final_equity": self.paper_final_equity, "final_equity_delta": self.final_equity_delta, "mean_return_delta": self.mean_return_delta, "max_abs_equity_delta": self.max_abs_equity_delta, "backtest_trade_count": self.backtest_trade_count, "paper_fill_count": self.paper_fill_count, "backtest_turnover": self.backtest_turnover, "paper_turnover": self.paper_turnover, "backtest_cost": self.backtest_cost, "paper_cost": self.paper_cost, "backtest_drawdown": self.backtest_drawdown, "paper_drawdown": self.paper_drawdown, "metrics": self.metrics, "interpretation": self.interpretation, "limitations": list(self.limitations)}
         return {**payload, "fingerprint": _digest(payload)}
 
     @property
     def fingerprint(self) -> str:
         return self.to_dict()["fingerprint"]
+
+    @property
+    def metrics(self) -> dict[str, float | int | None]:
+        """Named dimensions kept explicit for the teaching/diagnostic UI."""
+        return {
+            "return_delta": self.mean_return_delta,
+            "risk_delta": None,
+            "turnover_delta": None if self.backtest_turnover is None or self.paper_turnover is None else self.paper_turnover - self.backtest_turnover,
+            "drawdown_delta": None if self.backtest_drawdown is None or self.paper_drawdown is None else self.paper_drawdown - self.backtest_drawdown,
+            "signal_frequency_delta": None,
+            "cost_delta": None if self.backtest_cost is None or self.paper_cost is None else self.paper_cost - self.backtest_cost,
+            "feature_distribution_delta": None,
+            "portfolio_concentration_delta": None,
+            "aligned_points": self.aligned_points,
+        }
 
 
 def compare_backtest_paper(backtest: Any, paper: Any) -> BacktestPaperComparison:
@@ -113,7 +141,11 @@ def compare_backtest_paper(backtest: Any, paper: Any) -> BacktestPaperComparison
     pp_fingerprint = str(getattr(paper, "fingerprint", None) or (paper.get("fingerprint") if isinstance(paper, Mapping) else "unknown"))
     bt_trades = getattr(backtest, "trades", None) or (backtest.get("trades", ()) if isinstance(backtest, Mapping) else ())
     pp_fills = getattr(paper, "fills", None) or (paper.get("fills", ()) if isinstance(paper, Mapping) else ())
-    return BacktestPaperComparison(bt_fingerprint, pp_fingerprint, len(aligned), final_bt, final_pp, delta, mean_delta, max_delta, len(bt_trades), len(pp_fills), "Differences reflect replay timing, costs, and state alignment; inspect before drawing conclusions.")
+    bt_turnover = float(sum(float(getattr(item, "notional", item.get("notional", 0.0) if isinstance(item, Mapping) else 0.0)) for item in bt_trades)) if bt_trades else 0.0
+    pp_turnover = float(sum(float(getattr(item, "notional", item.get("notional", 0.0) if isinstance(item, Mapping) else 0.0)) for item in pp_fills)) if pp_fills else 0.0
+    bt_cost = float(sum(float(getattr(item, "fees", item.get("fees", 0.0) if isinstance(item, Mapping) else 0.0)) for item in bt_trades)) if bt_trades else 0.0
+    pp_cost = float(sum(float(getattr(item, "fees", item.get("fees", 0.0) if isinstance(item, Mapping) else 0.0)) for item in pp_fills)) if pp_fills else 0.0
+    return BacktestPaperComparison(bt_fingerprint, pp_fingerprint, len(aligned), final_bt, final_pp, delta, mean_delta, max_delta, len(bt_trades), len(pp_fills), "Differences reflect replay timing, costs, and state alignment; inspect before drawing conclusions.", backtest_turnover=bt_turnover, paper_turnover=pp_turnover, backtest_cost=bt_cost, paper_cost=pp_cost, backtest_drawdown=_max_drawdown(bt_equity), paper_drawdown=_max_drawdown(pp_equity))
 
 
 @dataclass(frozen=True)
