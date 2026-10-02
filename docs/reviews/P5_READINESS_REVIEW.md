@@ -1,5 +1,9 @@
 # P5 Design Readiness Review
 
+> **Historical P4 readiness snapshot (superseded):** This review predates the
+> approved P5 implementation. Use `docs/PROJECT_STATE.md` and
+> `docs/reviews/P5_FINAL_VALIDATION_REPORT.md` for current status.
+
 **Status:** **READY FOR HUMAN APPROVAL** for design review only
 
 **Implementation status:** P5 is not implemented and no P5 dependency is

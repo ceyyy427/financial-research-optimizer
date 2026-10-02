@@ -1,5 +1,9 @@
 # Finahinking P4 Completion Report
 
+> **Historical P4 completion record:** The P5 waiting/stop statements below
+> describe the state at P4 completion and are superseded by the current P5 gate
+> report: `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`.
+
 ## Status
 
 P0 PASS · P1 PASS · P2 PASS · P3 PASS · P4 PASS

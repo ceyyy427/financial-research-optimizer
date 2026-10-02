@@ -166,7 +166,7 @@
 - [x] **Step 2: Run focused tests and verify they fail**
   Run `pytest tests/quant/test_adapters.py tests/validation/test_p5_gate.py -q`; expect missing adapter/report markers.
 - [x] **Step 3: Implement lazy adapter seam and gate report**
-  The statsmodels adapter must raise a clear optional-dependency error if unavailable; it may never return a third-party model object as a domain value. Record that no adapter package is installed in this gate.
+  The statsmodels adapter must raise a clear optional-dependency error if unavailable; it may never return a third-party model object as a domain value. Record that no adapter package is installed in the core project runtime; the separately approved `.venv-quant` sandbox is documented as an exception.
 - [x] **Step 4: Run the complete P5 gate**
   Run `python3 scripts/validate_governance.py`, `pytest -q`, `.venv/bin/ruff check src tests scripts`, `make p1-gate`, `.venv/bin/pip check`, forbidden import/package scans, and `git diff --check`.
 - [x] **Step 5: Request independent review and resolve findings**

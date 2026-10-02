@@ -1,5 +1,9 @@
 # Finahinking P4 Freeze Completion Report
 
+> **Historical P4 freeze record:** This report intentionally records the state
+> at the P4 freeze boundary. P5 was subsequently approved and completed; see
+> `docs/PROJECT_STATE.md` and `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`.
+
 ## Final status
 
 ```text

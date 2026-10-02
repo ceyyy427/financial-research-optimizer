@@ -15,10 +15,13 @@ out of scope.
    slippage. No broker or live execution path exists.
 2. **ResearchRun / Artifact / QuantRun:** `run_quant_experiment` creates a P4
    `ResearchRun`, a data-only `Artifact`, and a `QuantRun` linked by IDs and
-   fingerprints. It records dataset version, strategy version, engine version,
-   parameters, timestamp, benchmark, cost model, and slippage.
+   fingerprints. It records dataset version, source code commit, dependency
+   versions, strategy version, engine version, parameters, timestamp, benchmark,
+   cost model, and slippage. Lower-level engine/adapter calls remain pure
+   services; this entry point is the complete experiment-chain boundary.
 3. **Provenance:** the artifact payload identifies the dataset fingerprint,
-   strategy, engine, parameters, costs, benchmark, and timestamp. P4's source
+   source code commit, dependency versions, strategy, engine, parameters, costs,
+   slippage, benchmark, timestamp, and result fingerprint. P4's source
    provenance and ResearchRun result fingerprint remain intact.
 4. **Temporal integrity / no data leakage:** the engine evaluates each strategy
    against a causal dataset prefix and executes the resulting target weight at
@@ -31,8 +34,10 @@ out of scope.
 6. **Evaluation and risk:** total/annualized return, volatility, Sharpe,
    Sortino, drawdown, VaR, CVaR, turnover, fees, slippage, benchmark return,
    and excess return are normalized; undefined metrics return `None`.
-7. **Portfolio layer:** target weights are finite, bounded, and long-only by
-   default; exposure cannot silently exceed one.
+7. **Portfolio layer:** the in-house deterministic equal-weight optimizer and
+   target-weight validator produce finite, bounded, long-only allocations by
+   default; exposure cannot silently exceed one. The optimizer is a transparent
+   research baseline, not a recommendation.
 8. **Reproducibility:** the checked-in vertical-slice fixture runs twice with
    identical backtest, evaluation, artifact, and ResearchRun fingerprints and
    survives `RunStore` round-trip.
@@ -54,10 +59,10 @@ out of scope.
 ## Verification record
 
 - Governance validator: PASS for P5 state and completed P0–P4.5 gates.
-- Full suite: 67 tests passed.
-- Ruff: required for `src`, `tests`, and `scripts`.
+- Full suite: **75 tests passed**.
+- Ruff: **PASS** for `src`, `tests`, and `scripts`.
 - Notebook gate: existing P1 research notebook executes offline.
-- `pip check`: required to be clean.
+- `pip check`: **PASS** in the main `.venv` and isolated `.venv-quant`.
 - Forbidden imports/packages: no core direct imports of optional quant tools;
   no vectorbt, Backtrader, Pyfolio, or Ollama installation.
 

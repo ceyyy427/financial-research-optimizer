@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 import re
 from dataclasses import dataclass
@@ -243,7 +244,23 @@ class BacktestResult:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> BacktestResult:
-        if payload.get("schema_version") != 1:
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise ValueError("backtest result schema is invalid")
+        required = {
+            "dataset_fingerprint",
+            "strategy_id",
+            "strategy_version",
+            "engine_version",
+            "config",
+            "equity_curve",
+            "returns",
+            "weights",
+            "positions",
+            "trades",
+            "benchmark_returns",
+            "fingerprint",
+        }
+        if not required.issubset(payload):
             raise ValueError("backtest result schema is invalid")
         values = {key: payload[key] for key in payload if key not in {"schema_version", "fingerprint"}}
         result = cls(
@@ -264,19 +281,40 @@ class BacktestResult:
         return result
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class EvaluationReport:
     result_fingerprint: str
-    metrics: dict[str, float | None]
+    _metrics: dict[str, float | None]
     benchmark: str
     limitations: tuple[str, ...]
+
+    def __init__(
+        self,
+        result_fingerprint: str,
+        metrics: dict[str, float | None],
+        benchmark: str,
+        limitations: tuple[str, ...],
+    ) -> None:
+        if not isinstance(metrics, dict):
+            raise TypeError("metrics must be a mapping")
+        object.__setattr__(self, "result_fingerprint", result_fingerprint)
+        object.__setattr__(self, "_metrics", copy.deepcopy(metrics))
+        object.__setattr__(self, "benchmark", benchmark)
+        object.__setattr__(self, "limitations", tuple(limitations))
+        self.__post_init__()
+
+    @property
+    def metrics(self) -> dict[str, float | None]:
+        return copy.deepcopy(self._metrics)
 
     def __post_init__(self) -> None:
         if not self.result_fingerprint:
             raise ValueError("result fingerprint is required")
         if not isinstance(self.benchmark, str) or not self.benchmark.strip():
             raise ValueError("benchmark is required")
-        for key, value in self.metrics.items():
+        if self.benchmark != "buy_and_hold":
+            raise ValueError("benchmark must be buy_and_hold until a benchmark series contract exists")
+        for key, value in self._metrics.items():
             if not isinstance(key, str) or not key.strip():
                 raise ValueError("metric name is required")
             if value is not None and not math.isfinite(float(value)):
@@ -286,7 +324,7 @@ class EvaluationReport:
         return {
             "schema_version": 1,
             "result_fingerprint": self.result_fingerprint,
-            "metrics": self.metrics,
+            "metrics": copy.deepcopy(self._metrics),
             "benchmark": self.benchmark,
             "limitations": list(self.limitations),
         }
@@ -300,7 +338,10 @@ class EvaluationReport:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> EvaluationReport:
-        if payload.get("schema_version") != 1:
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise ValueError("evaluation report schema is invalid")
+        required = {"result_fingerprint", "metrics", "benchmark", "limitations", "fingerprint"}
+        if not required.issubset(payload):
             raise ValueError("evaluation report schema is invalid")
         report = cls(
             result_fingerprint=payload["result_fingerprint"],

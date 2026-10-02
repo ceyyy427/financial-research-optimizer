@@ -45,6 +45,32 @@ def test_quant_vertical_slice_replays_and_links_research_run(tmp_path):
     assert backtest.fingerprint == other_backtest.fingerprint
     assert "recommend" not in research_run.to_json().lower()
 
+    provenance = quant_run.result_artifact.payload["provenance"]
+    for field in (
+        "dataset_version",
+        "code_commit",
+        "dependency_versions",
+        "parameters",
+        "engine_version",
+        "cost_model",
+        "slippage",
+        "benchmark",
+        "timestamp",
+        "timestamp_kind",
+        "result_fingerprint",
+        "evaluation_fingerprint",
+    ):
+        assert field in provenance
+    assert provenance["dataset_version"] == backtest.dataset_fingerprint
+    assert provenance["engine_version"] == backtest.engine_version
+    assert research_run.engine_version == backtest.engine_version
+    assert provenance["result_fingerprint"] == backtest.fingerprint
+    assert provenance["evaluation_fingerprint"] == report.fingerprint
+    assert provenance["timestamp_kind"] == "dataset_as_of"
+    assert provenance["slippage"] == config.slippage_bps
+    assert quant_run.parameters["code_commit"] == provenance["code_commit"]
+    assert quant_run.parameters["dependency_versions"] == provenance["dependency_versions"]
+
 
 def test_quant_runtime_requires_strategy_factor_for_research_provenance():
     class BareStrategy:

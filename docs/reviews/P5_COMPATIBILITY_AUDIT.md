@@ -1,5 +1,9 @@
 # P5 Compatibility Audit
 
+> **Historical P4 compatibility snapshot (superseded):** The implementation
+> prohibition below applied before P5 approval. Current P5 evidence is in
+> `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`.
+
 **Result:** READY FOR HUMAN-APPROVED DESIGN; P5 remains unimplemented
 
 ## Can P5 connect to ResearchRun?

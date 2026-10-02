@@ -43,6 +43,31 @@ def test_p5_optional_sandbox_records_controlled_statsmodels_install() -> None:
         assert marker in sandbox
 
 
+def test_p5_admission_evidence_and_portfolio_scope_are_recorded() -> None:
+    evidence = _read("docs/p5/ADMISSION_EVIDENCE.md")
+    portfolio = _read("docs/p5/PORTFOLIO_LAYER.md")
+    for marker in (
+        "statsmodels",
+        "B; isolated `0.15.0` adapter sandbox",
+        "Riskfolio-Lib",
+        "TA-Lib",
+        "Backtrader",
+        "BSD-3-Clause",
+        "BSD-2-Clause",
+        "Security",
+        "not installed",
+        "no benchmark was run",
+    ):
+        assert marker in evidence
+    for marker in (
+        "optimize_equal_weight_allocation",
+        "validate_target_weights",
+        "residual",
+        "not an investment recommendation",
+    ):
+        assert marker in portfolio
+
+
 def test_p5_gate_review_contains_acceptance_and_forbidden_scope() -> None:
     gate = _read("docs/phases/P5_GATE_REVIEW.md")
     for marker in (

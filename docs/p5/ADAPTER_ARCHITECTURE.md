@@ -5,6 +5,10 @@ in-house ledger, evaluation metrics, `Artifact`, and `QuantRun`. Optional
 third-party libraries are loaded only from `quant/adapters/` and are converted
 immediately into plain Finahinking-owned data.
 
+The P5 portfolio boundary includes an in-house equal-weight optimizer and
+constraint validator. It is deliberately transparent and descriptive; an
+external optimizer remains optional and cannot become a domain object.
+
 ```text
 ResearchRun / Dataset
         |
@@ -30,3 +34,7 @@ The same shape applies to future PyPortfolioOpt, QuantStats/Pyfolio, Alphalens,
 bt, vectorbt, Riskfolio-Lib, and TA-Lib adapters. Each must have a component
 matrix entry, an exact version and dependency tree, an isolated benchmark, a
 license decision, and a removal path before installation.
+
+`BacktestEngine` and the adapters are lower-level pure services. The public P5
+experiment entry point is `run_quant_experiment`; it is the boundary that
+creates the complete ResearchRun → Artifact → QuantRun → provenance chain.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -14,16 +16,42 @@ class OptionalDependencyError(ImportError):
     """Raised when an optional adapter is used without its approved package."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class RegressionResult:
     """Normalized regression evidence; never stores a statsmodels model."""
 
-    parameters: dict[str, float]
-    metrics: dict[str, float | None]
+    _parameters: dict[str, float]
+    _metrics: dict[str, float | None]
+
+    def __init__(
+        self,
+        parameters: dict[str, float],
+        metrics: dict[str, float | None],
+    ) -> None:
+        if not isinstance(parameters, dict) or not isinstance(metrics, dict):
+            raise TypeError("regression maps must be dictionaries")
+        normalized_parameters = {str(key): float(value) for key, value in parameters.items()}
+        normalized_metrics = {
+            str(key): None if value is None else float(value) for key, value in metrics.items()
+        }
+        if any(not math.isfinite(value) for value in normalized_parameters.values()):
+            raise ValueError("regression parameters must be finite")
+        if any(value is not None and not math.isfinite(value) for value in normalized_metrics.values()):
+            raise ValueError("regression metrics must be finite or None")
+        object.__setattr__(self, "_parameters", copy.deepcopy(normalized_parameters))
+        object.__setattr__(self, "_metrics", copy.deepcopy(normalized_metrics))
+
+    @property
+    def parameters(self) -> dict[str, float]:
+        return copy.deepcopy(self._parameters)
+
+    @property
+    def metrics(self) -> dict[str, float | None]:
+        return copy.deepcopy(self._metrics)
 
     @property
     def fingerprint(self) -> str:
-        return _digest({"parameters": self.parameters, "metrics": self.metrics})
+        return _digest({"parameters": self._parameters, "metrics": self._metrics})
 
 
 class StatsmodelsAdapter:

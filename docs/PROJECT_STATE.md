@@ -33,9 +33,11 @@ Phase changes require the corresponding gate design and an independent review.
 - Agent readiness audit: `docs/reviews/AGENT_READINESS_AUDIT.md`
 - Dependency audit: `docs/reviews/DEPENDENCY_AUDIT.md`
 - P5 component admission: `docs/p5/COMPONENT_ADMISSION_MATRIX.md`
+- P5 admission evidence: `docs/p5/ADMISSION_EVIDENCE.md`
 - P5 dependency plan: `docs/p5/DEPENDENCY_PLAN.md`
 - P5 gate review: `docs/phases/P5_GATE_REVIEW.md`
 - P5 adapter architecture: `docs/p5/ADAPTER_ARCHITECTURE.md`
+- P5 portfolio layer: `docs/p5/PORTFOLIO_LAYER.md`
 - P5 final validation: `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`
 - P4 philosophy review: `docs/reviews/P4_PHILOSOPHY_REVIEW.md`
 - P5 readiness review: `docs/reviews/P5_READINESS_REVIEW.md`
@@ -57,7 +59,7 @@ Phase changes require the corresponding gate design and an independent review.
 | P3 | PASS | `docs/phases/P3_GATE_REVIEW.md`, full test and lint evidence |
 | P4 | PASS | `docs/phases/P4_GATE_REVIEW.md`, `docs/architecture/P4_ARCHITECTURE_FREEZE.md`, `docs/P4_FREEZE_COMPLETION_REPORT.md`, 32 tests |
 | P4.5 | PASS | `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`, 36 tests, notebook execution, dependency audit |
-| P5 | PASS | `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`, 67 tests, notebook execution, dependency audit |
+| P5 | PASS | `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`, 75 tests, notebook execution, dependency audit |
 
 ## Constraints
 

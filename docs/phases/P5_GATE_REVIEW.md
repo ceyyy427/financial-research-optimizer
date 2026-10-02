@@ -18,14 +18,19 @@ backtest evidence, not trading systems or investment advice.
 2. Every run creates a P4-compatible **ResearchRun**, data-only **Artifact**,
    **QuantRun**, fingerprint, and provenance record.
    **Provenance** must identify the dataset version, code/engine versions, and
-   every cost, slippage, and **Benchmark** assumption.
+   dependency versions, parameters, result fingerprint, and every cost,
+   slippage, and **Benchmark** assumption.
 3. Temporal tests demonstrate **no data leakage** and no same-bar execution.
-4. The **cost model**, slippage, cash policy, benchmark, and calendar are
-   explicit parameters.
+4. The **cost model**, slippage, cash policy, benchmark, frequency, and
+   annualization are explicit parameters. Calendar/corporate-action alignment
+   remains an explicitly deferred research-validity requirement.
 5. Repeating the same fixture produces identical trade, evaluation, artifact,
    and QuantRun fingerprints.
-6. Return, Sharpe, Sortino, CVaR, drawdown, turnover, and attribution surfaces
-   report undefined values honestly and carry limitations.
+6. Return, Sharpe, Sortino, CVaR, drawdown, turnover, and benchmark surfaces
+   report undefined values honestly and carry limitations; regression/attribution
+   remains behind the normalized optional adapter seam.
+   The portfolio layer also provides a deterministic constrained allocation
+   baseline without recommendation language.
 7. Candidate repository, maintenance, security, compatibility, and **License**
    decisions are documented; no blind installation occurs.
 8. Full tests, Ruff, notebook execution, `pip check`, governance validation,

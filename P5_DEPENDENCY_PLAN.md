@@ -1,5 +1,10 @@
 # P5 Dependency Plan
 
+> **Historical P4 review record (superseded):** This document captures the
+> pre-implementation P4 freeze decision. The current P5 admission and sandbox
+> evidence is maintained in `docs/p5/DEPENDENCY_PLAN.md` and
+> `docs/p5/OPTIONAL_SANDBOX.md`.
+
 **Status:** Evaluation only; do not install during P4 review.
 **Decision:** No P5 dependency is approved.
 

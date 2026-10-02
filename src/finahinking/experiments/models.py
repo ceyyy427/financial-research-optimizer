@@ -88,6 +88,7 @@ class ResearchRun:
         limitations: list[str] | tuple[str, ...],
         run_id: str | None = None,
         created_at: str | None = None,
+        engine_version: str | None = None,
     ) -> ResearchRun:
         for name, value in (("question", question), ("hypothesis", hypothesis), ("method", method), ("conclusion", conclusion), ("insight", insight)):
             if not isinstance(value, str) or not value.strip():
@@ -95,6 +96,9 @@ class ResearchRun:
         identifier = run_id or __import__("uuid").uuid4().hex
         if not identifier or "/" in identifier or "\\" in identifier:
             raise ValueError("run id is invalid")
+        resolved_engine_version = "0.1.0" if engine_version is None else engine_version
+        if not isinstance(resolved_engine_version, str) or not resolved_engine_version.strip():
+            raise ValueError("engine version is required")
         payload = dataset_payload(dataset)
         return cls(
             run_id=identifier,
@@ -112,6 +116,7 @@ class ResearchRun:
             insight=insight,
             limitations=tuple(str(item) for item in limitations),
             created_at=created_at or datetime.now(UTC).isoformat(),
+            engine_version=resolved_engine_version,
         )
 
     @property

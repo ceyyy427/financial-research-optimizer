@@ -4,6 +4,10 @@ All notable changes are recorded here. Entries describe user-visible
 research, reproducibility, or governance changes and link to the relevant
 phase gate where possible.
 
+The first waiting-for-approval bullets are historical snapshots from before
+the P5 approval; the later P5 completion bullets are the current Unreleased
+state.
+
 ## Unreleased
 
 - Added governed P0–P4 research infrastructure, including data provenance,

@@ -83,3 +83,10 @@ def test_sortino_uses_one_annualization_factor():
     daily_downside = ((0.1**2 + 0.2**2) / 2) ** 0.5
     expected = (-0.05 * 4**0.5) / (daily_downside * 4**0.5)
     assert report.metrics["sortino"] == pytest.approx(expected)
+
+
+def test_evaluation_report_defensively_copies_metrics():
+    report = evaluate_backtest(result_fixture())
+    exposed = report.metrics
+    exposed["total_return"] = 99.0
+    assert report.metrics["total_return"] != 99.0

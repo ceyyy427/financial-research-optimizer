@@ -1,5 +1,9 @@
 # P5 Dependency Decision
 
+> **Historical P4 freeze decision:** This decision predates the approved P5
+> sandbox admission. The current dependency record is
+> `docs/p5/DEPENDENCY_PLAN.md` and `docs/p5/OPTIONAL_SANDBOX.md`.
+
 **Decision date:** 2026-10-02
 
 **Status:** No dependency approved or installed. Human approval is required

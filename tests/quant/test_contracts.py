@@ -36,6 +36,13 @@ def test_contracts_reject_invalid_weights_costs_and_trade_values():
         Trade(pd.Timestamp("2024-01-01"), "hold", 1.0, 100.0, 100.0, 0.0, 0.0, "bad")
     with pytest.raises(ValueError, match="benchmark"):
         BacktestConfig(starting_cash=100.0, fee_bps=0.0, slippage_bps=0.0, benchmark="SPX")
+    with pytest.raises(ValueError, match="benchmark"):
+        EvaluationReport(
+            result_fingerprint="result",
+            metrics={},
+            benchmark="SPX",
+            limitations=(),
+        )
 
 
 def test_backtest_result_and_evaluation_report_have_stable_fingerprints():
@@ -62,3 +69,11 @@ def test_backtest_result_and_evaluation_report_have_stable_fingerprints():
     )
     assert result.fingerprint == BacktestResult.from_dict(result.to_dict()).fingerprint
     assert report.fingerprint == EvaluationReport.from_dict(report.to_dict()).fingerprint
+
+
+def test_result_deserializers_reject_malformed_payload_shapes():
+    for malformed in (None, [], {"schema_version": 1}):
+        with pytest.raises((TypeError, ValueError)):
+            BacktestResult.from_dict(malformed)
+        with pytest.raises((TypeError, ValueError)):
+            EvaluationReport.from_dict(malformed)

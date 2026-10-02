@@ -1,5 +1,10 @@
 # P5 Gate Design — Backtest and Evaluation Engine
 
+> **Historical design-only gate:** This document records the pre-approval gate
+> design. The implementation and final decision are recorded in
+> `docs/phases/P5_GATE_REVIEW.md` and
+> `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`.
+
 **Status:** Design only; P5 implementation is forbidden until human approval.
 **Precondition:** P0–P4 gates PASS and the P4 final review is accepted.
 
