@@ -21,6 +21,9 @@ class CodeSafetyReport:
     def to_dict(self) -> dict[str, Any]:
         return {"safe": self.safe, "violations": list(self.violations), "source_fingerprint": self.source_fingerprint}
 
+    def __getitem__(self, key: str) -> Any:
+        return self.to_dict()[key]
+
 
 @dataclass(frozen=True)
 class StrategyLearningTrace:
@@ -33,6 +36,24 @@ class StrategyLearningTrace:
     limitation: str
     input_example: str = ""
     output_example: str = ""
+
+    # Verbose aliases make the trace self-documenting for export consumers
+    # while preserving the concise fields used by the existing P6 contracts.
+    @property
+    def component_id(self) -> str:
+        return self.component
+
+    @property
+    def code_explanation(self) -> str:
+        return self.code
+
+    @property
+    def math_explanation(self) -> str:
+        return self.math
+
+    @property
+    def finance_explanation(self) -> str:
+        return self.finance
 
     def to_dict(self) -> dict[str, str]:
         return self.__dict__.copy()
