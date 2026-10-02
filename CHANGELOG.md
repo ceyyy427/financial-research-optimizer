@@ -24,3 +24,7 @@ phase gate where possible.
 - Began the approved P5 Quant Engine Foundation with component admission,
   dependency policy, and a P5-specific gate review. The runtime remains
   research-only and uses no newly installed external quant dependency.
+- Completed the P5 Quant Engine Foundation with domain contracts, an in-house
+  deterministic backtest engine, evaluation/risk metrics, portfolio validation,
+  a ResearchRun-linked vertical slice, and lazy optional adapter seams. P6 is
+  held for human approval.

@@ -10,14 +10,16 @@ responsible for their own decisions.
 
 ## Scope
 
-The governed foundation is complete through P4:
+The governed foundation is complete through P5:
 
 `provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
 
-P4 now provides local experiment persistence and orchestration through
-ResearchRun, ExperimentEngine, and RunStore. P5 is explicitly out of scope.
-Network access is isolated to documented data-provider code, and tests use
-recorded fixtures by default.
+P4 provides local experiment persistence and orchestration through ResearchRun,
+ExperimentEngine, and RunStore. P5 adds a research-only, in-house historical
+backtest/evaluation runtime with explicit costs, slippage, provenance, and
+fingerprints. It does not execute trades or provide investment advice. P6 is
+out of scope pending human approval. Network access is isolated to documented
+data-provider code, and tests use recorded fixtures by default.
 
 ## Repository map
 

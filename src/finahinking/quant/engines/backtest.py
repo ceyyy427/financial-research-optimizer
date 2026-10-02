@@ -10,7 +10,14 @@ from finahinking.data.models import Dataset
 from finahinking.data.validation import validate_price_dataset
 from finahinking.experiments.models import dataset_payload
 
-from ..interfaces import BacktestConfig, BacktestResult, Strategy, Trade, _digest, validate_identifier
+from ..interfaces import (
+    BacktestConfig,
+    BacktestResult,
+    Strategy,
+    Trade,
+    _digest,
+    validate_identifier,
+)
 
 
 class BacktestEngine:
@@ -26,7 +33,7 @@ class BacktestEngine:
         strategy_version = validate_identifier(strategy.version, "strategy version")
         signals = strategy.generate(dataset)
         if not isinstance(signals, pd.Series):
-            raise ValueError("strategy must return a pandas Series")
+            raise TypeError("strategy must return a pandas Series")
         try:
             signal_index = pd.DatetimeIndex(pd.to_datetime(signals.index))
         except (TypeError, ValueError) as exc:

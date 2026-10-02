@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -45,12 +44,19 @@ class Artifact:
         validate_identifier(artifact_id, "artifact identifier")
         validate_identifier(artifact_type, "artifact type")
         if not isinstance(payload, dict):
-            raise ValueError("artifact payload must be a mapping")
+            raise TypeError("artifact payload must be a mapping")
         _reject_executable_keys(payload)
         encoded = canonical_json(payload).encode("utf-8")
         if len(encoded) > _MAX_ARTIFACT_BYTES:
             raise ValueError("artifact payload exceeds size limit")
-        timestamp = (created_at or datetime.now(UTC)).isoformat()
+        if created_at is None:
+            timestamp = datetime.now(UTC).isoformat()
+        elif isinstance(created_at, datetime):
+            timestamp = created_at.isoformat()
+        elif isinstance(created_at, str) and created_at.strip():
+            timestamp = created_at
+        else:
+            raise ValueError("created timestamp is invalid")
         return cls(artifact_id, artifact_type, 1, payload, timestamp)
 
     @property
@@ -138,9 +144,17 @@ class QuantRun:
         ):
             validate_identifier(value, field)
         if not isinstance(parameters, dict):
-            raise ValueError("parameters must be a mapping")
+            raise TypeError("parameters must be a mapping")
         if not isinstance(result_artifact, Artifact):
-            raise ValueError("result artifact is invalid")
+            raise TypeError("result artifact is invalid")
+        if timestamp is None:
+            timestamp_text = datetime.now(UTC).isoformat()
+        elif isinstance(timestamp, datetime):
+            timestamp_text = timestamp.isoformat()
+        elif isinstance(timestamp, str) and timestamp.strip():
+            timestamp_text = timestamp
+        else:
+            raise ValueError("timestamp is invalid")
         return cls(
             quant_run_id,
             research_run_id,
@@ -149,7 +163,7 @@ class QuantRun:
             engine_version,
             parameters,
             result_artifact,
-            (timestamp or datetime.now(UTC)).isoformat(),
+            timestamp_text,
         )
 
     @property

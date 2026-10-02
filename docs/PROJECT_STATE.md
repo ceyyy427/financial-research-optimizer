@@ -12,11 +12,13 @@ Phase changes require the corresponding gate design and an independent review.
 - P3 gate: PASS
 - P4 gate: PASS
 - Next action: P5 Gate Review
-- Next: P5 Gate Review
+- Next: P6 Human Approval
 - P4 status: frozen
 - P4.5 Research OS Validation: PASS
-- P5 status: implementation in progress
+- P5 status: PASS
 - P5 implementation scope: historical research only; no trading or broker integration
+- P5 gate: PASS
+- P6 implementation scope: out of scope until human approval
 - P4 architecture freeze: `docs/architecture/P4_ARCHITECTURE_FREEZE.md`
 - P4.5 audit plan: `docs/reviews/P4_5_AUDIT_PLAN.md`
 - P4.5 final validation: `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`
@@ -33,6 +35,8 @@ Phase changes require the corresponding gate design and an independent review.
 - P5 component admission: `docs/p5/COMPONENT_ADMISSION_MATRIX.md`
 - P5 dependency plan: `docs/p5/DEPENDENCY_PLAN.md`
 - P5 gate review: `docs/phases/P5_GATE_REVIEW.md`
+- P5 adapter architecture: `docs/p5/ADAPTER_ARCHITECTURE.md`
+- P5 final validation: `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`
 - P4 philosophy review: `docs/reviews/P4_PHILOSOPHY_REVIEW.md`
 - P5 readiness review: `docs/reviews/P5_READINESS_REVIEW.md`
 - P5 dependency decision: `docs/P5_DEPENDENCY_DECISION.md`

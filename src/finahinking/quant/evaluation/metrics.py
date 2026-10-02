@@ -7,7 +7,12 @@ import math
 import pandas as pd
 
 from ..interfaces import BacktestResult, EvaluationReport
-from ..risk.metrics import conditional_value_at_risk, downside_deviation, maximum_drawdown, value_at_risk
+from ..risk.metrics import (
+    conditional_value_at_risk,
+    downside_deviation,
+    maximum_drawdown,
+    value_at_risk,
+)
 
 
 def _series(values: tuple[tuple[str, float], ...]) -> pd.Series:
