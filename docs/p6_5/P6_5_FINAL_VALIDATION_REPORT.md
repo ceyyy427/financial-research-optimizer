@@ -22,7 +22,7 @@ task log and summarized here.
 | `.venv-quant/bin/pytest -q` | PASS — 171 passed, 1 skipped |
 | `.venv/bin/ruff check src tests scripts` | PASS |
 | `make notebook-check` | PASS |
-| `python scripts/validate_governance.py .` | PASS |
+| `.venv/bin/python scripts/validate_governance.py .` | PASS |
 | `.venv/bin/pip check` | PASS |
 | `.venv-quant/bin/pip check` | PASS |
 | `bash scripts/verify_p6_5_postgres.sh` | PASS — `P6.5_POSTGRES_SCHEMA_PASS`; disposable container cleaned |
@@ -70,6 +70,39 @@ The same run checks stable request/result fingerprints, raw payload SHA-256,
 canonical observation fingerprints, and offline replay. This is the evidence
 for checklist item 40; the assertion is intentionally evaluated after the last
 commit rather than copied from an earlier worktree state.
+
+## Mission completion ledger
+
+| Required field | Final record |
+| --- | --- |
+| Starting commit | `d017440740b8bbebdd95a9b60ab4be14c30a17a0` (P6-complete baseline) |
+| Final commit | Resolved by `git rev-parse HEAD` in the final provenance assertion; the runtime response and HEAD must match exactly. |
+| P6 baseline state | Complete, guided, typed, human-controlled, and frozen for product consumption. |
+| P6.5 state | Complete; bounded BLS real-world evidence vertical slice validated; P7 waiting. |
+| Skills used | Planning/brainstorming, test-driven development, systematic debugging, verification-before-completion, software-engineering, financial-research-optimizer, data-quality analysis, and data validation. |
+| Skills added | None. The capability audit found no missing trusted skill. |
+| Plugins/MCP enabled | None added or enabled for P6.5; existing workspace tools were used only for local task operations. |
+| Database tooling | Standard-library `sqlite3` adapter plus disposable Docker `postgres:16-alpine`/`psql` migration verification. |
+| Dependencies added | None; both existing environments pass `pip check`. |
+| Dependencies deferred | Production PostgreSQL driver/repository, broader connectors, agent frameworks, and live-data SDKs. |
+| Sources evaluated | Official BLS, a-stock-data, AKShare, and Tushare Pro. |
+| Sources admitted | BLS CPI only: `TIER_0 / ADMIT_AUTHORITATIVE`. |
+| Source tiers | a-stock-data and AKShare: `TIER_2 / DISCOVERY_ONLY`; Tushare Pro: `TIER_1 / DEFER`. |
+| BLS ingestion | Strict official endpoint boundary, bounded capture, raw artifact, exact observed response grammar, and explicit quarantine. |
+| Capture/replay | Committed fixture replays offline with stable request/payload hashes and parser version. |
+| Canonical model | Immutable source, release, capture, observation/version, event, claim/evidence, concept, hypothesis, conflict, and learning references. |
+| Temporal model | Five explicit clocks with timezone/order validation; availability is not retrieval by assumption. |
+| SQL/migration | Normalized PostgreSQL-target migration, SQLite deterministic adapter, parameterized queries, atomic capture/event/observation writes, and PostgreSQL gate PASS. |
+| Event / Claim / Evidence | Event is a macro release; typed claims resolve through fingerprinted evidence and Show Evidence. |
+| Why-It-Matters / Knowledge Bridge | Typed economic mechanism and concept relations with non-causal limitations. |
+| Quant Bridge | Event-scoped `TypedToolRequest` through the existing P6 gateway; no second runtime. |
+| Conclusion Ladder | Five evidence-bearing levels from known facts to what would change the view. |
+| Learning integration | Existing P6 `LearningCard`/`LearningStore` with misconception and transfer prompt. |
+| Understanding evaluation | Research, agent, and learning quality checks plus a descriptive, explicitly non-causal pre/post proxy. |
+| Security / data quality / temporal / database / grounding / reproducibility | Independent A–K audits PASS within the documented local trust boundary. |
+| Tests and static gates | 171 passed, 1 skipped in both environments; Ruff, Notebook, governance, pip, PostgreSQL, shell, diff, and provenance gates PASS. |
+| Worktree | Clean at final handoff. |
+| P7 readiness | `A — READY FOR P7`; stop and wait for explicit human approval. |
 
 ## Capability and dependency decision
 
