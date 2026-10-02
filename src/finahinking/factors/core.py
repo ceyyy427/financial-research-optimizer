@@ -43,6 +43,8 @@ def evaluate_factor(
         raise ValueError("shift_periods must be a non-negative integer")
     if not factor_values.index.is_unique or not forward_returns.index.is_unique:
         raise ValueError("factor and forward-return indexes must be unique")
+    if not factor_values.index.equals(forward_returns.index):
+        raise ValueError("factor and forward-return series must use the same index")
     if not factor_values.index.is_monotonic_increasing or not forward_returns.index.is_monotonic_increasing:
         raise ValueError("factor and forward-return indexes must be increasing")
     factor_numeric = factor_values.astype(float)

@@ -12,4 +12,6 @@ override) and define the forecast horizon to avoid look-ahead bias or direct
 data leakage. Results are also sensitive to transaction costs, regime changes,
 survivorship bias, and multiple testing. Constant or insufficient history
 inputs have an undefined information coefficient rather than a forced numeric
-score.
+score. Factor and forward-return series must use the same unique, increasing
+index; missing observations are dropped after the causal shift, while infinite
+values and ambiguous alignment fail explicitly.

@@ -23,3 +23,13 @@ def test_validate_price_dataset_rejects_missing_column_and_unsorted_dates():
     unsorted = pd.DataFrame({"close": [100.0, 101.0]}, index=pd.to_datetime(["2024-01-02", "2024-01-01"]))
     with pytest.raises(ValueError, match="increasing"):
         validate_price_dataset(unsorted, "close")
+
+
+def test_validate_price_dataset_rejects_non_datetime_or_nat_index():
+    non_date = pd.DataFrame({"close": [100.0]}, index=["not-a-date"])
+    with pytest.raises(ValueError, match="datetime"):
+        validate_price_dataset(non_date, "close")
+
+    nat_index = pd.DataFrame({"close": [100.0]}, index=pd.DatetimeIndex([pd.NaT]))
+    with pytest.raises(ValueError, match="datetime"):
+        validate_price_dataset(nat_index, "close")

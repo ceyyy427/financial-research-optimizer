@@ -58,6 +58,17 @@ def test_evaluate_factor_rejects_ambiguous_or_nonfinite_inputs():
             pd.Series([1.0, np.inf, 3.0], index=index),
             pd.Series([1.0, 2.0, 3.0], index=index),
         )
+    with pytest.raises(ValueError, match="same index"):
+        evaluate_factor(
+            pd.Series([1.0, 2.0, 3.0], index=index),
+            pd.Series([1.0, 2.0, 3.0], index=index + pd.Timedelta(days=1)),
+        )
+    unsorted_index = pd.DatetimeIndex([index[1], index[0], index[2]])
+    with pytest.raises(ValueError, match="increasing"):
+        evaluate_factor(
+            pd.Series([1.0, 2.0, 3.0], index=unsorted_index),
+            pd.Series([1.0, 2.0, 3.0], index=unsorted_index),
+        )
     with pytest.raises(ValueError, match="increasing"):
         evaluate_factor(
             pd.Series([1.0, 2.0, 3.0], index=index[::-1]),

@@ -13,6 +13,16 @@ class Provenance:
     retrieved_at: datetime | None = None
     license: str = "Public source; verify current provider terms before redistribution"
 
+    def __post_init__(self) -> None:
+        if not self.provider.strip():
+            raise ValueError("provenance provider cannot be empty")
+        if not self.source_url.strip():
+            raise ValueError("provenance source_url cannot be empty")
+        if not self.license.strip():
+            raise ValueError("provenance license cannot be empty")
+        if self.retrieved_at is not None and self.retrieved_at.utcoffset() is None:
+            raise ValueError("provenance retrieved_at must be timezone-aware")
+
 
 @dataclass(frozen=True)
 class Dataset:

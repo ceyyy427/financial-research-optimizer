@@ -25,8 +25,15 @@ REQUIRED_FILES = (
     "docs/phases/P0_GATE_DESIGN.md",
     ".agents/README.md",
     ".agents/implementer.md",
+    ".agents/orchestrator.md",
+    ".agents/planner.md",
+    ".agents/architect.md",
+    ".agents/builder.md",
     ".agents/researcher.md",
     ".agents/reviewer.md",
+    ".agents/security-reviewer.md",
+    ".agents/dependency-manager.md",
+    ".agents/release-manager.md",
 )
 
 
@@ -63,8 +70,15 @@ def _write_complete_repository(root: Path) -> None:
         ),
         ".agents/README.md": "# Agent Contracts\nEvery agent follows the project scope and safety rules.\n",
         ".agents/implementer.md": "# Implementer\n## Scope\nImplement approved changes.\n## Must not\nAdd P4 behavior or investment advice.\n",
+        ".agents/orchestrator.md": "# Orchestrator\n## Scope\nOwn phase gates.\n## Must not\nSkip a gate.\n",
+        ".agents/planner.md": "# Planner\n## Scope\nDefine testable plans.\n## Must not\nChoose unrecorded dependencies.\n",
+        ".agents/architect.md": "# Architect\n## Scope\nReview boundaries.\n## Must not\nApprove unsafe shortcuts.\n",
+        ".agents/builder.md": "# Builder\n## Scope\nImplement approved plans.\n## Must not\nAdd trading automation.\n",
         ".agents/researcher.md": "# Researcher\n## Scope\nInvestigate sources and assumptions.\n## Must not\nUse secrets or provide investment advice.\n",
         ".agents/reviewer.md": "# Reviewer\n## Scope\nCheck evidence and acceptance criteria.\n## Must not\nApprove missing tests or governance evidence.\n",
+        ".agents/security-reviewer.md": "# Security Reviewer\n## Scope\nCheck security.\n## Must not\nApprove secrets.\n",
+        ".agents/dependency-manager.md": "# Dependency Manager\n## Scope\nControl dependencies.\n## Must not\nInstall silently.\n",
+        ".agents/release-manager.md": "# Release Manager\n## Scope\nPrepare reviewed snapshots.\n## Must not\nPublish without review.\n",
     }
     assert set(text_by_path) == set(REQUIRED_FILES)
     for relative, contents in text_by_path.items():
@@ -108,6 +122,17 @@ class GovernanceValidatorTests(unittest.TestCase):
             output = result.stdout + result.stderr
             self.assertIn("DEPENDENCY_RECORD.md", output)
 
+    def test_validator_reports_missing_required_role_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            (tmp_path / ".agents" / "security-reviewer.md").unlink()
+
+            result = _run_validator(tmp_path)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("security-reviewer.md", result.stdout + result.stderr)
+
     def test_validator_rejects_invalid_phase_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             tmp_path = Path(directory)
@@ -141,6 +166,39 @@ class GovernanceValidatorTests(unittest.TestCase):
             )
             result = _run_validator(tmp_path)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_validator_accepts_p3_stop_state_with_required_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P3 Quant Research Engine\n"
+                    "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\nP3 gate: PASS\n"
+                    "Next action: human review\nP4 status: out of scope",
+                ),
+                encoding="utf-8",
+            )
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_validator_rejects_p3_stop_state_without_prior_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P3 Quant Research Engine\nP0 gate: PASS\nP4 status: out of scope",
+                ),
+                encoding="utf-8",
+            )
+            result = _run_validator(tmp_path)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("P1 gate: PASS", result.stdout + result.stderr)
 
     def test_validator_accepts_p4_5_validation_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -3,7 +3,7 @@
 Finahinking is organized around small boundaries that keep network effects and
 research transformations separate:
 
-`provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
+`provider -> dataset/provenance -> validation -> feature functions -> factors`
 
 Providers are the only network boundary. They return normalized data and
 immutable provenance metadata. Dataset validation checks schema, missingness,
@@ -11,12 +11,9 @@ time ordering, and duplicate observations before feature functions receive a
 series. Features are pure transformations. Factors are named, documented
 computations with explicit evaluation metrics and limitations.
 
-P4 keeps execution, record modeling, and persistence separate. `ExperimentEngine`
-binds a validated dataset and documented factor to an explicit method and
-parameters; `ResearchRun` stores the question, hypothesis, dataset, result,
-conclusion, insight, and limitations as canonical JSON with SHA-256
-fingerprints; `RunStore` persists records locally with path-safe IDs and atomic
-writes. Stored records are data only and never execute code.
+The current P3 boundary ends at descriptive feature and factor evaluation.
+Later execution, record modeling, persistence, backtesting, and learning
+modules remain historical artifacts and are not part of this delivery.
 
 ## Research quality
 
@@ -27,19 +24,9 @@ codebase never emits investment advice or trade instructions.
 
 ## Phase boundary
 
-The P0–P4 delivery ends with a descriptive, reproducible experiment foundation.
-Backtesting, portfolio simulation, brokerage integration, and investment advice
-are out of scope for P4. Any P5 change to this boundary requires human approval,
-an approved gate design, a dependency review, and an independent gate review.
-
-The current governed boundary is P6.6: a bounded strategy research and
-simulation lab layered on the frozen P6/P6.5 guided, typed, human-controlled
-research, learning, and source-admission contracts. The P6.5 path remains
-`official source → capture/replay → canonical observation → event →
-claim/evidence → typed P6 quant → explanation → learning`; the AI layer
-classifies and explains while Finahinking-owned services calculate and preserve
-provenance. P6.6 adds `idea → reviewed StrategySpec → FeatureGraph →
-constrained IR → existing P5/P5.5 backtest → OOS → paper replay → learning /
-safe export`. P7, live execution, brokerage integration, unrestricted strategy
-search, and automatic recommendations remain out of scope pending explicit
-human approval.
+The current governed delivery is P0–P3: a descriptive, reproducible research
+foundation. P4 experiment persistence, P5 backtesting, brokerage integration,
+live execution, and investment advice are out of scope. Any P4+ change requires
+a new human-approved phase request, an approved gate design, a dependency
+review, and an independent gate review. Historical P4–P6.6 modules are retained
+for traceability but do not change this current boundary.

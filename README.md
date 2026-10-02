@@ -10,29 +10,21 @@ responsible for their own decisions.
 
 ## Scope
 
-The governed foundation is complete through P6.6, with P7 intentionally held
+The requested governed delivery boundary is P3, with P4 intentionally held
 for human approval:
 
-`provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
+`provider -> dataset/provenance -> validation -> feature functions -> factors`
 
-P4 provides local experiment persistence and orchestration through ResearchRun,
-ExperimentEngine, and RunStore. P5 adds a research-only, in-house historical
-backtest/evaluation runtime with explicit costs, slippage, provenance, and
-fingerprints. P5.5 freezes the typed quant boundary and validity/OOS
-contracts. P6 adds a guided, human-controlled question → hypothesis →
-experiment → evidence → explanation → learning workflow, including a
-normalized regression-learning slice. P6.5 adds a bounded Bureau of Labor
-Statistics CPI capture/replay path, canonical event/claim/evidence models,
-progressive disclosure, reviewed source admission, explicit temporal and
-revision semantics, a normalized database schema, and a typed bridge back to
-the frozen P6 quant and learning contracts. The first product journey is
-bounded to one real BLS CPI event; discovery providers are never silently
-promoted to authority. P6.6 adds versioned feature graphs, reviewed strategy
-specifications, constrained educational code, P5/P5.5 backtest routing,
-out-of-sample metadata, deterministic paper replay, drift diagnostics, and a
-safe research export. It does not execute trades, provide investment advice,
-or enter P7. Network access is isolated to allowlisted provider code, and
-tests use recorded fixtures by default.
+P0–P3 provide governance, a reproducible Python environment, an ECB-backed
+fixture/provider boundary, validated datasets, descriptive feature functions,
+and documented factor evaluation. They do not execute trades, provide
+investment advice, or imply a forecasting result. Network access is isolated
+to allowlisted provider code, and tests use recorded fixtures by default.
+
+Later P4–P6.6 files remain in the repository as historical material from prior
+work, but are outside this requested delivery boundary and are not endorsed by
+the current P3 gate. P4+ may only become authoritative after a new human-
+approved phase request.
 
 ## Repository map
 
@@ -40,10 +32,8 @@ tests use recorded fixtures by default.
 - `fixtures/` — deterministic, reviewed input data for tests.
 - `tests/` — unit and integration checks that do not require live network access.
 - `docs/` — phase gates and the authoritative project state.
-- `docs/p6_5/` — source admission, temporal/SQL contracts, product journey,
-  audits, final validation, and P7 readiness evidence.
-- `docs/p6_6/` — strategy-lab contracts, audits, final validation, and P7
-  readiness evidence.
+- `docs/p6_5/` and `docs/p6_6/` — retained historical later-phase material;
+  not part of the current P3 delivery.
 - `.agents/` — role contracts for orchestration, planning, architecture,
   implementation, security, dependency control, release, research, and review.
 
@@ -56,7 +46,7 @@ of truth for installed packages. Before proposing a change, run:
 python scripts/validate_governance.py
 ```
 
-The complete test, lint, migration, notebook, and governance commands are
-documented in `CONTRIBUTING.md` and the P6.6 final validation report. The
-P6.6 gate review records the independent A–J audits and the exact stop point
-before P7.
+The complete P0–P3 test, lint, notebook, and governance commands are
+documented in `CONTRIBUTING.md` and
+`docs/FINAHINKING_P3_COMPLETION_REPORT.md`. The P3 gate review records the
+current stop point before P4.

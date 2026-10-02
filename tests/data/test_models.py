@@ -1,7 +1,34 @@
+from datetime import UTC, datetime
+
 import pandas as pd
 import pytest
 
 from finahinking.data.models import Dataset, Provenance
+
+
+def test_provenance_requires_nonempty_provider_and_source_url():
+    with pytest.raises(ValueError, match="provider"):
+        Provenance(provider="", source_url="https://example.test")
+    with pytest.raises(ValueError, match="source_url"):
+        Provenance(provider="ecb", source_url="")
+
+
+def test_provenance_rejects_naive_retrieval_time():
+    with pytest.raises(ValueError, match="timezone"):
+        Provenance(
+            provider="ecb",
+            source_url="https://example.test",
+            retrieved_at=datetime(2024, 1, 1),  # noqa: DTZ001 - intentionally naive
+        )
+
+
+def test_provenance_accepts_timezone_aware_retrieval_time():
+    provenance = Provenance(
+        provider="ecb",
+        source_url="https://example.test",
+        retrieved_at=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    assert provenance.retrieved_at is not None
 
 
 def test_dataset_requires_provenance_and_normalizes_index():

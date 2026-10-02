@@ -11,6 +11,21 @@ Record material architecture and governance changes here. Each entry should
 state the date, change, reason, evidence, compatibility impact, and review
 result. Small documentation corrections may be grouped in one entry.
 
+## 2026-10-03 — requested delivery stops at P3
+
+- Change: re-established P0–P3 as the authoritative delivery boundary and
+  added a P3 completion report plus validator coverage for the stop state.
+- Reason: the user requested autonomous completion through P3 and a pause for
+  human inspection; later phase files are retained but must not be treated as
+  current gate evidence.
+- Evidence: `docs/FINAHINKING_P3_COMPLETION_REPORT.md`, the four phase gate
+  reviews, governance tests, and the fresh P0–P3 validation commands recorded
+  in that report.
+- Compatibility: no later-phase files were deleted or rewritten; current
+  README, architecture, and contribution guidance now point to P3.
+- Review: P0–P3 are the only gates in scope; P4+ is waiting for explicit human
+  approval.
+
 ## 2026-10-02 — P5.5 quant platform stabilization
 
 - Change: froze six Finathinking-owned quant service contracts; added complete

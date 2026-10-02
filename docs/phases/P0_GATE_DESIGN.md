@@ -13,6 +13,9 @@ P0 establishes the repository contract that later phases must preserve.
 
 - Confirm every required governance document and role contract exists and is
   non-empty.
+- The role-contract check covers orchestrator, planner, architect, builder,
+  implementer, researcher, reviewer, security-reviewer, dependency-manager,
+  and release-manager.
 - Run `python scripts/validate_governance.py` from the repository root.
 - Run the focused governance tests with the available test runner.
 - Inspect that no governance check requires network access or third-party

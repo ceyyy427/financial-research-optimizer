@@ -13,12 +13,19 @@ from .validation import validate_price_dataset
 class ECBProvider:
     BASE_URL = "https://data-api.ecb.europa.eu/service/data/EXR"
     ALLOWED_HOST = "data-api.ecb.europa.eu"
+    LICENSE = (
+        "ECB statistics: free reuse when the ECB is cited as the source and "
+        "the statistics and metadata are not modified; observe applicable disclaimers"
+    )
 
     @classmethod
     def from_csv_fixture(cls, path: str | Path) -> Dataset:
         frame = pd.read_csv(path, parse_dates=["date"], index_col="date")
         validate_price_dataset(frame)
-        return Dataset(frame=frame, provenance=Provenance(provider="ecb", source_url=str(path)))
+        return Dataset(
+            frame=frame,
+            provenance=Provenance(provider="ecb", source_url=str(path), license=cls.LICENSE),
+        )
 
     @classmethod
     def fetch_exchange_rate(cls, currency: str = "USD", start: str | None = None, end: str | None = None) -> Dataset:
@@ -41,4 +48,12 @@ class ECBProvider:
         normalized.index = pd.to_datetime(normalized.index)
         normalized["close"] = pd.to_numeric(normalized["close"], errors="coerce")
         validate_price_dataset(normalized)
-        return Dataset(normalized, Provenance(provider="ecb", source_url=url, retrieved_at=datetime.now(UTC)))
+        return Dataset(
+            normalized,
+            Provenance(
+                provider="ecb",
+                source_url=url,
+                retrieved_at=datetime.now(UTC),
+                license=cls.LICENSE,
+            ),
+        )

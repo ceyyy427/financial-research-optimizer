@@ -22,14 +22,28 @@ REQUIRED_FILES: tuple[str, ...] = (
     "docs/phases/P0_GATE_DESIGN.md",
     ".agents/README.md",
     ".agents/implementer.md",
+    ".agents/orchestrator.md",
+    ".agents/planner.md",
+    ".agents/architect.md",
+    ".agents/builder.md",
     ".agents/researcher.md",
     ".agents/reviewer.md",
+    ".agents/security-reviewer.md",
+    ".agents/dependency-manager.md",
+    ".agents/release-manager.md",
 )
 
 AGENT_CONTRACTS: tuple[str, ...] = (
     ".agents/implementer.md",
+    ".agents/orchestrator.md",
+    ".agents/planner.md",
+    ".agents/architect.md",
+    ".agents/builder.md",
     ".agents/researcher.md",
     ".agents/reviewer.md",
+    ".agents/security-reviewer.md",
+    ".agents/dependency-manager.md",
+    ".agents/release-manager.md",
 )
 
 
@@ -147,7 +161,21 @@ def validate_repository(root: Path | str) -> list[str]:
     elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6", "P6.5", "P6.6"}:
         issues.append("docs/PROJECT_STATE.md declares an invalid phase")
     current_phase = phase_match.group(1).upper() if phase_match else ""
-    if current_phase == "P4":
+    if current_phase == "P3":
+        _require_markers(
+            state,
+            "docs/PROJECT_STATE.md",
+            (
+                "P0 gate: PASS",
+                "P1 gate: PASS",
+                "P2 gate: PASS",
+                "P3 gate: PASS",
+                "P4",
+                "out of scope",
+            ),
+            issues,
+        )
+    elif current_phase == "P4":
         _require_markers(state, "docs/PROJECT_STATE.md", ("P4 gate: PASS", "P5", "out of scope"), issues)
     elif current_phase == "P4.5":
         _require_markers(

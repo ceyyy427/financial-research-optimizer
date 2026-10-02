@@ -12,19 +12,34 @@ no runtime or development package dependencies in this phase.
 
 ## P1–P3 dependencies
 
-| Package | Role | Scope | Owner | Pinning status |
+| Package | Version | Role | License / maintenance / security | First phase |
 | --- | --- | --- | --- | --- |
-| `numpy` | Numerical arrays for feature calculations | Runtime | Finahinking maintainers | `requirements.lock` |
-| `pandas` | Indexed datasets and tabular transformations | Runtime | Finahinking maintainers | `requirements.lock` |
-| `pytest` | Test runner | Development | Finahinking maintainers | `requirements.lock` |
-| `ruff` | Static checks and formatting | Development | Finahinking maintainers | `requirements.lock` |
-| `jupyterlab` | Reproducible research workspace | Research | Finahinking maintainers | `requirements.lock` |
-| `ipykernel` | Notebook kernel | Research | Finahinking maintainers | `requirements.lock` |
+| `numpy` | 2.5.3 | Numerical arrays for feature calculations | BSD-3-Clause; NumPy project maintenance; update through reviewed lock refresh | P1 |
+| `pandas` | 3.0.6 | Indexed datasets and tabular transformations | BSD-3-Clause; pandas project maintenance; update through reviewed lock refresh | P1 |
+| `pytest` | 9.1.1 | Test runner | MIT; PyPA/pytest maintenance; update through reviewed lock refresh | P1 |
+| `ruff` | 0.16.9 | Static checks and formatting | MIT; Astral maintenance; update through reviewed lock refresh | P1 |
+| `jupyterlab` | 4.6.4 | Reproducible research workspace | BSD-3-Clause; Jupyter maintenance; update through reviewed lock refresh | P1 |
+| `ipykernel` | 7.4.0 | Notebook kernel | BSD-3-Clause; Jupyter maintenance; update through reviewed lock refresh | P1 |
+| `setuptools` | 80.9.0 | PEP 517 build backend | MIT; PyPA maintenance; exact build pin in `pyproject.toml` and lock | P1 |
 
 Adding or upgrading a package requires a purpose, a compatibility note, a
 review, and an update to this record and the lock file.
 
+The lock file also pins transitive packages required by the six direct runtime,
+development, and research tools above. Transitives are not silently promoted
+to direct API dependencies; their versions are reviewed as one lock refresh.
+
 P4 adds no dependency; see DEPENDENCY_PROPOSAL.md.
+
+## 2026-10-03 P3 capability decision
+
+No plugin, MCP connector, provider SDK, broker integration, or additional
+package is required for the requested P0–P3 delivery. The existing pinned
+`numpy`, `pandas`, `pytest`, `ruff`, `jupyterlab`, and `ipykernel` environment
+closes the demonstrated governance, ECB fixture/provider, feature, and factor
+requirements. Installing unrelated integrations would expand the approved
+scope without closing a measured capability gap. P4+ dependency records below
+are historical and do not authorize work beyond the P3 stop.
 
 ## P5.5–P6 decision
 

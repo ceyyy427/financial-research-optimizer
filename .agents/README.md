@@ -6,4 +6,6 @@ research, and review; the repository documents remain authoritative.
 
 Every agent must preserve provenance, avoid secrets and investment advice, run
 the relevant tests, and report unresolved limitations. A task cannot advance a
-phase without the independent review required by its gate.
+phase without the independent review required by its gate. The current
+requested delivery stops at P3; P4+ work requires a new human-approved phase
+request.

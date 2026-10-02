@@ -3,7 +3,7 @@ PIP ?= .venv/bin/pip
 PYTEST ?= .venv/bin/pytest
 RUFF ?= .venv/bin/ruff
 
-.PHONY: install test lint notebook-check p1-gate p5-5-gate
+.PHONY: install test lint notebook-check p1-gate p2-gate p5-5-gate
 
 install:
 	$(PIP) install --requirement requirements.lock
@@ -20,6 +20,11 @@ notebook-check:
 
 p1-gate: test lint notebook-check
 	@echo 'P1 gate checks passed'
+
+p2-gate:
+	$(PYTEST) -q tests/data
+	$(PYTHON) scripts/p2_live_smoke.py
+	@echo 'P2 gate checks passed (live smoke is opt-in)'
 
 p5-5-gate: p1-gate
 	$(PYTHON) scripts/validate_governance.py .

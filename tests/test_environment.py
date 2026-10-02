@@ -51,7 +51,7 @@ def test_lockfile_contains_declared_runtime_and_tooling_packages() -> None:
     assert lockfile.exists()
     contents = lockfile.read_text(encoding="utf-8").lower()
 
-    for package in ("numpy", "pandas", "pytest", "ruff", "jupyterlab", "ipykernel"):
+    for package in ("numpy", "pandas", "pytest", "ruff", "jupyterlab", "ipykernel", "setuptools"):
         assert f"{package}==" in contents
 
 
@@ -79,3 +79,4 @@ def test_makefile_exposes_reproducible_environment_and_gate_targets() -> None:
     assert "install" in makefile
     assert "test" in makefile
     assert "p1-gate" in makefile
+    assert "p2-gate" in makefile

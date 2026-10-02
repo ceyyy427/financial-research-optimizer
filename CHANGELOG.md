@@ -4,11 +4,16 @@ All notable changes are recorded here. Entries describe user-visible
 research, reproducibility, or governance changes and link to the relevant
 phase gate where possible.
 
-The first waiting-for-approval bullets are historical snapshots from before
-the P5 approval; the later P5 completion bullets are the current Unreleased
-state.
+The first P0–P3 entry below is the current requested delivery. Later P4–P6.6
+bullets are retained historical snapshots and do not change the current P3
+stop or authorize a later phase.
 
 ## Unreleased
+
+- Revalidated and hardened the P0–P3 research foundation: all role contracts
+  are governed, the build backend is pinned, ECB provider failures fail closed,
+  feature/factor edge cases are tested, and the project state now stops at P3
+  for human review. No plugin or research integration was installed.
 
 - Added governed P0–P4 research infrastructure, including data provenance,
   feature/factor evaluation, deterministic ResearchRun execution, and local
