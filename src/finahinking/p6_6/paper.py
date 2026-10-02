@@ -356,6 +356,9 @@ class PaperSimulator:
         approved = _as_dataset(dataset)
         resolved_config = config if isinstance(config, BacktestConfig) else BacktestConfig.from_dict(dict(config))
         strategy_id, version = _strategy_identity(strategy, strategy_version)
+        frozen = strategy_version if strategy_version is not None else strategy
+        raw_features = (frozen.get("feature_versions", ()) if isinstance(frozen, Mapping) else getattr(frozen, "feature_versions", ()))
+        feature_versions = tuple(str(getattr(item, "fingerprint", getattr(item, "version", item))) for item in raw_features)
         frame = approved.frame
         signals: list[PaperSignal] = []
         for end in range(1, len(frame) + 1):
@@ -365,7 +368,7 @@ class PaperSimulator:
             if abs(signal) > resolved_config.max_abs_weight + 1e-12:
                 raise ValueError("strategy weight exceeds configured limit")
             timestamp = pd.Timestamp(frame.index[end - 1]).isoformat()
-            signals.append(PaperSignal(timestamp, signal, f"{strategy_id} target-weight signal", version, decision_values={"target_weight": signal}))
+            signals.append(PaperSignal(timestamp, signal, f"{strategy_id} target-weight signal", version, feature_versions=feature_versions, decision_values={"target_weight": signal}))
         prices = frame["close"].astype(float)
         cash = float(resolved_config.starting_cash)
         position = 0.0
