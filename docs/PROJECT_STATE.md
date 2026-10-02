@@ -11,7 +11,7 @@ Phase changes require the corresponding gate design and an independent review.
 - P2 gate: PASS
 - P3 gate: PASS
 - P4 gate: PASS
-- Next action: P5 Gate Review
+- Next action: P6 human approval
 - Next: P6 Human Approval
 - P4 status: frozen
 - P4.5 Research OS Validation: PASS
@@ -57,7 +57,7 @@ Phase changes require the corresponding gate design and an independent review.
 | P3 | PASS | `docs/phases/P3_GATE_REVIEW.md`, full test and lint evidence |
 | P4 | PASS | `docs/phases/P4_GATE_REVIEW.md`, `docs/architecture/P4_ARCHITECTURE_FREEZE.md`, `docs/P4_FREEZE_COMPLETION_REPORT.md`, 32 tests |
 | P4.5 | PASS | `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`, 36 tests, notebook execution, dependency audit |
-| P5 | IN PROGRESS | `docs/p5/COMPONENT_ADMISSION_MATRIX.md`, `docs/phases/P5_GATE_REVIEW.md` |
+| P5 | PASS | `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`, 61 tests, notebook execution, dependency audit |
 
 ## Constraints
 
