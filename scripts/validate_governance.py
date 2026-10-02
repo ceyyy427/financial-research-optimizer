@@ -135,10 +135,8 @@ def validate_repository(root: Path | str) -> list[str]:
     phase_match = re.search(r"current\s+phase\s*:\s*(P\d+(?:\.\d+)?)\b", state, re.IGNORECASE)
     if phase_match is None:
         issues.append("docs/PROJECT_STATE.md must declare the current phase")
-    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5"}:
-        issues.append(
-            "docs/PROJECT_STATE.md declares an invalid phase; P5 is out of scope"
-        )
+    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6"}:
+        issues.append("docs/PROJECT_STATE.md declares an invalid phase")
     current_phase = phase_match.group(1).upper() if phase_match else ""
     if current_phase == "P4":
         _require_markers(state, "docs/PROJECT_STATE.md", ("P4 gate: PASS", "P5", "out of scope"), issues)
@@ -173,6 +171,56 @@ def validate_repository(root: Path | str) -> list[str]:
             ),
             issues,
         )
+    elif current_phase == "P5.5":
+        _require_markers(
+            state,
+            "docs/PROJECT_STATE.md",
+            (
+                "P0 gate: PASS",
+                "P1 gate: PASS",
+                "P2 gate: PASS",
+                "P3 gate: PASS",
+                "P4 gate: PASS",
+                "P4.5 Research OS Validation: PASS",
+                "P5 gate: PASS",
+                "P5.5 gate: PASS",
+                "P6",
+            ),
+            issues,
+        )
+        for relative in (
+            "docs/p5_5/QUANT_RESEARCH_VALIDITY_CONTRACT.md",
+            "docs/p5_5/P5_5_TOOL_API_SPEC.md",
+            "docs/p5_5/P5_5_FINAL_VALIDATION_REPORT.md",
+            "docs/p5_5/P6_READINESS_REPORT.md",
+        ):
+            if not (repository / relative).is_file():
+                issues.append(f"missing P5.5 phase file: {relative}")
+    elif current_phase == "P6":
+        _require_markers(
+            state,
+            "docs/PROJECT_STATE.md",
+            (
+                "P0 gate: PASS",
+                "P1 gate: PASS",
+                "P2 gate: PASS",
+                "P3 gate: PASS",
+                "P4 gate: PASS",
+                "P4.5 Research OS Validation: PASS",
+                "P5 gate: PASS",
+                "P5.5 gate: PASS",
+                "P6 gate: PASS",
+                "P7",
+                "WAITING FOR HUMAN APPROVAL",
+            ),
+            issues,
+        )
+        for relative in (
+            "docs/p6/P6_FINAL_VALIDATION_REPORT.md",
+            "docs/p6/P6_GATE_REVIEW.md",
+        ):
+            if not (repository / relative).is_file():
+                issues.append(f"missing P6 phase file: {relative}")
     else:
         _require_markers(state, "docs/PROJECT_STATE.md", ("P0 gate: PASS", "P4", "out of scope"), issues)
 

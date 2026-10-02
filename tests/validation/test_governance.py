@@ -227,6 +227,49 @@ class GovernanceValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_validator_accepts_p5_5_state_when_gate_evidence_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                "Current phase: P5.5 Quant Platform Stabilization\n"
+                "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\nP3 gate: PASS\n"
+                "P4 gate: PASS\nP4.5 Research OS Validation: PASS\nP5 gate: PASS\n"
+                "P5.5 gate: PASS\nP6: ready\n",
+                encoding="utf-8",
+            )
+            for relative in (
+                "docs/p5_5/QUANT_RESEARCH_VALIDITY_CONTRACT.md",
+                "docs/p5_5/P5_5_TOOL_API_SPEC.md",
+                "docs/p5_5/P5_5_FINAL_VALIDATION_REPORT.md",
+                "docs/p5_5/P6_READINESS_REPORT.md",
+            ):
+                target = tmp_path / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("PASS\n", encoding="utf-8")
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_validator_accepts_p6_stop_state_when_gate_evidence_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                "Current phase: P6 Guided Quant Research & Learning\n"
+                "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\nP3 gate: PASS\n"
+                "P4 gate: PASS\nP4.5 Research OS Validation: PASS\nP5 gate: PASS\n"
+                "P5.5 gate: PASS\nP6 gate: PASS\nP7: WAITING FOR HUMAN APPROVAL\n",
+                encoding="utf-8",
+            )
+            for relative in ("docs/p6/P6_FINAL_VALIDATION_REPORT.md", "docs/p6/P6_GATE_REVIEW.md"):
+                target = tmp_path / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("PASS\n", encoding="utf-8")
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
