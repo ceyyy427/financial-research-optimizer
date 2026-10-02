@@ -123,8 +123,10 @@ class ResearchPackageExporter:
         if not scan_safe:
             raise ValueError(f"educational code failed static safety scan: {scan_violations}")
         feature_text = features_code or "# EDUCATIONAL FEATURE LINEAGE — data-only description; never auto-execute.\n# Feature definitions are governed by the reviewed FeatureGraph.\n"
-        if any(term in feature_text.casefold() for term in ("broker", "credential", "api_key", "secret")):
-            raise ValueError("feature artifact contains a forbidden boundary term")
+        feature_scan = scan_educational_code(feature_text)
+        feature_safe = bool(getattr(feature_scan, "safe", feature_scan.get("safe") if isinstance(feature_scan, Mapping) else False))
+        if not feature_safe:
+            raise ValueError("feature artifact failed static safety scan")
         docs = {
             "strategy.py": code,
             "features.py": feature_text,
@@ -137,6 +139,8 @@ class ResearchPackageExporter:
             "README.md": "# Finahinking P6.6 research package\n\nThis is a bounded educational artifact. Reproduce with approved data, the recorded configuration, and the existing P5 engine. Do not deploy or connect it to a broker.\n",
             "tests/test_package.py": "\"\"\"Deterministic package smoke checks.\"\"\"\nfrom pathlib import Path\n\n\ndef test_package_is_educational() -> None:\n    assert 'broker' in Path(__file__).parents[1].joinpath('README.md').read_text().lower()\n",
         }
+        for text in (docs["math_notes.md"], docs["strategy_logic.md"], docs["limitations.md"], docs["README.md"]):
+            _assert_no_secrets(text)
         manifest: dict[str, str] = {}
         for name, text in docs.items():
             relative = _safe_relative(name)
