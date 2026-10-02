@@ -35,3 +35,17 @@ the regression service through the Finahinking-owned normalized adapter seam,
 never through a third-party object. PyPortfolioOpt, bt, vectorbt, Qlib,
 Riskfolio, Alphalens, QuantStats/Pyfolio, LangGraph, Ollama, and live-data
 providers remain deferred because no demonstrated capability gap requires them.
+
+## P6.5 capability decision
+
+P6.5 adds no package-manager dependency, plugin, MCP connector, provider SDK,
+or host database service. The bounded BLS adapter uses the Python standard
+library HTTP and hashing primitives; deterministic canonicalization and the
+SQLite development adapter reuse the existing runtime, while Docker
+`postgres:16-alpine` is used only as a disposable migration-verification
+environment. The frozen P6 typed gateway, pandas fixtures, and existing
+learning contracts are reused. A capability audit considered broader market
+data connectors, browser/document extraction, production PostgreSQL drivers,
+and agent frameworks; each was deferred because it would expand scope without
+closing a demonstrated P6.5 gap. This decision is recorded in
+`docs/p6_5/P6_5_CAPABILITY_MATRIX.md` and the final validation report.

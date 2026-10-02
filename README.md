@@ -10,7 +10,8 @@ responsible for their own decisions.
 
 ## Scope
 
-The governed foundation is complete through P6:
+The governed foundation is complete through P6.5, with P7 intentionally held
+for human approval:
 
 `provider -> dataset/provenance -> validation -> feature functions -> factors -> ExperimentEngine -> ResearchRun -> RunStore`
 
@@ -20,9 +21,15 @@ backtest/evaluation runtime with explicit costs, slippage, provenance, and
 fingerprints. P5.5 freezes the typed quant boundary and validity/OOS
 contracts. P6 adds a guided, human-controlled question → hypothesis →
 experiment → evidence → explanation → learning workflow, including a
-normalized regression-learning slice. It does not execute trades, provide
-investment advice, or enter P7. Network access is isolated to documented
-data-provider code, and tests use recorded fixtures by default.
+normalized regression-learning slice. P6.5 adds a bounded Bureau of Labor
+Statistics CPI capture/replay path, canonical event/claim/evidence models,
+progressive disclosure, reviewed source admission, explicit temporal and
+revision semantics, a normalized database schema, and a typed bridge back to
+the frozen P6 quant and learning contracts. The first product journey is
+bounded to one real BLS CPI event; discovery providers are never silently
+promoted to authority. It does not execute trades, provide investment advice,
+or enter P7. Network access is isolated to allowlisted provider code, and
+tests use recorded fixtures by default.
 
 ## Repository map
 
@@ -30,6 +37,8 @@ data-provider code, and tests use recorded fixtures by default.
 - `fixtures/` — deterministic, reviewed input data for tests.
 - `tests/` — unit and integration checks that do not require live network access.
 - `docs/` — phase gates and the authoritative project state.
+- `docs/p6_5/` — source admission, temporal/SQL contracts, product journey,
+  audits, final validation, and P7 readiness evidence.
 - `.agents/` — role contracts for orchestration, planning, architecture,
   implementation, security, dependency control, release, research, and review.
 
@@ -42,5 +51,7 @@ of truth for installed packages. Before proposing a change, run:
 python scripts/validate_governance.py
 ```
 
-The complete test and lint commands are documented in `CONTRIBUTING.md` as
-the research environment is added.
+The complete test, lint, migration, notebook, and governance commands are
+documented in `CONTRIBUTING.md` and the P6.5 final validation report. The
+P6.5 gate review records the independent A–K audits and the exact stop point
+before P7.

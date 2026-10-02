@@ -106,13 +106,15 @@ The raw response is hash-bound and persisted before canonicalization. Replay
 uses the exact bytes and parser version. The fixture test accounts for all
 source rows: admitted observations plus quarantined rows equal the input row
 count, and the payload hash is stable. The repository writes the raw artifact
-atomically and stores its hash beside the capture metadata.
+and its artifact/capture rows as one rollback-safe unit, then stores the hash
+beside the capture metadata; duplicate-capture tests verify that failed links
+leave neither an orphan row nor an orphan file.
 
-That reconciliation assertion is bounded to the admitted fixture shape. For an
-unknown series the current parser records a series-level quarantine entry,
-rather than one entry per raw row; `input_rows` is therefore not a universal
-raw-row counter yet. The adapter must either count raw rows explicitly or emit
-row-level quarantine records before broader provider coverage is claimed.
+That reconciliation assertion is bounded to the admitted fixture shape. Unknown
+series rows are now emitted as one quarantine record per raw row, so the
+fixture's `input_rows == admitted_rows + quarantined_rows` accounting includes
+those rows. Broader provider coverage still requires provider-specific grain,
+vintage, and continuity checks.
 
 ## Persistence and query checks
 

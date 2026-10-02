@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from finahinking.quant.interfaces import _digest
 
 APPROVED_EVIDENCE_KINDS = frozenset({"QuantRun", "EvaluationReport", "RegressionResult", "RiskReport", "OOSResult"})
 _FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
+# A boolean supplied by an untrusted caller is not proof of provenance.  The
+# only code allowed to construct a verified claim is the verifier below,
+# which has access to this process-local capability token.
+_VERIFIED_TOKEN = object()
 
 
 def _verify_source(payload: dict[str, Any], evidence_reference: str) -> str:
@@ -71,6 +75,7 @@ class GroundedClaim:
     claim_kind: str = "EMPIRICAL RESULT"
     interpretation: bool = False
     source_verified: bool = False
+    _verification_token: object | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.text, str) or not self.text.strip():
@@ -87,6 +92,8 @@ class GroundedClaim:
             raise ValueError("claim kind is invalid")
         if not isinstance(self.source_verified, bool):
             raise TypeError("source_verified must be boolean")
+        if self.source_verified and self._verification_token is not _VERIFIED_TOKEN:
+            raise ValueError("source_verified claims require an internal verified evidence token")
 
     @property
     def claim_id(self) -> str:
@@ -134,16 +141,17 @@ def ground_numeric_claim(
             raise ValueError("source fingerprint does not match the normalized result")
         verified = True
     return GroundedClaim(
-        text,
-        value,
-        evidence_reference,
-        evidence_kind,
-        source_field,
-        source_fingerprint,
-        unit,
-        claim_kind,
-        interpretation,
-        verified,
+        text=text,
+        value=value,
+        evidence_reference=evidence_reference,
+        evidence_kind=evidence_kind,
+        source_field=source_field,
+        source_fingerprint=source_fingerprint,
+        unit=unit,
+        claim_kind=claim_kind,
+        interpretation=interpretation,
+        source_verified=verified,
+        _verification_token=_VERIFIED_TOKEN if verified else None,
     )
 
 
@@ -189,6 +197,7 @@ def claims_from_result(result: Any, evidence_reference: str, evidence_kind: str)
                     source_field=key,
                     source_fingerprint=source_fingerprint,
                     source_verified=True,
+                    _verification_token=_VERIFIED_TOKEN,
                 )
             )
     return tuple(claims)

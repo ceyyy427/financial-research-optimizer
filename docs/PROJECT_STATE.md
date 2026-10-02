@@ -5,13 +5,13 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P6 Guided Quant Research & Learning
+- Current phase: P6.5 Understanding Engine / Product Reality Integration
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
 - P3 gate: PASS
 - P4 gate: PASS
-- Next action: stop after the P6 Gate Review and return control to the human
+- Next action: stop after the P6.5 Gate Review and return control to the human
 - Next: P7 requires explicit human approval
 - P4 status: frozen
 - P4.5 Research OS Validation: PASS
@@ -25,6 +25,12 @@ Phase changes require the corresponding gate design and an independent review.
 - P6 status: COMPLETE after P6 Gate Review
 - P6 foundation: GUIDED / HUMAN-CONTROLLED
 - P6 gate: PASS
+- P6.5 implementation scope: one bounded, source-admitted BLS CPI understanding journey
+- P6.5 status: COMPLETE after P6.5 Gate Review
+- P6.5 gate: PASS
+- Real-World Evidence Vertical Slice: VALIDATED
+- Multi-Tier Source Architecture: VALIDATED
+- P6 foundation: FROZEN FOR PRODUCT CONSUMPTION
 - P7: WAITING FOR HUMAN APPROVAL
 - P4 architecture freeze: `docs/architecture/P4_ARCHITECTURE_FREEZE.md`
 - P4.5 audit plan: `docs/reviews/P4_5_AUDIT_PLAN.md`
@@ -52,6 +58,10 @@ Phase changes require the corresponding gate design and an independent review.
 - P6 readiness: `docs/p5_5/P6_READINESS_REPORT.md`
 - P6 final validation: `docs/p6/P6_FINAL_VALIDATION_REPORT.md`
 - P6 gate review: `docs/p6/P6_GATE_REVIEW.md`
+- P6.5 execution plan: `docs/p6_5/P6_5_EXECUTION_PLAN.md`
+- P6.5 final validation: `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md`
+- P6.5 gate review: `docs/p6_5/P6_5_GATE_REVIEW.md`
+- P7 readiness: `docs/p6_5/P7_READINESS_REPORT.md`
 - P4 philosophy review: `docs/reviews/P4_PHILOSOPHY_REVIEW.md`
 - P5 readiness review: `docs/reviews/P5_READINESS_REVIEW.md`
 - P5 dependency decision: `docs/P5_DEPENDENCY_DECISION.md`
@@ -60,7 +70,7 @@ Phase changes require the corresponding gate design and an independent review.
 - P4 provenance proposal: `docs/reviews/P4_PROVENANCE_IMPROVEMENT_PROPOSAL.md`
 - P5 gate design: `docs/phases/P5_GATE_DESIGN.md` (design only)
 - P5 dependency plan: `docs/p5/DEPENDENCY_PLAN.md` (core runtime unchanged; optional statsmodels sandbox recorded)
-- Last reviewed: 2026-10-02
+- Last reviewed: 2026-10-03
 
 ## Delivery status
 
@@ -68,6 +78,10 @@ Finathink P5.5 Quant Platform Stabilization: COMPLETE
 P5 Quant Foundation: FROZEN
 Finathink P6 Guided Quant Research & Learning: COMPLETE
 P6 FOUNDATION: GUIDED / HUMAN-CONTROLLED
+Finathink P6.5 Understanding Engine: COMPLETE
+Real-World Evidence Vertical Slice: VALIDATED
+Multi-Tier Source Architecture: VALIDATED
+P6 FOUNDATION: FROZEN FOR PRODUCT CONSUMPTION
 P7: WAITING FOR HUMAN APPROVAL
 
 ## Completed gates
@@ -83,6 +97,7 @@ P7: WAITING FOR HUMAN APPROVAL
 | P5 | PASS | `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`, 75 tests, notebook execution, dependency audit |
 | P5.5 | PASS | `docs/p5_5/P5_5_FINAL_VALIDATION_REPORT.md`, `docs/p5_5/P6_READINESS_REPORT.md`, validity/OOS/multi-asset/tool-contract evidence |
 | P6 | PASS | `docs/p6/P6_FINAL_VALIDATION_REPORT.md`, `docs/p6/P6_GATE_REVIEW.md`, guided momentum/regression workflows and independent audit |
+| P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md`, `docs/p6_5/P6_5_GATE_REVIEW.md`, BLS capture/replay, canonical event/claim/evidence chain, quant and learning bridge |
 
 ## Historical P5 baseline markers
 
@@ -96,7 +111,7 @@ historical baseline, not the current phase above:
 ## Constraints
 
 No secrets, trading automation, investment advice, or unsafe network shortcuts
-are permitted. Tests use deterministic fixtures by default. P5.5 is frozen and
-P6 is limited to guided, typed, human-controlled research and learning. The
-project stops after the P6 Gate Review; P7, brokerage, live trading, and
-investment advice remain out of scope.
+are permitted. Tests use deterministic fixtures by default. P5.5 and P6 are
+frozen; P6.5 is limited to one guided, source-bound understanding journey.
+The project stops after the P6.5 Gate Review; P7, brokerage, live trading, and
+investment advice remain out of scope pending explicit human approval.

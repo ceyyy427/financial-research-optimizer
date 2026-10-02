@@ -681,6 +681,9 @@ class TypedToolRequest:
         object.__setattr__(self, "tool_name", _required_text(self.tool_name, "tool_name"))
         if not isinstance(self.parameters, Mapping):
             raise TypeError("parameters must be a mapping")
+        from .security import validate_payload
+
+        validate_payload(self.parameters)
         object.__setattr__(self, "parameters", copy.deepcopy(_safe(self.parameters)))
         object.__setattr__(self, "research_run_id", _optional_text(self.research_run_id, "research_run_id"))
         object.__setattr__(self, "quant_run_id", _optional_text(self.quant_run_id, "quant_run_id"))
@@ -697,6 +700,7 @@ class TypedToolRequest:
             raise TypeError("assumptions_accepted must be boolean")
         if not isinstance(self.provenance_context, Mapping):
             raise TypeError("provenance_context must be a mapping")
+        validate_payload(self.provenance_context)
         object.__setattr__(self, "provenance_context", copy.deepcopy(_safe(dict(self.provenance_context))))
 
     @property

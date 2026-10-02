@@ -88,5 +88,12 @@ production-integration gap, not hidden by the SQLite adapter.
    `JSONB` constraints are deferred.
 4. A production Postgres repository/driver is not part of this P6.5 slice.
 
+Evidence IDs stored inside the JSON/text `evidence_ids` fields on concepts and
+similar narrative records are application-validated rather than individually
+foreign-keyed. The normalized claim/evidence and event/evidence join tables do
+carry database foreign keys; a future migration can normalize narrative
+evidence arrays if those records become independently writable by untrusted
+clients.
+
 These limitations are gate-visible and do not authorize silently weakening
 provenance or temporal checks.

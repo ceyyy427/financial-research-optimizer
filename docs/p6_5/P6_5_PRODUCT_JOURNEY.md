@@ -16,6 +16,12 @@ fixture includes valid rows and a `"-"`/footnote row that must be quarantined.
 Tests replay it offline with a fixed capture ID and times. A live BLS request is
 optional smoke only and cannot mutate the fixture or make CI nondeterministic.
 
+Before canonicalization, the engine resolves the capture through the reviewed
+`SourceRegistry` and rejects an unadmitted source or a release URL outside the
+official BLS boundary. A provider library or aggregator therefore cannot be
+promoted to authoritative evidence merely by supplying a similarly shaped
+payload.
+
 The release record associates the December 2024 reference period with the
 official BLS release page and publication bound. `available_at` is kept
 separate from local retrieval; where the release supplies an availability bound,

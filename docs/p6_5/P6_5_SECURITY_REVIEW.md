@@ -19,7 +19,7 @@ source text to arbitrary SQL, shell, Python, or package installation.
 | Boundary | Implemented control | Evidence in the repository |
 | --- | --- | --- |
 | Source transport | The BLS client accepts one HTTPS endpoint and one host, uses bounded timeout/retries, caps the response size, records selected headers, and rejects an unallowlisted redirect. | `src/finahinking/p6_5/bls.py`; `tests/p6_5/test_bls_adapter.py` |
-| Capture integrity | Request and payload SHA-256 fingerprints are recorded with retrieval and first-observed times. Raw bytes are retained before parsing and replayed offline. | `TransportCapture`, `BLSClient.capture_bytes`, `BLSClient.replay` |
+| Capture integrity | Request and payload SHA-256 fingerprints are recorded with retrieval and first-observed times. Product and repository boundaries verify that raw bytes, UTF-8 text, and the declared payload hash agree before persistence. Raw bytes are retained before parsing and replayed offline. | `TransportCapture`, `BLSClient.capture_bytes`, `UnderstandingEngine._persist_capture`, `SQLiteUnderstandingRepository.save_capture` |
 | Parser boundary | Only the observed `REQUEST_SUCCEEDED`/`Results.series` grammar is admitted. Shape drift is a hard quarantine rather than a compatibility guess. | `BLSCPIAdapter.parse_capture`; schema-drift and source-failure tests |
 | Untrusted text | P6 text/payload validation rejects execution directives, prompt-injection markers, arbitrary URI/location values, oversized/deep structures, and forbidden keys. | `src/finahinking/p6/security.py`; `test_security_quality_evaluation.py` |
 | SQL safety | Repository statements use fixed parameterized SQL. There is no public free-form SQL or LLM-to-database path. | `src/finahinking/p6_5/repository.py`; parameterized lookup test |
@@ -71,8 +71,10 @@ envelope before the schema is used by untrusted writers.
 
 ### Network, path, and resource limits
 
-The BLS client has a bounded request span, series count, retries, response
-bytes, and timeout. Artifact identifiers are checked against path traversal.
+The BLS client has a bounded request span, series count, year span, retryable
+status policy, response bytes, and timeout; redirects are checked before a
+same-host follow-up. Artifact identifiers are checked against a bounded safe
+grammar.
 `BLSClient.replay` accepts a caller-provided local path; it is safe for the
 trusted test operator but is not an isolation boundary for an attacker who can
 choose arbitrary filesystem paths. A future service endpoint must resolve
@@ -90,10 +92,10 @@ repository's current Python environment. This review does not replace a fresh
 | ID | Severity | Finding | Disposition |
 | --- | --- | --- | --- |
 | S-01 | Closed | Event-to-evidence links lacked a database-enforced foreign key. | Closed by the reviewed migration, repository transaction, and PostgreSQL gate. |
-| S-02 | Medium | The serialized `source_verified` flag can be forged by a direct database writer. | Open; keep writes behind the verifier and add a database-level integrity mechanism in a follow-up. |
+| S-02 | Medium | The serialized `source_verified` flag can be forged by a direct database writer; a database writer can also bypass the process-local source resolver. | Open but bounded to a trusted local repository/service boundary; keep writes behind the verifier and add a database-level integrity mechanism in a follow-up. |
 | S-03 | Low | Replay path authorization is an operator assumption, not a sandbox. | Acceptable for deterministic CI; require an allowlisted root for an exposed service. |
 | S-04 | Low | Text filters cannot guarantee semantic prompt-injection detection. | Acceptable only with the typed-tool boundary and no source-derived authority. |
-| S-05 | Informational | Live transport, TLS policy, rate-limit behavior, and operational secrets were not tested in CI. | Keep live smoke separate and run it under an approved operator identity. |
+| S-05 | Informational | Live transport, TLS policy, rate-limit behavior, and operational secrets were not tested in CI. | Keep live smoke separate and run it under an approved operator identity. The adapter retries only bounded transient HTTP statuses (408/425/429/5xx); semantic 4xx responses fail immediately. |
 | S-06 | Closed | The product journey originally constructed BLS `Source`/`SourceRelease` records without an admission lookup. | Closed by resolving the capture source through the reviewed `SourceRegistry` and enforcing the admitted BLS endpoint/release URL before orchestration. |
 
 ## Review conclusion

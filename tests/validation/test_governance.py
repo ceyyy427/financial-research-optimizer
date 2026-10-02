@@ -270,6 +270,30 @@ class GovernanceValidatorTests(unittest.TestCase):
             result = _run_validator(tmp_path)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_validator_accepts_p6_5_stop_state_when_gate_evidence_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                "Current phase: P6.5 Understanding Engine\n"
+                "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\nP3 gate: PASS\n"
+                "P4 gate: PASS\nP4.5 Research OS Validation: PASS\nP5 gate: PASS\n"
+                "P5.5 gate: PASS\nP6 gate: PASS\nP6.5 gate: PASS\n"
+                "P7: WAITING FOR HUMAN APPROVAL\n",
+                encoding="utf-8",
+            )
+            for relative in (
+                "docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md",
+                "docs/p6_5/P6_5_GATE_REVIEW.md",
+                "docs/p6_5/P7_READINESS_REPORT.md",
+            ):
+                target = tmp_path / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("PASS\n", encoding="utf-8")
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

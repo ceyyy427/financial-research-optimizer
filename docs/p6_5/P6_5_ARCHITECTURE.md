@@ -40,7 +40,7 @@ ObservationVersion(s) ─► Observation ─► Event
 | Boundary | Current owner | Responsibility | Must not do |
 | --- | --- | --- | --- |
 | Canonical records | `finahinking.p6_5.models` | Immutable, JSON-safe source, capture, observation, event, claim/evidence, concept, and hypothesis records | Import provider-specific models as facts |
-| Admission | `p6_5.admission` | Tier and decision registry; immutable source admission record | Grant authority based on convenience or library popularity |
+| Admission | `p6_5.admission` | Tier and decision registry; immutable source admission record; product journey checks the authoritative BLS record before parsing | Grant authority based on convenience or library popularity |
 | Temporal/revision | `p6_5.temporal` | ISO-8601 validation, append-only revisions, conflict records | Infer availability from local retrieval |
 | BLS transport | `p6_5.bls` | Allowlisted endpoint, bounded retries, raw capture, replay, strict parser, quarantine | Follow redirects to unknown hosts or guess a changed response shape |
 | Persistence | `p6_5.repository` + `001_p6_5_understanding.sql` | Parameterized writes/queries, raw-artifact atomic file write, normalized metadata | Accept dynamic SQL or store only a mutable latest value |
