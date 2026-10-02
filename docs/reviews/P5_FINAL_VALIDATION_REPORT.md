@@ -2,7 +2,8 @@
 
 ## Decision
 
-**PASS pending independent final Audit Agent sign-off.** The P5 foundation is
+**PASS.** The independent final Audit Agent review found no unresolved Critical
+or Important findings after the required regression fixes. The P5 foundation is
 research-only, deterministic, and built on the frozen P4.5 ResearchRun,
 Artifact, Fingerprint, Provenance, and temporal-integrity contracts. P6 remains
 out of scope.
@@ -19,9 +20,11 @@ out of scope.
 3. **Provenance:** the artifact payload identifies the dataset fingerprint,
    strategy, engine, parameters, costs, benchmark, and timestamp. P4's source
    provenance and ResearchRun result fingerprint remain intact.
-4. **Temporal integrity / no data leakage:** signals are shifted one period; the regression test
-   proves a signal at `t` cannot trade before `t+1`. Same-bar execution is not
-   available in the engine API.
+4. **Temporal integrity / no data leakage:** the engine evaluates each strategy
+   against a causal dataset prefix and executes the resulting target weight at
+   the next bar. An adversarial future-peek strategy regression proves future
+   rows cannot influence an earlier trade; same-bar execution is not available
+   in the engine API.
 5. **Explicit cost model:** fee basis points, slippage basis points, starting cash,
    **Benchmark**, frequency, annualization, and negative-cash policy are explicit
    `BacktestConfig` values, not hidden defaults.
@@ -37,19 +40,36 @@ out of scope.
    review repository, license, maintenance, security, Python/macOS arm64
    compatibility, and A/B/C/D classification. No candidate package was
    installed; the optional statsmodels adapter reports a controlled absence.
-10. **Audit Agent:** independent architecture, correctness, security,
-    dependency, temporal-integrity, and research-validity review is required
-    before the final commit.
+10. **Serialization and provenance safety:** Artifact and QuantRun creation and
+    deserialization enforce JSON-safe bounded payloads, reject non-finite and
+    executable values, and expose defensive copies. Benchmark names are
+    restricted to the documented `buy_and_hold` series until a benchmark-series
+    contract exists; custom strategies must provide explicit factor metadata.
+11. **Audit Agent:** the independent architecture, correctness, security,
+    dependency, temporal-integrity, and research-validity review completed. Its
+    Sortino, causal execution, artifact validation, benchmark, provenance, and
+    turnover findings were fixed with regression tests.
 
 ## Verification record
 
 - Governance validator: PASS for P5 state and completed P0–P4.5 gates.
-- Full suite: 61 tests expected after final gate tests.
+- Full suite: 66 tests passed.
 - Ruff: required for `src`, `tests`, and `scripts`.
 - Notebook gate: existing P1 research notebook executes offline.
 - `pip check`: required to be clean.
 - Forbidden imports/packages: no core direct imports of optional quant tools;
   no vectorbt, Backtrader, Pyfolio, or Ollama installation.
+
+## Independent Audit Agent disposition
+
+The review was accepted after all Critical/Important findings were resolved
+and the complete gate was rerun. The review explicitly declined to judge
+walk-forward or out-of-sample validity, multiple-testing control,
+liquidity/capacity, corporate actions, delistings/survivorship, calendar/data
+alignment, broker/live/order routing/HFT, automatic advice, black-box or
+trading agents, optional adapters beyond the lazy statsmodels seam, and current
+upstream license/security status beyond the recorded admission review. These
+items remain outside the P5 evidence boundary.
 
 ## Research-validity limits
 

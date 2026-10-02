@@ -31,20 +31,23 @@ class BacktestEngine:
             raise ValueError("strategy must define strategy_id and version")
         strategy_id = validate_identifier(strategy.strategy_id, "strategy identifier")
         strategy_version = validate_identifier(strategy.version, "strategy version")
-        signals = strategy.generate(dataset)
-        if not isinstance(signals, pd.Series):
-            raise TypeError("strategy must return a pandas Series")
-        try:
-            signal_index = pd.DatetimeIndex(pd.to_datetime(signals.index))
-        except (TypeError, ValueError) as exc:
-            raise ValueError("strategy index is invalid") from exc
-        if not signal_index.equals(frame.index):
-            raise ValueError("strategy index must match dataset index")
-        signals = signals.copy()
-        numeric = pd.to_numeric(signals, errors="coerce")
-        if numeric.replace([float("inf"), float("-inf")], pd.NA).notna().sum() != len(numeric.dropna()):
-            raise ValueError("strategy weights must be finite")
-        numeric = numeric.fillna(0.0).astype(float)
+        generated_weights: list[float] = []
+        for end in range(1, len(frame) + 1):
+            as_of_dataset = Dataset(frame.iloc[:end].copy(), dataset.provenance)
+            signals = strategy.generate(as_of_dataset)
+            if not isinstance(signals, pd.Series):
+                raise TypeError("strategy must return a pandas Series")
+            try:
+                signal_index = pd.DatetimeIndex(pd.to_datetime(signals.index))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("strategy index is invalid") from exc
+            if not signal_index.equals(as_of_dataset.frame.index):
+                raise ValueError("strategy index must match dataset index")
+            numeric = pd.to_numeric(signals, errors="coerce")
+            if numeric.replace([float("inf"), float("-inf")], pd.NA).notna().sum() != len(numeric.dropna()):
+                raise ValueError("strategy weights must be finite")
+            generated_weights.append(float(numeric.iloc[-1]) if pd.notna(numeric.iloc[-1]) else 0.0)
+        numeric = pd.Series(generated_weights, index=frame.index, dtype=float)
         if (numeric.abs() > config.max_abs_weight + 1e-12).any():
             raise ValueError("strategy weight exceeds configured limit")
 

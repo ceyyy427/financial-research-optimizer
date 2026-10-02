@@ -14,7 +14,7 @@ class FixtureStrategy:
         self.weights = weights
 
     def generate(self, dataset):
-        return pd.Series(self.weights, index=dataset.frame.index, dtype=float)
+        return pd.Series(self.weights[: len(dataset.frame)], index=dataset.frame.index, dtype=float)
 
 
 def fixture_dataset():
@@ -76,3 +76,19 @@ def test_engine_rejects_strategy_index_drift():
             DriftedStrategy([0.0, 0.0, 0.0, 0.0]),
             BacktestConfig(starting_cash=1_000.0, fee_bps=0.0, slippage_bps=0.0),
         )
+
+
+def test_engine_does_not_allow_strategy_to_use_future_rows():
+    class FuturePeekStrategy:
+        strategy_id = "future-peek"
+        version = "v1"
+
+        def generate(self, dataset):
+            return dataset.frame["close"].shift(-1).notna().astype(float)
+
+    result = BacktestEngine().run(
+        fixture_dataset(),
+        FuturePeekStrategy(),
+        BacktestConfig(starting_cash=1_000.0, fee_bps=0.0, slippage_bps=0.0),
+    )
+    assert result.trades == ()

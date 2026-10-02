@@ -57,7 +57,7 @@ Phase changes require the corresponding gate design and an independent review.
 | P3 | PASS | `docs/phases/P3_GATE_REVIEW.md`, full test and lint evidence |
 | P4 | PASS | `docs/phases/P4_GATE_REVIEW.md`, `docs/architecture/P4_ARCHITECTURE_FREEZE.md`, `docs/P4_FREEZE_COMPLETION_REPORT.md`, 32 tests |
 | P4.5 | PASS | `docs/reviews/P4_5_FINAL_VALIDATION_REPORT.md`, 36 tests, notebook execution, dependency audit |
-| P5 | PASS | `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`, 61 tests, notebook execution, dependency audit |
+| P5 | PASS | `docs/reviews/P5_FINAL_VALIDATION_REPORT.md`, 66 tests, notebook execution, dependency audit |
 
 ## Constraints
 

@@ -36,7 +36,7 @@ def test_evaluation_reports_returns_risk_costs_turnover_and_benchmark():
     assert report.metrics["total_return"] == pytest.approx(0.03)
     assert report.metrics["max_drawdown"] == pytest.approx(101 / 102 - 1)
     assert report.metrics["benchmark_return"] == pytest.approx(0.0201)
-    assert report.metrics["turnover"] == pytest.approx(1.0)
+    assert report.metrics["turnover"] == pytest.approx((50.0 + 51.5) / 100.0)
     assert report.metrics["total_fees"] == pytest.approx(0.05075)
     assert report.metrics["total_slippage"] == pytest.approx(0.0203)
     assert report.metrics["sharpe"] is not None
@@ -62,3 +62,24 @@ def test_evaluation_returns_none_for_zero_volatility_and_short_series():
     assert report.metrics["volatility"] == 0.0
     assert report.metrics["sharpe"] is None
     assert report.metrics["sortino"] is None
+
+
+def test_sortino_uses_one_annualization_factor():
+    result = result_fixture()
+    result = BacktestResult(
+        dataset_fingerprint=result.dataset_fingerprint,
+        strategy_id=result.strategy_id,
+        strategy_version=result.strategy_version,
+        engine_version=result.engine_version,
+        config=result.config,
+        equity_curve=(("2024-01-01T00:00:00", 100.0), ("2024-01-02T00:00:00", 90.0), ("2024-01-03T00:00:00", 72.0), ("2024-01-04T00:00:00", 79.2)),
+        returns=(("2024-01-01T00:00:00", 0.0), ("2024-01-02T00:00:00", -0.1), ("2024-01-03T00:00:00", -0.2), ("2024-01-04T00:00:00", 0.1)),
+        weights=result.weights,
+        positions=result.positions,
+        trades=result.trades,
+        benchmark_returns=result.benchmark_returns,
+    )
+    report = evaluate_backtest(result)
+    daily_downside = ((0.1**2 + 0.2**2) / 2) ** 0.5
+    expected = (-0.05 * 4**0.5) / (daily_downside * 4**0.5)
+    assert report.metrics["sortino"] == pytest.approx(expected)

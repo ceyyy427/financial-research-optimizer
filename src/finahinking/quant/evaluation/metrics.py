@@ -37,12 +37,12 @@ def evaluate_backtest(result: BacktestResult) -> EvaluationReport:
     mean_return = float(returns.mean()) if not returns.empty else None
     sharpe = None if volatility in (None, 0.0) or mean_return is None else float(mean_return * math.sqrt(annualization) / returns.std(ddof=1))
     downside = downside_deviation(returns, annualization)
-    sortino = None if downside in (None, 0.0) or mean_return is None else float(mean_return * math.sqrt(annualization) / (downside / math.sqrt(annualization)))
+    sortino = None if downside in (None, 0.0) or mean_return is None else float(mean_return * math.sqrt(annualization) / downside)
     total_return = None
     if len(equity) >= 2 and equity.iloc[0] != 0:
         total_return = float(equity.iloc[-1] / equity.iloc[0] - 1.0)
     benchmark_return = float((1.0 + benchmark).prod() - 1.0) if not benchmark.empty else None
-    turnover = float(sum(abs(current - previous) for previous, current in zip((0.0, *[weight for _, weight in result.weights[:-1]]), [weight for _, weight in result.weights])))
+    turnover = float(sum(trade.notional for trade in result.trades) / result.config.starting_cash)
     metrics = {
         "total_return": total_return,
         "annualized_return": _annualized_return(equity, annualization),

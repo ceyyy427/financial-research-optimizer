@@ -107,6 +107,8 @@ class BacktestConfig:
             raise ValueError("frequency is required")
         if not isinstance(self.benchmark, str) or not self.benchmark.strip():
             raise ValueError("benchmark is required")
+        if self.benchmark != "buy_and_hold":
+            raise ValueError("benchmark must be buy_and_hold until a benchmark series contract exists")
         if not isinstance(self.annualization, int) or isinstance(self.annualization, bool) or self.annualization < 1:
             raise ValueError("annualization must be a positive integer")
         object.__setattr__(self, "starting_cash", starting_cash)

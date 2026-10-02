@@ -54,10 +54,9 @@ def run_quant_experiment(
     run_id: str | None = None,
 ) -> tuple[QuantRun, ResearchRun, EvaluationReport, BacktestResult]:
     selected_strategy = strategy or FactorThresholdStrategy()
-    if not isinstance(selected_strategy, FactorThresholdStrategy):
-        factor = getattr(selected_strategy, "factor", momentum_factor(2))
-    else:
-        factor = selected_strategy.factor
+    factor = getattr(selected_strategy, "factor", None)
+    if not isinstance(factor, FactorDefinition):
+        raise TypeError("strategy must expose factor metadata for provenance")
     backtest = BacktestEngine().run(dataset, selected_strategy, config)
     report = evaluate_backtest(backtest)
     identifier = run_id or f"quant-{backtest.dataset_fingerprint[:16]}"

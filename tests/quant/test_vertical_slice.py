@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from finahinking.data.models import Dataset, Provenance
 from finahinking.experiments.storage import RunStore
@@ -43,3 +44,26 @@ def test_quant_vertical_slice_replays_and_links_research_run(tmp_path):
     assert report.fingerprint == other_report.fingerprint
     assert backtest.fingerprint == other_backtest.fingerprint
     assert "recommend" not in research_run.to_json().lower()
+
+
+def test_quant_runtime_requires_strategy_factor_for_research_provenance():
+    class BareStrategy:
+        strategy_id = "bare-strategy"
+        version = "v1"
+
+        def generate(self, dataset):
+            return pd.Series(0.0, index=dataset.frame.index)
+
+    frame = pd.read_csv(FIXTURE, parse_dates=["date"], index_col="date")
+    dataset = Dataset(frame, Provenance("fixture", "fixture://p5-vertical-slice"))
+    with pytest.raises((TypeError, ValueError), match="factor"):
+        run_quant_experiment(
+            dataset,
+            BacktestConfig(starting_cash=10_000.0, fee_bps=5.0, slippage_bps=10.0),
+            question="q",
+            hypothesis="h",
+            conclusion="c",
+            insight="i",
+            strategy=BareStrategy(),
+            run_id="bare-strategy-run",
+        )

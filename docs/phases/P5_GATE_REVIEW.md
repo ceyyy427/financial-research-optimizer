@@ -40,6 +40,7 @@ scope until a new human approval and gate design exist.
 
 ## Gate decision
 
-The final report records one decision only: `PASS` when every acceptance item
-has direct evidence, otherwise `NEEDS IMPROVEMENT`. A PASS stops the project at
-P5 and keeps P6 waiting for approval.
+**PASS.** Every acceptance item has direct evidence in the final validation
+report, the full gate suite is green, and the independent Audit Agent findings
+were resolved with regression tests. This stops the project at P5 and keeps P6
+waiting for human approval.

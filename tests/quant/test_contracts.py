@@ -34,6 +34,8 @@ def test_contracts_reject_invalid_weights_costs_and_trade_values():
         BacktestConfig(starting_cash=100.0, fee_bps=-1.0, slippage_bps=0.0)
     with pytest.raises(ValueError, match="side"):
         Trade(pd.Timestamp("2024-01-01"), "hold", 1.0, 100.0, 100.0, 0.0, 0.0, "bad")
+    with pytest.raises(ValueError, match="benchmark"):
+        BacktestConfig(starting_cash=100.0, fee_bps=0.0, slippage_bps=0.0, benchmark="SPX")
 
 
 def test_backtest_result_and_evaluation_report_have_stable_fingerprints():

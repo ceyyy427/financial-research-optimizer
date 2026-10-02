@@ -23,4 +23,3 @@ def test_risk_metrics_return_none_for_undefined_inputs():
     assert downside_deviation(pd.Series([0.01]), annualization=252) is None
     assert value_at_risk(pd.Series([0.01]), confidence=0.95) is None
     assert conditional_value_at_risk(pd.Series([0.01]), confidence=0.95) is None
-
