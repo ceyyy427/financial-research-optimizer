@@ -123,7 +123,24 @@ class GovernanceValidatorTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             output = result.stdout + result.stderr
             self.assertIn("P4", output)
-            self.assertIn("out of scope", output.lower())
+            self.assertIn("P5", output)
+
+    def test_validator_accepts_p4_completion_state(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                state.read_text(encoding="utf-8").replace(
+                    "Current phase: P0\nP0 gate: PASS\nNext phase: P1\nP4 status: out of scope",
+                    "Current phase: P4\nP0 gate: PASS\nP4 gate: PASS\nNext action: human review\nP5 status: out of scope",
+                ),
+                encoding="utf-8",
+            )
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

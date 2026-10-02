@@ -14,7 +14,8 @@ The first delivery establishes a governed foundation through P3:
 
 `provider -> dataset/provenance -> validation -> feature functions -> factors`
 
-P4 experiment persistence and orchestration are explicitly out of scope.
+P4 now provides local experiment persistence and orchestration through
+ResearchRun, ExperimentEngine, and RunStore. P5 is explicitly out of scope.
 Network access is isolated to documented data-provider code, and tests use
 recorded fixtures by default.
 

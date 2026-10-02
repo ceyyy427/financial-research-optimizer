@@ -6,6 +6,8 @@ phase gate where possible.
 
 ## Unreleased
 
-- Added the P0 governance documents, agent contracts, and dependency-free
-  validation command.
-- Recorded P0 as passed and set P1 as the next phase in `docs/PROJECT_STATE.md`.
+- Added governed P0–P4 research infrastructure, including data provenance,
+  feature/factor evaluation, deterministic ResearchRun execution, and local
+  JSON persistence.
+- Recorded all gates as passed; the project is waiting for human review before
+  any P5 scope is considered.

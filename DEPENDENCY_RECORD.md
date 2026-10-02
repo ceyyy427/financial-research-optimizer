@@ -23,3 +23,5 @@ no runtime or development package dependencies in this phase.
 
 Adding or upgrading a package requires a purpose, a compatibility note, a
 review, and an update to this record and the lock file.
+
+P4 adds no dependency; see DEPENDENCY_PROPOSAL.md.

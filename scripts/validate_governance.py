@@ -135,16 +135,15 @@ def validate_repository(root: Path | str) -> list[str]:
     phase_match = re.search(r"current\s+phase\s*:\s*(P\d+)", state, re.IGNORECASE)
     if phase_match is None:
         issues.append("docs/PROJECT_STATE.md must declare the current phase")
-    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3"}:
+    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4"}:
         issues.append(
-            "docs/PROJECT_STATE.md declares an invalid phase; P4 is out of scope"
+            "docs/PROJECT_STATE.md declares an invalid phase; P5 is out of scope"
         )
-    _require_markers(
-        state,
-        "docs/PROJECT_STATE.md",
-        ("P0 gate: PASS", "P4", "out of scope"),
-        issues,
-    )
+    current_phase = phase_match.group(1).upper() if phase_match else ""
+    if current_phase == "P4":
+        _require_markers(state, "docs/PROJECT_STATE.md", ("P4 gate: PASS", "P5", "out of scope"), issues)
+    else:
+        _require_markers(state, "docs/PROJECT_STATE.md", ("P0 gate: PASS", "P4", "out of scope"), issues)
 
     gate = contents["docs/phases/P0_GATE_DESIGN.md"]
     _require_markers(

@@ -1,5 +1,12 @@
 # Evolution Log
 
+## 2026-10-02 — P4 experiment engine
+
+- Added deterministic ResearchRun, ExperimentEngine, and local RunStore.
+- Added canonical JSON and dataset/result fingerprints for reproduction.
+- Added no dependency; recorded the decision in DEPENDENCY_PROPOSAL.md.
+- Stopped at P4 for human review as required.
+
 Record material architecture and governance changes here. Each entry should
 state the date, change, reason, evidence, compatibility impact, and review
 result. Small documentation corrections may be grouped in one entry.
