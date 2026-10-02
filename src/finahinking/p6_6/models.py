@@ -383,6 +383,19 @@ class StrategyReview:
         accepted = StrategySpec(**{**self.spec.to_dict(), "feature_versions": self.spec.feature_versions, "cost_model": self.spec.cost_model, "validation_design": self.spec.validation_design, "parameters": self.spec.parameters, "reviewed": True})
         return StrategyReview(accepted, self.assumptions, self.warnings, True)
 
+    @property
+    def fingerprint(self) -> str:
+        return digest(self.to_dict())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "spec": self.spec.to_dict(),
+            "assumptions": list(self.assumptions),
+            "warnings": list(self.warnings),
+            "reviewed": self.reviewed,
+            "fingerprint": digest({"spec": self.spec.to_dict(), "assumptions": list(self.assumptions), "warnings": list(self.warnings), "reviewed": self.reviewed}),
+        }
+
 
 @dataclass(frozen=True)
 class StrategyIRNode:
