@@ -14,7 +14,7 @@ new runtime dependency was installed.
 
 | Gate | Required evidence | Status |
 | --- | --- | --- |
-| P6.6 threshold/rank/MA/config parity | focused contract tests | PASS (pending final rerun) |
+| P6.6 threshold/rank/MA/config parity | focused contract tests | PASS |
 | P7 privacy/ownership | `tests/p7/test_personal_community.py` | PASS |
 | Projection consent/revocation | projection test + stale control | PASS |
 | Community labels/attachments | room/post test | PASS |
