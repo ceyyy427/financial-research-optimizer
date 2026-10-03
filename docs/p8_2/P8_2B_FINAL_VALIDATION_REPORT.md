@@ -32,6 +32,7 @@ for distribution, CLI, and product language. The layer provides:
 
 | Gate | Result |
 | --- | --- |
+| Full repository regression | **PASS — 326 passed, 1 skipped** |
 | P8.2B focused Python tests | **PASS — 27 passed** |
 | P8.2 and P7.5 local regression | **PASS — 27 passed** |
 | Frontend unit tests | **PASS — 6 passed** |
@@ -39,13 +40,14 @@ for distribution, CLI, and product language. The layer provides:
 | Frontend performance smoke | **PASS — 1k and 10k payload checks** |
 | Ruff and bundle syntax | **PASS** |
 | SymPy optional adapter | **PASS — installed 1.14.0; `pip check` clean** |
+| Clean `finathink` wheel install | **PASS — wheel built and P8.2B catalog route imported outside checkout** |
 | npm production audit | **PASS — 0 vulnerabilities** |
 | Browser DOM/screen-reader E2E | **NOT VERIFIED — Computer Use forbidden** |
 | Live Crossref/QMT/provider admission | **NOT VERIFIED — optional/deferred** |
 
-The full repository regression and clean-wheel gates remain required before a
-public release. Browser and vendor/provider items are explicitly conditional,
-not silently treated as passed.
+The full repository regression and clean-wheel gates are now passed locally.
+Browser and vendor/provider items are explicitly conditional, not silently
+treated as passed.
 
 ## Publication boundary
 
@@ -54,4 +56,3 @@ local gate. The target repository has an existing identity/history that must
 be inspected read-only before choosing a safe branch or merge strategy. The
 next gate is: full regression → fresh review → remote inspection → authenticated
 publish without replacing unrelated history.
-
