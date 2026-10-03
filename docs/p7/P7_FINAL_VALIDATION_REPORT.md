@@ -35,6 +35,7 @@ new runtime dependency was installed.
 - P7 focused tests: **11 passed**, including lifecycle, duplicate/cross-owner,
   canonical export, stale projection, and two vertical continuity slices.
 
-The final release snapshot is recorded only after the implementation/docs are
-committed and the provenance probe confirms `code_commit == HEAD` with a clean
-worktree. P8 is a readiness decision, not an implementation gate.
+The implementation and evidence are committed. The final provenance probe
+asserted `code_commit == HEAD` and produced a stable canonical export
+fingerprint; `git status --short` was empty at the check. P8 is a readiness
+decision, not an implementation gate.
