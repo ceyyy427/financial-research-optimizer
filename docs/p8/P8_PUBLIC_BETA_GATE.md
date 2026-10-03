@@ -21,7 +21,7 @@ in this checkout.
 | 36 | GitHub release assets/download path | No remote/release exists in checkout — EXTERNAL |
 | 37 | Contributor setup | `CONTRIBUTING.md` and issue templates — PASS |
 | 38–44 | Full tests, Ruff, notebook, governance, migration, dependency, build | `make p5-5-gate`, Postgres check, wheel, and 260/1 suites — PASS |
-| 45–46 | Diff check and clean worktree | final commit `dbee10f`, `git diff --check`, clean status — PASS |
+| 45–46 | Diff check and clean worktree | final delivery commit, `git diff --check`, clean status — PASS |
 | 47 | Known release commit/tag | No tag created by this task — External publish required |
 
 ## Decision
