@@ -26,9 +26,9 @@ service.
 
 ## Fresh command evidence
 
-- Requested baseline: `tests/p7` **8 passed**; `.venv` and `.venv-quant` each
-  **226 passed, 1 skipped**. Current adversarial expansion is **11 P7 passed**
-  and **226 passed, 1 skipped** in both environments.
+- Requested baseline: `tests/p7` **29 passed**; `.venv` and `.venv-quant` each
+  **244 passed, 1 skipped**. Current adversarial expansion is **29 P7 passed**
+  and **244 passed, 1 skipped** in both environments.
 - `make p5-5-gate` passes full tests, Ruff, notebook, governance, both pip
   checks, and the quant smoke fingerprint.
 - `bash scripts/verify_p6_5_postgres.sh` reports

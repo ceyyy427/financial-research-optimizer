@@ -100,6 +100,7 @@ DECLARE
         'p7_learning_thread_items', 'p7_history_entries', 'p7_saved_objects',
         'p7_rooms', 'p7_room_members', 'p7_projections', 'p7_posts',
         'p7_comments', 'p7_projection_attachments', 'p7_audit_events'
+        ,'p7_misconceptions', 'p7_strategy_versions'
     ];
 BEGIN
     FOREACH required_table IN ARRAY required_tables LOOP
@@ -120,7 +121,8 @@ BEGIN
         'idx_p6_5_claim_evidence',
         'idx_p6_5_capture_first_observed',
         'idx_p7_nodes_owner', 'idx_p7_history_owner_time',
-        'idx_p7_projection_status', 'idx_p7_posts_room', 'idx_p7_mastery_owner'
+        'idx_p7_projection_status', 'idx_p7_posts_room', 'idx_p7_mastery_owner',
+        'idx_p7_misconception_owner', 'idx_p7_strategy_history_owner'
     ] LOOP
         IF to_regclass(required_index) IS NULL THEN
             RAISE EXCEPTION 'required index is missing: %', required_index;
@@ -149,10 +151,18 @@ BEGIN
 
     SELECT count(*) INTO check_count
       FROM pg_constraint
-     WHERE contype = 'c'
-       AND conrelid = 'p6_5_sources'::regclass;
+      WHERE contype = 'c'
+      AND conrelid = 'p6_5_sources'::regclass;
     IF check_count < 2 THEN
         RAISE EXCEPTION 'source tier/admission checks are missing (found %)', check_count;
+    END IF;
+
+    SELECT count(*) INTO foreign_key_count
+      FROM pg_constraint
+     WHERE contype = 'f'
+       AND conrelid = 'p7_projections'::regclass;
+    IF foreign_key_count < 2 THEN
+        RAISE EXCEPTION 'P7 room projection foreign-key constraint is missing';
     END IF;
 END
 $$;

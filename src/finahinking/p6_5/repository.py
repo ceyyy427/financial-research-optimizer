@@ -40,10 +40,14 @@ def apply_migration(connection: sqlite3.Connection, *, dialect: str = "sqlite") 
     sql = "\n".join(path.read_text(encoding="utf-8") for path in ADDITIVE_MIGRATION_PATHS if path.is_file())
     if isinstance(connection, sqlite3.Connection):
         connection.executescript("PRAGMA foreign_keys = ON;\n" + sql)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(p7_projections)").fetchall()}
+        if "room_id" not in columns:
+            connection.execute("ALTER TABLE p7_projections ADD COLUMN room_id TEXT")
         connection.commit()
         return
     cursor = connection.cursor()
     cursor.execute(sql)
+    cursor.execute("ALTER TABLE p7_projections ADD COLUMN IF NOT EXISTS room_id TEXT REFERENCES p7_rooms(room_id) ON DELETE SET NULL")
     connection.commit()
 
 

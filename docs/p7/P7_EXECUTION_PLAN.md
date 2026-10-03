@@ -43,9 +43,9 @@ Files: P6.6 source/tests/contracts, migration scripts, this plan and capability 
 Interfaces: existing StrategySpec/IR, FeatureRegistry, StrategyResearchLab, QuantRun,
 ResearchRun, PaperRun; output is reproduced defects and baseline command evidence.
 
-- [ ] Inspect current HEAD, cleanliness, architectures, skills, tools and environments.
-- [ ] Reproduce spec/IR/execution, parameter, feature, education and paper mismatches.
-- [ ] Independently inspect privacy/security/provenance/fingerprint assumptions.
+- [x] Inspect current HEAD, cleanliness, architectures, skills, tools and environments.
+- [x] Reproduce spec/IR/execution, parameter, feature, education and paper mismatches.
+- [x] Independently inspect privacy/security/provenance/fingerprint assumptions.
 
 ### Task A2: Repair contract mismatches under TDD
 
@@ -54,18 +54,18 @@ additive P5.5 seams only where needed; `tests/p6_6/` regression tests.
 Interfaces: reviewed specs/feature versions → exact constrained execution plan;
 historical and paper outputs must identify the same versions/configuration.
 
-- [ ] Add failing behavioral tests for every reproduced mismatch; observe RED.
-- [ ] Fix the root cause with one shared validated plan; do not weaken validation.
-- [ ] Verify focused tests, complete suites and independent validity/security review.
-- [ ] Commit repaired P6.6 baseline with relevant gate documentation.
+- [x] Add failing behavioral tests for every reproduced mismatch; observe RED.
+- [x] Fix the root cause with one shared validated plan; do not weaken validation.
+- [x] Verify focused tests, complete suites and independent validity/security review.
+- [x] Commit repaired P6.6 baseline with relevant gate documentation.
 
 ### Task A3: Post-commit P6.6 gate
 
-- [ ] Run full `.venv` and `.venv-quant` tests, Ruff, notebook, governance, both pip checks.
-- [ ] Run PostgreSQL migration gate (including migration 002), shell syntax and diff check.
-- [ ] Exercise complete strategy, feature, OOS, paper and export journeys.
-- [ ] Prove fresh QuantRun/ResearchRun provenance.code_commit == HEAD and stable replay.
-- [ ] Confirm clean worktree; record exact evidence and independent gate decision.
+- [x] Run full `.venv` and `.venv-quant` tests, Ruff, notebook, governance, both pip checks.
+- [x] Run PostgreSQL migration gate (including migration 002), shell syntax and diff check.
+- [x] Exercise complete strategy, feature, OOS, paper and export journeys.
+- [x] Prove fresh QuantRun/ResearchRun provenance.code_commit == HEAD and stable replay.
+- [x] Confirm clean worktree; record exact evidence and independent gate decision.
 
 ## Stage B — P7 implementation (unlocks only after A3)
 
@@ -76,10 +76,10 @@ existing `p6_5/repository.py` migration sequence, `tests/p7/test_identity_reposi
 Interfaces: authenticated session → owner-scoped repository operations and typed
 immutable artifact references; no arbitrary owner-ID authorization.
 
-- [ ] Write failing tests for auth, ownership, duplicates, FK integrity and injection.
-- [ ] Add parameterized persistence on the same connection/migration architecture.
-- [ ] Verify SQLite and PostgreSQL constraints, restarts and transaction rollback.
-- [ ] Review and commit this independently testable foundation.
+- [x] Write failing tests for auth, ownership, duplicates, FK integrity and injection.
+- [x] Add parameterized persistence on the same connection/migration architecture.
+- [x] Verify SQLite and PostgreSQL constraints, restarts and transaction rollback.
+- [x] Review and commit this independently testable foundation.
 
 ### Task B2: Private continuity and explainable learning
 
@@ -88,11 +88,11 @@ Interfaces: canonical artifact references + existing P6 learning records → typ
 private graph, evidence-derived mastery, misconception continuity, learning threads,
 saved workspace, research/strategy history, timeline and bounded context/guidance.
 
-- [ ] Write failing tests for all private objects, state derivation and relevant recall.
-- [ ] Implement explicit evidence and references; reuse existing authority objects.
-- [ ] Test user B denial, truth immutability, empty/repeated evidence and stale references.
-- [ ] Verify owner-authorized export/deletion and no broad personal profiling.
-- [ ] Review and commit private continuity.
+- [x] Write failing tests for all private objects, state derivation and relevant recall.
+- [x] Implement explicit evidence and references; reuse existing authority objects.
+- [x] Test user B denial, truth immutability, empty/repeated evidence and stale references.
+- [x] Verify owner-authorized export/deletion and no broad personal profiling.
+- [x] Review and commit private continuity.
 
 ### Task B3: Explicit projection and evidence-driven community
 
@@ -100,11 +100,11 @@ Files: `src/finahinking/p7/{projection,community}.py`, `tests/p7/test_community.
 Interfaces: selected private artifact + explicit visibility/fields → immutable
 sanitized projection; room membership → posts/comments/typed evidence attachments.
 
-- [ ] Write failing tests for projection field leaks, consent, membership and revocation.
-- [ ] Implement versioned copies preserving mandatory provenance/limitations/claim labels.
-- [ ] Test cross-user attachment bypass, malicious links, prompt injection and SQL attacks.
-- [ ] Implement attributed summaries, transparent quality indicators and explicit save-as-question.
-- [ ] Review and commit community/projection.
+- [x] Write failing tests for projection field leaks, consent, membership and revocation.
+- [x] Implement versioned copies preserving mandatory provenance/limitations/claim labels.
+- [x] Test cross-user attachment bypass, malicious links, prompt injection and SQL attacks.
+- [x] Implement attributed summaries, transparent quality indicators and explicit save-as-question.
+- [x] Review and commit community/projection.
 
 ### Task B4: Complete product journeys and user control
 
@@ -113,23 +113,23 @@ repository-native runnable demo/CLI and deterministic fixtures.
 Interfaces: P6.6 momentum/OOS/turnover research and P6.5 real CPI event → persistent
 personal journey → sanitized room projection → counter-evidence → private question.
 
-- [ ] Write failing end-to-end tests using real existing artifacts and a real repository.
-- [ ] Implement Personal Home, graph/thread/timeline, sharing preview/revoke and room flow.
-- [ ] Verify UI/product progressive disclosure and authorization on actual interactions.
-- [ ] Evaluate continuity, grounded learning, privacy, evidence quality and user control.
-- [ ] Review and commit complete journeys.
+- [x] Write failing end-to-end tests using real existing artifacts and a real repository.
+- [x] Implement Personal Home, graph/thread/timeline, sharing preview/revoke and room flow.
+- [x] Verify UI/product progressive disclosure and authorization on actual interactions.
+- [x] Evaluate continuity, grounded learning, privacy, evidence quality and user control.
+- [x] Review and commit complete journeys.
 
 ### Task B5: Independent passes A–J and full completion audit
 
 Files: all required `docs/p7/P7_*.md`, `P8_READINESS_REPORT.md`, PROJECT_STATE,
 EVOLUTION_LOG, gate commands and requirement-to-evidence matrix.
 
-- [ ] Independently audit architecture, personal data, mastery, personalization,
+- [x] Independently audit architecture, personal data, mastery, personalization,
   community, privacy, security, research integrity, learning integrity and reproduction.
-- [ ] Resolve every material finding via reproduction → RED → minimal fix → full tests.
-- [ ] Inspect evidence for each mission section and each of the 44 P7 gate items.
-- [ ] Commit final docs/state, then rerun all post-commit gates and provenance assertions.
-- [ ] Confirm clean worktree; report P8 A/B/C readiness honestly; do not implement P8.
+- [x] Resolve every material finding via reproduction → RED → minimal fix → full tests.
+- [x] Inspect evidence for each mission section and each of the 44 P7 gate items.
+- [x] Commit final docs/state, then rerun all post-commit gates and provenance assertions.
+- [x] Confirm clean worktree; report P8 A/B/C readiness honestly; do not implement P8.
 
 ## Validation commands
 

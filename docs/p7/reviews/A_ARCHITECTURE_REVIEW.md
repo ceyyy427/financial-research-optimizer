@@ -23,11 +23,11 @@ owner boundary, vertical slices, and review documentation.
 
 ## Fresh command evidence
 
-- Requested bounded baseline: `.venv/bin/pytest -q tests/p7` **8 passed**;
-  `.venv/bin/pytest -q` and `.venv-quant/bin/pytest -q` each **226 passed,
+- Requested bounded baseline: `.venv/bin/pytest -q tests/p7` **29 passed**;
+  `.venv/bin/pytest -q` and `.venv-quant/bin/pytest -q` each **244 passed,
   1 skipped** before the adversarial additions.
-- Current expanded run: **11 P7 passed** and both full environments
-  **226 passed, 1 skipped**.
+- Current expanded run: **29 P7 passed** and both full environments
+  **244 passed, 1 skipped**.
 - `make p5-5-gate` passes, including full tests, Ruff, notebook execution,
   governance, both `pip check` runs, and the quant smoke fingerprint.
 - `bash scripts/verify_p6_5_postgres.sh` passes with

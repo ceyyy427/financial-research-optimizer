@@ -43,7 +43,7 @@ immutable and must not turn discussion or guidance into investment advice.
    journey are outside this adapter. Production UI, hosted identity, and social-network operations are
    outside this bounded local slice and remain P8 decisions.
 
-3. The current eight-test P7 repository and vertical slice collects and passes. Those tests
+3. The current 29-test P7 repository and vertical slice collects and passes. Those tests
    cover owner scoping, evidence-derived NEEDS_REVIEW, consent/sanitization,
    revocation, room membership, bounded context, export, and SQL metacharacter
    handling. They do not yet prove either complete product journey or a real
@@ -63,15 +63,15 @@ truth decision is made:
 | Evidence | Command or artifact | Expected evidence |
 | --- | --- | --- |
 | P6.6/P7 local authority | `./.venv/bin/python -m pytest -q tests/p6_6 tests/p7` | Focused P6.6/P7 tests pass |
-| P7 repository and vertical slices | `./.venv/bin/python -m pytest -q tests/p7` | 11 tests pass against SQLite |
-| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | Both report 226 passed, 1 skipped |
+| P7 repository and vertical slices | `./.venv/bin/python -m pytest -q tests/p7` | 29 tests pass against SQLite |
+| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | Both report 244 passed, 1 skipped |
 | Migration authority | `./scripts/verify_p6_5_postgres.sh` | Migrations 001, 002, and 003 apply; PostgreSQL schema gate reports PASS |
 | No advice / limitation display | Product journey test plus exported record inspection | Limitations, provenance, and claim labels remain visible and unchanged |
 | Current baseline probe | `./.venv/bin/python -m pytest -q tests/p7` | Current bounded slice passes |
 
 ## Decision
 
-**PASS — bounded local P7 product-truth slice (not production).** The eleven P7 tests, dual full
+**PASS — bounded local P7 product-truth slice (not production).** The 29 P7 tests, dual full
 suites, and migration gate support the local evidence-first boundary. Production
 UX, moderation, hosted identity/recovery, and service-scale claims remain
 explicit P8 residual risks.

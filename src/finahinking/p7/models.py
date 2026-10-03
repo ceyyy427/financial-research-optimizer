@@ -142,6 +142,7 @@ class ProjectionSpec:
     visibility: str = "PRIVATE"
     version: int = 1
     limitations: tuple[str, ...] = ()
+    room_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("projection_id", "source_kind", "source_id", "source_fingerprint"):
@@ -154,6 +155,10 @@ class ProjectionSpec:
         if self.version < 1:
             raise ValueError("projection version must be positive")
         object.__setattr__(self, "limitations", tuple(_text(item, "limitation") for item in self.limitations))
+        if self.room_id is not None:
+            object.__setattr__(self, "room_id", _text(self.room_id, "room_id"))
+        if self.visibility == "SHARED_ROOM" and self.room_id is None:
+            raise ValueError("room_id is required for a room projection")
 
 
 @dataclass(frozen=True)

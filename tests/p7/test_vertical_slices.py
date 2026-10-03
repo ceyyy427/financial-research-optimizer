@@ -36,6 +36,7 @@ def test_private_continuity_slice_is_owner_scoped_and_exportable() -> None:
     repository.save_mastery_evidence("alice-session", MasteryEvidence("m1", "c1", "explanation", "card:c1", "correct", "2026-10-03T00:00:00Z"))
     repository.create_learning_thread("alice-session", LearningThread("t1", "Temporal review", ("n1", "c1")))
     repository.save_history_entry("alice-session", history_id="h1", source_kind="research_run", source_id="r1", source_fingerprint="a" * 64, event_type="completed", title="Revision review", occurred_at="2026-10-03T00:00:00Z", limitations=["fixture"])
+    repository.save_object("alice-session", saved_id="saved-claim", source_kind="claim", source_id="claim-1", source_fingerprint="a" * 64, note="revisit this claim")
 
     context = repository.authorized_context("alice-session", purpose="review", limit=1)
     exported = repository.export_personal("alice-session")
@@ -43,11 +44,13 @@ def test_private_continuity_slice_is_owner_scoped_and_exportable() -> None:
     assert exported["principal_id"] == "alice"
     assert exported["mastery"][0]["evidence_ids"] == ["m1"]
     assert exported["edges"][0]["relation_type"] == "QUESTIONED"
+    assert exported["saved_objects"][0]["saved_id"] == "saved-claim"
 
     repository.delete_personal("alice-session")
     with pytest.raises(KeyError):
         repository.get_node("alice-session", "c1")
     assert repository.export_personal("alice-session")["nodes"] == []
+    assert repository.export_personal("alice-session")["saved_objects"] == []
 
 
 def test_projection_to_community_slice_marks_stale_and_requires_membership() -> None:
@@ -59,7 +62,7 @@ def test_projection_to_community_slice_marks_stale_and_requires_membership() -> 
     repository.create_room("alice-session", CommunityRoom("r1", "Evidence", "Evidence room"))
     repository.join_room("bob-session", "r1")
     repository.link_artifact("alice-session", "research_run", "run1", "a" * 64, ("summary",))
-    repository.publish_projection("alice-session", ProjectionSpec("p1", "research_run", "run1", "a" * 64, ("summary",), "SHARED_ROOM"), {"summary": "historical"}, consent=True)
+    repository.publish_projection("alice-session", ProjectionSpec("p1", "research_run", "run1", "a" * 64, ("summary",), "SHARED_ROOM", room_id="r1"), {"summary": "historical"}, consent=True)
     repository.create_post("bob-session", CommunityPost("post1", "r1", "bob", "QUANT_FINDING", "Result", "Historical only."))
     repository.attach_projection("bob-session", "post1", "p1", "research")
     repository.link_artifact("alice-session", "research_run", "run1", "b" * 64, ("summary",))

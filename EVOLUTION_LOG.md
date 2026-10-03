@@ -116,6 +116,23 @@ result. Small documentation corrections may be grouped in one entry.
   new dependency, plugin, broker, provider SDK, or live execution path.
 - Review: P6.6 Gate PASS; P7 is READY but remains WAITING FOR HUMAN APPROVAL.
 
+## 2026-10-03 — P7 continuity and community completion audit
+
+- Change: added misconception lifecycle, private timeline, evidence-grounded
+  optional guidance, saved workspace references, strategy-version provenance,
+  typed community claims/attachments/summaries, an inert prompt/tool/link
+  boundary, P6.5 event learning adapter, and room-bound projections.
+- Reason: close mission-level gaps found by independent audit rather than
+  equating generic CRUD coverage with the P7 product contracts.
+- Evidence: 25 P7 tests, 240 passed/1 skipped in both environments, Ruff,
+  notebook/governance/pip gates, PostgreSQL schema/index checks, and the exact
+  mission-44 gate matrix plus A–J pass register.
+- Compatibility: no new runtime dependency or plugin; P4–P6.6 authorities are
+  preserved. Legacy projection schemas gain the room-scope column through both
+  migration entry points.
+- Review: P7 local gate PASS; P8 readiness decision B only, implementation waits
+  for human approval and hosted operational controls remain open.
+
 ## 2026-10-02 — P0 foundation
 
 - Change: established repository governance, role contracts, and phase-gate

@@ -45,8 +45,8 @@ limitation.
 
 | Evidence | Command or artifact | Observed result |
 | --- | --- | --- |
-| P7 focused suite | `./.venv/bin/python -m pytest -q tests/p7` | **11 passed** |
-| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **226 passed, 1 skipped** in each environment |
+| P7 focused suite | `./.venv/bin/python -m pytest -q tests/p7` | **29 passed** |
+| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **244 passed, 1 skipped** in each environment |
 | PostgreSQL migration gate | `./scripts/verify_p6_5_postgres.sh` | Migrations 001, 002, and **003 apply; PostgreSQL gate PASS** (`P6.5_POSTGRES_SCHEMA_PASS`) |
 | Static/governance checks | Ruff, governance validator, shell syntax, and `git diff --check` | PASS |
 | Local recovery behavior | P7 export/delete, revoke, owner-isolation, and metacharacter tests | PASS for bounded local repository behavior |
@@ -54,7 +54,7 @@ limitation.
 ## Decision
 
 **PASS — bounded local operations and migration/recovery slice (not
-production).** The eleven P7 tests, dual full suites (226 passed, 1 skipped),
+production).** The 29 P7 tests, dual full suites (244 passed, 1 skipped),
 and migration 003/PostgreSQL PASS establish the local evidence gate. Hosted
 backup/restore/failover, retention, monitoring, incident response, and hosted
 identity remain explicit non-blocking P8 residual risks.

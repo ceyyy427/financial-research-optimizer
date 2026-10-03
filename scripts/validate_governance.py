@@ -341,6 +341,7 @@ def validate_repository(root: Path | str) -> list[str]:
             "docs/p7/P7_ARCHITECTURE.md",
             "docs/p7/P7_CAPABILITY_MATRIX.md",
             "docs/p7/P7_FINAL_VALIDATION_REPORT.md",
+            "docs/p7/P8_READINESS_REPORT.md",
             "docs/P8_READINESS_REPORT.md",
         ):
             if not (repository / relative).is_file():

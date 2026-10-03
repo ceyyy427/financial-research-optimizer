@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import uuid
 from datetime import UTC, datetime
@@ -36,8 +37,26 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _expired(expires_at: str | None) -> bool:
+    if not expires_at:
+        return False
+    try:
+        value = datetime.fromisoformat(expires_at)
+    except ValueError as exc:
+        raise PermissionError("session expiry is malformed") from exc
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC) <= datetime.now(UTC)
+
+
 def _json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _fingerprint(value: str, label: str = "source_fingerprint") -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-fA-F]{64}", value) is None:
+        raise ValueError(f"{label} must be a SHA-256 fingerprint")
+    return value.lower()
 
 
 def apply_p7_migration(connection: Any, *, dialect: str = "sqlite") -> None:
@@ -47,11 +66,15 @@ def apply_p7_migration(connection: Any, *, dialect: str = "sqlite") -> None:
     if dialect == "sqlite" and isinstance(connection, sqlite3.Connection):
         connection.execute("PRAGMA foreign_keys = ON")
         connection.executescript(sql)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(p7_projections)").fetchall()}
+        if "room_id" not in columns:
+            connection.execute("ALTER TABLE p7_projections ADD COLUMN room_id TEXT")
         connection.commit()
         return
     if dialect in {"postgres", "postgresql"} and hasattr(connection, "cursor"):
         cursor = connection.cursor()
         cursor.execute(sql)
+        cursor.execute("ALTER TABLE p7_projections ADD COLUMN IF NOT EXISTS room_id TEXT REFERENCES p7_rooms(room_id) ON DELETE SET NULL")
         connection.commit()
         return
     raise ValueError("unsupported P7 migration dialect")
@@ -80,7 +103,7 @@ class SQLiteP7Repository:
         ).fetchone()
         if row is None or row["revoked"] or row["status"] != "active":
             raise PermissionError("session is not active")
-        if row["expires_at"] and row["expires_at"] <= _now():
+        if _expired(row["expires_at"]):
             raise PermissionError("session is expired")
         return str(row["principal_id"])
 
@@ -181,6 +204,8 @@ class SQLiteP7Repository:
             raise KeyError(evidence.concept_id)
         if concept["owner_id"] != owner:
             raise PermissionError("mastery evidence must reference a private concept owned by the principal")
+        if concept["node_type"] != "concept":
+            raise ValueError("mastery evidence must reference a concept node")
         try:
             self.connection.execute(
                 "INSERT INTO p7_mastery_evidence (evidence_id,owner_id,concept_id,evidence_type,evidence_reference,outcome,observed_at,details) VALUES (?,?,?,?,?,?,?,?)",
@@ -228,6 +253,9 @@ class SQLiteP7Repository:
 
     def get_mastery_state(self, session_id: str, concept_id: str) -> ConceptMasteryState:
         owner = self._principal(session_id)
+        concept = self.connection.execute("SELECT owner_id FROM p7_personal_nodes WHERE node_id = ?", (concept_id,)).fetchone()
+        if concept is not None and concept["owner_id"] != owner:
+            raise PermissionError("mastery state belongs to another principal")
         row = self.connection.execute("SELECT * FROM p7_mastery_states WHERE owner_id = ? AND concept_id = ?", (owner, concept_id)).fetchone()
         if row is None:
             return ConceptMasteryState(concept_id, "NEW", 0, (), "No evidence has been recorded yet.")
@@ -247,14 +275,30 @@ class SQLiteP7Repository:
 
     def save_history_entry(self, session_id: str, *, history_id: str, source_kind: str, source_id: str, source_fingerprint: str, event_type: str, title: str, occurred_at: str, limitations: list[str] | tuple[str, ...] = ()) -> None:
         owner = self._principal(session_id)
+        source_fingerprint = _fingerprint(source_fingerprint)
         self.connection.execute(
             "INSERT INTO p7_history_entries (history_id,owner_id,source_kind,source_id,source_fingerprint,event_type,title,occurred_at,limitations) VALUES (?,?,?,?,?,?,?,?,?)",
             (history_id, owner, source_kind, source_id, source_fingerprint, event_type, title, occurred_at, _json(list(limitations))),
         )
         self.connection.commit()
 
+    def save_object(self, session_id: str, *, saved_id: str, source_kind: str, source_id: str, source_fingerprint: str, note: str) -> None:
+        """Save an explicit private workspace reference, never a copied truth."""
+        owner = self._principal(session_id)
+        source_fingerprint = _fingerprint(source_fingerprint)
+        self.connection.execute(
+            "INSERT INTO p7_saved_objects (saved_id,owner_id,source_kind,source_id,source_fingerprint,note,created_at) VALUES (?,?,?,?,?,?,?)",
+            (saved_id, owner, source_kind, source_id, source_fingerprint, note, _now()),
+        )
+        self.connection.commit()
+
+    def list_saved_objects(self, session_id: str) -> list[dict[str, Any]]:
+        owner = self._principal(session_id)
+        return [dict(row) for row in self.connection.execute("SELECT saved_id,source_kind,source_id,source_fingerprint,note,created_at FROM p7_saved_objects WHERE owner_id = ? ORDER BY created_at,saved_id", (owner,)).fetchall()]
+
     def link_artifact(self, session_id: str, source_kind: str, source_id: str, source_fingerprint: str, allowed_fields: tuple[str, ...] | list[str], *, code_commit: str | None = None) -> None:
         owner = self._principal(session_id)
+        source_fingerprint = _fingerprint(source_fingerprint)
         fields = tuple(dict.fromkeys(str(field) for field in allowed_fields))
         if not fields:
             raise ValueError("allowed_fields are required")
@@ -265,6 +309,40 @@ class SQLiteP7Repository:
         )
         self.connection.commit()
 
+    def save_strategy_version(
+        self,
+        session_id: str,
+        *,
+        strategy_version_id: str,
+        strategy_id: str,
+        strategy_fingerprint: str,
+        feature_fingerprint: str | None = None,
+        backtest_fingerprint: str | None = None,
+        oos_fingerprint: str | None = None,
+        paper_fingerprint: str | None = None,
+        limitations: tuple[str, ...] | list[str] = (),
+        code_commit: str | None = None,
+    ) -> None:
+        owner = self._principal(session_id)
+        strategy_fingerprint = _fingerprint(strategy_fingerprint, "strategy_fingerprint")
+        feature_fingerprint = _fingerprint(feature_fingerprint, "feature_fingerprint") if feature_fingerprint is not None else None
+        backtest_fingerprint = _fingerprint(backtest_fingerprint, "backtest_fingerprint") if backtest_fingerprint is not None else None
+        oos_fingerprint = _fingerprint(oos_fingerprint, "oos_fingerprint") if oos_fingerprint is not None else None
+        paper_fingerprint = _fingerprint(paper_fingerprint, "paper_fingerprint") if paper_fingerprint is not None else None
+        self.connection.execute(
+            "INSERT INTO p7_strategy_versions (strategy_version_id,owner_id,strategy_id,strategy_fingerprint,feature_fingerprint,backtest_fingerprint,oos_fingerprint,paper_fingerprint,limitations,code_commit,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (strategy_version_id, owner, strategy_id, strategy_fingerprint, feature_fingerprint, backtest_fingerprint, oos_fingerprint, paper_fingerprint, _json(list(limitations)), code_commit, _now()),
+        )
+        self.connection.commit()
+
+    def list_strategy_versions(self, session_id: str, *, strategy_id: str | None = None) -> list[dict[str, Any]]:
+        owner = self._principal(session_id)
+        if strategy_id is None:
+            rows = self.connection.execute("SELECT * FROM p7_strategy_versions WHERE owner_id = ? ORDER BY created_at, strategy_version_id", (owner,)).fetchall()
+        else:
+            rows = self.connection.execute("SELECT * FROM p7_strategy_versions WHERE owner_id = ? AND strategy_id = ? ORDER BY created_at, strategy_version_id", (owner, strategy_id)).fetchall()
+        return [{**dict(row), "limitations": json.loads(row["limitations"])} for row in rows]
+
     def publish_projection(self, session_id: str, spec: ProjectionSpec, payload: dict[str, Any], *, consent: bool) -> PublicProjection:
         owner = self._principal(session_id)
         link = self.connection.execute(
@@ -273,6 +351,10 @@ class SQLiteP7Repository:
         ).fetchone()
         if not consent:
             raise PermissionError("explicit projection consent is required")
+        if spec.visibility == "SHARED_ROOM":
+            room = self.connection.execute("SELECT status FROM p7_rooms WHERE room_id = ?", (spec.room_id,)).fetchone()
+            if room is None or room["status"] != "active" or not self._is_member(owner, spec.room_id):
+                raise PermissionError("room projection requires an active room membership")
         if link is None or link["current_fingerprint"] != spec.source_fingerprint:
             raise PermissionError("projection source fingerprint is not current and owned")
         allowed = set(json.loads(link["allowed_fields"]))
@@ -283,8 +365,8 @@ class SQLiteP7Repository:
             raise ValueError("projection contains no allowed payload fields")
         try:
             self.connection.execute(
-                "INSERT INTO p7_projections (projection_id,owner_id,source_kind,source_id,source_fingerprint,fields,visibility,status,version,payload,limitations,consented_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (spec.projection_id, owner, spec.source_kind, spec.source_id, spec.source_fingerprint, _json(spec.fields), spec.visibility, "ACTIVE", spec.version, _json(sanitized), _json(spec.limitations), _now(), _now()),
+                "INSERT INTO p7_projections (projection_id,owner_id,source_kind,source_id,source_fingerprint,fields,visibility,room_id,status,version,payload,limitations,consented_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (spec.projection_id, owner, spec.source_kind, spec.source_id, spec.source_fingerprint, _json(spec.fields), spec.visibility, spec.room_id, "ACTIVE", spec.version, _json(sanitized), _json(spec.limitations), _now(), _now()),
             )
             self._audit(owner, "publish", "projection", spec.projection_id, {"visibility": spec.visibility, "fields": spec.fields})
             self.connection.commit()
@@ -313,7 +395,11 @@ class SQLiteP7Repository:
                 raise PermissionError("projection is not public")
         else:
             principal = self._principal(session_id)
-            if principal != row["owner_id"] and row["visibility"] != "PUBLIC":
+            if row["visibility"] == "SHARED_ROOM":
+                room = self.connection.execute("SELECT status FROM p7_rooms WHERE room_id = ?", (row["room_id"],)).fetchone()
+                if room is None or room["status"] != "active":
+                    raise PermissionError("projection room is not active")
+            if principal != row["owner_id"] and row["visibility"] != "PUBLIC" and (row["visibility"] != "SHARED_ROOM" or not row["room_id"] or not self._is_member(principal, row["room_id"])):
                 raise PermissionError("projection is not visible to this principal")
         return PublicProjection(row["projection_id"], row["owner_id"], row["visibility"], row["status"], int(row["version"]), json.loads(row["payload"]), row["source_fingerprint"], tuple(json.loads(row["limitations"])))
 
@@ -355,6 +441,13 @@ class SQLiteP7Repository:
         room = self.connection.execute("SELECT status FROM p7_rooms WHERE room_id = ?", (room_id,)).fetchone()
         if room is None or room["status"] != "active":
             raise PermissionError("room is not active")
+        if role == "moderator":
+            owner = self.connection.execute("SELECT principal_id FROM p7_room_members WHERE room_id = ? AND role = 'owner' AND status = 'active'", (room_id,)).fetchone()
+            if owner is None or owner["principal_id"] != principal:
+                raise PermissionError("only the room owner may assign moderator role")
+        existing = self.connection.execute("SELECT role,status FROM p7_room_members WHERE room_id = ? AND principal_id = ?", (room_id, principal)).fetchone()
+        if existing is not None and existing["role"] == "owner" and existing["status"] == "active":
+            return
         self.connection.execute("INSERT OR REPLACE INTO p7_room_members (room_id,principal_id,role,status,created_at) VALUES (?,?,?,?,?)", (room_id, principal, role, "active", _now()))
         self.connection.commit()
 
@@ -394,13 +487,15 @@ class SQLiteP7Repository:
     def attach_projection(self, session_id: str, post_id: str, projection_id: str, role: str) -> None:
         principal = self._principal(session_id)
         post = self.connection.execute("SELECT author_id, room_id FROM p7_posts WHERE post_id = ?", (post_id,)).fetchone()
-        projection = self.connection.execute("SELECT owner_id, visibility, status FROM p7_projections WHERE projection_id = ?", (projection_id,)).fetchone()
+        projection = self.connection.execute("SELECT owner_id, visibility, room_id, status FROM p7_projections WHERE projection_id = ?", (projection_id,)).fetchone()
         if post is None or projection is None:
             raise KeyError(post_id if post is None else projection_id)
         if principal != post["author_id"] or not self._is_member(principal, post["room_id"]):
             raise PermissionError("only the post author may attach evidence")
         if projection["status"] != "ACTIVE" or projection["visibility"] not in {"SHARED_ROOM", "PUBLIC"}:
             raise PermissionError("only an active room/public projection may be attached")
+        if projection["visibility"] == "SHARED_ROOM" and (not projection["room_id"] or projection["room_id"] != post["room_id"]):
+            raise PermissionError("room projection cannot be attached across rooms")
         self.connection.execute("INSERT INTO p7_projection_attachments (attachment_id,post_id,projection_id,role,created_at) VALUES (?,?,?,?,?)", (str(uuid.uuid4()), post_id, projection_id, role, _now()))
         self.connection.commit()
 
@@ -437,10 +532,26 @@ class SQLiteP7Repository:
         mastery = [dict(row) for row in self.connection.execute("SELECT concept_id,state,evidence_count,evidence_ids,explanation,updated_at FROM p7_mastery_states WHERE owner_id = ? ORDER BY concept_id", (owner,)).fetchall()]
         for row in mastery:
             row["evidence_ids"] = json.loads(row["evidence_ids"])
-        projections = [dict(row) for row in self.connection.execute("SELECT projection_id,source_kind,source_id,source_fingerprint,fields,visibility,status,version,payload,limitations,consented_at,revoked_at,created_at FROM p7_projections WHERE owner_id = ? ORDER BY projection_id", (owner,)).fetchall()]
+        mastery_evidence = [dict(row) for row in self.connection.execute("SELECT evidence_id,concept_id,evidence_type,evidence_reference,outcome,observed_at,details FROM p7_mastery_evidence WHERE owner_id = ? ORDER BY evidence_id", (owner,)).fetchall()]
+        for row in mastery_evidence:
+            row["details"] = json.loads(row["details"])
+        projections = [dict(row) for row in self.connection.execute("SELECT projection_id,source_kind,source_id,source_fingerprint,fields,visibility,room_id,status,version,payload,limitations,consented_at,revoked_at,created_at FROM p7_projections WHERE owner_id = ? ORDER BY projection_id", (owner,)).fetchall()]
         for row in projections:
             row["fields"], row["payload"], row["limitations"] = json.loads(row["fields"]), json.loads(row["payload"]), json.loads(row["limitations"])
-        export = {"principal_id": owner, "nodes": nodes, "edges": edges, "mastery": mastery, "projections": projections}
+        history = [dict(row) for row in self.connection.execute("SELECT history_id,source_kind,source_id,source_fingerprint,event_type,title,occurred_at,limitations FROM p7_history_entries WHERE owner_id = ? ORDER BY occurred_at,history_id", (owner,)).fetchall()]
+        for row in history:
+            row["limitations"] = json.loads(row["limitations"])
+        threads = [dict(row) for row in self.connection.execute("SELECT thread_id,title,status,created_at FROM p7_learning_threads WHERE owner_id = ? ORDER BY thread_id", (owner,)).fetchall()]
+        for row in threads:
+            row["node_ids"] = [item["node_id"] for item in self.connection.execute("SELECT node_id FROM p7_learning_thread_items WHERE thread_id = ? ORDER BY position", (row["thread_id"],)).fetchall()]
+        strategy_history = [dict(row) for row in self.connection.execute("SELECT strategy_version_id,strategy_id,strategy_fingerprint,feature_fingerprint,backtest_fingerprint,oos_fingerprint,paper_fingerprint,limitations,code_commit,created_at FROM p7_strategy_versions WHERE owner_id = ? ORDER BY strategy_version_id", (owner,)).fetchall()]
+        for row in strategy_history:
+            row["limitations"] = json.loads(row["limitations"])
+        saved_objects = [dict(row) for row in self.connection.execute("SELECT saved_id,source_kind,source_id,source_fingerprint,note,created_at FROM p7_saved_objects WHERE owner_id = ? ORDER BY saved_id", (owner,)).fetchall()]
+        artifact_links = [dict(row) for row in self.connection.execute("SELECT link_id,source_kind,source_id,source_fingerprint,allowed_fields,current_fingerprint,code_commit,created_at FROM p7_artifact_links WHERE owner_id = ? ORDER BY link_id", (owner,)).fetchall()]
+        for row in artifact_links:
+            row["allowed_fields"] = json.loads(row["allowed_fields"])
+        export = {"principal_id": owner, "nodes": nodes, "edges": edges, "mastery": mastery, "mastery_evidence": mastery_evidence, "history": history, "learning_threads": threads, "strategy_history": strategy_history, "saved_objects": saved_objects, "artifact_links": artifact_links, "projections": projections}
         export["export_fingerprint"] = hashlib.sha256(_json(export).encode("utf-8")).hexdigest()
         return export
 
@@ -457,8 +568,13 @@ class SQLiteP7Repository:
     def delete_personal(self, session_id: str) -> None:
         owner = self._principal(session_id)
         self.connection.execute("UPDATE p7_projections SET status = 'REVOKED', revoked_at = ? WHERE owner_id = ? AND status != 'REVOKED'", (_now(), owner))
+        self.connection.execute("DELETE FROM p7_saved_objects WHERE owner_id = ?", (owner,))
+        self.connection.execute("DELETE FROM p7_history_entries WHERE owner_id = ?", (owner,))
+        self.connection.execute("DELETE FROM p7_artifact_links WHERE owner_id = ?", (owner,))
+        self.connection.execute("DELETE FROM p7_strategy_versions WHERE owner_id = ?", (owner,))
+        self.connection.execute("DELETE FROM p7_misconceptions WHERE owner_id = ?", (owner,))
         self.connection.execute("DELETE FROM p7_personal_nodes WHERE owner_id = ?", (owner,))
-        self._audit(owner, "delete_personal", "principal", owner, {"retained": "audit_only"})
+        self._audit(owner, "delete_personal", "principal", owner, {"retained": "audit_only", "private_records": "deleted", "shared_projections": "revoked"})
         self.connection.commit()
 
 

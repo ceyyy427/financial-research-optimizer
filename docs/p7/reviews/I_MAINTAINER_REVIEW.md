@@ -19,7 +19,7 @@ hosted-production release.
    behavior in one reviewable local adapter; future service decomposition is a
    P8 design choice, not a blocker for this slice.
 
-2. The P7 suite collects and passes eight focused repository and vertical
+2. The P7 suite collects and passes 29 focused repository and vertical
    scenarios. They cover owner scoping, evidence-derived mastery,
    consent/sanitization, revocation, room membership, bounded context,
    export/delete behavior, and SQL metacharacters. Broader hosted UX,
@@ -36,7 +36,7 @@ hosted-production release.
    Maintainers should preserve that dependency decision and add no package
    until a measured, reviewed gap exists.
 
-5. The local evidence is reproducible: both full environments report 223
+5. The local evidence is reproducible: both full environments report 244
    passed and 1 skipped, Ruff and governance checks are clean, and the
    disposable PostgreSQL gate applies migration 003. A final release still
    needs the commit/provenance record and clean-worktree check; that release
@@ -47,8 +47,8 @@ hosted-production release.
 | Evidence | Command or artifact | Observed result |
 | --- | --- | --- |
 | API/import surface | `./.venv/bin/python -c "import finahinking.p7 as p; print(p.__all__)"` | Explicit supported P7 exports |
-| P7 collection and behavior | `./.venv/bin/python -m pytest -q tests/p7` | **8 passed** |
-| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **226 passed, 1 skipped** in each environment |
+| P7 collection and behavior | `./.venv/bin/python -m pytest -q tests/p7` | **29 passed** |
+| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **244 passed, 1 skipped** in each environment |
 | Static/governance quality | `./.venv/bin/ruff check src tests scripts`; `python3 scripts/validate_governance.py .` | PASS |
 | Migration gate | `./scripts/verify_p6_5_postgres.sh` | Migration 003 applies; PostgreSQL gate PASS |
 | Dependency policy | `git diff -- requirements.lock pyproject.toml DEPENDENCY_RECORD.md`; capability matrix review | No unapproved dependency or connector gap |
@@ -56,7 +56,7 @@ hosted-production release.
 ## Decision
 
 **PASS — bounded local maintainer foundation (not production).** The explicit
-API, eleven P7 tests, dual full suites, lint/governance checks, and migration
+API, 29 P7 tests, dual full suites, lint/governance checks, and migration
 003/PostgreSQL gate provide an evidence-backed local baseline. Hosted UX,
 moderation/abuse controls, hosted recovery, and release automation remain
 explicit non-blocking P8 residual risks.

@@ -41,6 +41,7 @@ override the Current state section above:
 Finahinking P0–P7: COMPLETE for the local, research-only slice
 Feature/factor/quant/research/strategy authorities: VALIDATED
 Personal continuity and evidence-linked community: VALIDATED locally
+Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED
 P8: READINESS REPORT ONLY; WAITING FOR HUMAN APPROVAL
 
 ## Completed gates
@@ -57,7 +58,7 @@ P8: READINESS REPORT ONLY; WAITING FOR HUMAN APPROVAL
 | P6 | PASS | `docs/p6/P6_FINAL_VALIDATION_REPORT.md` |
 | P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md` |
 | P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md` and contract-repair tests |
-| P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, privacy/community tests, and independent A–J reviews |
+| P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 25 P7 tests, and independent A–J pass register |
 
 ## Constraints
 

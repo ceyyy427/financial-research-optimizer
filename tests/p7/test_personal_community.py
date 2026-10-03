@@ -87,7 +87,7 @@ def test_room_posts_only_accept_active_projections_and_preserve_claim_labels() -
     repository.link_artifact(session, "research_run", "run-1", "a" * 64, ("summary", "limitations"))
     repository.publish_projection(
         session,
-        ProjectionSpec("projection-2", "research_run", "run-1", "a" * 64, ("summary", "limitations"), "SHARED_ROOM"),
+        ProjectionSpec("projection-2", "research_run", "run-1", "a" * 64, ("summary", "limitations"), "SHARED_ROOM", room_id=room.room_id),
         {"summary": "descriptive result", "limitations": ["not a forecast"]},
         consent=True,
     )

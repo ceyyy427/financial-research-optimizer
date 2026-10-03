@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS p7_projections (
     source_fingerprint TEXT NOT NULL,
     fields TEXT NOT NULL,
     visibility TEXT NOT NULL CHECK (visibility IN ('PRIVATE','SHARED_ROOM','SHARED_GROUP','PUBLIC')),
+    room_id TEXT REFERENCES p7_rooms(room_id) ON DELETE SET NULL,
     status TEXT NOT NULL CHECK (status IN ('DRAFT','ACTIVE','REVOKED','STALE')),
     version INTEGER NOT NULL CHECK (version >= 1),
     payload TEXT NOT NULL,
@@ -193,3 +194,37 @@ CREATE INDEX IF NOT EXISTS idx_p7_history_owner_time ON p7_history_entries(owner
 CREATE INDEX IF NOT EXISTS idx_p7_projection_status ON p7_projections(status, visibility);
 CREATE INDEX IF NOT EXISTS idx_p7_posts_room ON p7_posts(room_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_p7_mastery_owner ON p7_mastery_states(owner_id, state);
+
+-- Explicit continuity records keep misconception lifecycle and strategy
+-- provenance inspectable without turning them into opaque user profiles.
+CREATE TABLE IF NOT EXISTS p7_misconceptions (
+    misconception_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES p7_principals(principal_id) ON DELETE CASCADE,
+    concept_id TEXT NOT NULL REFERENCES p7_personal_nodes(node_id) ON DELETE CASCADE,
+    observed_statement TEXT NOT NULL,
+    correction TEXT NOT NULL,
+    evidence_reference TEXT NOT NULL,
+    detected_at TEXT NOT NULL,
+    corrected_at TEXT,
+    status TEXT NOT NULL CHECK (status IN ('OPEN','CORRECTED')),
+    related_concept_ids TEXT NOT NULL DEFAULT '[]',
+    learning_interactions TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS p7_strategy_versions (
+    strategy_version_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES p7_principals(principal_id) ON DELETE CASCADE,
+    strategy_id TEXT NOT NULL,
+    strategy_fingerprint TEXT NOT NULL,
+    feature_fingerprint TEXT,
+    backtest_fingerprint TEXT,
+    oos_fingerprint TEXT,
+    paper_fingerprint TEXT,
+    limitations TEXT NOT NULL DEFAULT '[]',
+    code_commit TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE (owner_id, strategy_id, strategy_fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_p7_misconception_owner ON p7_misconceptions(owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_p7_strategy_history_owner ON p7_strategy_versions(owner_id, created_at);
