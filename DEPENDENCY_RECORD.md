@@ -31,15 +31,15 @@ to direct API dependencies; their versions are reviewed as one lock refresh.
 
 P4 adds no dependency; see DEPENDENCY_PROPOSAL.md.
 
-## 2026-10-03 P3 capability decision
+## 2026-10-03 P3 capability decision (historical)
 
 No plugin, MCP connector, provider SDK, broker integration, or additional
 package is required for the requested P0–P3 delivery. The existing pinned
 `numpy`, `pandas`, `pytest`, `ruff`, `jupyterlab`, and `ipykernel` environment
 closes the demonstrated governance, ECB fixture/provider, feature, and factor
 requirements. Installing unrelated integrations would expand the approved
-scope without closing a measured capability gap. P4+ dependency records below
-are historical and do not authorize work beyond the P3 stop.
+scope without closing a measured capability gap. This record is historical; the
+current P7 decision is recorded below.
 
 ## P5.5–P6 decision
 
@@ -73,3 +73,11 @@ NumPy, the existing P5/P5.5 ledgers, P6 learning contracts, and P6.5
 provenance boundaries close the demonstrated feature/strategy/paper/export
 gaps. The decision and residual capability risks are recorded in
 `docs/p6_6/P6_6_CAPABILITY_MATRIX.md`.
+
+## P7 capability decision
+
+P7 adds no package-manager dependency, plugin, MCP connector, graph/vector
+database, broker SDK, or moderation service. Existing Python, pandas/NumPy,
+SQLite/PostgreSQL migrations, and the repository's review/test tooling close
+the measured capability gap. Installation is intentionally skipped; see
+`docs/p7/P7_CAPABILITY_MATRIX.md`.

@@ -10,21 +10,19 @@ responsible for their own decisions.
 
 ## Scope
 
-The requested governed delivery boundary is P3, with P4 intentionally held
-for human approval:
+The current governed delivery boundary is P7, with P8 intentionally held for
+human approval:
 
 `provider -> dataset/provenance -> validation -> feature functions -> factors`
 
-P0–P3 provide governance, a reproducible Python environment, an ECB-backed
-fixture/provider boundary, validated datasets, descriptive feature functions,
-and documented factor evaluation. They do not execute trades, provide
-investment advice, or imply a forecasting result. Network access is isolated
-to allowlisted provider code, and tests use recorded fixtures by default.
+P0–P6.6 provide governance, reproducible data/evidence and quant authorities,
+guided learning, and a research-only strategy simulation lab. P7 adds private
+personal continuity, explainable mastery, explicit projections, and
+evidence-linked rooms. No phase executes trades, provides investment advice,
+or implies a forecasting result. Tests use recorded fixtures by default.
 
-Later P4–P6.6 files remain in the repository as historical material from prior
-work, but are outside this requested delivery boundary and are not endorsed by
-the current P3 gate. P4+ may only become authoritative after a new human-
-approved phase request.
+P8 remains a readiness report only. Brokerage, live execution, credentials,
+and autonomous community moderation are out of scope.
 
 ## Repository map
 
@@ -32,8 +30,8 @@ approved phase request.
 - `fixtures/` — deterministic, reviewed input data for tests.
 - `tests/` — unit and integration checks that do not require live network access.
 - `docs/` — phase gates and the authoritative project state.
-- `docs/p6_5/` and `docs/p6_6/` — retained historical later-phase material;
-  not part of the current P3 delivery.
+- `docs/p6_5/`, `docs/p6_6/`, and `docs/p7/` — phase contracts, reviews, and
+  final validation evidence.
 - `.agents/` — role contracts for orchestration, planning, architecture,
   implementation, security, dependency control, release, research, and review.
 
@@ -46,7 +44,6 @@ of truth for installed packages. Before proposing a change, run:
 python scripts/validate_governance.py
 ```
 
-The complete P0–P3 test, lint, notebook, and governance commands are
-documented in `CONTRIBUTING.md` and
-`docs/FINAHINKING_P3_COMPLETION_REPORT.md`. The P3 gate review records the
-current stop point before P4.
+The complete P0–P7 test, lint, notebook, migration, and governance commands
+are documented in `CONTRIBUTING.md` and the phase final validation reports.
+`docs/PROJECT_STATE.md` is the authoritative current gate record.

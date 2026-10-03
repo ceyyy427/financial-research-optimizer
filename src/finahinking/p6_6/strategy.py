@@ -26,6 +26,9 @@ class StrategyInterpreter:
         version: str = "v1",
         dataset_reference: str = "dataset-under-review",
         universe: str | None = None,
+        moving_average_window: int = 20,
+        lookback: int = 20,
+        volatility_window: int = 20,
     ) -> StrategyReview:
         if not isinstance(idea, str) or not idea.strip():
             raise ValueError("strategy idea is required")
@@ -39,7 +42,21 @@ class StrategyInterpreter:
             default_id = "lagged_momentum_low_volatility"
         else:
             raise ValueError("idea is outside the supported P6.6 templates")
-        graph, feature_versions = feature_graph_for_template(template)
+        if isinstance(moving_average_window, bool) or moving_average_window < 1:
+            raise ValueError("moving_average_window must be a positive integer")
+        if isinstance(lookback, bool) or lookback < 1:
+            raise ValueError("lookback must be a positive integer")
+        if isinstance(volatility_window, bool) or volatility_window < 1:
+            raise ValueError("volatility_window must be a positive integer")
+        moving_average_window = int(moving_average_window)
+        lookback = int(lookback)
+        volatility_window = int(volatility_window)
+        graph, feature_versions = feature_graph_for_template(
+            template,
+            moving_average_window=moving_average_window,
+            lookback=lookback,
+            volatility_window=volatility_window,
+        )
         resolved_id = strategy_id or default_id
         if template == "lagged_momentum_low_volatility":
             spec = StrategySpec(
@@ -66,7 +83,7 @@ class StrategyInterpreter:
                 risk_constraints=("long_only", "max_abs_weight=1.0", "no_lookahead", "explicit_costs"),
                 cost_model={"fee_bps": 5.0, "slippage_bps": 5.0},
                 validation_design={"method": "walk_forward", "oos_required": True, "multiple_testing": "report_only"},
-                parameters={"template": template, "volatility_threshold": 0.60, "selection_fraction": 0.20},
+                parameters={"template": template, "lookback": lookback, "volatility_window": volatility_window, "volatility_threshold": 0.60, "selection_fraction": 0.20},
                 limitations=("No causal claim is made.", "Survivorship and universe construction can dominate results.", "The volatility threshold is a research parameter, not a guarantee."),
             )
             assumptions = (
@@ -100,7 +117,7 @@ class StrategyInterpreter:
                 risk_constraints=("long_only", "max_abs_weight=1.0", "no_lookahead", "explicit_costs"),
                 cost_model={"fee_bps": 5.0, "slippage_bps": 5.0},
                 validation_design={"method": "walk_forward", "oos_required": True, "multiple_testing": "report_only"},
-                parameters={"template": template, "moving_average_window": 20, "target_weight": 0.75},
+                parameters={"template": template, "moving_average_window": moving_average_window, "target_weight": 0.75},
                 limitations=("Single-series evidence is not a portfolio recommendation.", "Moving averages can lag regime changes.", "Historical evidence does not forecast future returns."),
             )
             assumptions = (

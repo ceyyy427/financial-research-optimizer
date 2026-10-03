@@ -34,5 +34,7 @@ log attached to this commit.
 
 ## Boundary
 
-P7 is not started. Brokerage, live trading, credentials, network adapters,
-and investment advice remain out of scope.
+P7 is now the additive successor. The P6.6 gate remains research-only:
+brokerage, live trading, credentials, network adapters, and investment advice
+remain out of scope. P7 reuses the P6.6 authorities without changing their
+validity or provenance semantics.

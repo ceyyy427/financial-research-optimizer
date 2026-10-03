@@ -8,10 +8,10 @@ the applicable phase gate before changing code.
 
 Keep network access inside provider modules, use allowlisted official sources,
 and add a recorded fixture for deterministic tests. Do not add secrets,
-trading automation, or investment advice. The current requested boundary is
-P0–P3: validated data, descriptive features, and documented factors. P4+
-experiment persistence, backtesting, brokerage, and live execution remain out
-of scope until a separately approved phase changes the project state.
+trading automation, or investment advice. The current boundary is P0–P7:
+validated data/evidence, research-only simulation, and private continuity.
+P8 requires a separately approved phase; brokerage and live execution remain
+out of scope.
 
 ## Change workflow
 
@@ -21,9 +21,7 @@ of scope until a separately approved phase changes the project state.
    in `requirements.lock` when the environment exists.
 4. Update the relevant architecture, evolution, or upgrade record.
 5. Run `python scripts/validate_governance.py`, the complete test suite, the
-   notebook check, Ruff, pip check, and `git diff --check` for P0–P3 changes.
-   Later-phase migration checks apply only when explicitly working on those
-   historical modules under a separately approved phase.
+   notebook check, Ruff, pip check, migration checks, and `git diff --check`.
 6. Ask an independent reviewer to check the phase gate and research
    limitations before merging.
 

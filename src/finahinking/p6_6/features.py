@@ -33,10 +33,12 @@ def _as_frame(data: pd.DataFrame | pd.Series) -> pd.DataFrame:
     if not isinstance(data, pd.DataFrame):
         raise TypeError("feature input must be a pandas DataFrame or Series")
     frame = data.copy()
-    if not isinstance(frame.index, pd.DatetimeIndex):
+    if "date" in frame.columns:
+        frame.index = pd.to_datetime(frame["date"], errors="raise")
+    elif not isinstance(frame.index, pd.DatetimeIndex):
         frame.index = pd.to_datetime(frame.index)
     frame = frame.sort_index()
-    if frame.index.has_duplicates:
+    if frame.index.has_duplicates and "asset" not in frame.columns:
         raise ValueError("feature input index contains duplicate timestamps")
     return frame
 
@@ -97,7 +99,10 @@ def _primitive(definition: FeatureDefinition, frame: pd.DataFrame, inputs: Mappi
     elif name == "rolling_volatility":
         values = base.pct_change().rolling(window=window, min_periods=window).std() * float(parameters.get("annualization", 252.0)) ** 0.5
     elif name == "cross_sectional_rank":
-        if "asset" in frame.columns:
+        if definition.cross_sectional_scope == "date":
+            groups = frame["date"] if "date" in frame.columns else frame.index
+            values = base.groupby(groups).rank(pct=True)
+        elif "asset" in frame.columns:
             values = base.groupby(frame["asset"]).rank(pct=True)
         else:
             values = base.rank(pct=True)
@@ -107,7 +112,13 @@ def _primitive(definition: FeatureDefinition, frame: pd.DataFrame, inputs: Mappi
         values = (base - mean) / std.replace(0.0, np.nan)
     elif name == "threshold":
         threshold = float(parameters.get("threshold", 0.0))
-        values = base.ge(threshold).astype(float)
+        operator = str(parameters.get("operator", "ge")).lower()
+        if operator == "le":
+            values = base.le(threshold).astype(float)
+        elif operator == "ge":
+            values = base.ge(threshold).astype(float)
+        else:
+            raise ValueError(f"unsupported threshold operator: {operator}")
     elif name == "interaction":
         if len(input_values) < 2:
             raise ValueError("interaction requires two feature inputs")
@@ -175,7 +186,7 @@ def builtin_feature_registry() -> FeatureRegistry:
         FeatureDefinition("momentum_20d", "Lagged 20-day momentum", "Trailing momentum", "momentum", "close.pct_change(20).shift(1)", input_fields=("close",), window=20, lag=1, version="v1"),
         FeatureDefinition("volatility_20d", "Lagged 20-day realized volatility", "Annualized trailing standard deviation", "rolling_volatility", "close.pct_change().rolling(20).std()*sqrt(252).shift(1)", input_fields=("close",), window=20, lag=1, version="v1"),
         FeatureDefinition("moving_average_20d", "Lagged 20-day moving average", "Trailing simple moving average", "rolling_mean", "close.rolling(20).mean().shift(1)", input_fields=("close",), window=20, lag=1, version="v1"),
-        FeatureDefinition("threshold_low_volatility", "Low-volatility filter", "Boolean threshold", "threshold", "volatility <= threshold", parameters={"threshold": 0.60}, version="v1"),
+        FeatureDefinition("threshold_low_volatility", "Low-volatility filter", "Boolean threshold", "threshold", "volatility <= threshold", parameters={"threshold": 0.60, "operator": "le"}, version="v1"),
         FeatureDefinition("rank_momentum", "Cross-sectional momentum rank", "Percentile rank", "cross_sectional_rank", "rank(momentum)", cross_sectional_scope="date", version="v1"),
     )
     registry = FeatureRegistry()
@@ -184,11 +195,51 @@ def builtin_feature_registry() -> FeatureRegistry:
     return registry
 
 
-def feature_graph_for_template(template: str) -> tuple[FeatureGraph, tuple[FeatureVersion, ...]]:
+def feature_graph_for_template(
+    template: str,
+    *,
+    moving_average_window: int = 20,
+    lookback: int = 20,
+    volatility_window: int = 20,
+) -> tuple[FeatureGraph, tuple[FeatureVersion, ...]]:
     registry = builtin_feature_registry()
     if template == "lagged_momentum_low_volatility":
-        momentum = registry.get("momentum_20d")
-        volatility = registry.get("volatility_20d")
+        if any(isinstance(value, bool) or int(value) < 1 for value in (lookback, volatility_window)):
+            raise ValueError("lookback and volatility_window must be positive integers")
+        lookback = int(lookback)
+        volatility_window = int(volatility_window)
+        if lookback == 20:
+            momentum = registry.get("momentum_20d")
+        else:
+            momentum = FeatureVersion(
+                FeatureDefinition(
+                    f"momentum_{lookback}d",
+                    f"Lagged {lookback}-day momentum",
+                    "Trailing momentum",
+                    "momentum",
+                    f"close.pct_change({lookback}).shift(1)",
+                    input_fields=("close",),
+                    window=lookback,
+                    lag=1,
+                    version="v1",
+                )
+            )
+        if volatility_window == 20:
+            volatility = registry.get("volatility_20d")
+        else:
+            volatility = FeatureVersion(
+                FeatureDefinition(
+                    f"volatility_{volatility_window}d",
+                    f"Lagged {volatility_window}-day realized volatility",
+                    "Annualized trailing standard deviation",
+                    "rolling_volatility",
+                    f"close.pct_change().rolling({volatility_window}).std()*sqrt(252).shift(1)",
+                    input_fields=("close",),
+                    window=volatility_window,
+                    lag=1,
+                    version="v1",
+                )
+            )
         threshold = registry.get("threshold_low_volatility")
         nodes = (
             FeatureNode("momentum", momentum, explanation="Lagged 20-day momentum avoids using the current close."),
@@ -198,7 +249,25 @@ def feature_graph_for_template(template: str) -> tuple[FeatureGraph, tuple[Featu
         )
         return FeatureGraph(nodes, ("low_volatility", "momentum_rank")), (momentum, volatility, threshold, registry.get("rank_momentum"))
     if template == "moving_average_trend":
-        moving_average = registry.get("moving_average_20d")
+        if isinstance(moving_average_window, bool) or int(moving_average_window) < 1:
+            raise ValueError("moving_average_window must be a positive integer")
+        moving_average_window = int(moving_average_window)
+        if moving_average_window == 20:
+            moving_average = registry.get("moving_average_20d")
+        else:
+            moving_average = FeatureVersion(
+                FeatureDefinition(
+                    f"moving_average_{moving_average_window}d",
+                    f"Lagged {moving_average_window}-day moving average",
+                    "Trailing simple moving average",
+                    "rolling_mean",
+                    f"close.rolling({moving_average_window}).mean().shift(1)",
+                    input_fields=("close",),
+                    window=moving_average_window,
+                    lag=1,
+                    version="v1",
+                )
+            )
         return FeatureGraph((FeatureNode("moving_average", moving_average, explanation="Lagged moving average is available before the next trade."),), ("moving_average",)), (moving_average,)
     raise ValueError(f"unsupported strategy template: {template}")
 

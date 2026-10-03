@@ -4,16 +4,23 @@ All notable changes are recorded here. Entries describe user-visible
 research, reproducibility, or governance changes and link to the relevant
 phase gate where possible.
 
-The first P0–P3 entry below is the current requested delivery. Later P4–P6.6
-bullets are retained historical snapshots and do not change the current P3
-stop or authorize a later phase.
+The P7 entry below is the current governed delivery. P8 remains a readiness
+report and requires a new human review.
 
 ## Unreleased
 
-- Revalidated and hardened the P0–P3 research foundation: all role contracts
+- Added P7 private continuity: an owner-scoped knowledge graph, explainable
+  mastery evidence, learning/research/strategy history, explicit fingerprinted
+  projections, and room-scoped evidence-linked posts/comments.
+- Added additive migration 003, a parameterized SQLite adapter, P7 vertical
+  slice tests, independent A–J review documents, and a P8 readiness report.
+- Repaired P6.6 threshold/rank/window/configuration semantics and explicit
+  panel-paper behavior. No plugin, broker SDK, or live execution path was added.
+
+- Revalidated and hardened the P0–P3 research foundation (historical): all role contracts
   are governed, the build backend is pinned, ECB provider failures fail closed,
-  feature/factor edge cases are tested, and the project state now stops at P3
-  for human review. No plugin or research integration was installed.
+  and feature/factor edge cases are tested. No plugin or research integration
+  was installed.
 
 - Added governed P0–P4 research infrastructure, including data provenance,
   feature/factor evaluation, deterministic ResearchRun execution, and local

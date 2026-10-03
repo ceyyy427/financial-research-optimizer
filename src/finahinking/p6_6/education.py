@@ -112,21 +112,24 @@ def validate_generated_code(source: str) -> CodeSafetyReport:
 
 def _traces(spec: StrategySpec) -> tuple[StrategyLearningTrace, ...]:
     template = str(spec.parameters.get("template", ""))
+    moving_average_window = int(spec.parameters.get("moving_average_window", 20))
+    momentum_window = int(spec.parameters.get("lookback", 20))
+    volatility_window = int(spec.parameters.get("volatility_window", 20))
     common = (
         StrategyLearningTrace("lag", "series.shift(1)", "x_t uses information through t-1", "Lagging prevents trading on information that was not available at the signal close.", "Protect the research from look-ahead bias.", "The source timestamps and available_at field are trustworthy.", "Bad timestamps can still invalidate the claim."),
-        StrategyLearningTrace("rolling_window", "series.rolling(window=20)", "A rolling statistic summarizes the trailing 20 observations.", "A finite window adapts to recent conditions but can be noisy.", "Define the information horizon for the signal.", "Twenty observations are enough for the chosen statistic.", "Changing the window creates a new feature version."),
+        StrategyLearningTrace("rolling_window", f"series.rolling(window={moving_average_window if template == 'moving_average_trend' else momentum_window})", f"A rolling statistic summarizes the trailing {moving_average_window if template == 'moving_average_trend' else momentum_window} observations.", "A finite window adapts to recent conditions but can be noisy.", "Define the information horizon for the signal.", f"{moving_average_window if template == 'moving_average_trend' else momentum_window} observations are enough for the chosen statistic.", "Changing the window creates a new feature version."),
         StrategyLearningTrace("weights", "target_weight = condition.astype(float) * target", "Weights map a condition into a bounded portfolio exposure.", "A target weight controls capital allocation rather than predicting a return.", "Construct a long-only, capped position.", "The target is fully invested only when the condition holds.", "A target weight is not a guarantee of execution."),
         StrategyLearningTrace("costs", "turnover * (fee_bps + slippage_bps) / 10000", "Costs reduce equity when positions change.", "Fees and slippage are friction assumptions, not observed future costs.", "Prevent frictionless backtest overstatement.", "The configured bps are applied deterministically.", "Real execution can differ materially."),
         StrategyLearningTrace("oos", "train -> validation -> test", "Out-of-sample evaluation keeps the final period untouched during fitting.", "OOS evidence is weaker than a prospective live observation.", "Separate discovery from evaluation.", "The split dates are frozen before interpretation.", "Multiple testing and regime change remain risks."),
     )
     if template == "lagged_momentum_low_volatility":
         return common + (
-            StrategyLearningTrace("momentum", "close.pct_change(20).shift(1)", "m_t = P_(t-1) / P_(t-21) - 1", "Momentum measures trailing price strength.", "Rank assets before selecting a portfolio.", "Past relative strength may persist briefly.", "Momentum can reverse and is sensitive to costs."),
-            StrategyLearningTrace("low_volatility", "volatility <= threshold", "s_t <= c", "A volatility filter excludes the high-variability tail.", "Reduce exposure to the most volatile candidates.", "The threshold is selected before OOS interpretation.", "A lower realized volatility is not lower total risk."),
+            StrategyLearningTrace("momentum", f"close.groupby(asset).pct_change({momentum_window}).shift(1)", f"m_t = P_(t-1) / P_(t-{momentum_window + 1}) - 1", "Momentum measures trailing price strength.", "Rank assets before selecting a portfolio.", "Past relative strength may persist briefly.", "Momentum can reverse and is sensitive to costs."),
+            StrategyLearningTrace("low_volatility", f"volatility.rolling({volatility_window}) <= threshold", f"s_t <= c after a {volatility_window}-observation window", "A volatility filter excludes the high-variability tail.", "Reduce exposure to the most volatile candidates.", "The threshold is selected before OOS interpretation.", "A lower realized volatility is not lower total risk."),
             StrategyLearningTrace("ranking", "rank(momentum, scope='date')", "Percentile rank compares assets on the same date.", "Cross-sectional ranking makes selection relative to the available universe.", "Choose the top eligible candidates.", "The universe is approved and point-in-time.", "Universe changes can create selection bias."),
         )
     return common + (
-        StrategyLearningTrace("moving_average", "close.rolling(20).mean().shift(1)", "MA_t = mean(P_(t-20), ..., P_(t-1))", "The moving average smooths recent prices.", "Compare current price with a lagged trend baseline.", "Trend persistence may make the condition useful.", "Moving averages lag reversals."),
+        StrategyLearningTrace("moving_average", f"close.rolling({moving_average_window}).mean().shift(1)", f"MA_t = mean(P_(t-{moving_average_window}), ..., P_(t-1))", "The moving average smooths recent prices.", "Compare current price with a lagged trend baseline.", "Trend persistence may make the condition useful.", "Moving averages lag reversals."),
         StrategyLearningTrace("drawdown", "equity / equity.cummax() - 1", "DD_t = V_t / max(V_0..V_t) - 1", "Drawdown measures loss from the running equity peak.", "Expose path risk even when terminal returns look attractive.", "Equity values include configured costs.", "Historical drawdown is not a loss limit."),
     )
 
@@ -137,29 +140,42 @@ def generate_educational_code(spec: StrategySpec, ir: StrategyIR) -> Educational
     if ir.strategy_version.spec.fingerprint != spec.fingerprint:
         raise ValueError("IR and StrategySpec do not match")
     template = str(spec.parameters.get("template", ""))
+    moving_average_window = int(spec.parameters.get("moving_average_window", 20))
+    momentum_window = int(spec.parameters.get("lookback", 20))
+    volatility_window = int(spec.parameters.get("volatility_window", 20))
+    selection_fraction = float(spec.parameters.get("selection_fraction", 0.20))
+    volatility_threshold = float(spec.parameters.get("volatility_threshold", 0.60))
     trace_lines = [f"# trace:{trace.component}" for trace in _traces(spec)]
     if template == "lagged_momentum_low_volatility":
-        body = """def calculate_features(frame):
+        body = f"""def calculate_features(frame):
     # trace:momentum
-    momentum = frame[\"close\"].pct_change(20).shift(1)
+    momentum = frame.groupby(\"asset\")[\"close\"].pct_change({momentum_window})
+    momentum = momentum.groupby(frame[\"asset\"]).shift(1)
     # trace:low_volatility
-    volatility = frame[\"close\"].pct_change().rolling(20).std() * (252 ** 0.5)
-    volatility = volatility.shift(1)
+    returns = frame.groupby(\"asset\")[\"close\"].pct_change()
+    volatility = returns.groupby(frame[\"asset\"]).transform(lambda values: values.rolling({volatility_window}).std() * (252 ** 0.5))
+    volatility = volatility.groupby(frame[\"asset\"]).shift(1)
     # trace:ranking
-    rank = momentum.rank(pct=True)
-    return {\"momentum\": momentum, \"volatility\": volatility, \"rank\": rank}
+    rank = momentum.groupby(frame[\"date\"]).rank(ascending=False, method=\"first\")
+    return {{\"momentum\": momentum, \"volatility\": volatility, \"rank\": rank}}
 
 
-def target_weight(features, volatility_threshold=0.60, target_weight=0.75):
+def target_weight(features, frame, volatility_threshold={volatility_threshold}, selection_fraction={selection_fraction}):
     # trace:weights
-    eligible = (features[\"volatility\"] <= volatility_threshold)
-    return (eligible & (features[\"momentum\"] > 0)).astype(float) * target_weight
+    eligible = features[\"volatility\"].le(volatility_threshold) & features[\"momentum\"].notna()
+    eligible_count = eligible.groupby(frame[\"date\"]).transform(\"sum\")
+    requested = eligible_count * selection_fraction
+    take = requested.astype(int) + requested.mod(1).gt(1e-12).astype(int)
+    take = take.clip(lower=1)
+    selected = eligible & features[\"rank\"].le(take)
+    selected_count = selected.groupby(frame[\"date\"]).transform(\"sum\").replace(0, 1)
+    return selected.astype(float).div(selected_count)
 """
     elif template == "moving_average_trend":
-        body = """def calculate_features(frame):
+        body = f"""def calculate_features(frame):
     # trace:moving_average
-    moving_average = frame[\"close\"].rolling(20).mean().shift(1)
-    return {\"moving_average\": moving_average}
+    moving_average = frame[\"close\"].rolling({moving_average_window}).mean().shift(1)
+    return {{\"moving_average\": moving_average}}
 
 
 def target_weight(features, close, target=0.75):

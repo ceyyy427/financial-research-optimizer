@@ -16,7 +16,7 @@ import pandas as pd
 from finahinking.data.models import Dataset
 from finahinking.factors.core import FactorDefinition
 
-from .features import FeatureRegistry, builtin_feature_registry
+from .features import FeatureRegistry, builtin_feature_registry, feature_graph_for_template
 from .models import StrategyIR, StrategyIRNode, StrategySpec, StrategyVersion
 
 
@@ -62,16 +62,25 @@ def strategy_ir(spec: StrategySpec, *, reviewed: bool = False) -> StrategyIR:
         )
     template = str(spec.parameters.get("template", ""))
     if template == "moving_average_trend":
+        window = int(spec.parameters.get("moving_average_window", 20))
+        feature_id = feature_graph_for_template(template, moving_average_window=window)[1][0].feature_id
         nodes = (
-            StrategyIRNode("moving_average", "feature_ref", feature_id="moving_average_20d", explanation="lagged moving average"),
+            StrategyIRNode("moving_average", "feature_ref", feature_id=feature_id, explanation="lagged moving average"),
             StrategyIRNode("trend_compare", "compare", inputs=("moving_average",), parameters={"operator": "gt", "field": "close"}, explanation="close above lagged average"),
             StrategyIRNode("target", "target_weight", inputs=("trend_compare",), parameters={"on": 0.75, "off": 0.0}, explanation="fixed long target"),
             StrategyIRNode("execution", "next_period_execution", inputs=("target",), parameters={"timing": "next_valid_bar"}, explanation="signal is lagged one execution period"),
         )
     elif template == "lagged_momentum_low_volatility":
+        lookback = int(spec.parameters.get("lookback", 20))
+        volatility_window = int(spec.parameters.get("volatility_window", 20))
+        panel_features = feature_graph_for_template(
+            template,
+            lookback=lookback,
+            volatility_window=volatility_window,
+        )[1]
         nodes = (
-            StrategyIRNode("momentum", "feature_ref", feature_id="momentum_20d", explanation="lagged momentum"),
-            StrategyIRNode("volatility", "feature_ref", feature_id="volatility_20d", explanation="lagged realized volatility"),
+            StrategyIRNode("momentum", "feature_ref", feature_id=panel_features[0].feature_id, explanation="lagged momentum"),
+            StrategyIRNode("volatility", "feature_ref", feature_id=panel_features[1].feature_id, explanation="lagged realized volatility"),
             StrategyIRNode("eligible", "boolean", inputs=("volatility",), parameters={"operator": "le", "threshold": float(spec.parameters.get("volatility_threshold", 0.60))}, explanation="low-volatility eligibility"),
             StrategyIRNode("rank", "rank", inputs=("momentum",), parameters={"scope": "date"}, explanation="cross-sectional rank"),
             StrategyIRNode("selection", "selection", inputs=("eligible", "rank"), parameters={"fraction": float(spec.parameters.get("selection_fraction", 0.20))}, explanation="top eligible assets"),
@@ -99,13 +108,18 @@ def compile_strategy(spec: StrategySpec, *, reviewed: bool = False, registry: Fe
     template = str(spec.parameters.get("template", ""))
     if template == "lagged_momentum_low_volatility":
         return ir, None
+    resolved_registry = registry or builtin_feature_registry()
+    window = int(spec.parameters.get("moving_average_window", 20))
+    feature_id = feature_graph_for_template(template, moving_average_window=window)[1][0].feature_id
+    if feature_id not in {item.feature_id for item in resolved_registry.definitions}:
+        resolved_registry = resolved_registry.register(feature_graph_for_template(template, moving_average_window=window)[1][0])
     return ir, CompiledStrategy(
         strategy_id=spec.strategy_id,
         version=spec.version,
         template=template,
         ir_fingerprint=ir.fingerprint,
-        registry=registry or builtin_feature_registry(),
-        moving_average_feature="moving_average_20d",
+        registry=resolved_registry,
+        moving_average_feature=feature_id,
         target_weight=float(spec.parameters.get("target_weight", 0.75)),
         factor=FactorDefinition(
             name=f"{template}_signal",

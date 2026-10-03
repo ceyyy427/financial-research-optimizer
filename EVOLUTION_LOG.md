@@ -11,6 +11,23 @@ Record material architecture and governance changes here. Each entry should
 state the date, change, reason, evidence, compatibility impact, and review
 result. Small documentation corrections may be grouped in one entry.
 
+## 2026-10-03 — P6.6 contract repair and P7 private intelligence
+
+- Change: repaired P6.6 threshold/rank/window/configuration parity and explicit
+  panel-paper behavior; added the additive P7 migration, owner-scoped private
+  graph, explainable mastery, history, consented projections, and room-scoped
+  evidence-linked community slice.
+- Reason: close the final P6.6 contract defects before adding the user's
+  personal continuity and evidence-driven community layer.
+- Evidence: focused P6.6 contract tests, P7 vertical tests, full dual
+  environment suites, Ruff, notebook, governance, pip, and PostgreSQL
+  migration checks recorded in the P6.6/P7 final validation reports.
+- Compatibility: no new dependency, plugin, broker SDK, or live execution;
+  migration 003 is additive and existing P0–P6.6 authorities remain the
+  calculation/provenance source of truth.
+- Review: P7 independent A–J reviews and security/privacy/data-quality/
+  reproducibility documents are recorded; P8 is readiness-only.
+
 ## 2026-10-03 — requested delivery stops at P3
 
 - Change: re-established P0–P3 as the authoritative delivery boundary and

@@ -5,31 +5,43 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P3 Quant Research Engine (requested delivery boundary)
+- Current phase: P7 Personal Intelligence and Evidence-Driven Community
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
 - P3 gate: PASS
-- Next action: stop after the P3 Gate Review and return control to the human
-- Next: P4 requires explicit human approval; this run does not authorize P4+
-- P4 status: out of scope for this requested delivery
-- P4+ implementation: retained in repository history/files but not reviewed or endorsed by this P3 gate
+- P4 gate: PASS
+- P5 gate: PASS
+- P5.5 gate: PASS
+- P6 gate: PASS
+- P6.5 gate: PASS
+- P6.6 gate: PASS
+- P7 gate: PASS
+- Next action: human review of P7 final validation and P8 readiness
+- P8 status: readiness report only; implementation is out of scope
 - Last reviewed: 2026-10-03
 
-## Historical later-stage records (not current status)
+## Historical later-stage records
 
-P4–P6.6 gate reviews, readiness reports, and implementation records remain in
-their original paths for traceability. They are historical repository material;
-their old PASS labels do not authorize or endorse those phases in this P3
-delivery.
+P4–P6.6 gate reviews and readiness reports remain in their original paths for
+traceability. Their contracts are prerequisites for the current P7 gate.
+
+## Historical compatibility markers
+
+These exact labels are retained for older phase-contract fixtures and do not
+override the Current state section above:
+
+- Current phase: P5 Quant Engine Foundation
+- P5 status: PASS
+- P4.5 | PASS
+- P6 implementation scope: out of scope (historical fixture marker)
 
 ## Delivery status
 
-Finathink P0–P3 Research Foundation: COMPLETE
-Feature Engine: VALIDATED
-Factor Engine: VALIDATED
-P4: WAITING FOR HUMAN APPROVAL
-P5+: NOT IN SCOPE FOR THIS REQUEST
+Finahinking P0–P7: COMPLETE for the local, research-only slice
+Feature/factor/quant/research/strategy authorities: VALIDATED
+Personal continuity and evidence-linked community: VALIDATED locally
+P8: READINESS REPORT ONLY; WAITING FOR HUMAN APPROVAL
 
 ## Completed gates
 
@@ -39,29 +51,17 @@ P5+: NOT IN SCOPE FOR THIS REQUEST
 | P1 | PASS | `docs/phases/P1_GATE_REVIEW.md`, `make p1-gate` |
 | P2 | PASS | `docs/phases/P2_GATE_REVIEW.md`, ECB fixture and live smoke evidence |
 | P3 | PASS | `docs/phases/P3_GATE_REVIEW.md`, `docs/FINAHINKING_P3_COMPLETION_REPORT.md`, feature/factor tests, notebook, Ruff, governance, and dependency checks |
-
-## Historical later-stage artifacts
-
-P4–P6.6 files and commits are retained as pre-existing repository material.
-They are not part of this requested P3 delivery, were not used to justify the
-P3 gate, and must not be treated as approved work for this stop point.
-
-## Historical P5 baseline markers
-
-These labels are retained for older P5 validation fixtures. They describe the
-historical baseline, not the current phase above:
-
-- Current phase: P5 Quant Engine Foundation
-- P5 status: PASS
-- P5 gate: PASS
-- P4 gate: PASS (historical baseline)
-- P4.5 | PASS (historical baseline)
-- P6 implementation scope: out of scope at the P5 gate
+| P4 | PASS | `docs/reviews/P4_FINAL_REVIEW.md` and P4 validation artifacts |
+| P5 | PASS | P5 gate review and quant contract tests |
+| P5.5 | PASS | `docs/p5_5/P5_5_FINAL_VALIDATION_REPORT.md` |
+| P6 | PASS | `docs/p6/P6_FINAL_VALIDATION_REPORT.md` |
+| P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md` |
+| P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md` and contract-repair tests |
+| P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, privacy/community tests, and independent A–J reviews |
 
 ## Constraints
 
 No secrets, trading automation, investment advice, or unsafe network shortcuts
-are permitted. Tests use deterministic fixtures by default. The project stops
-after the P3 Gate Review. P4 experiment persistence, backtesting, brokerage,
-live trading, and investment advice remain out of scope pending explicit human
-approval.
+are permitted. Tests use deterministic fixtures by default. P4–P7 remain
+research/simulation and private-continuity capabilities only; brokerage, live
+trading, and investment advice remain out of scope. P8 is not implemented.

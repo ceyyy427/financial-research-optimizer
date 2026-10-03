@@ -11,9 +11,13 @@ time ordering, and duplicate observations before feature functions receive a
 series. Features are pure transformations. Factors are named, documented
 computations with explicit evaluation metrics and limitations.
 
-The current P3 boundary ends at descriptive feature and factor evaluation.
-Later execution, record modeling, persistence, backtesting, and learning
-modules remain historical artifacts and are not part of this delivery.
+P6.6 remains the authority for strategy IR, feature graphs, backtest/OOS
+metadata, paper simulation, and learning-card evidence. P7 adds a separate
+privacy-first relational boundary for private graphs, mastery, history,
+explicit projections, and evidence-linked rooms. P7 never recalculates or
+overrides the earlier research authorities.
+P4 experiment persistence and P5/P6 research services remain part of that
+reviewed authority chain.
 
 ## Research quality
 
@@ -24,9 +28,9 @@ codebase never emits investment advice or trade instructions.
 
 ## Phase boundary
 
-The current governed delivery is P0–P3: a descriptive, reproducible research
-foundation. P4 experiment persistence, P5 backtesting, brokerage integration,
-live execution, and investment advice are out of scope. Any P4+ change requires
-a new human-approved phase request, an approved gate design, a dependency
-review, and an independent gate review. Historical P4–P6.6 modules are retained
-for traceability but do not change this current boundary.
+The current governed delivery is P0–P7: a descriptive, reproducible research
+and private-continuity foundation. P7 tables use parameterized SQL and
+fingerprinted projections. P8 is readiness-only. Brokerage integration, live
+execution, investment advice, secrets, and autonomous community moderation are
+out of scope and require a new human-approved phase request, dependency review,
+and independent gate review.

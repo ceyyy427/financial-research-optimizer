@@ -78,6 +78,35 @@ class ResearchPreview:
         }
 
 
+def _panel_configuration(
+    spec: StrategySpec,
+    config: BacktestConfiguration | CrossSectionalMomentumConfig | None,
+) -> CrossSectionalMomentumConfig:
+    """Resolve panel execution settings from the reviewed spec and explicit config."""
+
+    if isinstance(config, CrossSectionalMomentumConfig):
+        return config
+    parameters = spec.parameters
+    if config is None:
+        cost_model = spec.cost_model
+        starting_cash = 100_000.0
+        fee_bps = float(cost_model.get("fee_bps", 5.0))
+        slippage_bps = float(cost_model.get("slippage_bps", 5.0))
+    else:
+        starting_cash = config.starting_cash
+        fee_bps = config.fee_bps
+        slippage_bps = config.slippage_bps
+    max_abs_weight = config.max_abs_weight if isinstance(config, BacktestConfiguration) else 1.0
+    return CrossSectionalMomentumConfig(
+        lookback=int(parameters.get("lookback", 20)),
+        top_fraction=float(parameters.get("selection_fraction", 0.20)),
+        starting_cash=starting_cash,
+        fee_bps=fee_bps,
+        slippage_bps=slippage_bps,
+        max_abs_weight=max_abs_weight,
+    )
+
+
 def preview_backtest(spec: StrategySpec, config: BacktestConfiguration | None = None) -> ResearchPreview:
     if not isinstance(spec, StrategySpec):
         raise TypeError("spec must be a StrategySpec")
@@ -96,13 +125,8 @@ def preview_backtest(spec: StrategySpec, config: BacktestConfiguration | None = 
             mapped = resolved.to_dict()
     elif template == "lagged_momentum_low_volatility":
         authority = "p5.5.multi_asset_ledger"
-        mapped = CrossSectionalMomentumConfig(
-            starting_cash=resolved.starting_cash,
-            fee_bps=resolved.fee_bps,
-            slippage_bps=resolved.slippage_bps,
-            max_abs_weight=resolved.max_abs_weight,
-        ).to_dict()
-        mapped.update({"volatility_window": 20, "volatility_threshold": float(spec.parameters.get("volatility_threshold", 0.60))})
+        mapped = _panel_configuration(spec, config).to_dict()
+        mapped.update({"volatility_window": int(spec.parameters.get("volatility_window", 20)), "volatility_threshold": float(spec.parameters.get("volatility_threshold", 0.60))})
     else:
         authority = "none"
         mapped = resolved.to_dict()
@@ -149,7 +173,7 @@ def run_historical_backtest(
 def run_panel_backtest(
     spec: StrategySpec,
     dataset: MultiAssetDataset,
-    config: CrossSectionalMomentumConfig | None = None,
+    config: BacktestConfiguration | CrossSectionalMomentumConfig | None = None,
     *,
     question: str | None = None,
     hypothesis: str | None = None,
@@ -160,7 +184,7 @@ def run_panel_backtest(
     if str(spec.parameters.get("template", "")) != "lagged_momentum_low_volatility":
         raise ValueError("run_panel_backtest accepts only the reference panel template")
     ir, _ = compile_strategy(spec)
-    resolved = config or CrossSectionalMomentumConfig()
+    resolved = _panel_configuration(spec, config)
     experiment = run_cross_sectional_momentum_experiment(
         dataset,
         resolved,

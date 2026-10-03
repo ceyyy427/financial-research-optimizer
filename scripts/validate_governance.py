@@ -158,7 +158,7 @@ def validate_repository(root: Path | str) -> list[str]:
     phase_match = re.search(r"current\s+phase\s*:\s*(P\d+(?:\.\d+)?)\b", phase_source, re.IGNORECASE)
     if phase_match is None:
         issues.append("docs/PROJECT_STATE.md must declare the current phase")
-    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6", "P6.5", "P6.6"}:
+    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6", "P6.5", "P6.6", "P7"}:
         issues.append("docs/PROJECT_STATE.md declares an invalid phase")
     current_phase = phase_match.group(1).upper() if phase_match else ""
     if current_phase == "P3":
@@ -313,6 +313,38 @@ def validate_repository(root: Path | str) -> list[str]:
         ):
             if not (repository / relative).is_file():
                 issues.append(f"missing P6.6 phase file: {relative}")
+    elif current_phase == "P7":
+        _require_markers(
+            state,
+            "docs/PROJECT_STATE.md",
+            (
+                "P0 gate: PASS",
+                "P1 gate: PASS",
+                "P2 gate: PASS",
+                "P3 gate: PASS",
+                "P4 gate: PASS",
+                "P5 gate: PASS",
+                "P5.5 gate: PASS",
+                "P6 gate: PASS",
+                "P6.5 gate: PASS",
+                "P6.6 gate: PASS",
+                "P7 gate: PASS",
+                "P8",
+                "readiness",
+            ),
+            issues,
+        )
+        for relative in (
+            "docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md",
+            "docs/p6_6/P6_6_GATE_REVIEW.md",
+            "docs/p7/P7_EXECUTION_PLAN.md",
+            "docs/p7/P7_ARCHITECTURE.md",
+            "docs/p7/P7_CAPABILITY_MATRIX.md",
+            "docs/p7/P7_FINAL_VALIDATION_REPORT.md",
+            "docs/P8_READINESS_REPORT.md",
+        ):
+            if not (repository / relative).is_file():
+                issues.append(f"missing P7 phase file: {relative}")
     else:
         _require_markers(state, "docs/PROJECT_STATE.md", ("P0 gate: PASS", "P4", "out of scope"), issues)
 

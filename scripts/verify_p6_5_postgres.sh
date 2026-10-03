@@ -11,7 +11,11 @@ IFS=$'\n\t'
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
-MIGRATION="${REPO_ROOT}/migrations/001_p6_5_understanding.sql"
+MIGRATIONS=(
+    "${REPO_ROOT}/migrations/001_p6_5_understanding.sql"
+    "${REPO_ROOT}/migrations/002_p6_6_strategy_lab.sql"
+    "${REPO_ROOT}/migrations/003_p7_personal_community.sql"
+)
 CONTAINER_NAME="${P65_POSTGRES_CONTAINER:-finahinking-p65-postgres-verify}"
 DATABASE_NAME="${P65_POSTGRES_DATABASE:-finahinking_p65_verify}"
 POSTGRES_PASSWORD_VALUE="${P65_POSTGRES_PASSWORD:-finahinking-p65-local-only}"
@@ -29,7 +33,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-[[ -f "${MIGRATION}" ]] || fail "migration not found: ${MIGRATION}"
+for migration in "${MIGRATIONS[@]}"; do
+    [[ -f "${migration}" ]] || fail "migration not found: ${migration}"
+done
 command -v docker >/dev/null 2>&1 || fail "docker is required (no host database is modified)"
 
 if [[ ! "${CONTAINER_NAME}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$ ]]; then
@@ -61,12 +67,14 @@ for _attempt in $(seq 1 60); do
 done
 [[ "${ready}" == 1 ]] || fail "PostgreSQL did not become ready within 60 seconds"
 
-printf 'Applying %s...\n' "${MIGRATION}"
-docker exec -i "${CONTAINER_NAME}" psql \
-    --username=postgres \
-    --dbname="${DATABASE_NAME}" \
-    --set=ON_ERROR_STOP=1 \
-    < "${MIGRATION}" >/dev/null
+for migration in "${MIGRATIONS[@]}"; do
+    printf 'Applying %s...\n' "${migration}"
+    docker exec -i "${CONTAINER_NAME}" psql \
+        --username=postgres \
+        --dbname="${DATABASE_NAME}" \
+        --set=ON_ERROR_STOP=1 \
+        < "${migration}" >/dev/null
+done
 
 printf 'Checking tables, constraints, and indexes...\n'
 docker exec -i "${CONTAINER_NAME}" psql \
@@ -85,7 +93,13 @@ DECLARE
         'p6_5_evidence', 'p6_5_claims', 'p6_5_claim_evidence',
         'p6_5_concepts', 'p6_5_concept_relations', 'p6_5_hypotheses',
         'p6_5_explanations', 'p6_5_learning_refs',
-        'p6_5_observation_conflicts'
+        'p6_5_observation_conflicts',
+        'p7_principals', 'p7_sessions', 'p7_artifact_links',
+        'p7_personal_nodes', 'p7_personal_edges', 'p7_mastery_evidence',
+        'p7_mastery_states', 'p7_learning_threads',
+        'p7_learning_thread_items', 'p7_history_entries', 'p7_saved_objects',
+        'p7_rooms', 'p7_room_members', 'p7_projections', 'p7_posts',
+        'p7_comments', 'p7_projection_attachments', 'p7_audit_events'
     ];
 BEGIN
     FOREACH required_table IN ARRAY required_tables LOOP
@@ -104,7 +118,9 @@ BEGIN
         'idx_p6_5_observation_available',
         'idx_p6_5_event_period',
         'idx_p6_5_claim_evidence',
-        'idx_p6_5_capture_first_observed'
+        'idx_p6_5_capture_first_observed',
+        'idx_p7_nodes_owner', 'idx_p7_history_owner_time',
+        'idx_p7_projection_status', 'idx_p7_posts_room', 'idx_p7_mastery_owner'
     ] LOOP
         IF to_regclass(required_index) IS NULL THEN
             RAISE EXCEPTION 'required index is missing: %', required_index;

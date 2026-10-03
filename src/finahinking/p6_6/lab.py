@@ -85,7 +85,9 @@ class StrategyResearchLab:
         if not preview.accepted:
             raise ValueError("research preview rejected: " + "; ".join(preview.rejections))
         if isinstance(data, MultiAssetDataset):
-            historical = run_panel_backtest(spec, data, run_id=run_id)
+            if paper:
+                raise ValueError("paper replay is not supported for panel strategies")
+            historical = run_panel_backtest(spec, data, config, run_id=run_id)
             # The P5.5 panel ledger is the historical authority.  Learning and
             # educational export remain available for the panel slice; paper
             # replay is deliberately not faked as a scalar single-asset run.
