@@ -22,7 +22,7 @@ def test_wheel_install_exposes_migrations_fixtures_and_local_routes(tmp_path: Pa
         capture_output=True,
         text=True,
     )
-    wheel = next(wheel_dir.glob("finahinking-*.whl"))
+    wheel = next(wheel_dir.glob("finathink-*.whl"))
     env_dir = tmp_path / "venv"
     venv.EnvBuilder(with_pip=True, system_site_packages=False).create(env_dir)
     python = env_dir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
@@ -51,6 +51,7 @@ quant = app.route('POST', '/api/quant', body={'question': 'How does the market r
 assert quant['numeric_results']['sample_count'] >= 70
 assert quant['artifact_fingerprint']
 assert app.route('GET', '/api/strategy')[2]['execution'] == 'paper-only'
+assert app.route('GET', '/api/p8_2b/knowledge/ols')[2]['unit']['unit_id'] == 'ols'
 app.close()
 """
     subprocess.run([str(python), "-c", probe], cwd=tmp_path, check=True, capture_output=True, text=True)

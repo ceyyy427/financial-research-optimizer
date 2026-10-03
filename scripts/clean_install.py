@@ -1,4 +1,4 @@
-"""Build and exercise a Finahinking wheel in an external temporary venv.
+"""Build and exercise a Finathink wheel in an external temporary venv.
 
 The venv installs the wheel and its declared runtime dependencies, keeping
 package resources and local product routes imported exclusively from the wheel.
@@ -34,7 +34,7 @@ def main() -> int:
                 [sys.executable, "-m", "pip", "wheel", "--no-deps", "--wheel-dir", str(wheel_dir), str(ROOT)],
                 cwd=work,
             )
-            wheel = next(wheel_dir.glob("finahinking-*.whl"))
+            wheel = next(wheel_dir.glob("finathink-*.whl"))
         elif not wheel.is_file():
             raise SystemExit(f"wheel not found: {wheel}")
 
@@ -45,6 +45,7 @@ def main() -> int:
         probe = """
 import sqlite3
 from finahinking.local_app import LocalApplication
+from finahinking.p8_2b.catalog import get_knowledge_unit
 from finahinking.p6_5.repository import ADDITIVE_MIGRATION_PATHS, apply_migration
 from finahinking.p7.repository import MIGRATION_PATH, apply_p7_migration
 from finahinking.resources import fixture_path
@@ -62,6 +63,8 @@ quant = app.route('POST', '/api/quant', body={'question': 'How does the market r
 assert quant['numeric_results']['sample_count'] >= 70
 assert quant['artifact_fingerprint']
 assert app.route('GET', '/api/strategy')[2]['execution'] == 'paper-only'
+assert app.route('GET', '/api/p8_2b/knowledge/ols')[2]['unit']['unit_id'] == 'ols'
+assert get_knowledge_unit('sharpe').unit_id == 'sharpe'
 app.close()
 """
         _run([str(python), "-c", probe], cwd=work)

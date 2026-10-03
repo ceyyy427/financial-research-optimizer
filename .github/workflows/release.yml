@@ -42,7 +42,7 @@ jobs:
         run: |
           rm -rf dist
           python -m pip wheel --no-deps --wheel-dir dist .
-          python scripts/clean_install.py --wheel "$(find dist -name 'finahinking-*.whl' -print -quit)"
+          python scripts/clean_install.py --wheel "$(find dist -name 'finathink-*.whl' -print -quit)"
           git archive --format=tar.gz --output="dist/finahinking-${GITHUB_REF_NAME}.tar.gz" "$GITHUB_SHA"
           (cd dist && sha256sum * > SHA256SUMS && sha256sum --check SHA256SUMS)
       - name: Publish GitHub release

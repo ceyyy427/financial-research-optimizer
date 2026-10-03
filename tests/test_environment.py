@@ -32,7 +32,7 @@ def _project_metadata() -> dict[str, object]:
 def test_project_declares_supported_python_and_runtime_dependencies() -> None:
     metadata = _project_metadata()
 
-    assert metadata["name"] == "finahinking"
+    assert metadata["name"] == "finathink"
     assert str(metadata["requires-python"]).startswith(">=3.11")
     dependencies = {str(item).lower() for item in metadata["dependencies"]}
     assert any(item.startswith("numpy") for item in dependencies)

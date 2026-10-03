@@ -39,7 +39,7 @@ jobs:
       - name: Build smoke
         run: |
           python -m pip wheel --no-deps --wheel-dir /tmp/finahinking-wheel .
-          python scripts/clean_install.py --wheel "$(find /tmp/finahinking-wheel -name 'finahinking-*.whl' -print -quit)"
+          python scripts/clean_install.py --wheel "$(find /tmp/finahinking-wheel -name 'finathink-*.whl' -print -quit)"
       - name: Diff whitespace
         run: git diff --check
 
