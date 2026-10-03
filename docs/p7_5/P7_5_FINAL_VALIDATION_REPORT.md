@@ -38,8 +38,8 @@ service with SQLite/sample defaults and no real-money capability.
 | 35 | pip | `pip check` in both environments | PASS |
 | 36 | Build smoke | `pip wheel --no-deps --wheel-dir dist .` | PASS |
 | 37 | Diff check | `git diff --check` | PASS |
-| 38 | Clean worktree | `git status --short` clean after delivery commit `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d` | PASS |
-| 39 | Provenance alignment | delivery commit `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d`, source fingerprints, and fixture hash | PASS |
+| 38 | Clean worktree | `git status --short` clean at local release tag `v0.1.0` | PASS |
+| 39 | Provenance alignment | local release tag `v0.1.0`, source fingerprints, and fixture hash | PASS |
 
 ## Independent reviews
 

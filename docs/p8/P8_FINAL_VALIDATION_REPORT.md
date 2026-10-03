@@ -32,7 +32,7 @@ infrastructure.
 
 ## Local evidence captured 2026-10-03
 
-Delivery commit: `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d`.
+Validated at local release tag `v0.1.0` (current HEAD in this checkout).
 
 - `.venv/bin/pytest -q`: **272 passed, 1 skipped**.
 - `ruff check src tests scripts`: passed.
