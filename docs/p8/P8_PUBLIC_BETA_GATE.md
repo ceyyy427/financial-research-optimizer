@@ -21,7 +21,7 @@ in this checkout.
 | 36 | GitHub release assets/download path | No remote/release exists in checkout — EXTERNAL |
 | 37 | Contributor setup | `CONTRIBUTING.md` and issue templates — PASS |
 | 38–44 | Full tests, Ruff, notebook, governance, migration, dependency, build | 268 passed/1 skipped, Ruff, notebook, governance, wheel clean-install, and migration checks — PASS |
-| 45–46 | Diff check and clean worktree | `git diff --check`; clean status after delivery commit — PENDING UNTIL COMMIT |
+| 45–46 | Diff check and clean worktree | `git diff --check`; clean status after delivery commit `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d` — PASS |
 | 47 | Known release commit/tag | No tag created by this task — External publish required |
 
 ## Decision
