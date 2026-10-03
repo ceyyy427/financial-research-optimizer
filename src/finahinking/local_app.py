@@ -103,6 +103,11 @@ class LocalApplication:
         self._bootstrap_identity()
         self._lock = threading.RLock()
         self._event_journey: Any | None = None
+        if self.config.db_path == ":memory:":
+            self.artifact_root = Path(tempfile.mkdtemp(prefix="finahinking-artifacts-"))
+        else:
+            self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
+            self.artifact_root.mkdir(parents=True, exist_ok=True)
 
     @property
     def csrf_token(self) -> str:
@@ -335,7 +340,7 @@ class LocalApplication:
                 return 200, "application/json", {"stage": "experiment", "question": "How does the market relate to asset returns?", "hypothesis": "Market returns have a measurable historical beta to asset returns.", "execution": "POST required to create a private ResearchRun", "real_money": False}
             from finahinking.p7_5.research import LocalResearchService
             try:
-                result = LocalResearchService(self.repository, self.config.session_id, Path(tempfile.mkdtemp(prefix="finahinking-research-"))).run_quant(dict(body or {}) if method == "POST" else {})
+                result = LocalResearchService(self.repository, self.config.session_id, self.artifact_root).run_quant(dict(body or {}) if method == "POST" else {})
             except (TypeError, ValueError, PermissionError) as exc:
                 return 400, "application/json", {"error": str(exc), "action": "revise the bounded research question/options"}
             numeric = dict(result.get("numeric_results", {}))
@@ -347,10 +352,20 @@ class LocalApplication:
                 return 200, "application/json", {"stages": ["idea", "spec", "features", "code", "backtest", "oos", "paper", "compare", "learn"], "execution": "paper-only", "real_money": False}
             from finahinking.p7_5.research import LocalResearchService
             try:
-                result = LocalResearchService(self.repository, self.config.session_id, Path(tempfile.mkdtemp(prefix="finahinking-strategy-"))).run_strategy(dict(body or {}))
+                result = LocalResearchService(self.repository, self.config.session_id, self.artifact_root).run_strategy(dict(body or {}))
             except (TypeError, ValueError, PermissionError) as exc:
                 return 400, "application/json", {"error": str(exc), "action": "choose a supported reviewed strategy template"}
             return 200, "application/json", {**result, "strategy_spec": result.get("strategy"), "real_money": False, "execution": "paper-only", "backtest": {**dict(result.get("backtest") or {}), "metrics": result.get("numeric_results", {})}, "oos": {**dict(result.get("oos") or {}), "metrics": result.get("numeric_results", {})}, "paper": {**dict(result.get("paper") or {}), "status": "PAPER_ONLY"}}
+        if clean.startswith("/api/research/artifacts/"):
+            node_id = clean.removeprefix("/api/research/artifacts/").strip("/")
+            if not node_id or any(part in node_id for part in ("/", "\\", "..")):
+                return 400, "application/json", {"error": "artifact id is invalid"}
+            from finahinking.p7_5.research import LocalResearchService
+            try:
+                artifact = LocalResearchService(self.repository, self.config.session_id, self.artifact_root).get_artifact(node_id)
+            except (KeyError, ValueError, PermissionError) as exc:
+                return 404, "application/json", {"error": str(exc), "action": "run or save the research artifact first"}
+            return 200, "application/json", artifact
         if clean == "/api/personal":
             return 200, "application/json", self.personal()
         if clean == "/api/community":

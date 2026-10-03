@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -76,3 +77,16 @@ def test_event_projection_requires_consent_and_is_allow_listed() -> None:
     assert projected[0] == 201
     assert projected[2]["consented"] is True
     app.close()
+
+
+def test_research_artifact_can_be_reopened_after_process_restart(tmp_path) -> None:
+    db = tmp_path / "finahinking.sqlite3"
+    first = LocalApplication(LocalAppConfig(db_path=str(db)))
+    run = first.route("POST", "/api/quant", body={"question": "Does beta explain the sample?"})[2]
+    node_id = run["node_id"]
+    first.close()
+    reopened = LocalApplication(LocalAppConfig(db_path=str(db)))
+    status, _, artifact = reopened.route("GET", f"/api/research/artifacts/{node_id}")
+    assert status == 200 and artifact["node_id"] == node_id and artifact["artifact_fingerprint"]
+    assert Path(artifact["artifact_path"]).is_file()
+    reopened.close()

@@ -136,8 +136,20 @@ class LocalResearchService:
 
         if not isinstance(node_id, str) or not node_id.strip():
             raise ValueError("node_id is required")
-        node = self.repository.get_node(self.session_id, node_id.strip())
-        return {"node_id": node.node_id, "node_type": node.node_type, "title": node.title, **node.payload}
+        safe_id = node_id.strip()
+        if any(part in safe_id for part in ("/", "\\", "..")):
+            raise ValueError("node_id is invalid")
+        node = self.repository.get_node(self.session_id, safe_id)
+        path = self.artifact_root / f"{safe_id}.json"
+        if path.is_file() and path.parent == self.artifact_root:
+            try:
+                artifact = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError("research artifact is unreadable") from exc
+            if not isinstance(artifact, dict):
+                raise ValueError("research artifact must be a JSON object")
+            return {"node_id": node.node_id, "node_type": node.node_type, "title": node.title, **artifact, "artifact_path": str(path)}
+        return {"node_id": node.node_id, "node_type": node.node_type, "title": node.title, **node.payload, "artifact_path": str(path)}
 
     def run_quant(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         request = {} if payload is None else payload
