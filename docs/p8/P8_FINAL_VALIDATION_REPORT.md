@@ -54,6 +54,8 @@ Delivery commit: `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d`.
   external maintainer action.
 - `pip-audit -r requirements.lock --strict`: **No known vulnerabilities
   found** after the setuptools 84.0.0 pin refresh.
+- Local release metadata: annotated tag `v0.1.0` points at the candidate
+  commit and passes `scripts/prepare_release.py --check --tag v0.1.0`.
 
 ## Stop condition
 
