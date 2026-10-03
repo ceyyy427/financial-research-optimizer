@@ -13,9 +13,11 @@ implementation extends the existing Finathink-owned research and education
 contracts without making an external quant library, broker SDK, browser
 renderer, or remote repository the source of truth.
 
-P8.2B has **not started**. No P8.2B source files, dependencies, gates, or
-remote actions were created. The next action is human review of this report
-and the local checkpoint; P8.2B may only be opened after that review.
+P8.2B was subsequently opened after the local checkpoint review and is
+validated in [`P8_2B_FINAL_VALIDATION_REPORT.md`](P8_2B_FINAL_VALIDATION_REPORT.md).
+This report remains the historical P8.2 research-workspace checkpoint; it does
+not claim that the P8.2B browser, vendor/provider, or remote-publication gates
+are complete.
 
 ## 2. Delivered local capability
 
@@ -169,8 +171,8 @@ paths, but they prevent a full production or public-provider admission claim.
 The authoritative state is `docs/PROJECT_STATE.md`:
 
 - `P8.2 status: CONDITIONAL`;
-- `P8.2B: WAITING FOR HUMAN REVIEW`;
-- no P8.2B work has started.
+- `P8.2B: LOCAL VALIDATION PASS; PUBLICATION PENDING`;
+- current P8.2B evidence is recorded in the dedicated final report.
 
 The final local commit and tag are recorded in the last section below after
 the working tree is committed. No remote publication is implied.

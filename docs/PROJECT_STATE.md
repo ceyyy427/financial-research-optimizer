@@ -18,11 +18,11 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.6 gate: PASS
 - P7 gate: PASS
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
-- Next action: human review of the local P8.2 checkpoint; P8.2B is deliberately waiting and no remote publication or force push is permitted
+- Next action: final local release review of P8.2B; human review and no remote publication or force push are permitted until the publication gate below passes
 - P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; canonical remote main cannot be replaced or merged automatically because histories are unrelated
 - P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
-- P8.2B: WAITING FOR HUMAN REVIEW — no P8.2B code, dependency, or gate work has started
-- Last reviewed: 2026-10-03
+- P8.2B status: LOCAL VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are implemented; browser/vendor/provider gates remain conditional
+- Last reviewed: 2026-10-04
 
 ## Historical later-stage records
 
@@ -46,7 +46,8 @@ Feature/factor/quant/research/strategy authorities: VALIDATED
 Knowledge Engine, personal continuity, and evidence-linked community: VALIDATED locally
 Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED
 P8.1: local product polish is complete for this checkout; remote integration, release, and finathink.cloud publication remain conditional pending a deliberate history strategy
-P8.2: local capability expansion is complete to a conditional stop point; P8.2B remains unopened pending human review of the final validation report
+P8.2: local capability expansion is complete to a conditional stop point
+P8.2B: local knowledge/pedagogy capability is complete to a conditional publication checkpoint; see `docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`
 
 ## Completed gates
 
@@ -66,6 +67,7 @@ P8.2: local capability expansion is complete to a conditional stop point; P8.2B 
 | P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection/restart/backup journeys, 272 passed/1 skipped |
 | P8.1 | CONDITIONAL | `docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`; local UI and dual-environment tests pass, canonical remote is reachable, but histories are unrelated and no local-product GitHub release is claimed |
 | P8.2 | CONDITIONAL | `docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`; local contracts/routes/UI bundle, QMT mock boundary, vectorbt sandbox smoke, Qlib isolated model smoke, and offline gates pass; browser/vendor/native-provider/license gates remain explicitly deferred |
+| P8.2B | LOCAL PASS / PUBLICATION PENDING | `docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`; focused contracts, catalog, context, widgets, exports, UI routes, KaTeX bundle, and frontend tests pass; browser/vendor/provider gates remain explicitly deferred |
 
 ## Constraints
 

@@ -1,6 +1,6 @@
 # Finathink
 
-Finathink (the Python package remains `finahinking`) is a local-first financial research laboratory for learning from
+Finathink (the Python import namespace remains `finahinking`; the distribution and CLI identity is `finathink`) is a local-first financial research laboratory for learning from
 real evidence, mathematics, code, and reproducible experiments. It is a
 research and education tool, not a broker, trading system, investment adviser,
 or source of financial advice. Finahinking provides no investment advice. The
@@ -76,10 +76,13 @@ and [Known Limitations](docs/KNOWN_LIMITATIONS.md).
 - `docs/` — phase contracts, tutorials, and validation evidence.
 - `.github/` — CI, release workflow, issue forms, and security automation.
 
-The phase history is P0–P8.1; P8.2 is the current conditional local
-checkpoint. P8.2 adds the inspectable research workspace while preserving the
+The phase history is P0–P8.1; P8.2 and P8.2B are the current conditional local
+checkpoints. P8.2 adds the inspectable research workspace and P8.2B adds the
+structured mathematical knowledge/pedagogy layer while preserving the
 research-only boundary. Current evidence is indexed in
 [`docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`](docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md).
+The P8.2B gate is indexed in
+[`docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`](docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md).
 
 ## Development and contribution
 
