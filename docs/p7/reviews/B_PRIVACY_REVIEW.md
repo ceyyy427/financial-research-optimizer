@@ -25,7 +25,7 @@ permissions, and authorized context is owner scoped.
 ## Fresh command evidence
 
 - Requested baseline: `pytest -q tests/p7` **8 passed** and the paired full
-  suites **223 passed, 1 skipped** in each environment.
+  suites **226 passed, 1 skipped** in each environment.
 - Current expanded adversarial run: **11 P7 passed** and both full suites
   **226 passed, 1 skipped**.
 - `make p5-5-gate` and the migration/PostgreSQL schema gate pass.

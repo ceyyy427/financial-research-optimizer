@@ -24,7 +24,7 @@ owner boundary, vertical slices, and review documentation.
 ## Fresh command evidence
 
 - Requested bounded baseline: `.venv/bin/pytest -q tests/p7` **8 passed**;
-  `.venv/bin/pytest -q` and `.venv-quant/bin/pytest -q` each **223 passed,
+  `.venv/bin/pytest -q` and `.venv-quant/bin/pytest -q` each **226 passed,
   1 skipped** before the adversarial additions.
 - Current expanded run: **11 P7 passed** and both full environments
   **226 passed, 1 skipped**.

@@ -48,7 +48,7 @@ hosted-production release.
 | --- | --- | --- |
 | API/import surface | `./.venv/bin/python -c "import finahinking.p7 as p; print(p.__all__)"` | Explicit supported P7 exports |
 | P7 collection and behavior | `./.venv/bin/python -m pytest -q tests/p7` | **8 passed** |
-| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **223 passed, 1 skipped** in each environment |
+| Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **226 passed, 1 skipped** in each environment |
 | Static/governance quality | `./.venv/bin/ruff check src tests scripts`; `python3 scripts/validate_governance.py .` | PASS |
 | Migration gate | `./scripts/verify_p6_5_postgres.sh` | Migration 003 applies; PostgreSQL gate PASS |
 | Dependency policy | `git diff -- requirements.lock pyproject.toml DEPENDENCY_RECORD.md`; capability matrix review | No unapproved dependency or connector gap |
@@ -56,7 +56,7 @@ hosted-production release.
 ## Decision
 
 **PASS — bounded local maintainer foundation (not production).** The explicit
-API, eight P7 tests, dual full suites, lint/governance checks, and migration
+API, eleven P7 tests, dual full suites, lint/governance checks, and migration
 003/PostgreSQL gate provide an evidence-backed local baseline. Hosted UX,
 moderation/abuse controls, hosted recovery, and release automation remain
 explicit non-blocking P8 residual risks.

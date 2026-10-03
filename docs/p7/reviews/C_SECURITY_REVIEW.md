@@ -27,7 +27,7 @@ authorities.
 ## Fresh command evidence
 
 - Requested baseline: **8 P7 passed**, with each full environment at
-  **223 passed, 1 skipped**; current adversarial set is **11 P7 passed** and
+  **226 passed, 1 skipped**; current adversarial set is **11 P7 passed** and
   **226 passed, 1 skipped** in each full environment.
 - `make p5-5-gate` passes Ruff and all regression checks.
 - `bash -n scripts/verify_p6_5_postgres.sh` and the disposable PostgreSQL

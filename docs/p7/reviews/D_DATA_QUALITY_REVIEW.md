@@ -25,7 +25,7 @@ handling, and owner-scoped relational writes.
 
 ## Fresh command evidence
 
-- Requested baseline: **8 P7 passed** and both full environments **223 passed,
+- Requested baseline: **8 P7 passed** and both full environments **226 passed,
   1 skipped**; current expanded adversarial run is **11 P7 passed** and
   **226 passed, 1 skipped** in each environment.
 - `make p5-5-gate` passes; PostgreSQL applies and checks migrations 001–003.

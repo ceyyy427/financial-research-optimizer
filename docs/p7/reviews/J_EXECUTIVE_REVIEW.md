@@ -6,7 +6,7 @@ readiness, mission value, material risks, and the decision required before P8.
 
 ## Decision
 
-**P7 PASS for the bounded local slice (not production).** The eight P7 tests,
+**P7 PASS for the bounded local slice (not production).** The eleven P7 tests,
 dual full suites, migration 003/PostgreSQL gate, and static/governance checks
 support an evidence-first local foundation. This is not approval for hosted
 production or an automatic P8 launch.
@@ -24,7 +24,7 @@ production or an automatic P8 launch.
   rooms, posts, comments, export, deletion, and save-as-question.
 - `./.venv/bin/python -m pytest -q tests/p7` reports **8 passed**.
 - `./.venv/bin/python -m pytest -q` and
-  `./.venv-quant/bin/python -m pytest -q` each report **223 passed, 1 skipped**.
+  `./.venv-quant/bin/python -m pytest -q` each report **226 passed, 1 skipped**.
 - `./scripts/verify_p6_5_postgres.sh` applies migrations 001, 002, and 003,
   checks P7 tables/indexes, and reports **`P6.5_POSTGRES_SCHEMA_PASS`**.
 
@@ -44,7 +44,7 @@ not reasons to fail the bounded local P7 gate:
 | Evidence | Command or artifact | Required/observed outcome |
 | --- | --- | --- |
 | P7 behavior | `./.venv/bin/python -m pytest -q tests/p7` | **8 passed** |
-| Full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **223 passed, 1 skipped** in both environments |
+| Full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **226 passed, 1 skipped** in both environments |
 | Migration/database | `./scripts/verify_p6_5_postgres.sh` | Migration 003 applies; PostgreSQL gate **PASS** |
 | Static/reproducible gate | Ruff, governance validator, shell syntax, and `git diff --check` | PASS |
 | Product boundary | P7 architecture/privacy/permission docs and F–I reviews | Local evidence boundary explicit; production claims excluded |

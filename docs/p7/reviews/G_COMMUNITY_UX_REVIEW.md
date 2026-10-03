@@ -44,7 +44,7 @@ save-as-question action.
    and real integration tests (`P7_ARCHITECTURE.md:93-102`), so presentation
    prose cannot substitute for interaction evidence.
 
-4. The current eight P7 tests are a useful SQLite acceptance slice covering private
+4. The current eleven P7 tests are a useful SQLite acceptance slice covering private
    nodes, mastery, consent, sanitization, revocation, room membership, export,
    and SQL metacharacters. It passes, but it does not cover moderation,
    summaries, malicious links, prompt injection, stale attachments, or a
@@ -64,6 +64,6 @@ save-as-question action.
 
 **PASS — bounded local community/projection slice (not production).** Consent,
 revocation, membership, labels, and save-as-question behavior are covered by
-the eight P7 tests. Hosted UX, moderation/abuse workflows, attributed
+the eleven P7 tests. Hosted UX, moderation/abuse workflows, attributed
 summaries, hosted recovery, and production community operations remain explicit
 non-blocking P8 residual risks.
