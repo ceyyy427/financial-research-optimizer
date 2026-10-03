@@ -43,7 +43,7 @@ infrastructure.
 - Fresh temporary virtual environment with `pip install -e '.[dev]'`, P8
   docs test, and sample smoke: passed.
 - `pip wheel --no-deps .`: `finahinking-0.1.0-py3-none-any.whl`, SHA-256
-  `31098eec0e740f93d9fdbc781eee15c05460e57782862f8a65fdffee1b7703e4`.
+  `c196c531cc4132ee55527ea8db1f1af1c2d4ad8b8814f46d66e994b15bf98dd4`.
 - `git diff --check`: passed; the final release commit/tag is still an
   external maintainer action.
 
