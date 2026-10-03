@@ -11,6 +11,28 @@ Record material architecture and governance changes here. Each entry should
 state the date, change, reason, evidence, compatibility impact, and review
 result. Small documentation corrections may be grouped in one entry.
 
+## 2026-10-03 — P8.2 capability expansion and conditional stop
+
+- Change: added Finathink-owned PIT/timezone-safe market/research contracts,
+  deterministic feature/ML/sweep view models, a read-only QMT bridge boundary,
+  research/ML/Parameter Lab routes, and a local Lightweight Charts/ECharts
+  bundle with server-rendered accessible observations.
+- Reason: extend the local product toward inspectable quantitative research
+  without allowing an optional provider, broker SDK, or browser renderer to
+  become the domain authority.
+- Evidence: 18 focused P8.2 Python tests, 4 frontend Node tests, full dual
+  environment suites, Ruff, governance, notebook, secret/dependency checks,
+  vectorbt 1.1.1 isolated smoke, and Qlib 0.9.7 Linux/amd64 in-memory
+  LightGBM/OOS smoke. No Computer Use was used.
+- Compatibility: core Python locks remain unchanged; optional engines stay in
+  isolated environments, QMT is disconnected/read-only, and no remote history
+  or public release was changed. Naive timestamps are rejected to prevent
+  mixed-timezone PIT ordering failures.
+- Review: conditional local checkpoint. Browser-level E2E, native Qlib
+  provider/PIT data, real QMT/vendor security, vectorbt license admission, and
+  remote publication remain open. P8.2B is intentionally waiting for human
+  review and was not started.
+
 ## 2026-10-03 — P8.1 product shell and launch frames
 
 - Change: added a shared responsive Finathink shell with semantic research

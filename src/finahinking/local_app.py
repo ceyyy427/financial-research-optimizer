@@ -196,9 +196,27 @@ h3 { font-size: 1rem; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.research-workspace { display: grid; gap: var(--space-5); }
+.research-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.research-toolbar .tag-row { margin: 0; }
+.research-chart, .research-sweep { min-height: 240px; width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-elevated); }
+.research-chart { height: clamp(300px, 42vw, 480px); }
+.research-sweep { height: 260px; }
+.research-tooltip { min-height: 32px; margin-top: var(--space-2); padding: 6px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #f7fbfa; color: var(--text-secondary); font-size: .84rem; font-variant-numeric: tabular-nums; }
+.research-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.research-panel { min-width: 0; padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-sm); }
+.research-panel h2, .research-panel h3 { margin-bottom: var(--space-2); }
+.research-panel ul { margin-bottom: 0; }
+.research-inspector { min-height: 88px; padding: var(--space-3); border-left: 3px solid var(--evidence); background: #f4f8f7; color: var(--text-secondary); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.research-limitations { margin: 0; padding-left: 1.25rem; color: var(--text-secondary); }
+[data-research-point-table] tbody tr { cursor: pointer; }
+[data-research-point-table] tbody tr:hover, [data-research-point-table] tbody tr:focus-visible { background: #eef5f5; }
+[data-research-point-table] tbody tr[aria-current="true"] { background: #e7f1ef; box-shadow: inset 3px 0 0 var(--evidence); }
+.source-state { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: .84rem; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .footer-note { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); color: var(--text-muted); font-size: .82rem; }
 @media (max-width: 1180px) { .app-shell { grid-template-columns: 210px minmax(0, 1fr); } .inspector { grid-column: 2; border-top: 1px solid var(--border); border-left: 0; padding-top: var(--space-5); } .inspector-inner { position: static; } }
-@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid { grid-template-columns: 1fr; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
+@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid, .research-grid, .settings-grid { grid-template-columns: 1fr; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } .splash-frame--secondary { display: none; } }
 """
 
@@ -471,16 +489,21 @@ class LocalApplication:
             "/knowledge": "Knowledge",
             "/quant": "Quant",
             "/strategy": "Strategy Lab",
+            "/research": "Research Workspace",
+            "/ml": "ML Lab",
+            "/parameter": "Parameter Lab",
             "/workspace": "Workspace",
             "/community": "Community",
+            "/settings/engines": "Engine Settings",
+            "/settings/data-sources": "Data Sources",
             "/diagnostics": "Diagnostics",
         }
 
     @staticmethod
     def asset_bytes(asset_name: str) -> bytes:
-        """Return one of the two packaged launch assets, never an arbitrary path."""
+        """Return one of the explicitly allow-listed packaged assets."""
 
-        allowed = {"finathink-splash-map.jpg", "finathink-research-splash.jpg"}
+        allowed = {"finathink-splash-map.jpg", "finathink-research-splash.jpg", "finathink-research.js"}
         if asset_name not in allowed:
             raise FileNotFoundError(asset_name)
         try:
@@ -497,10 +520,14 @@ class LocalApplication:
     def research_splash_asset() -> bytes:
         return LocalApplication.asset_bytes("finathink-research-splash.jpg")
 
+    @staticmethod
+    def research_script_asset() -> bytes:
+        return LocalApplication.asset_bytes("finathink-research.js")
+
     def _nav(self, page: str) -> str:
         names = self._page_names()
-        primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/strategy", "/workspace")
-        secondary = ("/community", "/diagnostics")
+        primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/research", "/ml", "/parameter", "/strategy", "/workspace")
+        secondary = ("/community", "/settings/engines", "/settings/data-sources", "/diagnostics")
 
         # Keep the conditional attribute construction explicit so the rendered
         # HTML remains easy to inspect in a browser and in snapshot tests.
@@ -545,6 +572,7 @@ class LocalApplication:
         *,
         inspector: str = "",
         eyebrow: str = "Local research workspace",
+        scripts: tuple[str, ...] = (),
     ) -> str:
         """Wrap every HTML journey in the same accessible product shell."""
 
@@ -557,13 +585,14 @@ class LocalApplication:
                 "Next": "Open an evidence or learning path",
             },
         )
+        script_tags = "".join(f'<script src="{html.escape(path)}" defer></script>' for path in scripts)
         return (
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             f"<title>{html.escape(title)} · Finathink</title>"
             '<meta name="theme-color" content="#edf2f1">'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'unsafe-inline\'; script-src \'none\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
-            f"<style>{_APP_CSS}</style></head><body>"
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
+            f"<style>{_APP_CSS}</style>{script_tags}</head><body>"
             '<a class="skip-link" href="#main">Skip to content</a>'
             '<div class="app-shell">'
             f'<nav class="sidebar" aria-label="Primary">{self._nav(clean_page)}</nav>'
@@ -584,6 +613,8 @@ class LocalApplication:
             return 200, "image/jpeg", self.splash_asset()
         if clean == "/assets/finathink-research-splash.jpg" and method == "GET":
             return 200, "image/jpeg", self.research_splash_asset()
+        if clean == "/assets/finathink-research.js" and method == "GET":
+            return 200, "application/javascript; charset=utf-8", self.research_script_asset()
         if clean in {"/health", "/api/health"}:
             return 200, "application/json", {"status": "ok", "service": "finahinking-local", "version": "0.1.0"}
         if clean == "/api/diagnostics":
@@ -645,6 +676,26 @@ class LocalApplication:
             except (TypeError, ValueError, PermissionError) as exc:
                 return 400, "application/json", {"error": str(exc), "action": "choose a supported reviewed strategy template"}
             return 200, "application/json", {**result, "strategy_spec": result.get("strategy"), "real_money": False, "execution": "paper-only", "backtest": {**dict(result.get("backtest") or {}), "metrics": result.get("numeric_results", {})}, "oos": {**dict(result.get("oos") or {}), "metrics": result.get("numeric_results", {})}, "paper": {**dict(result.get("paper") or {}), "status": "PAPER_ONLY"}}
+        if clean == "/api/research/series" and method == "GET":
+            from finahinking.p8_2.research_view import build_research_payload
+
+            return 200, "application/json", build_research_payload()
+        if clean == "/api/research/capabilities" and method == "GET":
+            from finahinking.p8_2.research_view import capability_payload
+
+            return 200, "application/json", capability_payload()
+        if clean == "/api/research/qmt" and method == "GET":
+            from finahinking.p8_2.research_view import qmt_payload
+
+            return 200, "application/json", qmt_payload()
+        if clean == "/api/research/ml" and method == "GET":
+            from finahinking.p8_2.research_view import ml_payload
+
+            return 200, "application/json", ml_payload()
+        if clean == "/api/research/parameters" and method == "GET":
+            from finahinking.p8_2.research_view import parameter_payload
+
+            return 200, "application/json", parameter_payload()
         if clean.startswith("/api/research/artifacts/"):
             node_id = clean.removeprefix("/api/research/artifacts/").strip("/")
             if not node_id or any(part in node_id for part in ("/", "\\", "..")):
@@ -716,7 +767,7 @@ class LocalApplication:
                     links=(("/knowledge", "Browse Knowledge"), ("/explore", "Open Explore")),
                 )
             return 200, "text/html; charset=utf-8", self.render_concept_page(concept)
-        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/strategy", "/personal", "/workspace", "/community", "/diagnostics"}:
+        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/research", "/ml", "/parameter", "/strategy", "/personal", "/workspace", "/community", "/settings/engines", "/settings/data-sources", "/diagnostics"}:
             return 200, "text/html; charset=utf-8", self.render_page(clean, query=query)
         if not clean.startswith("/api/"):
             return 404, "text/html; charset=utf-8", self.render_error_page(
@@ -733,7 +784,8 @@ class LocalApplication:
         title = names.get(page, "Finathink")
         body = self._page_body(page, query=query)
         inspector = self._page_inspector(page)
-        return self.render_shell(active_page, title, body, inspector=inspector)
+        scripts = ("/assets/finathink-research.js",) if page == "/research" else ()
+        return self.render_shell(active_page, title, body, inspector=inspector, scripts=scripts)
 
     def render_result_page(self, title: str, payload: Any) -> str:
         """Render form outcomes in the product shell, including actionable errors."""
@@ -887,9 +939,126 @@ class LocalApplication:
             return self._inspector("Workspace continuity", {"Nodes": len(personal.get("nodes", [])), "History": len(personal.get("history", [])), "Privacy": "Private by default"}, status="READY")
         if page == "/community":
             return self._inspector("Projection boundary", {"Visibility": "Private by default", "Sharing": "Explicit allow-list + consent", "Ranking": "No leaderboards"}, status="LIMITED")
+        if page == "/research":
+            return self._inspector("Research boundary", {"Data": "SAMPLE / PIT-aware", "Renderer": "Local bundle", "Mutation": "Read-only view"}, status="SAMPLE")
+        if page == "/ml":
+            return self._inspector("ML boundary", {"Engine": "Typed adapter", "Fallback": "Finathink baseline", "External objects": "Never exposed"}, status="FALLBACK")
+        if page == "/parameter":
+            return self._inspector("Sweep boundary", {"OOS": "Visible", "Multiple testing": "Reported", "Winner label": "Not emitted"}, status="REVIEW")
+        if page in {"/settings/engines", "/settings/data-sources"}:
+            return self._inspector("Capability boundary", {"Core": "Finathink-owned", "Optional": "Isolated", "QMT": "Read-only bridge"}, status="GOVERNED")
         return self._inspector("Local context", {"Mode": "SAMPLE / OFFLINE" if self.config.offline else "NETWORK ENABLED", "Storage": "SQLite local store", "Real money": "Unavailable"}, status="OFFLINE" if self.config.offline else "READY")
 
+    def _p8_2_page_body(self, page: str) -> str:
+        """Render P8.2 surfaces with server-owned facts and explicit limits."""
+
+        if page == "/research":
+            from finahinking.p8_2.research_view import build_research_payload
+
+            research_payload = build_research_payload()
+            event_labels = {str(item.get("id")): str(item.get("label", item.get("title", item.get("id", "event")))) for item in research_payload.get("events", []) if isinstance(item, Mapping)}
+            table_rows = "".join(
+                "<tr>"
+                f"<td>{html.escape(str(point.get('time', '—')))}</td>"
+                f"<td>{html.escape(str(point.get('close', '—')))}</td>"
+                f"<td>{html.escape(str(point.get('volume', '—')))}</td>"
+                f"<td>{html.escape(', '.join(f'{key}: {value}' for key, value in (point.get('features') or {}).items()) or '—')}</td>"
+                f"<td>{html.escape(', '.join(event_labels.get(str(event), str(event)) for event in (point.get('events') or [])) or '—')}</td>"
+                "</tr>"
+                for point in research_payload.get("points", []) if isinstance(point, Mapping)
+            )
+            static_table = (
+                '<div data-research-point-table class="table-wrap"><table aria-label="Research observations">'
+                '<thead><tr><th>Time</th><th>Close</th><th>Volume</th><th>Features</th><th>Events</th></tr></thead>'
+                f"<tbody>{table_rows}</tbody></table></div>"
+            )
+            feature_cards = "".join(
+                f'<li class="evidence-item"><strong>{html.escape(str(item.get("label", item.get("id", "Feature"))))}</strong><span>{html.escape(str(item.get("definition", "Server-normalized feature.")))}</span><br><small>Source: {html.escape(str(item.get("source", "normalized")))} · Look-ahead: {html.escape(str(item.get("lookahead", "declared")))}</small></li>'
+                for item in research_payload.get("features", []) if isinstance(item, Mapping)
+            )
+            return (
+                '<div class="status-row">'
+                f'{self._status("SAMPLE", "sample")}{self._status("PIT-AWARE", "evidence")}{self._status("READ-ONLY", "ready")}'
+                '</div><h1>Research workspace</h1>'
+                '<p class="lede">Inspect a normalized market series, its features, events, provenance, and declared parameter experiments in one calm surface. The browser renders server-owned values; it does not calculate them.</p>'
+                '<div class="action-row"><a class="button-secondary" href="/ml">Open ML Lab</a><a class="button-secondary" href="/parameter">Open Parameter Lab</a><a class="button-secondary" href="/settings/data-sources">Review data sources</a></div>'
+                '<section class="research-workspace" data-finathink-research data-payload-url="/api/research/series">'
+                '<div class="research-toolbar"><div><h2>Price, volume, and evidence</h2><p class="source-state">Crosshair and point selection update the inspector; the fallback table remains available to keyboard users.</p></div><span class="status status--sample">FIXTURE / OFFLINE</span></div>'
+                '<div class="research-panel"><div class="research-chart" data-research-chart role="img" aria-label="Candlestick, volume, and feature overlay chart for the normalized research sample"></div><p class="research-tooltip" data-research-tooltip role="status" aria-live="polite">Hover or focus a point to inspect its canonical values.</p><p class="error-state" data-research-error hidden></p></div>'
+                '<div class="research-grid"><section class="research-panel"><h2>Selected observation</h2><p class="research-inspector" data-research-inspector role="status" aria-live="polite">Select a candle or row to inspect its canonical values.</p></section><section class="research-panel"><h2>Declared parameter sweep</h2><div class="research-sweep" data-research-sweep role="img" aria-label="Out-of-sample parameter comparison"></div><p class="field-help">OOS values and multiple-testing context are retained; no winning strategy is named.</p></section></div>'
+                f'<section class="research-panel"><h2>Feature lineage</h2><p class="field-help">Features are computed server-side and linked to the dataset fingerprint; the renderer only displays them.</p><ul class="evidence-list">{feature_cards}</ul></section>'
+                f'<section class="research-panel"><h2>Accessible observation table</h2><p class="field-help">Use Enter or Space on a row to select an exact point. Values are not recomputed in the browser.</p><div data-research-table-anchor>{static_table}</div></section>'
+                '</section>'
+                '<section class="section card card--quiet"><h2>Research limits</h2><ul class="research-limitations"><li>Deterministic sample data only; no live market feed is connected.</li><li>Feature values are descriptive and retain source, availability, and dataset fingerprint.</li><li>QMT, Qlib, and vectorbt remain replaceable, isolated adapters; no order or account operation exists here.</li></ul></section>'
+            )
+        if page == "/ml":
+            try:
+                payload = self.route("GET", "/api/research/ml")[2]
+            except (AttributeError, KeyError, TypeError, ValueError, RuntimeError) as exc:
+                payload = {"error": str(exc), "action": "inspect Engine Settings and retry"}
+            result = payload.get("result", {}) if isinstance(payload, Mapping) else {}
+            spec = payload.get("specification", {}) if isinstance(payload, Mapping) else {}
+            metrics = result.get("metrics", {}) if isinstance(result, Mapping) else {}
+            if isinstance(metrics, Mapping):
+                metric_items = list(metrics.items())
+            elif isinstance(metrics, list):
+                metric_items = [(item.get("name", "metric"), item.get("value", "—")) for item in metrics if isinstance(item, Mapping)]
+            else:
+                metric_items = []
+            cards = "".join(f'<div class="metric"><span class="metric-value">{html.escape(str(value))}</span><span class="metric-label">{html.escape(str(key).replace("_", " "))}</span></div>' for key, value in metric_items[:6]) or '<div class="empty-state">No metrics are available yet.</div>'
+            return (
+                f'<div class="status-row">{self._status(result.get("status", "FALLBACK"), "sample")}{self._status("NO RAW EXTERNAL OBJECTS", "ready")}</div>'
+                '<h1>ML Lab</h1><p class="lede">Run a transparent baseline through the Finathink contract. Qlib can be admitted only in an isolated environment after compatibility, provenance, and smoke gates pass.</p>'
+                f'<section class="card"><h2>Research specification</h2><p>Target: <code>{html.escape(str(spec.get("target", "close")))}</code> · Features: <code>{html.escape(", ".join(spec.get("features", [])) if isinstance(spec.get("features"), list) else str(spec.get("features", "—")))}</code></p><div class="metric-row">{cards}</div></section>'
+                f'<section class="section card card--quiet"><h2>Adapter result</h2><p>{html.escape(str(payload.get("boundary", "Typed adapter boundary")))}</p><details><summary>Inspect normalized result</summary><pre>{html.escape(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))}</pre></details></section>'
+                '<div class="action-row"><a class="button-secondary" href="/research">Back to Research Workspace</a><a class="button-secondary" href="/settings/engines">Review engine capabilities</a></div>'
+            )
+        if page == "/parameter":
+            try:
+                payload = self.route("GET", "/api/research/parameters")[2]
+            except (AttributeError, KeyError, TypeError, ValueError, RuntimeError) as exc:
+                payload = {"error": str(exc), "action": "inspect the research payload and retry"}
+            sweep = payload.get("sweep", {}) if isinstance(payload, Mapping) else {}
+            experiments = sweep.get("experiments", []) if isinstance(sweep, Mapping) else []
+            rows = "".join(
+                f'<tr><td>{html.escape(str(item.get("experiment_id", "—")))}</td><td><code>{html.escape(json.dumps(item.get("parameters", {}), sort_keys=True))}</code></td><td>{html.escape(str((item.get("oos") or {}).get("score", "—")))}</td><td>{html.escape(str((item.get("train") or {}).get("score", "—")))}</td></tr>'
+                for item in experiments if isinstance(item, Mapping)
+            ) or '<tr><td colspan="4">No experiments are available.</td></tr>'
+            warnings = sweep.get("warnings", []) if isinstance(sweep, Mapping) else []
+            warning_html = "".join(f"<li>{html.escape(str(item))}</li>" for item in warnings) or "<li>No warning was emitted.</li>"
+            return (
+                '<div class="status-row">'+self._status("OOS VISIBLE", "quant")+self._status("MULTIPLE TESTING REPORTED", "limitation")+'</div>'
+                '<h1>Parameter Lab</h1><p class="lede">Compare every declared parameter combination with train, validation, and OOS context. This is a sensitivity surface, not a leaderboard.</p>'
+                f'<section class="card"><h2>Experiment ledger</h2><div class="table-wrap"><table><caption class="meta">All declared experiments · dataset {html.escape(str((payload.get("dataset") or {}).get("fingerprint", "unknown")))}</caption><thead><tr><th>Experiment</th><th>Parameters</th><th>OOS</th><th>Train</th></tr></thead><tbody>{rows}</tbody></table></div></section>'
+                f'<section class="section grid"><article class="card"><h2>Multiple-testing context</h2><ul>{warning_html}</ul></article><article class="card card--quiet"><h2>Selection boundary</h2><p>{html.escape(str((payload.get("interpretation") or {}).get("warning", "No winner label is emitted.")))}</p></article></section>'
+                '<div class="action-row"><a class="button-secondary" href="/research">Back to Research Workspace</a><a class="button-secondary" href="/ml">Open ML Lab</a></div>'
+            )
+        if page == "/settings/engines":
+            from finahinking.p8_2.research_view import capability_payload, qmt_payload
+
+            capabilities = capability_payload()
+            qmt = qmt_payload()
+            cards = "".join(
+                f'<article class="card"><div class="status-row">{self._status(item.get("status"), "ready" if item.get("status") == "AVAILABLE" else "sample")}</div><h2>{html.escape(str(name))}</h2><p>{html.escape(str(item.get("detail", "")))}</p><p class="meta">Environment: {html.escape(str(item.get("environment", "unknown")))} · Version: {html.escape(str(item.get("version") or "not reported"))}</p></article>'
+                for name, item in capabilities.items() if isinstance(item, Mapping)
+            )
+            return f'<h1>Engine settings</h1><p class="lede">Core numerical code stays in the Finathink environment. Optional engines are detected without importing them and remain isolated until their gates pass.</p><section class="settings-grid">{cards}</section><section class="section card card--quiet"><h2>QMT bridge</h2><p>State: <strong>{html.escape(str(qmt.get("state", "NOT_CONFIGURED")))}</strong> · Read-only: <strong>{html.escape(str(qmt.get("read_only", True)))}</strong></p><p>{html.escape(str(qmt.get("message", "market-data-only bridge")))}</p><p class="meta">Denied by design: order, cancel, account, credentials.</p></section>'
+        if page == "/settings/data-sources":
+            from finahinking.p8_2.research_view import build_research_payload, qmt_payload
+
+            payload = build_research_payload()
+            qmt = qmt_payload()
+            dataset = payload.get("dataset", {})
+            return (
+                '<h1>Data sources</h1><p class="lede">Every source crosses into the same normalized snapshot contract. Availability, provenance, and limitations remain attached to the chart and research artifacts.</p>'
+                f'<section class="settings-grid"><article class="card"><div class="status-row">{self._status(dataset.get("mode"), "sample")}</div><h2>{html.escape(str(dataset.get("id", "fixture")))}</h2><dl><dt>Fingerprint</dt><dd><code>{html.escape(str(dataset.get("fingerprint", "unknown")))}</code></dd><dt>As of</dt><dd>{html.escape(str(dataset.get("as_of", "unknown")))}</dd><dt>PIT available</dt><dd>{html.escape(str(dataset.get("pit_available", False)))}</dd><dt>Provider</dt><dd>{html.escape(str(dataset.get("provider", "unknown")))}</dd></dl></article><article class="card"><div class="status-row">{self._status(qmt.get("state", "NOT_CONFIGURED"), "sample")}</div><h2>QMT read-only bridge</h2><p>Host: <code>{html.escape(str(qmt.get("host", "loopback")))}</code> · Port: <code>{html.escape(str(qmt.get("port", 0)))}</code></p><p>Only market-data snapshots may cross this boundary. Credentials and trading methods are rejected.</p></article></section>'
+                '<section class="section card card--quiet"><h2>Limitations</h2><ul class="research-limitations"><li>Synthetic fixture is not market evidence.</li><li>QMT connection is not configured in this offline build.</li><li>Remote providers are not called by this view.</li></ul></section>'
+            )
+        return ""
+
     def _page_body(self, page: str, *, query: Mapping[str, list[str]] | None = None) -> str:
+        if page in {"/research", "/ml", "/parameter", "/settings/engines", "/settings/data-sources"}:
+            return self._p8_2_page_body(page)
         if page == "/":
             return (
                 '<section class="hero"><div class="hero-copy"><div class="status-row">'
@@ -984,7 +1153,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
-        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'")
         self.send_header("Set-Cookie", "finahinking_session=local; HttpOnly; SameSite=Strict; Path=/")
         self.end_headers()
         self.wfile.write(raw)

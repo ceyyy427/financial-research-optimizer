@@ -4,9 +4,11 @@ Finathink (the Python package remains `finahinking`) is a local-first financial 
 real evidence, mathematics, code, and reproducible experiments. It is a
 research and education tool, not a broker, trading system, investment adviser,
 or source of financial advice. Finahinking provides no investment advice. The
-current local source-beta line is `0.1.x`. The P8.1 product surface is
+current local source-beta line is `0.1.x`. The P8.2 product surface is
 server-rendered, loopback-only, and usable offline with deterministic sample
-data.
+data. Research, ML, Parameter Lab, engine, and data-source surfaces remain
+read-only/sample-labelled; optional Qlib/vectorbt engines are isolated and
+QMT is not connected.
 
 What it is:
 
@@ -74,10 +76,10 @@ and [Known Limitations](docs/KNOWN_LIMITATIONS.md).
 - `docs/` — phase contracts, tutorials, and validation evidence.
 - `.github/` — CI, release workflow, issue forms, and security automation.
 
-The phase history is P0–P7.5; P8.1 polishes the local product and performs
-canonical-repository reconciliation without changing the research-only
-boundary. Current evidence is indexed in
-[`docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`](docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md).
+The phase history is P0–P8.1; P8.2 is the current conditional local
+checkpoint. P8.2 adds the inspectable research workspace while preserving the
+research-only boundary. Current evidence is indexed in
+[`docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`](docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md).
 
 ## Development and contribution
 

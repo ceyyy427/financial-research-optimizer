@@ -5,7 +5,7 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P8.1 Product UI/UX Polish + Canonical GitHub Reconciliation
+- Current phase: P8.2 Capability Expansion / Quant Research Platform
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
@@ -18,8 +18,10 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.6 gate: PASS
 - P7 gate: PASS
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
-- Next action: human-reviewed reconciliation of the unrelated local and canonical GitHub histories; no force push is permitted
+- Next action: human review of the local P8.2 checkpoint; P8.2B is deliberately waiting and no remote publication or force push is permitted
 - P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; canonical remote main cannot be replaced or merged automatically because histories are unrelated
+- P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
+- P8.2B: WAITING FOR HUMAN REVIEW — no P8.2B code, dependency, or gate work has started
 - Last reviewed: 2026-10-03
 
 ## Historical later-stage records
@@ -44,6 +46,7 @@ Feature/factor/quant/research/strategy authorities: VALIDATED
 Knowledge Engine, personal continuity, and evidence-linked community: VALIDATED locally
 Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED
 P8.1: local product polish is complete for this checkout; remote integration, release, and finathink.cloud publication remain conditional pending a deliberate history strategy
+P8.2: local capability expansion is complete to a conditional stop point; P8.2B remains unopened pending human review of the final validation report
 
 ## Completed gates
 
@@ -62,6 +65,7 @@ P8.1: local product polish is complete for this checkout; remote integration, re
 | P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 29 P7 tests, and independent A–J pass register |
 | P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection/restart/backup journeys, 272 passed/1 skipped |
 | P8.1 | CONDITIONAL | `docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`; local UI and dual-environment tests pass, canonical remote is reachable, but histories are unrelated and no local-product GitHub release is claimed |
+| P8.2 | CONDITIONAL | `docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`; local contracts/routes/UI bundle, QMT mock boundary, vectorbt sandbox smoke, Qlib isolated model smoke, and offline gates pass; browser/vendor/native-provider/license gates remain explicitly deferred |
 
 ## Constraints
 
@@ -70,4 +74,7 @@ are permitted. Tests use deterministic fixtures by default. P4–P7.5 remain
 research/simulation and private-continuity capabilities only; brokerage, live
 trading, and investment advice remain out of scope. P8 cloud sync, hosted
 accounts, broker integration, real-money execution, and major provider
-expansion are outside the public-beta stop condition.
+expansion are outside the public-beta stop condition. P8.2 optional
+Qlib/vectorbt engines remain isolated and non-authoritative; QMT remains
+read-only and disconnected; no browser automation or Computer Use evidence is
+implied.

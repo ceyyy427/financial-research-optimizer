@@ -10,6 +10,18 @@ deliberately reconciled by a human-reviewed strategy.
 
 ## Unreleased
 
+- P8.2 local conditional checkpoint: added Finathink-owned research/market
+  contracts with PIT-aware timezone validation, bounded parameter sweeps,
+  deterministic ML fallback, ML/Parameter Lab routes, and a same-origin
+  Lightweight Charts + ECharts bundle with a server-rendered table fallback.
+- Added isolated capability records and smoke scripts for vectorbt 1.1.1
+  (sandbox-only) and Qlib 0.9.7 on Linux/amd64 Python 3.12 (in-memory
+  LightGBM/OOS smoke only). QMT remains a disconnected, read-only,
+  token-bounded bridge boundary with no order/account methods.
+- Added P8.2 reference, architecture, security, performance, dependency, UI,
+  QMT, Qlib, vectorbt, and final validation records. Browser-level E2E,
+  native Qlib provider/PIT data, live QMT, and optional-license admission are
+  explicitly deferred; P8.2B has not started.
 - P8.1 product polish: added a shared responsive shell with Home, Events,
   Explore, Knowledge, Quant, Strategy Lab, Workspace, Inspector context,
   semantic status tokens, actionable empty/error states, progressive knowledge

@@ -392,6 +392,51 @@ class GovernanceValidatorTests(unittest.TestCase):
             result = _run_validator(tmp_path)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_validator_accepts_p8_2_stop_state_with_report_set(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                "Current phase: P8.2 Capability Expansion\n"
+                "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\nP3 gate: PASS\n"
+                "P4 gate: PASS\nP5 gate: PASS\nP5.5 gate: PASS\nP6 gate: PASS\n"
+                "P6.5 gate: PASS\nP6.6 gate: PASS\nP7 gate: PASS\nP7.5 gate: PASS\n"
+                "P8.1 status: CONDITIONAL\nP8.2 status: CONDITIONAL\n"
+                "P8.2B: WAITING FOR HUMAN REVIEW\n",
+                encoding="utf-8",
+            )
+            report_names = (
+                "P8_2_EXECUTION_PLAN.md",
+                "P8_2_CAPABILITY_MATRIX.md",
+                "P8_2_DEPENDENCY_TOPOLOGY.md",
+                "P8_2_VISUALIZATION_ARCHITECTURE.md",
+                "P8_2_RESEARCH_ENGINE_ARCHITECTURE.md",
+                "P8_2_DATA_SOURCE_ARCHITECTURE.md",
+                "P8_2_QMT_BRIDGE.md",
+                "P8_2_QLIB_ADAPTER.md",
+                "P8_2_VECTORBT_SANDBOX.md",
+                "P8_2_UI_INTERACTION_STANDARD.md",
+                "P8_2_PERFORMANCE_REVIEW.md",
+                "P8_2_SECURITY_REVIEW.md",
+                "P8_2_FINAL_VALIDATION_REPORT.md",
+                "TRADINGAGENTS_REFERENCE.md",
+                "QLIB_REFERENCE.md",
+                "VECTORBT_REFERENCE.md",
+                "QMT_INTEGRATION_REVIEW.md",
+                "EXTERNAL_QUANT_TOOL_MATRIX.md",
+            )
+            for name in report_names:
+                target = tmp_path / "docs" / "p8_2" / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("P8.2 conditional human review\n", encoding="utf-8")
+            target = tmp_path / "docs" / "p8_1" / "P8_1_FINAL_VALIDATION_REPORT.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("P8.1 conditional\n", encoding="utf-8")
+
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

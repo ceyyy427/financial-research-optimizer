@@ -1,5 +1,8 @@
 .venv/
 .venv-quant/
+.venv-qlib-py312/
+.venv-vectorbt/
+.venv-qmt/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -9,3 +12,4 @@ build/
 dist/
 .ipynb_checkpoints/
 .superpowers/
+frontend/node_modules/

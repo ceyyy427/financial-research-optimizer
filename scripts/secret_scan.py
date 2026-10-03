@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_PARTS = {".git", ".venv", ".venv-quant", "__pycache__", "node_modules"}
+SKIP_PARTS = {".git", "__pycache__", "node_modules"}
 PATTERNS = (
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"(?:ghp|github_pat|xox[baprs])_[A-Za-z0-9_\-]{20,}"),
@@ -18,7 +18,9 @@ PATTERNS = (
 def candidate_files() -> list[Path]:
     files: list[Path] = []
     for path in ROOT.rglob("*"):
-        if not path.is_file() or any(part in SKIP_PARTS for part in path.parts):
+        if not path.is_file() or any(
+            part in SKIP_PARTS or part.startswith(".venv") for part in path.parts
+        ):
             continue
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".ipynb"}:
             continue

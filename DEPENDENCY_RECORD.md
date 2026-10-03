@@ -81,3 +81,18 @@ database, broker SDK, or moderation service. Existing Python, pandas/NumPy,
 SQLite/PostgreSQL migrations, and the repository's review/test tooling close
 the measured capability gap. Installation is intentionally skipped; see
 `docs/p7/P7_CAPABILITY_MATRIX.md`.
+
+## P8.2 capability decision
+
+P8.2 keeps the Python core dependency set unchanged. Lightweight Charts
+`5.2.1`, ECharts `6.1.0`, and esbuild `0.28.2` are pinned in the separate
+`frontend/` npm workspace and compiled into a same-origin static asset; they
+are not Python runtime dependencies. `vectorbt==1.1.1` is installed only in
+the ignored `.venv-vectorbt` sandbox for an offline smoke and remains outside
+the core/quant locks because its Apache-2.0 + Commons Clause terms require
+legal review. `pyqlib==0.9.7` was exercised only in a disposable Linux/amd64
+Python 3.12 Docker environment; no Qlib package is installed in `.venv` or
+`.venv-quant`, and native/provider/PIT admission is deferred. QMT/`xtquant`
+was not installed; the repository contains only a Finathink-owned,
+read-only, token-bounded mock boundary. No new Codex plugin, MCP connector,
+broker SDK, credential store, or live-trading dependency was installed.
