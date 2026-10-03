@@ -10,6 +10,7 @@ import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import './knowledge.js';
 
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
@@ -83,6 +84,10 @@ function announcePoint(root, point, eventLabels) {
   const tooltip = root.querySelector('[data-research-tooltip]');
   if (inspector) inspector.textContent = summary;
   if (tooltip) tooltip.textContent = summary;
+  const link = root.querySelector('[data-knowledge-context-link]');
+  const status = root.querySelector('[data-knowledge-context-status]');
+  if (link) link.href = `/knowledge/volatility?context_type=research_point&context_id=${encodeURIComponent(point.id)}`;
+  if (status) status.textContent = `Point-in-time values and evidence are available for ${point.time}.`;
 }
 
 function pointTable(root, payload, selectedId = null) {

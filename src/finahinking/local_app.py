@@ -40,6 +40,11 @@ from finahinking.p7 import (
     apply_p7_migration,
 )
 from finahinking.p7_5.knowledge import DEFAULT_CATALOG
+from finahinking.p8_2b.catalog import DEFAULT_KNOWLEDGE_CATALOG, get_knowledge_unit, search_catalog
+from finahinking.p8_2b.context import ContextSnapshot, no_context, resolve_context
+from finahinking.p8_2b.export import export_bibtex, export_csl_json, export_latex, export_markdown
+from finahinking.p8_2b.math import render_latex, render_mathml
+from finahinking.p8_2b.widgets import WidgetSpec, run_widget
 
 
 def default_db_path() -> str:
@@ -212,6 +217,19 @@ th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-tr
 [data-research-point-table] tbody tr { cursor: pointer; }
 [data-research-point-table] tbody tr:hover, [data-research-point-table] tbody tr:focus-visible { background: #eef5f5; }
 [data-research-point-table] tbody tr[aria-current="true"] { background: #e7f1ef; box-shadow: inset 3px 0 0 var(--evidence); }
+.knowledge-layout { display: grid; gap: var(--space-5); }
+.knowledge-context { border-left: 3px solid var(--learning); background: #f6f3fb; }
+.knowledge-equation { display: grid; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fbfcfc; overflow-x: auto; }
+.knowledge-equation .katex { font-size: 1.16rem; }
+.knowledge-symbols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.knowledge-symbol { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-elevated); }
+.knowledge-code-lines { display: grid; gap: 4px; }
+.knowledge-code-line { display: block; width: 100%; min-height: 38px; padding: 6px 9px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); text-align: left; font: .86rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.knowledge-code-line:hover, .knowledge-code-line[aria-current="true"] { border-color: var(--border-strong); background: #eef5f5; }
+.knowledge-derivation { display: grid; gap: var(--space-3); }
+.knowledge-derivation details { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-elevated); }
+.knowledge-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+@media (max-width: 880px) { .knowledge-symbols { grid-template-columns: 1fr; } }
 .source-state { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: .84rem; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .footer-note { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); color: var(--text-muted); font-size: .82rem; }
@@ -349,6 +367,121 @@ class LocalApplication:
             }
         )
         return result
+
+    def _p8_2b_context(self, unit: Any, query: Mapping[str, list[str]]) -> Any:
+        """Resolve a point-in-time learning binding from server-owned research data."""
+
+        context_type = (query.get("context_type") or [""])[0].strip()
+        context_id = (query.get("context_id") or [""])[0].strip()
+        if not context_type or not context_id:
+            return no_context()
+        if context_type != "research_point":
+            return no_context()
+        from finahinking.p8_2.research_view import build_research_payload
+
+        payload = build_research_payload()
+        point = next((item for item in payload.get("points", ()) if str(item.get("id")) == context_id), None)
+        if not isinstance(point, Mapping):
+            return no_context()
+        feature_id = {
+            "volatility": "range_pct",
+            "sharpe": "return_1d",
+            "momentum": "return_1d",
+            "ols": "close",
+        }.get(unit.unit_id)
+        values = [{"name": "close", "value": point.get("close"), "units": "price"}]
+        values.extend({"name": name, "value": value, "units": "fixture feature"} for name, value in (point.get("features") or {}).items())
+        snapshot = ContextSnapshot(
+            context_type=context_type,
+            context_id=context_id,
+            context_time=str(point["time"]),
+            available_at=str(point["available_at"]),
+            dataset_fingerprint=str(payload["dataset"]["fingerprint"]),
+            current_values=tuple(values),
+            evidence_ids=(context_id,),
+            feature_id=feature_id,
+            research_run_id=None,
+            source_state="SAMPLE_PIT_AWARE",
+            limitations=tuple(payload.get("limitations", ())) + ("This binding is a deterministic fixture observation.",),
+        )
+        return resolve_context(unit, snapshot)
+
+    def _p8_2b_unit_payload(self, unit: Any, *, context: Any) -> dict[str, Any]:
+        unit_payload = unit.to_dict()
+        equations = []
+        for equation in unit.equations:
+            item = equation.to_dict()
+            item["latex"] = render_latex(equation.expression)
+            item["mathml"] = render_mathml(equation.expression)
+            equations.append(item)
+        unit_payload["equations"] = equations
+        references = [record.to_dict() for record in DEFAULT_KNOWLEDGE_CATALOG.references.records() if record.reference_id in unit.references]
+        context_payload = {"status": context.status, "binding": context.binding.to_dict() if context.binding else None}
+        return {
+            "schema_version": 1,
+            "unit": unit_payload,
+            "references": references,
+            "context": context_payload,
+            "catalog_fingerprint": DEFAULT_KNOWLEDGE_CATALOG.fingerprint,
+            "provenance": "CURATED OFFLINE: structured source metadata and deterministic fixture values; no live citation lookup performed.",
+        }
+
+    def render_p8_2b_concept_page(self, unit: Any, *, context: Any) -> str:
+        """Render a rich P8.2B unit while retaining a no-JavaScript fallback."""
+
+        payload = self._p8_2b_unit_payload(unit, context=context)
+        esc = lambda value: html.escape(str(value or ""))
+        equation_html = "".join(
+            f'<article class="knowledge-equation" data-knowledge-equation="{esc(equation.equation_id)}" aria-label="Equation {esc(equation.equation_id)}">'
+            f'<strong>{esc(equation.number or equation.equation_id)} · MathML</strong>{render_mathml(equation.expression)}'
+            f'<code>LaTeX: {esc(render_latex(equation.expression))}</code><p class="meta">{esc(equation.meaning)}</p></article>'
+            for equation in unit.equations
+        )
+        symbols_html = "".join(
+            f'<article class="knowledge-symbol"><strong><code>{esc(symbol.notation)}</code></strong><p>{esc(symbol.meaning)}</p><small>Units: {esc(symbol.units)} · Current value: {esc(symbol.current_value if symbol.current_value is not None else "not bound")}</small></article>'
+            for symbol in unit.symbols
+        )
+        derivation_html = "".join(
+            f'<details><summary>{esc(step.step_id)} · {esc(step.operation)}</summary><p><strong>Why valid:</strong> {esc(step.reason)}</p><p><strong>Rule:</strong> {esc(step.rule_or_theorem)}</p><p><code>{esc(render_latex(step.result))}</code></p><p class="meta">Assumptions: {esc(", ".join(step.assumptions))}</p></details>'
+            for step in unit.derivations
+        ) or '<p class="meta">No derivation steps recorded.</p>'
+        proof_html = "".join(f'<li><strong>{esc(proof.statement)}</strong> — {esc(proof.strategy)} ({esc(proof.status)})</li>' for proof in unit.proofs) or '<li>Proof boundary is described by the assumptions and limitations below.</li>'
+        code_buttons = "".join(
+            f'<button type="button" class="knowledge-code-line" data-segment-id="{esc(segment.segment_id)}"><span>{esc(segment.line_range[0])}–{esc(segment.line_range[1])}</span> {esc(segment.code)}</button>'
+            for segment in unit.code_segments
+        )
+        refs_html = "".join(
+            f'<li><a href="{html.escape(str(record.get("url", "#")))}" rel="noopener noreferrer">{esc(record.get("title"))}</a> <small>{esc(record.get("year"))} · {esc(record.get("reference_id"))} · DOI: {esc(record.get("doi") or "not recorded")}</small></li>'
+            for record in payload["references"]
+        )
+        binding = context.binding.to_dict() if context.binding else None
+        context_html = (
+            f'<section class="card knowledge-context" data-knowledge-context><h2>Why now</h2><p data-knowledge-why-now>{esc(binding["why_now"])}</p><p class="meta">Point-in-time context: {esc(binding["context_id"])} · Feature: {esc(binding.get("feature_id") or "not bound")} · Dataset: <code>{esc(binding["dataset_fingerprint"][:16])}…</code></p><p class="meta">Current values: {esc(json.dumps(binding["current_values"], ensure_ascii=False))}</p></section>'
+            if binding
+            else '<section class="card knowledge-context" data-knowledge-context><h2>Why now</h2><p data-knowledge-why-now>Choose a research observation to bind current values, evidence, and a point-in-time dataset fingerprint.</p><p class="meta">NO_CONTEXT_AVAILABLE · no current value is inferred.</p></section>'
+        )
+        export_links = " ".join(
+            f'<a class="button-secondary" href="/api/p8_2b/knowledge/{esc(unit.unit_id)}/export?format={fmt}">{label}</a>'
+            for fmt, label in (("markdown", "Markdown"), ("latex", "LaTeX"), ("bibtex", "BibTeX"), ("csl", "CSL JSON"))
+        )
+        body = (
+            f'<div class="status-row">{self._status("CURATED", "complete")}{self._status("OFFLINE", "offline")}{self._status(unit.provenance.value, "evidence")}</div>'
+            f'<h1>{esc(unit.title)}</h1><p class="lede">{esc(unit.intuition)}</p>'
+            f'<section data-finathink-knowledge data-payload-url="/api/p8_2b/knowledge/{esc(unit.unit_id)}" class="knowledge-layout">'
+            f'{context_html}<section class="card"><h2>Intuition</h2><p>{esc(unit.intuition)}</p><h2>Definition / Formal</h2><p>{esc(unit.why_now)}</p><h3>Background and history</h3><p>{esc(unit.background)}</p><p>{esc(unit.history)}</p></section>'
+            f'<section class="card"><h2>Symbols</h2><div class="knowledge-symbols">{symbols_html}</div></section>'
+            f'<section class="card"><h2>Equation</h2>{equation_html}<p class="meta">MathML is server-provided for offline accessibility; KaTeX upgrades the visual rendering when JavaScript is available.</p></section>'
+            f'<section class="card"><h2>Derivation</h2><div class="knowledge-derivation">{derivation_html}</div><h3>Proof boundary</h3><ul>{proof_html}</ul></section>'
+            f'<section class="card"><h2>Code ↔ math ↔ data</h2><div class="knowledge-code-lines" data-knowledge-code-lines>{code_buttons}</div><p class="meta" data-knowledge-code-inspector>Select a reviewed line to inspect its data input and output. Arbitrary Python execution is unavailable.</p><noscript><p class="field-help">JavaScript is disabled; the reviewed code segments remain listed above.</p></noscript></section>'
+            f'<section class="card"><h2>Assumptions and limitations</h2><ul>{"".join(f"<li>{esc(item)}</li>" for item in unit.assumptions)}</ul><h3>Limitations</h3><ul>{"".join(f"<li>{esc(item)}</li>" for item in unit.limitations)}</ul></section>'
+            f'<section class="card"><h2>Finance / Quant / Strategy</h2><ul>{"".join(f"<li>{esc(item)}</li>" for item in unit.applications)}</ul><p><a class="button-primary" href="/knowledge/{esc(unit.unit_id)}?depth=deep">Teach me this</a></p></section>'
+            f'<section class="card"><h2>Personal learning evidence</h2><p>Browsing is not mastery. Record a self-check explicitly in the private learning store.</p><form class="form-grid" method="post" action="/api/personal/save"><input type="hidden" name="node_type" value="learning_card"><input type="hidden" name="title" value="{esc(unit.title)} self-check"><input type="hidden" name="concept_id" value="{esc(unit.unit_id)}"><label for="outcome">What is the main caveat?<select id="outcome" name="outcome" required><option value="correct">I can explain it with assumptions</option><option value="incorrect">I would treat it as a guarantee</option></select></label><button type="submit">Save learning evidence</button></form></section>'
+            f'<section class="card"><h2>Current context</h2><p>{esc(binding["why_now"] if binding else "NO_CONTEXT_AVAILABLE")}</p></section>'
+            f'<section class="card"><h2>References</h2><ul>{refs_html}</ul><p class="meta">Reference metadata is local and curated; DOI is not treated as verified full text.</p></section>'
+            f'<section class="card"><h2>Export</h2><div class="knowledge-inline-actions">{export_links}</div></section>'
+            f'<p class="meta">Catalog fingerprint: <code>{esc(DEFAULT_KNOWLEDGE_CATALOG.fingerprint)}</code> · <a href="/knowledge">Back to Knowledge</a> · <a href="/api/p8_2b/knowledge/{esc(unit.unit_id)}">JSON contract</a></p></section>'
+        )
+        return self.render_shell("/knowledge", unit.title, body, inspector=self._inspector("Knowledge provenance", {"Unit": unit.unit_id, "Catalog": DEFAULT_KNOWLEDGE_CATALOG.fingerprint, "Context": context.status, "Boundary": "Static code trace; no arbitrary execution"}, status="CURATED"), eyebrow="Knowledge / P8.2B", scripts=("/assets/finathink-research.js",))
 
     def event(self) -> dict[str, Any]:
         """Replay the admitted BLS fixture when P6.5 is available.
@@ -621,6 +754,43 @@ class LocalApplication:
             return 200, "application/json", self.diagnostics()
         if clean == "/api/diagnostics/bundle":
             return 200, "application/json", self.diagnostics_bundle()
+        if clean == "/api/p8_2b/knowledge" and method == "GET":
+            query_text = (query.get("q") or [""])[0]
+            return 200, "application/json", {
+                "schema_version": 1,
+                "units": [item.to_dict() for item in search_catalog(query_text)],
+                "catalog_fingerprint": DEFAULT_KNOWLEDGE_CATALOG.fingerprint,
+                "provenance": "CURATED_OFFLINE",
+            }
+        if clean.startswith("/api/p8_2b/knowledge/") and method == "GET":
+            parts = [part for part in clean.removeprefix("/api/p8_2b/knowledge/").split("/") if part]
+            if not parts:
+                return 404, "application/json", {"error": "knowledge unit not found"}
+            try:
+                unit = get_knowledge_unit(parts[0])
+            except KeyError:
+                return 404, "application/json", {"error": "knowledge unit not found"}
+            if len(parts) == 1:
+                return 200, "application/json", self._p8_2b_unit_payload(unit, context=self._p8_2b_context(unit, query))
+            if parts[1] == "context":
+                resolution = self._p8_2b_context(unit, query)
+                return 200, "application/json", {"status": resolution.status, "binding": resolution.binding.to_dict() if resolution.binding else None}
+            if parts[1] == "export":
+                fmt = (query.get("format") or ["markdown"])[0].casefold()
+                exporters = {"markdown": ("text/markdown; charset=utf-8", export_markdown), "latex": ("application/x-latex; charset=utf-8", export_latex), "bibtex": ("application/x-bibtex; charset=utf-8", export_bibtex), "csl": ("application/json", export_csl_json)}
+                if fmt not in exporters:
+                    return 400, "application/json", {"error": "format is invalid", "allowed": sorted(exporters)}
+                content_type, exporter = exporters[fmt]
+                return 200, content_type, exporter(unit, DEFAULT_KNOWLEDGE_CATALOG)
+            return 404, "application/json", {"error": "knowledge route not found"}
+        if clean == "/api/p8_2b/widgets" and method == "POST":
+            if not isinstance(body, Mapping):
+                return 400, "application/json", {"error": "widget payload must be an object"}
+            try:
+                spec = WidgetSpec(str(body.get("widget_id", "")), str(body.get("kind", "")), dict(body.get("parameters", {})))
+                return 200, "application/json", run_widget(spec).to_dict()
+            except (TypeError, ValueError, KeyError) as exc:
+                return 400, "application/json", {"error": str(exc), "action": "use a typed allow-listed widget and bounded parameters"}
         if clean in {"/api/knowledge", "/knowledge.json"}:
             return 200, "application/json", self.knowledge((query.get("q") or [""])[0])
         if clean.startswith("/api/concepts/"):
@@ -758,7 +928,14 @@ class LocalApplication:
         if clean == "/api/reopen" and method == "POST":
             return 200, "application/json", {"reopened": True, "personal": self.personal()}
         if clean.startswith("/knowledge/"):
-            concept = self.concept(clean.removeprefix("/knowledge/"))
+            unit_id = clean.removeprefix("/knowledge/").strip("/")
+            try:
+                unit = get_knowledge_unit(unit_id)
+            except KeyError:
+                unit = None
+            if unit is not None:
+                return 200, "text/html; charset=utf-8", self.render_p8_2b_concept_page(unit, context=self._p8_2b_context(unit, query))
+            concept = self.concept(unit_id)
             if concept is None:
                 return 404, "text/html; charset=utf-8", self.render_error_page(
                     "Concept not found",
@@ -985,7 +1162,7 @@ class LocalApplication:
                 '<section class="research-workspace" data-finathink-research data-payload-url="/api/research/series">'
                 '<div class="research-toolbar"><div><h2>Price, volume, and evidence</h2><p class="source-state">Crosshair and point selection update the inspector; the fallback table remains available to keyboard users.</p></div><span class="status status--sample">FIXTURE / OFFLINE</span></div>'
                 '<div class="research-panel"><div class="research-chart" data-research-chart role="img" aria-label="Candlestick, volume, and feature overlay chart for the normalized research sample"></div><p class="research-tooltip" data-research-tooltip role="status" aria-live="polite">Hover or focus a point to inspect its canonical values.</p><p class="error-state" data-research-error hidden></p></div>'
-                '<div class="research-grid"><section class="research-panel"><h2>Selected observation</h2><p class="research-inspector" data-research-inspector role="status" aria-live="polite">Select a candle or row to inspect its canonical values.</p></section><section class="research-panel"><h2>Declared parameter sweep</h2><div class="research-sweep" data-research-sweep role="img" aria-label="Out-of-sample parameter comparison"></div><p class="field-help">OOS values and multiple-testing context are retained; no winning strategy is named.</p></section></div>'
+                '<div class="research-grid"><section class="research-panel"><h2>Selected observation</h2><p class="research-inspector" data-research-inspector role="status" aria-live="polite">Select a candle or row to inspect its canonical values.</p><div class="knowledge-context" data-knowledge-context><h3>Learn from this observation</h3><p data-knowledge-context-status>Choose a point to bind a point-in-time explanation.</p><a class="button-secondary" data-knowledge-context-link href="/knowledge/volatility">Teach me this</a></div></section><section class="research-panel"><h2>Declared parameter sweep</h2><div class="research-sweep" data-research-sweep role="img" aria-label="Out-of-sample parameter comparison"></div><p class="field-help">OOS values and multiple-testing context are retained; no winning strategy is named.</p></section></div>'
                 f'<section class="research-panel"><h2>Feature lineage</h2><p class="field-help">Features are computed server-side and linked to the dataset fingerprint; the renderer only displays them.</p><ul class="evidence-list">{feature_cards}</ul></section>'
                 f'<section class="research-panel"><h2>Accessible observation table</h2><p class="field-help">Use Enter or Space on a row to select an exact point. Values are not recomputed in the browser.</p><div data-research-table-anchor>{static_table}</div></section>'
                 '</section>'
