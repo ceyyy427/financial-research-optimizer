@@ -60,7 +60,7 @@ P8: source-distribution public-beta preparation complete; external publication r
 | P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md` |
 | P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md` and contract-repair tests |
 | P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 29 P7 tests, and independent A–J pass register |
-| P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection journeys, 268 passed/1 skipped |
+| P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection/restart journeys, 271 passed/1 skipped |
 | P8 | CONDITIONAL | `docs/p8/P8_PUBLIC_BETA_GATE.md`, source install/CI/release workflow ready; no configured remote, tag, GitHub asset, or signed native package |
 
 ## Constraints

@@ -22,7 +22,7 @@ service with SQLite/sample defaults and no real-money capability.
 | 12 | Supported local launch | `scripts/run_local_app.py`, console entry point | PASS |
 | 13–14 | First-run/sample mode | source clean-install smoke, fixture route | PASS |
 | 15–21 | Event/knowledge/quant/strategy/paper/personal/community journeys | Full ProductJourney projection, real LocalResearchService artifacts, paper-only strategy, explicit community projection route, `tests/p7_5/test_product_gate_real.py` | PASS |
-| 22 | Save/reopen | SQLite restart test | PASS |
+| 22 | Save/reopen | SQLite restart test plus persistent `/api/research/artifacts/{id}` reopen | PASS |
 | 23 | Local diagnostics | `/diagnostics`, `/api/diagnostics` | PASS |
 | 24 | Secrets safe | `scripts/secret_scan.py`, no provider key in sample mode | PASS |
 | 25 | Real-money execution absent | no broker/order route; strategy `real_money=false` | PASS |
@@ -30,7 +30,7 @@ service with SQLite/sample defaults and no real-money capability.
 | 27 | Security | loopback-only binding, exact-origin check, protected form CSRF, CSP, headers, body cap, parameterized SQL | PASS (bounded) |
 | 28 | E2E | HTTP smoke plus event-learning, concept mastery, quant artifact, strategy OOS/paper, projection tests | PASS |
 | 29 | P4–P7 regression | full suite in both environments | PASS |
-| 30 | Full suite | `.venv`: 268 passed, 1 skipped; quant/research runtime tests included | PASS |
+| 30 | Full suite | `.venv`: 271 passed, 1 skipped; quant/research runtime and restart tests included | PASS |
 | 31 | Ruff | `ruff check src tests scripts` | PASS |
 | 32 | Notebook | `make notebook-check` | PASS |
 | 33 | Governance | `scripts/validate_governance.py .` | PASS |

@@ -34,7 +34,7 @@ infrastructure.
 
 Delivery commit: `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d`.
 
-- `.venv/bin/pytest -q`: **268 passed, 1 skipped**.
+- `.venv/bin/pytest -q`: **271 passed, 1 skipped**.
 - `ruff check src tests scripts`: passed.
 - `tests/validation/test_p8_docs.py`: **3 passed**.
 - `scripts/prepare_release.py --check` and `scripts/secret_scan.py`: passed.
