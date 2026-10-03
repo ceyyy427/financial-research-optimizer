@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from finahinking.resources import migration_path
+
 from .models import (
     Claim,
     ClaimEvidenceLink,
@@ -25,11 +27,11 @@ from .models import (
     TransportCapture,
 )
 
-MIGRATION_PATH = Path(__file__).resolve().parents[3] / "migrations" / "001_p6_5_understanding.sql"
+MIGRATION_PATH = migration_path("001_p6_5_understanding.sql")
 ADDITIVE_MIGRATION_PATHS = (
     MIGRATION_PATH,
-    Path(__file__).resolve().parents[3] / "migrations" / "002_p6_6_strategy_lab.sql",
-    Path(__file__).resolve().parents[3] / "migrations" / "003_p7_personal_community.sql",
+    migration_path("002_p6_6_strategy_lab.sql"),
+    migration_path("003_p7_personal_community.sql"),
 )
 _SAFE_ARTIFACT_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 

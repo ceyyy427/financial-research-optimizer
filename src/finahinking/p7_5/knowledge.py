@@ -566,8 +566,8 @@ _SRC_LOPEZ = SourceReference(
     "src-lopez-backtest",
     "Advances in Financial Machine Learning",
     "research-method",
-    "https://www.risk.net/",
-    "Backtest and multiple-testing cautions are methodological guidance; verify licensed edition locally.",
+    "https://www.wiley-vch.de/en/areas-interest/finance-economics-law/finance/finance-investments-special-topics-13fiz/advances-in-financial-machine-learning-978-1-119-48208-6",
+    "Publisher record for the 2018 Wiley edition; backtest and multiple-testing cautions are methodological guidance, not a theorem or investment recommendation.",
 )
 
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==80.9.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -18,6 +18,9 @@ research = ["jupyterlab>=4,<5", "ipykernel>=6,<8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+finahinking = ["_package_data/migrations/*.sql", "_package_data/fixtures/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

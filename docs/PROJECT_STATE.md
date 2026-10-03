@@ -17,7 +17,7 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.5 gate: PASS
 - P6.6 gate: PASS
 - P7 gate: PASS
-- P7.5 gate: PASS — local Knowledge Engine and product journeys validated
+- P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
 - Next action: human review of the P8 public-beta gate and external publication prerequisites
 - P8 status: CONDITIONAL — source beta prepared; GitHub remote/tag/release and native macOS package are external/conditional
 - Last reviewed: 2026-10-03
@@ -60,7 +60,7 @@ P8: source-distribution public-beta preparation complete; external publication r
 | P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md` |
 | P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md` and contract-repair tests |
 | P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 29 P7 tests, and independent A–J pass register |
-| P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, local HTTP/E2E journeys, 260 passed/1 skipped in both environments |
+| P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection journeys, 268 passed/1 skipped |
 | P8 | CONDITIONAL | `docs/p8/P8_PUBLIC_BETA_GATE.md`, source install/CI/release workflow ready; no configured remote, tag, GitHub asset, or signed native package |
 
 ## Constraints

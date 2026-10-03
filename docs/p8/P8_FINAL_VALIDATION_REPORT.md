@@ -32,20 +32,26 @@ infrastructure.
 
 ## Local evidence captured 2026-10-03
 
-- `.venv/bin/pytest -q`: **260 passed, 1 skipped**.
+- `.venv/bin/pytest -q`: **268 passed, 1 skipped**.
 - `ruff check src tests scripts`: passed.
 - `tests/validation/test_p8_docs.py`: **3 passed**.
 - `scripts/prepare_release.py --check` and `scripts/secret_scan.py`: passed.
 - `scripts/run_local_app.py --sample --port 18765 --smoke`: passed.
 - Loopback HTTP probe returned 200 for home, event, knowledge, quant,
   strategy, personal, community, diagnostics, health, and knowledge API
-  routes; a temp SQLite save/reopen probe retained the personal node.
-- Fresh temporary virtual environment with `pip install -e '.[dev]'`, P8
-  docs test, and sample smoke: passed.
-- `pip wheel --no-deps .`: `finahinking-0.1.0-py3-none-any.whl`, SHA-256
-  `c196c531cc4132ee55527ea8db1f1af1c2d4ad8b8814f46d66e994b15bf98dd4`.
-- `git diff --check`: passed; the final release commit/tag is still an
+  routes. Product-gate tests also exercise event-learning ingestion,
+  catalog-keyed mastery, deterministic OLS, strategy OOS/paper/compare,
+  explicit community projection, and a temp SQLite save/reopen probe.
+- Fresh temporary virtual environment installed the built wheel outside the
+  source tree; migrations, bundled fixture, captured event, quant artifact,
+  and strategy paper boundary all passed `scripts/clean_install.py`.
+- `pip wheel --no-deps .`: `finahinking-0.1.0-py3-none-any.whl`; checksum is
+  generated at release time and is intentionally not presented as a public
+  asset until a tag exists.
+- `git diff --check`: passed; the final release commit/tag remains an
   external maintainer action.
+- `pip-audit -r requirements.lock --strict`: **No known vulnerabilities
+  found** after the setuptools 84.0.0 pin refresh.
 
 ## Stop condition
 

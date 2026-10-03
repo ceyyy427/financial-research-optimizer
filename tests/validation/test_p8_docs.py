@@ -45,6 +45,8 @@ def test_p8_document_set_is_present_and_nonempty() -> None:
     for name in REQUIRED_P8:
         path = ROOT / "docs" / "p8" / name
         assert path.is_file() and path.read_text(encoding="utf-8").strip(), name
+    site = ROOT / "site" / "index.html"
+    assert site.is_file() and "Download" in site.read_text(encoding="utf-8") and "quickstart" in site.read_text(encoding="utf-8").casefold()
 
 
 def test_p8_public_beta_docs_expose_safety_and_distribution_boundaries() -> None:

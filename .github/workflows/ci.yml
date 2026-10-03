@@ -32,12 +32,34 @@ jobs:
         run: |
           python scripts/validate_governance.py .
           python -m pip check
+          python -m pip install pip-audit==2.10.1
+          pip-audit -r requirements.lock --strict --progress-spinner off
           python scripts/prepare_release.py --check
           python scripts/secret_scan.py
       - name: Build smoke
-        run: python -m pip wheel --no-deps --wheel-dir /tmp/finahinking-wheel .
+        run: |
+          python -m pip wheel --no-deps --wheel-dir /tmp/finahinking-wheel .
+          python scripts/clean_install.py --wheel "$(find /tmp/finahinking-wheel -name 'finahinking-*.whl' -print -quit)"
       - name: Diff whitespace
         run: git diff --check
+
+  quant-and-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install research and quant dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[dev,research]' statsmodels==0.15.0
+      - name: Quant dependency and SQLite migration smoke
+        run: |
+          python -m pip check
+          python -c "import sqlite3; from finahinking.p6_5.repository import apply_migration; from finahinking.p7 import apply_p7_migration; c=sqlite3.connect(':memory:'); apply_migration(c); apply_p7_migration(c)"
+          python -c "import pandas as pd; from finahinking.quant.adapters.statsmodels_adapter import StatsmodelsAdapter; print(StatsmodelsAdapter().fit_ols(pd.DataFrame({'y':[1.,2.,3.], 'x':[0.,1.,2.]}), 'y', ['x']).fingerprint)"
+      - name: PostgreSQL migration gate
+        run: bash scripts/verify_p6_5_postgres.sh
 
   notebook:
     runs-on: ubuntu-latest

@@ -13,8 +13,9 @@ import re
 import sqlite3
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
+
+from finahinking.resources import migration_path
 
 from .models import (
     CommunityComment,
@@ -30,7 +31,7 @@ from .models import (
     PublicProjection,
 )
 
-MIGRATION_PATH = Path(__file__).resolve().parents[3] / "migrations" / "003_p7_personal_community.sql"
+MIGRATION_PATH = migration_path("003_p7_personal_community.sql")
 
 
 def _now() -> str:

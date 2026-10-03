@@ -18,19 +18,19 @@ service with SQLite/sample defaults and no real-money capability.
 | 5 | Code examples linked | every reference concept has a code contract | PASS |
 | 6–8 | Finance, quant, strategy links | typed application links and tests | PASS |
 | 9 | Learning paths | four typed paths and exact reference order | PASS |
-| 10–11 | Personal mastery/misconceptions | P7 state boundary and misconception model | PASS |
+| 10–11 | Personal mastery/misconceptions | Knowledge self-check writes catalog-keyed P7 mastery evidence; P7 misconception service remains the correction authority | PASS (bounded) |
 | 12 | Supported local launch | `scripts/run_local_app.py`, console entry point | PASS |
 | 13–14 | First-run/sample mode | source clean-install smoke, fixture route | PASS |
-| 15–21 | Event/knowledge/quant/strategy/paper/personal/community journeys | `tests/p7_5/test_e2e.py`, P7 vertical slices | PASS |
+| 15–21 | Event/knowledge/quant/strategy/paper/personal/community journeys | Full ProductJourney projection, real LocalResearchService artifacts, paper-only strategy, explicit community projection route, `tests/p7_5/test_product_gate_real.py` | PASS |
 | 22 | Save/reopen | SQLite restart test | PASS |
 | 23 | Local diagnostics | `/diagnostics`, `/api/diagnostics` | PASS |
 | 24 | Secrets safe | `scripts/secret_scan.py`, no provider key in sample mode | PASS |
 | 25 | Real-money execution absent | no broker/order route; strategy `real_money=false` | PASS |
-| 26 | Accessibility | semantic HTML, skip link, landmarks, focusable links | PASS |
-| 27 | Security | loopback, CSP, headers, body cap, parameterized SQL | PASS |
-| 28 | E2E | 10 P7.5 tests including HTTP smoke | PASS |
+| 26 | Accessibility | semantic HTML, skip link, labels, focusable links/buttons, no-script forms | PASS (bounded) |
+| 27 | Security | loopback-only binding, exact-origin check, protected form CSRF, CSP, headers, body cap, parameterized SQL | PASS (bounded) |
+| 28 | E2E | HTTP smoke plus event-learning, concept mastery, quant artifact, strategy OOS/paper, projection tests | PASS |
 | 29 | P4–P7 regression | full suite in both environments | PASS |
-| 30 | Full suite | `.venv` and `.venv-quant`: 260 passed, 1 skipped | PASS |
+| 30 | Full suite | `.venv`: 268 passed, 1 skipped; quant/research runtime tests included | PASS |
 | 31 | Ruff | `ruff check src tests scripts` | PASS |
 | 32 | Notebook | `make notebook-check` | PASS |
 | 33 | Governance | `scripts/validate_governance.py .` | PASS |
@@ -38,7 +38,7 @@ service with SQLite/sample defaults and no real-money capability.
 | 35 | pip | `pip check` in both environments | PASS |
 | 36 | Build smoke | `pip wheel --no-deps --wheel-dir dist .` | PASS |
 | 37 | Diff check | `git diff --check` | PASS |
-| 38 | Clean worktree | final commit status | PASS |
+| 38 | Clean worktree | final delivery commit status | PENDING UNTIL COMMIT |
 | 39 | Provenance alignment | final commit fingerprint and source reports | PASS |
 
 ## Independent reviews
@@ -50,7 +50,7 @@ security.
 
 ## Gate decision
 
-**P7.5 Product-Usable Gate: PASS**, contingent only on the command evidence
-recorded at the final commit below. The next phase is the P8 source-distribution
-public-beta gate; cloud sync, hosted accounts, brokers, and real-money work are
-explicitly stopped.
+**P7.5 Product-Usable Gate: PASS for the bounded local product slice**, after
+the command evidence is rerun at the delivery commit. The next phase is the P8
+source-distribution public-beta gate; cloud sync, hosted accounts, brokers, and
+real-money work are explicitly stopped.

@@ -23,7 +23,8 @@ jobs:
       - name: Validate release metadata
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]'
+          python -m pip install -e '.[dev,research]'
+          python -m pip install pip-audit==2.10.1
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             python scripts/prepare_release.py --check --tag "${GITHUB_REF_NAME}"
           else
@@ -33,13 +34,17 @@ jobs:
           ruff check src tests scripts
           python scripts/validate_governance.py .
           python scripts/secret_scan.py
+          python -m pip check
+          pip-audit -r requirements.lock --strict --progress-spinner off
+          python -m jupyter nbconvert --to notebook --execute --output /tmp/finahinking_research_workflow_executed.ipynb notebooks/01_research_workflow.ipynb
+          bash scripts/verify_p6_5_postgres.sh
       - name: Build source artifacts
         run: |
           rm -rf dist
           python -m pip wheel --no-deps --wheel-dir dist .
-          python -m pip install --no-deps --target /tmp/finahinking-sdist-check .
+          python scripts/clean_install.py --wheel "$(find dist -name 'finahinking-*.whl' -print -quit)"
           git archive --format=tar.gz --output="dist/finahinking-${GITHUB_REF_NAME}.tar.gz" "$GITHUB_SHA"
-          sha256sum dist/* > dist/SHA256SUMS
+          (cd dist && sha256sum * > SHA256SUMS && sha256sum --check SHA256SUMS)
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         env:

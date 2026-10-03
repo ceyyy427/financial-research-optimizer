@@ -1,0 +1,56 @@
+"""Exercise the wheel from a clean interpreter outside the source checkout."""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import venv
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_wheel_install_exposes_migrations_fixtures_and_local_routes(tmp_path: Path) -> None:
+    """A wheel must carry every resource used by the supported local journeys."""
+
+    wheel_dir = tmp_path / "wheel"
+    wheel_dir.mkdir()
+    subprocess.run(
+        [sys.executable, "-m", "pip", "wheel", "--no-deps", "--wheel-dir", str(wheel_dir), str(ROOT)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    wheel = next(wheel_dir.glob("finahinking-*.whl"))
+    env_dir = tmp_path / "venv"
+    venv.EnvBuilder(with_pip=True, system_site_packages=False).create(env_dir)
+    python = env_dir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    subprocess.run([str(python), "-m", "pip", "install", str(wheel)], check=True, capture_output=True, text=True)
+
+    probe = """
+from pathlib import Path
+import sqlite3
+from finahinking.p6_5.repository import ADDITIVE_MIGRATION_PATHS, apply_migration
+from finahinking.p7.repository import MIGRATION_PATH as P7_MIGRATION_PATH, apply_p7_migration
+from finahinking.local_app import LocalApplication
+from finahinking.resources import fixture_path
+
+assert all(path.is_file() for path in ADDITIVE_MIGRATION_PATHS)
+assert P7_MIGRATION_PATH.is_file()
+assert fixture_path('p6_5/bls_cpi_2024_2025.json').is_file()
+connection = sqlite3.connect(':memory:')
+apply_migration(connection)
+apply_p7_migration(connection)
+app = LocalApplication(connection=connection)
+event = app.route('GET', '/api/events')[2]['events'][0]
+assert event['data_mode'] == 'SAMPLE'
+assert event['source_state'] == 'CAPTURED'
+assert event['evidence_ids']
+quant = app.route('POST', '/api/quant', body={'question': 'How does the market relate to asset returns?'})[2]
+assert quant['numeric_results']['sample_count'] >= 70
+assert quant['artifact_fingerprint']
+assert app.route('GET', '/api/strategy')[2]['execution'] == 'paper-only'
+app.close()
+"""
+    subprocess.run([str(python), "-c", probe], cwd=tmp_path, check=True, capture_output=True, text=True)
