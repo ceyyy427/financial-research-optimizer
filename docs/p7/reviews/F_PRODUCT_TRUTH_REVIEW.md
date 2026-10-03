@@ -63,7 +63,7 @@ truth decision is made:
 | Evidence | Command or artifact | Expected evidence |
 | --- | --- | --- |
 | P6.6/P7 local authority | `./.venv/bin/python -m pytest -q tests/p6_6 tests/p7` | Focused P6.6/P7 tests pass |
-| P7 repository and vertical slices | `./.venv/bin/python -m pytest -q tests/p7` | 8 tests pass against SQLite |
+| P7 repository and vertical slices | `./.venv/bin/python -m pytest -q tests/p7` | 11 tests pass against SQLite |
 | Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | Both report 226 passed, 1 skipped |
 | Migration authority | `./scripts/verify_p6_5_postgres.sh` | Migrations 001, 002, and 003 apply; PostgreSQL schema gate reports PASS |
 | No advice / limitation display | Product journey test plus exported record inspection | Limitations, provenance, and claim labels remain visible and unchanged |

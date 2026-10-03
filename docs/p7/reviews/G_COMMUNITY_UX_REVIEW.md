@@ -55,7 +55,7 @@ save-as-question action.
 
 | Evidence | Command or artifact | Expected evidence |
 | --- | --- | --- |
-| P7 community regression | `./.venv/bin/python -m pytest -q tests/p7` | 8 local scenarios pass without authorization-bypassing mocks |
+| P7 community regression | `./.venv/bin/python -m pytest -q tests/p7` | 11 local scenarios pass without authorization-bypassing mocks |
 | Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | Both report 226 passed, 1 skipped |
 | Migration boundary | `./scripts/verify_p6_5_postgres.sh` | PostgreSQL applies and inspects migration 003 successfully; gate reports PASS |
 | UX/moderation follow-up | Hosted preview, malicious-link, abuse, and HTML/prompt-injection tests | P8 residual evidence; not a local P7 gate requirement |

@@ -45,7 +45,7 @@ limitation.
 
 | Evidence | Command or artifact | Observed result |
 | --- | --- | --- |
-| P7 focused suite | `./.venv/bin/python -m pytest -q tests/p7` | **8 passed** |
+| P7 focused suite | `./.venv/bin/python -m pytest -q tests/p7` | **11 passed** |
 | Dual full regression | `./.venv/bin/python -m pytest -q`; `./.venv-quant/bin/python -m pytest -q` | **226 passed, 1 skipped** in each environment |
 | PostgreSQL migration gate | `./scripts/verify_p6_5_postgres.sh` | Migrations 001, 002, and **003 apply; PostgreSQL gate PASS** (`P6.5_POSTGRES_SCHEMA_PASS`) |
 | Static/governance checks | Ruff, governance validator, shell syntax, and `git diff --check` | PASS |
