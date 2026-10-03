@@ -9,6 +9,9 @@ description = "A governed personal financial research laboratory"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.0,<3", "pandas>=2.2,<4"]
 
+[project.scripts]
+finahinking = "finahinking.local_app:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.8,<1"]
 research = ["jupyterlab>=4,<5", "ipykernel>=6,<8"]

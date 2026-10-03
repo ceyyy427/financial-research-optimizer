@@ -1,0 +1,13 @@
+name: Knowledge correction
+description: Suggest a source-backed correction or misconception.
+title: "[Knowledge] "
+labels: [knowledge]
+body:
+  - type: input
+    id: concept
+    attributes: {label: Concept id/title}
+    validations: {required: true}
+  - type: textarea
+    id: evidence
+    attributes: {label: Evidence and proposed correction, description: Include source, formula/proof impact, and application impact.}
+    validations: {required: true}

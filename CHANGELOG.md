@@ -9,6 +9,18 @@ report and requires a new human review.
 
 ## Unreleased
 
+- Prepared the P8 public-beta distribution surface: source-install quickstart,
+  public contribution contracts, privacy/security/limitations documentation,
+  issue templates, CI and release workflow definitions, and reproducible P8
+  gate evidence. A GitHub release is not claimed until a maintainer publishes
+  the tagged artifact.
+
+## 0.1.0 - 2026-10-03 (source candidate; no GitHub release published)
+
+- Prepared the governed P0–P7 research foundation and local-first P7.5 product
+  direction as a `0.1.x` source-beta line. The package does not execute trades
+  or provide investment advice.
+
 - Added P7 private continuity: an owner-scoped knowledge graph, explainable
   mastery evidence, learning/research/strategy history, explicit fingerprinted
   projections, and room-scoped evidence-linked posts/comments.

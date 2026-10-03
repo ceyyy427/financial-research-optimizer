@@ -573,6 +573,7 @@ class SQLiteP7Repository:
         self.connection.execute("DELETE FROM p7_artifact_links WHERE owner_id = ?", (owner,))
         self.connection.execute("DELETE FROM p7_strategy_versions WHERE owner_id = ?", (owner,))
         self.connection.execute("DELETE FROM p7_misconceptions WHERE owner_id = ?", (owner,))
+        self.connection.execute("DELETE FROM p7_learning_threads WHERE owner_id = ?", (owner,))
         self.connection.execute("DELETE FROM p7_personal_nodes WHERE owner_id = ?", (owner,))
         self._audit(owner, "delete_personal", "principal", owner, {"retained": "audit_only", "private_records": "deleted", "shared_projections": "revoked"})
         self.connection.commit()

@@ -50,6 +50,7 @@ def test_private_continuity_slice_is_owner_scoped_and_exportable() -> None:
     with pytest.raises(KeyError):
         repository.get_node("alice-session", "c1")
     assert repository.export_personal("alice-session")["nodes"] == []
+    assert repository.export_personal("alice-session")["learning_threads"] == []
     assert repository.export_personal("alice-session")["saved_objects"] == []
 
 

@@ -1,0 +1,13 @@
+name: Research correctness
+description: Report a methodological, statistical, or provenance error.
+title: "[Research correctness] "
+labels: [research-integrity]
+body:
+  - type: textarea
+    id: claim
+    attributes: {label: Claim/result at issue, description: Quote the claim and link the run or fixture.}
+    validations: {required: true}
+  - type: textarea
+    id: risk
+    attributes: {label: Failure class, description: Identify look-ahead, revision, survivorship, leakage, multiple testing, or other risk.}
+    validations: {required: true}

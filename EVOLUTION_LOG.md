@@ -124,7 +124,7 @@ result. Small documentation corrections may be grouped in one entry.
   boundary, P6.5 event learning adapter, and room-bound projections.
 - Reason: close mission-level gaps found by independent audit rather than
   equating generic CRUD coverage with the P7 product contracts.
-- Evidence: 25 P7 tests, 240 passed/1 skipped in both environments, Ruff,
+- Evidence: 29 P7 tests, 244 passed/1 skipped in both environments, Ruff,
   notebook/governance/pip gates, PostgreSQL schema/index checks, and the exact
   mission-44 gate matrix plus A–J pass register.
 - Compatibility: no new runtime dependency or plugin; P4–P6.6 authorities are
@@ -132,6 +132,38 @@ result. Small documentation corrections may be grouped in one entry.
   migration entry points.
 - Review: P7 local gate PASS; P8 readiness decision B only, implementation waits
   for human approval and hosted operational controls remain open.
+
+## 2026-10-03 — P7.5 Knowledge Engine and local product
+
+- Change: added a typed, deterministic KnowledgeCatalog with a 15-concept
+  Return→Overfitting curriculum, four learning paths, required domain coverage,
+  event links, equations, derivations, code/finance/quant/strategy links, and
+  source references; added a loopback SQLite/sample local application and E2E
+  journeys.
+- Reason: make the governed P4–P7 research core usable as an education-first
+  product without duplicating P7 personal state or adding cloud/broker scope.
+- Evidence: P7.5 unit/local/E2E tests, full regression in both environments,
+  P7.5 independent reviews A–J, local sample smoke, diagnostics, and
+  `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`.
+- Compatibility: no new required dependency; standard-library shell, existing
+  P7 SQLite/PostgreSQL contracts, captured BLS fixture, and explicit no-order
+  boundary.
+- Review: P7.5 Product-Usable Gate PASS; P8 source-beta readiness is conditional
+  on maintainer-owned GitHub publication and any selected native package.
+
+## 2026-10-03 — P8 public-beta preparation
+
+- Change: added public README/quickstart/install/tutorials, contribution
+  contracts, privacy/security/license/limitations docs, CI/release workflows,
+  issue forms, release checks, secret scan, clean-install procedure, and the
+  47-item public-beta gate.
+- Reason: make the source distribution reproducible and safe to publish while
+  keeping hosted accounts, cloud sync, broker credentials, and real-money work
+  out of scope.
+- Evidence: `docs/p8/P8_FINAL_VALIDATION_REPORT.md` and
+  `docs/p8/P8_PUBLIC_BETA_GATE.md`; no Git remote or release tag exists in this
+  checkout, so external publication is explicitly conditional.
+- Review: stop at P8 gate for human inspection.
 
 ## 2026-10-02 — P0 foundation
 

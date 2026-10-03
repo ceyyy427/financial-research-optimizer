@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and test tools
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[dev]'
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Ruff
+        run: ruff check src tests scripts
+      - name: Governance and dependency checks
+        run: |
+          python scripts/validate_governance.py .
+          python -m pip check
+          python scripts/prepare_release.py --check
+          python scripts/secret_scan.py
+      - name: Build smoke
+        run: python -m pip wheel --no-deps --wheel-dir /tmp/finahinking-wheel .
+      - name: Diff whitespace
+        run: git diff --check
+
+  notebook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -e '.[dev,research]'
+      - name: Notebook gate
+        run: python -m jupyter nbconvert --to notebook --execute --output /tmp/finahinking_research_workflow_executed.ipynb notebooks/01_research_workflow.ipynb

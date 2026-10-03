@@ -5,7 +5,7 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P7 Personal Intelligence and Evidence-Driven Community
+- Current phase: P8 Open Source Public Beta (after P7.5 Product-Usable Gate)
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
@@ -17,8 +17,9 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.5 gate: PASS
 - P6.6 gate: PASS
 - P7 gate: PASS
-- Next action: human review of P7 final validation and P8 readiness
-- P8 status: readiness report only; implementation is out of scope
+- P7.5 gate: PASS — local Knowledge Engine and product journeys validated
+- Next action: human review of the P8 public-beta gate and external publication prerequisites
+- P8 status: CONDITIONAL — source beta prepared; GitHub remote/tag/release and native macOS package are external/conditional
 - Last reviewed: 2026-10-03
 
 ## Historical later-stage records
@@ -38,11 +39,11 @@ override the Current state section above:
 
 ## Delivery status
 
-Finahinking P0–P7: COMPLETE for the local, research-only slice
+Finahinking P0–P7.5: COMPLETE for the local, research-only learning slice
 Feature/factor/quant/research/strategy authorities: VALIDATED
-Personal continuity and evidence-linked community: VALIDATED locally
+Knowledge Engine, personal continuity, and evidence-linked community: VALIDATED locally
 Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED
-P8: READINESS REPORT ONLY; WAITING FOR HUMAN APPROVAL
+P8: source-distribution public-beta preparation complete; external publication remains conditional
 
 ## Completed gates
 
@@ -58,11 +59,15 @@ P8: READINESS REPORT ONLY; WAITING FOR HUMAN APPROVAL
 | P6 | PASS | `docs/p6/P6_FINAL_VALIDATION_REPORT.md` |
 | P6.5 | PASS | `docs/p6_5/P6_5_FINAL_VALIDATION_REPORT.md` |
 | P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md` and contract-repair tests |
-| P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 25 P7 tests, and independent A–J pass register |
+| P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 29 P7 tests, and independent A–J pass register |
+| P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, local HTTP/E2E journeys, 260 passed/1 skipped in both environments |
+| P8 | CONDITIONAL | `docs/p8/P8_PUBLIC_BETA_GATE.md`, source install/CI/release workflow ready; no configured remote, tag, GitHub asset, or signed native package |
 
 ## Constraints
 
 No secrets, trading automation, investment advice, or unsafe network shortcuts
-are permitted. Tests use deterministic fixtures by default. P4–P7 remain
+are permitted. Tests use deterministic fixtures by default. P4–P7.5 remain
 research/simulation and private-continuity capabilities only; brokerage, live
-trading, and investment advice remain out of scope. P8 is not implemented.
+trading, and investment advice remain out of scope. P8 cloud sync, hosted
+accounts, broker integration, real-money execution, and major provider
+expansion are outside the public-beta stop condition.

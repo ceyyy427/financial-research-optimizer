@@ -1,0 +1,12 @@
+name: Documentation
+description: Report an unclear, missing, or stale document.
+title: "[Docs] "
+labels: [documentation]
+body:
+  - type: input
+    id: location
+    attributes: {label: Document/path}
+    validations: {required: true}
+  - type: textarea
+    id: suggestion
+    attributes: {label: Problem and suggested change}

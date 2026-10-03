@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v0.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Validate release metadata
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            python scripts/prepare_release.py --check --tag "${GITHUB_REF_NAME}"
+          else
+            python scripts/prepare_release.py --check
+          fi
+          python -m pytest -q
+          ruff check src tests scripts
+          python scripts/validate_governance.py .
+          python scripts/secret_scan.py
+      - name: Build source artifacts
+        run: |
+          rm -rf dist
+          python -m pip wheel --no-deps --wheel-dir dist .
+          python -m pip install --no-deps --target /tmp/finahinking-sdist-check .
+          git archive --format=tar.gz --output="dist/finahinking-${GITHUB_REF_NAME}.tar.gz" "$GITHUB_SHA"
+          sha256sum dist/* > dist/SHA256SUMS
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes --verify-tag
