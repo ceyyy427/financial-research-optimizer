@@ -34,7 +34,7 @@ infrastructure.
 
 Delivery commit: `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d`.
 
-- `.venv/bin/pytest -q`: **271 passed, 1 skipped**.
+- `.venv/bin/pytest -q`: **272 passed, 1 skipped**.
 - `ruff check src tests scripts`: passed.
 - `tests/validation/test_p8_docs.py`: **3 passed**.
 - `scripts/prepare_release.py --check` and `scripts/secret_scan.py`: passed.
@@ -47,6 +47,8 @@ Delivery commit: `01494ff3f493e7cdb0a93b11ff2654f0b0ea585d`.
 - Fresh temporary virtual environment installed the built wheel outside the
   source tree; migrations, bundled fixture, captured event, quant artifact,
   and strategy paper boundary all passed `scripts/clean_install.py`.
+- Redacted diagnostics bundle and private backup routes were exercised; the
+  bundle omits database paths, secrets, and personal payloads.
 - `pip wheel --no-deps .`: `finahinking-0.1.0-py3-none-any.whl`; checksum is
   generated at release time and is intentionally not presented as a public
   asset until a tag exists.
