@@ -196,11 +196,13 @@ class KnowledgeUnit:
     applications: tuple[str, ...] = ()
     data_trace: DataTrace | None = None
     tags: tuple[str, ...] = ()
+    history: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "unit_id", _id(self.unit_id, "unit_id"))
         for name in ("title", "domain", "level", "why_now", "background", "intuition"):
             object.__setattr__(self, name, _text(getattr(self, name), name))
+        object.__setattr__(self, "history", _text(self.history or self.background, "history"))
         object.__setattr__(self, "symbols", tuple(self.symbols))
         object.__setattr__(self, "equations", tuple(EquationDefinition(**item) if isinstance(item, dict) and "equation_id" in item else item for item in self.equations))
         if not self.equations or not self.code_segments or not self.references:
@@ -219,7 +221,7 @@ class KnowledgeUnit:
         return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True, allow_nan=False).encode()).hexdigest()
 
     def to_dict(self) -> dict[str, object]:
-        return {"unit_id": self.unit_id, "title": self.title, "domain": self.domain, "level": self.level, "why_now": self.why_now, "background": self.background, "intuition": self.intuition, "symbols": [item.to_dict() for item in self.symbols], "equations": [item.to_dict() for item in self.equations], "prerequisites": list(self.prerequisites), "code_segments": [item.to_dict() for item in self.code_segments], "references": list(self.references), "provenance": self.provenance.value, "assumptions": list(self.assumptions), "limitations": list(self.limitations), "derivations": [item.to_dict() for item in self.derivations], "proofs": [item.to_dict() for item in self.proofs], "misconceptions": list(self.misconceptions), "exercises": list(self.exercises), "applications": list(self.applications), "data_trace": self.data_trace.to_dict() if self.data_trace else None, "tags": list(self.tags)}
+        return {"unit_id": self.unit_id, "title": self.title, "domain": self.domain, "level": self.level, "why_now": self.why_now, "background": self.background, "history": self.history, "intuition": self.intuition, "symbols": [item.to_dict() for item in self.symbols], "equations": [item.to_dict() for item in self.equations], "prerequisites": list(self.prerequisites), "code_segments": [item.to_dict() for item in self.code_segments], "references": list(self.references), "provenance": self.provenance.value, "assumptions": list(self.assumptions), "limitations": list(self.limitations), "derivations": [item.to_dict() for item in self.derivations], "proofs": [item.to_dict() for item in self.proofs], "misconceptions": list(self.misconceptions), "exercises": list(self.exercises), "applications": list(self.applications), "data_trace": self.data_trace.to_dict() if self.data_trace else None, "tags": list(self.tags)}
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> KnowledgeUnit:
@@ -228,7 +230,7 @@ class KnowledgeUnit:
             expression = item["expression"]
             expressions.append({**item, "expression": MathExpression.from_node(expression.get("ast", expression))})
         return cls(
-            unit_id=payload["unit_id"], title=payload["title"], domain=payload["domain"], level=payload["level"], why_now=payload["why_now"], background=payload["background"], intuition=payload["intuition"], symbols=tuple(SymbolDefinition(**item) for item in payload["symbols"]), equations=tuple(expressions), prerequisites=tuple(payload["prerequisites"]), code_segments=tuple(CodeSegment(item["segment_id"], item["code"], tuple(item["line_range"]), tuple(item["equation_ids"]), tuple(item["feature_ids"]), item["data_input"], item["data_output"]) for item in payload["code_segments"]), references=tuple(payload["references"]), provenance=payload["provenance"], assumptions=tuple(payload["assumptions"]), limitations=tuple(payload["limitations"]), derivations=(), proofs=(), misconceptions=tuple(payload.get("misconceptions", ())), exercises=tuple(payload.get("exercises", ())), applications=tuple(payload.get("applications", ())), tags=tuple(payload.get("tags", ())))
+            unit_id=payload["unit_id"], title=payload["title"], domain=payload["domain"], level=payload["level"], why_now=payload["why_now"], background=payload["background"], history=payload.get("history", payload["background"]), intuition=payload["intuition"], symbols=tuple(SymbolDefinition(**item) for item in payload["symbols"]), equations=tuple(expressions), prerequisites=tuple(payload["prerequisites"]), code_segments=tuple(CodeSegment(item["segment_id"], item["code"], tuple(item["line_range"]), tuple(item["equation_ids"]), tuple(item["feature_ids"]), item["data_input"], item["data_output"]) for item in payload["code_segments"]), references=tuple(payload["references"]), provenance=payload["provenance"], assumptions=tuple(payload["assumptions"]), limitations=tuple(payload["limitations"]), derivations=(), proofs=(), misconceptions=tuple(payload.get("misconceptions", ())), exercises=tuple(payload.get("exercises", ())), applications=tuple(payload.get("applications", ())), tags=tuple(payload.get("tags", ())))
 
 
 @dataclass(frozen=True)
