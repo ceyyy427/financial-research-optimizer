@@ -174,3 +174,8 @@ The authoritative state is `docs/PROJECT_STATE.md`:
 
 The final local commit and tag are recorded in the last section below after
 the working tree is committed. No remote publication is implied.
+
+The implementation checkpoint is commit `a4f7aca`. This report/state metadata
+is committed immediately after it, and the annotated local tag
+`p8-2-local-validated` is placed on that final documentation checkpoint. No
+remote publication is implied.
