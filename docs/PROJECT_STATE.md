@@ -5,7 +5,7 @@ Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
 
-- Current phase: P8 Open Source Public Beta (after P7.5 Product-Usable Gate)
+- Current phase: P8.1 Product UI/UX Polish + Canonical GitHub Reconciliation
 - P0 gate: PASS
 - P1 gate: PASS
 - P2 gate: PASS
@@ -18,8 +18,8 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.6 gate: PASS
 - P7 gate: PASS
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
-- Next action: human review of the P8 public-beta gate and external publication prerequisites
-- P8 status: CONDITIONAL — source beta prepared; GitHub remote/tag/release and native macOS package are external/conditional
+- Next action: human-reviewed reconciliation of the unrelated local and canonical GitHub histories; no force push is permitted
+- P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; canonical remote main cannot be replaced or merged automatically because histories are unrelated
 - Last reviewed: 2026-10-03
 
 ## Historical later-stage records
@@ -43,7 +43,7 @@ Finahinking P0–P7.5: COMPLETE for the local, research-only learning slice
 Feature/factor/quant/research/strategy authorities: VALIDATED
 Knowledge Engine, personal continuity, and evidence-linked community: VALIDATED locally
 Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED
-P8: source-distribution public-beta preparation complete; external publication remains conditional
+P8.1: local product polish is complete for this checkout; remote integration, release, and finathink.cloud publication remain conditional pending a deliberate history strategy
 
 ## Completed gates
 
@@ -61,7 +61,7 @@ P8: source-distribution public-beta preparation complete; external publication r
 | P6.6 | PASS | `docs/p6_6/P6_6_FINAL_VALIDATION_REPORT.md` and contract-repair tests |
 | P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 29 P7 tests, and independent A–J pass register |
 | P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection/restart/backup journeys, 272 passed/1 skipped |
-| P8 | CONDITIONAL | `docs/p8/P8_PUBLIC_BETA_GATE.md`, source install/CI/release workflow ready; no configured remote, tag, GitHub asset, or signed native package |
+| P8.1 | CONDITIONAL | `docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`; local UI and dual-environment tests pass, canonical remote is reachable, but histories are unrelated and no local-product GitHub release is claimed |
 
 ## Constraints
 

@@ -3,35 +3,69 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Finahinking · Think with data</title>
+  <meta name="theme-color" content="#edf2f1">
+  <title>Finathink · Think through finance</title>
   <meta name="description" content="A local-first financial research laboratory for evidence, mathematics, code, and reproducible experiments.">
   <style>
-    :root { color-scheme: light; --ink:#172226; --muted:#526066; --paper:#f5f6f1; --card:#fff; --accent:#0b6871; }
-    * { box-sizing: border-box; } body { margin:0; font:16px/1.6 system-ui,sans-serif; color:var(--ink); background:var(--paper); }
-    main { max-width: 920px; margin:auto; padding: 8vh 24px; } .eyebrow { letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-size:.8rem; }
-    h1 { font-size:clamp(2.5rem,7vw,5.5rem); line-height:.98; max-width:780px; margin:.5rem 0 1rem; } h2 { margin-top:0; }
-    .lede { color:var(--muted); font-size:1.2rem; max-width:680px; } .actions { display:flex; flex-wrap:wrap; gap:12px; margin:28px 0 56px; }
-    a { color:var(--accent); } .button { display:inline-block; padding:11px 16px; border:1px solid var(--accent); border-radius:8px; text-decoration:none; font-weight:650; }
-    .button.primary { color:white; background:var(--accent); } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
-    article { padding:20px; background:var(--card); border:1px solid #d7dfdc; border-radius:12px; } footer { margin-top:60px; color:var(--muted); font-size:.9rem; }
+    :root { color-scheme: light; --ink:#14232b; --muted:#526066; --paper:#f5f7f7; --card:#fff; --border:#d7dfdf; --accent:#0b6670; --warm:#8a5a17; }
+    * { box-sizing:border-box; }
+    html { background:var(--paper); }
+    body { margin:0; color:var(--ink); background:var(--paper); font:16px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+    main { width:min(1180px,100%); margin:auto; padding:clamp(28px,6vw,72px) clamp(18px,4vw,48px); }
+    .eyebrow { margin:0 0 12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-size:.76rem; font-weight:800; }
+    h1,h2 { line-height:1.08; letter-spacing:-.025em; } h1 { max-width:720px; margin:.5rem 0 1rem; font-family:Georgia,"Times New Roman",serif; font-size:clamp(2.8rem,7vw,6rem); } h2 { margin-top:0; }
+    .lede { max-width:690px; color:var(--muted); font-size:clamp(1.05rem,2vw,1.28rem); }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin:28px 0 48px; }
+    .button { display:inline-flex; align-items:center; min-height:44px; padding:10px 16px; border:1px solid var(--accent); border-radius:8px; text-decoration:none; font-weight:700; transition:background-color .16s ease,transform .16s ease; }
+    .button:hover { transform:translateY(-1px); } .button.primary { color:#fff; background:var(--accent); } .button.primary:hover { background:#084c54; } .button.secondary { background:var(--card); }
+    .launch { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,.9fr); gap:28px; align-items:center; margin:0 0 64px; }
+    .launch-copy { padding:28px; border:1px solid var(--border); border-radius:18px; background:var(--card); box-shadow:0 10px 28px rgba(20,35,43,.06); }
+    .frames { position:relative; overflow:hidden; isolation:isolate; border:1px solid var(--border); border-radius:18px; background:#f8f6f1; box-shadow:0 10px 28px rgba(20,35,43,.06); }
+    .frames::before { content:""; position:absolute; inset:7%; z-index:-1; border-radius:50%; background:conic-gradient(from 15deg,rgba(11,102,112,.1),rgba(138,90,23,.15),rgba(90,79,140,.12),rgba(11,102,112,.1)); filter:blur(22px); animation:spin 18s linear 2; animation-fill-mode:both; }
+    .frame { display:block; width:100%; height:auto; animation:fade 14s ease-in-out 2; animation-fill-mode:both; }
+    .frame.secondary { position:absolute; inset:0; object-fit:cover; opacity:0; animation-delay:-7s; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @keyframes fade { 0%,42% { opacity:1; transform:scale(1) rotate(0deg); } 50%,92% { opacity:.08; transform:scale(1.015) rotate(1deg); } 100% { opacity:1; transform:scale(1) rotate(0deg); } }
+    .frame-caption { margin:10px 0 0; color:var(--muted); font-size:.84rem; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+    article { padding:20px; background:var(--card); border:1px solid var(--border); border-radius:12px; }
+    .loop { margin:56px 0 0; padding:24px; border:1px solid var(--border); border-radius:12px; background:#eef4f3; }
+    .loop code { display:block; margin-top:8px; color:var(--accent); font:700 1rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }
+    footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; margin-top:56px; padding-top:18px; border-top:1px solid var(--border); color:var(--muted); font-size:.9rem; }
+    @media (max-width:820px) { .launch { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } .frame.secondary { display:none; } .button:hover { transform:none; } }
   </style>
 </head>
 <body>
   <main>
-    <p class="eyebrow">Finahinking · local-first public beta</p>
-    <h1>Understand finance by thinking with data.</h1>
-    <p class="lede">Follow an evidence-bound path from a real event to the mathematics, code, quant experiment, paper-only strategy research, and your own learning history.</p>
-    <div class="actions">
-      <a class="button primary" href="../docs/p8/P8_PUBLIC_BETA_GATE.md">Download status and release path</a>
-      <a class="button" href="../README.md">View source and boundaries</a>
-      <a class="button" href="../docs/QUICKSTART.md">Read the quickstart</a>
-    </div>
+    <section class="launch" aria-labelledby="launch-title">
+      <div class="launch-copy">
+        <p class="eyebrow">Finathink · local-first public beta path</p>
+        <h1 id="launch-title">Think through finance.</h1>
+        <p class="lede">From market noise to understanding: move from a captured event to evidence, math, code, quantitative research, paper-only strategy work, and your own learning history.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/ceyyy427/financial-research-optimizer">Download / view the canonical repository</a>
+          <a class="button secondary" href="../README.md">Read the local product boundary</a>
+          <a class="button secondary" href="../docs/QUICKSTART.md">Read the quickstart</a>
+        </div>
+      </div>
+      <div>
+        <div class="frames" aria-label="Finathink launch frames">
+          <img class="frame" src="assets/finathink-research-splash.jpg" width="900" height="900" loading="eager" decoding="async" alt="Finathink research workspace connecting event briefs, source verification, knowledge graphs, quantitative research, strategy backtests, and learning threads">
+          <img class="frame secondary" src="assets/finathink-splash-map.jpg" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
+        </div>
+        <p class="frame-caption">Static launch frames with a restrained gradient transition. The motion is a welcome cue, not a data visualization.</p>
+      </div>
+    </section>
     <section class="grid" aria-label="Product boundaries">
       <article><h2>Evidence first</h2><p>Captured source records stay distinct from interpretation, unknowns, and hypotheses.</p></article>
       <article><h2>Research, not orders</h2><p>Backtests, OOS checks, paper replay, and limitations are visible. Brokers and real-money execution are absent.</p></article>
       <article><h2>Private by default</h2><p>Personal research stays local until you choose an allow-listed projection with explicit consent.</p></article>
     </section>
-    <footer>Release links are placeholders until the repository maintainer publishes a real tag and GitHub asset. No hosted account or telemetry is required.</footer>
+    <section class="loop"><h2>Two loops, one evidence boundary</h2><p>Reality loop</p><code>Event → Evidence → Understanding → Quant → Learning</code><p>Strategy loop</p><code>Idea → Feature → Math → Code → Backtest → OOS → Paper → Learning</code></section>
+    <footer><span>Open source · local-first · education and research only</span><span>Apple signing and notarization: deferred for this beta path</span></footer>
   </main>
 </body>
 </html>

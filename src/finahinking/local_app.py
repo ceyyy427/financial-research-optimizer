@@ -21,6 +21,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib import resources as importlib_resources
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -60,6 +61,146 @@ _EVENT = {
     "chain": ["CPI", "Inflation", "Rates", "Bonds", "Discount", "Valuation"],
     "limitations": ["Deterministic fixture; not a live market feed.", "No forecast or trade instruction."],
 }
+
+
+_APP_CSS = """
+:root {
+  --background: #f5f7f7;
+  --surface: #ffffff;
+  --surface-elevated: #fbfcfc;
+  --border: #d7dfdf;
+  --border-strong: #b5c4c4;
+  --text-primary: #14232b;
+  --text-secondary: #40545d;
+  --text-muted: #66777d;
+  --focus: #0b6670;
+  --information: #1f5f8b;
+  --success: #2f6b57;
+  --warning: #8a5a17;
+  --error: #a5413e;
+  --evidence: #0b6670;
+  --fact: #376b55;
+  --interpretation: #63528a;
+  --hypothesis: #8a5a17;
+  --quant-finding: #1f5f8b;
+  --unknown: #66777d;
+  --limitation: #7e4f50;
+  --learning: #5a4f8c;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --shadow-sm: 0 1px 2px rgba(20, 35, 43, .06);
+  --shadow-md: 0 10px 28px rgba(20, 35, 43, .08);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --measure: 72ch;
+}
+* { box-sizing: border-box; }
+html { background: var(--background); color: var(--text-primary); }
+body { margin: 0; min-width: 320px; font: 16px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+a { color: var(--evidence); text-underline-offset: 3px; }
+a:hover { color: #084c54; }
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+button, input, textarea, select { font: inherit; }
+button, .button { min-height: 44px; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 9px 15px; cursor: pointer; transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; }
+button, .button-primary { background: var(--evidence); color: #fff; }
+button:hover, .button-primary:hover { background: #084c54; }
+.button-secondary { display: inline-flex; align-items: center; justify-content: center; background: var(--surface); color: var(--evidence); border-color: var(--border-strong); text-decoration: none; }
+.button-secondary:hover { background: #eef5f5; }
+input, textarea, select { width: 100%; min-height: 44px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 9px 11px; background: var(--surface); color: var(--text-primary); }
+textarea { min-height: 112px; resize: vertical; }
+label { display: grid; gap: var(--space-2); font-weight: 650; color: var(--text-primary); }
+small, .meta { color: var(--text-muted); font-size: .86rem; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+code { overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: #f1f5f4; }
+.skip-link { position: absolute; left: -10000px; top: var(--space-3); z-index: 20; padding: var(--space-2) var(--space-3); background: var(--text-primary); color: #fff; }
+.skip-link:focus { left: var(--space-3); }
+.app-shell { min-height: 100dvh; display: grid; grid-template-columns: 236px minmax(0, 1fr) 260px; }
+.sidebar { position: sticky; top: 0; align-self: start; min-height: 100dvh; padding: var(--space-6) var(--space-4); border-right: 1px solid var(--border); background: #edf2f1; }
+.brand { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-8); color: var(--text-primary); text-decoration: none; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--evidence); font-weight: 800; }
+.brand-name { font-family: Georgia, "Times New Roman", serif; font-size: 1.24rem; letter-spacing: -.02em; }
+.nav-section { margin: 0 0 var(--space-5); }
+.nav-section-title { margin: 0 0 var(--space-2); padding: 0 var(--space-2); color: var(--text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.nav-list { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.nav-link { display: flex; align-items: center; min-height: 42px; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--text-secondary); text-decoration: none; }
+.nav-link:hover { background: rgba(255,255,255,.74); color: var(--text-primary); }
+.nav-link[aria-current="page"] { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); font-weight: 750; }
+.sidebar-note { margin-top: auto; padding-top: var(--space-8); color: var(--text-muted); font-size: .83rem; }
+.workspace { min-width: 0; padding: var(--space-8) clamp(var(--space-5), 4vw, var(--space-10)); }
+.workspace-inner { width: min(100%, 940px); margin: 0 auto; }
+.eyebrow { margin: 0 0 var(--space-2); color: var(--evidence); font-size: .76rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+h1, h2, h3 { margin-top: 0; line-height: 1.18; letter-spacing: -.02em; }
+h1 { max-width: 22ch; margin-bottom: var(--space-3); font-family: Georgia, "Times New Roman", serif; font-size: clamp(2rem, 4vw, 3.2rem); }
+h2 { font-size: 1.28rem; }
+h3 { font-size: 1rem; }
+.lede { max-width: var(--measure); margin: 0 0 var(--space-6); color: var(--text-secondary); font-size: 1.08rem; }
+.status-row, .action-row, .tag-row, .metric-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.status { display: inline-flex; align-items: center; min-height: 28px; padding: 3px 9px; border: 1px solid currentColor; border-radius: 999px; font-size: .72rem; font-weight: 800; letter-spacing: .08em; }
+.status--sample, .status--offline { color: var(--warning); background: #fff8e8; }
+.status--complete, .status--ready, .status--fact { color: var(--success); background: #edf7f1; }
+.status--evidence, .status--quant { color: var(--quant-finding); background: #edf5fb; }
+.status--hypothesis { color: var(--hypothesis); background: #fff8e8; }
+.status--limitation, .status--unknown { color: var(--limitation); background: #fbefef; }
+.status--learning { color: var(--learning); background: #f3f0fb; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(260px, .92fr); gap: var(--space-6); align-items: stretch; margin-bottom: var(--space-8); }
+.hero-copy, .hero-art { min-width: 0; padding: var(--space-6); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.hero-art { display: grid; align-content: center; gap: var(--space-3); background: var(--surface-elevated); }
+.hero-art img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.splash-stage { position: relative; isolation: isolate; overflow: hidden; border-radius: var(--radius-md); background: #f7f5ef; }
+.splash-stage::before { content: ""; position: absolute; inset: 7%; z-index: -1; border-radius: 50%; background: conic-gradient(from 15deg, rgba(11,102,112,.10), rgba(138,90,23,.16), rgba(90,79,140,.12), rgba(11,102,112,.10)); filter: blur(18px); animation: splash-spin 18s linear 2; animation-fill-mode: both; }
+.splash-frame { position: relative; z-index: 1; animation: splash-crossfade 14s ease-in-out 2; animation-fill-mode: both; }
+.splash-frame--secondary { position: absolute !important; inset: 0; object-fit: cover; opacity: 0; animation-delay: -7s; }
+@keyframes splash-spin { to { transform: rotate(360deg); } }
+@keyframes splash-crossfade { 0%, 42% { opacity: 1; transform: scale(1) rotate(0deg); } 50%, 92% { opacity: .08; transform: scale(1.015) rotate(1deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+.section { margin: 0 0 var(--space-8); }
+.section-heading { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; margin-bottom: var(--space-3); }
+.section-heading h2 { margin-bottom: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.card { min-width: 0; padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-sm); }
+.card--evidence { border-left: 4px solid var(--evidence); }
+.card--quiet { background: var(--surface-elevated); }
+.card p:last-child, .card ul:last-child, .card ol:last-child { margin-bottom: 0; }
+.card h2, .card h3 { margin-bottom: var(--space-2); }
+.prose { max-width: var(--measure); }
+.prose p, .prose li { color: var(--text-secondary); }
+.form-grid { display: grid; gap: var(--space-4); }
+.field-help { margin: 0; color: var(--text-muted); font-size: .88rem; }
+.stepper { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin: var(--space-4) 0 var(--space-6); }
+.step { min-height: 54px; padding: 8px; border-top: 3px solid var(--border); color: var(--text-muted); font-size: .78rem; }
+.step--active { border-top-color: var(--evidence); color: var(--text-primary); font-weight: 750; }
+.evidence-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.evidence-item { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: #f9fbfb; }
+.evidence-item strong { display: block; margin-bottom: var(--space-1); }
+.inspector { min-width: 0; padding: var(--space-8) var(--space-4); border-left: 1px solid var(--border); background: #f8faf9; }
+.inspector-inner { position: sticky; top: var(--space-6); }
+.inspector h2 { font-size: 1rem; }
+.inspector dl { margin: 0; }
+.inspector dt { margin-top: var(--space-3); color: var(--text-muted); font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.inspector dd { margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.empty-state, .loading-state, .error-state { padding: var(--space-5); border: 1px dashed var(--border-strong); border-radius: var(--radius-md); background: var(--surface-elevated); }
+.loading-state { border-style: solid; }
+.error-state { border-color: #d7aaa9; background: #fff8f8; }
+.result { border-top: 3px solid var(--quant-finding); }
+.metric { min-width: 120px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-elevated); }
+.metric-value { display: block; font-variant-numeric: tabular-nums; font-size: 1.28rem; font-weight: 800; }
+.metric-label { display: block; color: var(--text-muted); font-size: .76rem; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+.footer-note { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); color: var(--text-muted); font-size: .82rem; }
+@media (max-width: 1180px) { .app-shell { grid-template-columns: 210px minmax(0, 1fr); } .inspector { grid-column: 2; border-top: 1px solid var(--border); border-left: 0; padding-top: var(--space-5); } .inspector-inner { position: static; } }
+@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid { grid-template-columns: 1fr; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } .splash-frame--secondary { display: none; } }
+"""
 
 
 @dataclass(frozen=True)
@@ -313,12 +454,136 @@ class LocalApplication:
             self.repository.save_node(self.config.session_id, node)
         return {"node_id": node.node_id, "title": node.title, "node_type": node.node_type, "saved": True}
 
+    @staticmethod
+    def _status(value: Any, kind: str | None = None) -> str:
+        """Render a text-first status badge; color is never the only signal."""
+
+        label = str(value or "UNKNOWN").strip().upper()
+        slug = (kind or label).lower().replace(" ", "-").replace("_", "-")
+        return f'<span class="status status--{html.escape(slug)}">{html.escape(label)}</span>'
+
+    @staticmethod
+    def _page_names() -> dict[str, str]:
+        return {
+            "/": "Home",
+            "/events": "Events",
+            "/explore": "Explore",
+            "/knowledge": "Knowledge",
+            "/quant": "Quant",
+            "/strategy": "Strategy Lab",
+            "/workspace": "Workspace",
+            "/community": "Community",
+            "/diagnostics": "Diagnostics",
+        }
+
+    @staticmethod
+    def asset_bytes(asset_name: str) -> bytes:
+        """Return one of the two packaged launch assets, never an arbitrary path."""
+
+        allowed = {"finathink-splash-map.jpg", "finathink-research-splash.jpg"}
+        if asset_name not in allowed:
+            raise FileNotFoundError(asset_name)
+        try:
+            return importlib_resources.files("finahinking").joinpath(f"_package_data/assets/{asset_name}").read_bytes()
+        except (FileNotFoundError, ModuleNotFoundError):
+            fallback = Path(__file__).resolve().parent / "_package_data" / "assets" / asset_name
+            return fallback.read_bytes()
+
+    @staticmethod
+    def splash_asset() -> bytes:
+        return LocalApplication.asset_bytes("finathink-splash-map.jpg")
+
+    @staticmethod
+    def research_splash_asset() -> bytes:
+        return LocalApplication.asset_bytes("finathink-research-splash.jpg")
+
+    def _nav(self, page: str) -> str:
+        names = self._page_names()
+        primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/strategy", "/workspace")
+        secondary = ("/community", "/diagnostics")
+
+        # Keep the conditional attribute construction explicit so the rendered
+        # HTML remains easy to inspect in a browser and in snapshot tests.
+        def nav_item(href: str) -> str:
+            current = ' aria-current="page"' if href == page else ""
+            return f'<li><a class="nav-link" href="{href}"{current}>{html.escape(names[href])}</a></li>'
+
+        primary_html = "".join(
+            nav_item(href)
+            for href in primary
+        )
+        secondary_html = "".join(
+            nav_item(href)
+            for href in secondary
+        )
+        return (
+            '<a class="brand" href="/" aria-label="Finahinking home">'
+            '<span class="brand-mark" aria-hidden="true">F</span><span class="brand-name">Finathink</span></a>'
+            '<section class="nav-section" aria-labelledby="nav-research">'
+            '<h2 class="nav-section-title" id="nav-research">Research</h2><ul class="nav-list">'
+            f"{primary_html}</ul></section>"
+            '<section class="nav-section" aria-labelledby="nav-support">'
+            '<h2 class="nav-section-title" id="nav-support">Support</h2><ul class="nav-list">'
+            f"{secondary_html}</ul></section>"
+            '<p class="sidebar-note">Local-first research. Evidence before confidence. Paper-only strategy simulation.</p>'
+        )
+
+    @staticmethod
+    def _inspector(title: str, items: Mapping[str, Any], *, status: str | None = None) -> str:
+        rows = "".join(
+            f"<dt>{html.escape(str(label))}</dt><dd>{html.escape(str(value))}</dd>"
+            for label, value in items.items()
+        )
+        badge = LocalApplication._status(status) if status else ""
+        return f'<aside class="inspector" id="inspector" aria-label="Inspector"><div class="inspector-inner"><p class="eyebrow">Inspector</p><h2>{html.escape(title)}</h2>{badge}<dl>{rows}</dl></div></aside>'
+
+    def render_shell(
+        self,
+        page: str,
+        title: str,
+        body: str,
+        *,
+        inspector: str = "",
+        eyebrow: str = "Local research workspace",
+    ) -> str:
+        """Wrap every HTML journey in the same accessible product shell."""
+
+        clean_page = "/knowledge" if page.startswith("/knowledge/") else page
+        inspector_html = inspector or self._inspector(
+            "Research context",
+            {
+                "Mode": "SAMPLE / OFFLINE" if self.config.offline else "NETWORK ENABLED",
+                "Boundary": "No real-money execution",
+                "Next": "Open an evidence or learning path",
+            },
+        )
+        return (
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f"<title>{html.escape(title)} · Finathink</title>"
+            '<meta name="theme-color" content="#edf2f1">'
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'unsafe-inline\'; script-src \'none\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
+            f"<style>{_APP_CSS}</style></head><body>"
+            '<a class="skip-link" href="#main">Skip to content</a>'
+            '<div class="app-shell">'
+            f'<nav class="sidebar" aria-label="Primary">{self._nav(clean_page)}</nav>'
+            f'<main class="workspace" id="main" tabindex="-1"><div class="workspace-inner">'
+            f'<p class="eyebrow">{html.escape(eyebrow)}</p>{body}'
+            '<p class="footer-note">Finathink is a local-first research and education tool. Results are descriptive, bounded, and not trading instructions.</p>'
+            '</div></main>'
+            f"{inspector_html}</div></body></html>"
+        )
+
     def route(self, method: str, path: str, *, query: Mapping[str, list[str]] | None = None, body: Any = None) -> tuple[int, str, Any]:
         """Return ``(status, content_type, payload)`` without requiring a socket."""
 
         parsed = urlsplit(path)
         query = parse_qs(parsed.query) if query is None else query
         clean = parsed.path.rstrip("/") or "/"
+        if clean == "/assets/finathink-splash-map.jpg" and method == "GET":
+            return 200, "image/jpeg", self.splash_asset()
+        if clean == "/assets/finathink-research-splash.jpg" and method == "GET":
+            return 200, "image/jpeg", self.research_splash_asset()
         if clean in {"/health", "/api/health"}:
             return 200, "application/json", {"status": "ok", "service": "finahinking-local", "version": "0.1.0"}
         if clean == "/api/diagnostics":
@@ -444,117 +709,255 @@ class LocalApplication:
         if clean.startswith("/knowledge/"):
             concept = self.concept(clean.removeprefix("/knowledge/"))
             if concept is None:
-                return 404, "text/html; charset=utf-8", "<h1>Concept not found</h1>"
+                return 404, "text/html; charset=utf-8", self.render_error_page(
+                    "Concept not found",
+                    "That concept is not in the local curated catalog.",
+                    "Search the knowledge index or return to Explore to choose a supported path.",
+                    links=(("/knowledge", "Browse Knowledge"), ("/explore", "Open Explore")),
+                )
             return 200, "text/html; charset=utf-8", self.render_concept_page(concept)
-        if clean in {"/", "/events", "/knowledge", "/quant", "/strategy", "/personal", "/community", "/diagnostics"}:
-            return 200, "text/html; charset=utf-8", self.render_page(clean)
+        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/strategy", "/personal", "/workspace", "/community", "/diagnostics"}:
+            return 200, "text/html; charset=utf-8", self.render_page(clean, query=query)
+        if not clean.startswith("/api/"):
+            return 404, "text/html; charset=utf-8", self.render_error_page(
+                "Page not found",
+                "Finathink could not find that workspace route.",
+                "Use the product navigation to continue with a real research path.",
+                links=(("/", "Go to Home"), ("/diagnostics", "View Diagnostics")),
+            )
         return 404, "application/json", {"error": "route not found"}
 
-    def render_page(self, page: str) -> str:
-        names = {
-            "/": "Home",
-            "/events": "Events",
-            "/knowledge": "Knowledge",
-            "/quant": "Quant lab",
-            "/strategy": "Strategy lab",
-            "/personal": "Personal",
-            "/community": "Community",
-            "/diagnostics": "Diagnostics",
-        }
-        title = names.get(page, "Finahinking")
-        body = self._page_body(page)
-        links = " ".join(f'<a href="{href}">{html.escape(label)}</a>' for href, label in names.items())
-        return (
-            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            f"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{html.escape(title)} · Finahinking</title>"
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; style-src \'unsafe-inline\'; script-src \'none\'; connect-src \'self\'">'
-            '<style>body{font:16px system-ui,sans-serif;max-width:980px;margin:0 auto;padding:24px;color:#182026;background:#f7f7f2}nav{display:flex;gap:12px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #ccd2ce}a{color:#095a66}main{padding:20px 0}article{background:white;border:1px solid #d8dfdb;border-radius:10px;padding:16px;margin:12px 0}code{background:#eef2ef;padding:2px 4px}ul{line-height:1.7}.badge{font-size:.8em;letter-spacing:.08em;background:#e4efe9;padding:4px 7px;border-radius:6px}</style></head>'
-            f'<body><a href="#main">Skip to content</a><nav aria-label="Primary">{links}</nav><main id="main"><p class="badge">LOCAL · {"SAMPLE" if self.config.sample_mode else "LIVE"} · {"OFFLINE" if self.config.offline else "NETWORK ENABLED"}</p>{body}</main></body></html>'
-        )
+    def render_page(self, page: str, *, query: Mapping[str, list[str]] | None = None) -> str:
+        names = self._page_names()
+        active_page = "/workspace" if page == "/personal" else page
+        title = names.get(page, "Finathink")
+        body = self._page_body(page, query=query)
+        inspector = self._page_inspector(page)
+        return self.render_shell(active_page, title, body, inspector=inspector)
 
-    @staticmethod
-    def render_result_page(title: str, payload: Any) -> str:
+    def render_result_page(self, title: str, payload: Any) -> str:
+        """Render form outcomes in the product shell, including actionable errors."""
+
+        is_error = isinstance(payload, Mapping) and "error" in payload
         escaped = html.escape(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
-        return (
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            f"<title>{html.escape(title)} · Finahinking</title><style>body{{font:16px system-ui,sans-serif;max-width:980px;margin:0 auto;padding:24px;color:#182026;background:#f7f7f2}}pre{{white-space:pre-wrap;background:white;border:1px solid #d8dfdb;border-radius:10px;padding:16px;overflow:auto}}a{{color:#095a66}}</style></head>"
-            f"<body><a href='/'>← Home</a><main><h1>{html.escape(title)}</h1><p>Saved result and provenance are shown below. Continue in <a href='/personal'>Personal</a> or return to the <a href='/events'>event</a>, <a href='/quant'>Quant</a>, <a href='/strategy'>Strategy</a>, or <a href='/community'>Community</a> workspace.</p><pre>{escaped}</pre></main></body></html>"
+        heading = "Research needs attention" if is_error else "Research result saved"
+        message = (
+            "The request was not accepted. Read the recovery action below and retry."
+            if is_error
+            else "The result and provenance are preserved locally. Continue in Workspace to reopen it."
         )
+        action = html.escape(str(payload.get("action", "Review the fields and retry."))) if is_error else "Continue from the saved artifact."
+        if is_error or not isinstance(payload, Mapping):
+            body = (
+                f'<h1>{html.escape(heading)}</h1><p class="lede">{message}</p>'
+                f'<section class="card {"error-state" if is_error else "result"}" role="{"alert" if is_error else "status"}" aria-live="polite">'
+                f'<h2>{html.escape(title)}</h2><p>{action}</p><details><summary>Inspect structured payload</summary><pre>{escaped}</pre></details>'
+                '</section><div class="action-row"><a class="button-secondary" href="/workspace">Open Workspace</a><a class="button-secondary" href="/diagnostics">View Diagnostics</a></div>'
+            )
+        elif payload.get("strategy_spec"):
+            spec = payload.get("strategy_spec") or {}
+            backtest = payload.get("backtest") or {}
+            oos = payload.get("oos") or {}
+            paper = payload.get("paper") or {}
+            metrics = backtest.get("metrics") or payload.get("numeric_results") or {}
+            metric_cards = "".join(
+                f'<div class="metric"><span class="metric-value">{html.escape(str(value))}</span><span class="metric-label">{html.escape(str(label))}</span></div>'
+                for label, value in list(metrics.items())[:6]
+            ) or '<div class="empty-state">No numeric metric was returned; inspect the artifact payload and limitations.</div>'
+            body = (
+                '<h1>Strategy research result</h1><p class="lede">One StrategySpec carried through feature lineage, backtest, OOS, paper, comparison, and learning. This is research output, not an execution instruction.</p>'
+                f'<div class="status-row">{self._status("COMPLETE", "complete")}{self._status("OOS", "quant")}{self._status("PAPER SIMULATION", "limitation")}</div>'
+                '<nav class="stepper" aria-label="Completed strategy workflow">'
+                + "".join(f'<div class="step step--active"><strong>{index + 1}</strong><br>{label}</div>' for index, label in enumerate(("Idea", "StrategySpec", "Features", "Backtest", "OOS", "Paper", "Compare", "Learn")))
+                + '</nav>'
+                f'<section class="card"><h2>StrategySpec</h2><p><strong>Idea:</strong> {html.escape(str(spec.get("idea", spec.get("title", "Reviewed strategy"))))}</p><p class="meta">Universe: {html.escape(str(spec.get("universe", "sample universe")))} · Rebalance: {html.escape(str(spec.get("rebalance", "declared in spec")))} · Execution: paper-only</p></section>'
+                f'<section class="section card result"><h2>Backtest overview</h2><div class="metric-row">{metric_cards}</div><p class="meta">Performance is only one view; inspect risk, behavior, robustness, and validity before learning from it.</p></section>'
+                f'<section class="section grid"><article class="card"><h2>Feature Graph</h2><p><code>Price → Return → Momentum → Rank → Signal → Portfolio</code></p><p><code>Returns → Volatility → Filter</code></p></article><article class="card"><h2>OOS validity</h2><p>{html.escape(str(oos.get("status", oos.get("classification", "OOS metadata retained"))))}</p><p class="meta">Train/test boundaries and limitations remain attached.</p></article><article class="card"><h2>Paper state</h2><p>{html.escape(str(paper.get("status", "PAPER_ONLY")))}</p><p class="meta">Frozen strategy · virtual clock · virtual cash · virtual fills.</p></article><article class="card"><h2>Validity panel</h2><ul><li>Look-ahead: PASS</li><li>Transaction costs: MODELED</li><li>Slippage: MODELED</li><li>Liquidity / capacity: UNKNOWN</li></ul></article></section>'
+                f'<section class="card card--quiet"><h2>Inspect the full artifact</h2><details><summary>Show structured provenance payload</summary><pre>{escaped}</pre></details></section><div class="action-row"><a class="button-secondary" href="/strategy">Back to Strategy Lab</a><a class="button-secondary" href="/workspace">Open Workspace</a></div>'
+            )
+        else:
+            result = payload.get("result") or payload.get("numeric_results") or {}
+            result = result if isinstance(result, Mapping) else {}
+            metric_names = ("beta", "standard_error", "confidence_interval", "r_squared", "observations", "slope")
+            metric_cards = "".join(
+                f'<div class="metric"><span class="metric-value">{html.escape(str(result.get(name, "—")))}</span><span class="metric-label">{html.escape(name.replace("_", " "))}</span></div>'
+                for name in metric_names
+            )
+            body = (
+                '<h1>Quant research result</h1><p class="lede">The estimate is shown with context, uncertainty, sample, method, provenance, and limitations. It does not prove causality or predict a trade.</p>'
+                f'<div class="status-row">{self._status("COMPLETE", "complete")}{self._status("SAMPLE", "sample")}{self._status("QUANT FINDING", "quant")}</div>'
+                f'<section class="card result"><h2>Result</h2><div class="metric-row">{metric_cards}</div><p><strong>Question:</strong> {html.escape(str(payload.get("question", "Bounded research question")))}</p><p><strong>Hypothesis:</strong> {html.escape(str(payload.get("hypothesis", "Declared hypothesis")))}</p></section>'
+                '<section class="section grid"><article class="card"><h2>What does this mean?</h2><p>The coefficient summarizes the relationship in this deterministic sample and period under the declared method.</p></article><article class="card"><h2>What does this not mean?</h2><p>It is not a causal claim, forecast, investment advice, or live execution signal.</p></article><article class="card"><h2>Learn the math</h2><p><a href="/knowledge/beta">Open beta and uncertainty</a> to inspect the equation and assumptions.</p></article><article class="card"><h2>View code</h2><p>Open the structured artifact payload to inspect the reviewed computation and fixture fingerprint.</p></article></section>'
+                f'<section class="card card--quiet"><h2>Provenance and limitations</h2><p>Sample, period, method, fixture fingerprint, ResearchRun, and limitations stay attached.</p><details><summary>Inspect structured payload</summary><pre>{escaped}</pre></details></section><div class="action-row"><a class="button-secondary" href="/quant">Back to Quant Lab</a><a class="button-secondary" href="/workspace">Open Workspace</a></div>'
+            )
+        return self.render_shell("/workspace", heading, body, eyebrow="Saved research")
+
+    def render_error_page(
+        self,
+        title: str,
+        summary: str,
+        action: str,
+        *,
+        links: tuple[tuple[str, str], ...] = (),
+    ) -> str:
+        actions = "".join(f'<a class="button-secondary" href="{html.escape(href)}">{html.escape(label)}</a>' for href, label in links)
+        body = f'<h1>{html.escape(title)}</h1><div class="error-state" role="alert"><h2>What happened</h2><p>{html.escape(summary)}</p><p><strong>Next step:</strong> {html.escape(action)}</p></div><div class="action-row">{actions}</div>'
+        return self.render_shell("/explore", title, body, eyebrow="Recoverable route error")
 
     def render_concept_page(self, concept: Mapping[str, Any]) -> str:
-        """Render a concept page with the same progressive disclosure contract."""
+        """Render a concept through the shared eight-level learning shell."""
 
-        title = html.escape(str(concept.get("title", concept.get("id", "Concept"))))
-        equation = html.escape(str(concept.get("equation", "")))
-        definition = html.escape(str(concept.get("definition", concept.get("formal_definition", ""))))
-        prerequisites = concept.get("prerequisites", ())
-        links = " ".join(f"<a href='/knowledge/{html.escape(str(item))}'>{html.escape(str(item))}</a>" for item in prerequisites)
-        derivation = concept.get("derivations", [])
-        code = concept.get("code_examples", [])
-        finance = concept.get("financial_interpretations", [])
-        quant = concept.get("quant_applications", [])
-        strategy = concept.get("strategy_applications", [])
-        current = html.escape(str(concept.get("current_context", "")))
-        intuition = html.escape(str(concept.get("intuition", "")))
-        formal = html.escape(str(concept.get("formal_definition", definition)))
-        assumptions = "".join(f"<li>{html.escape(str(item))}</li>" for item in concept.get("assumptions", []))
-        misconceptions = "".join(f"<li><strong>{html.escape(str(item.get('claim', '')))}</strong> — {html.escape(str(item.get('correction', '')))}</li>" for item in concept.get("misconceptions", []))
-        proofs = "".join(f"<li>{html.escape(str(item.get('statement', item.get('text', '')) if isinstance(item, Mapping) else item))}</li>" for item in concept.get("proofs", []))
-        sources = "".join(f"<li><a rel='noopener noreferrer' href='{html.escape(str(item.get('locator', item.get('url', '#'))))}'>{html.escape(str(item.get('title', item.get('reference_id', 'source'))))}</a> <small>{html.escape(str(item.get('kind', 'reference')))}</small></li>" for item in concept.get("source_references", []))
-        derivation_html = "".join(f"<li><strong>{html.escape(str(item.get('statement', '')))}</strong> — {html.escape(str(item.get('what_changed', '')))} <em>{html.escape(str(item.get('why_valid', '')))}</em></li>" for item in derivation)
-        code_html = "".join(f"<pre><code>{html.escape(str(item.get('code', '')))}</code></pre><p>{html.escape(str(item.get('input_description', '')))} {html.escape(str(item.get('output_description', '')))}</p>" for item in code)
-        finance_html = "".join(f"<p><strong>{html.escape(str(item.get('title', '')))}</strong> — {html.escape(str(item.get('description', '')))}</p>" for item in finance)
-        quant_html = "".join(f"<p><strong>{html.escape(str(item.get('title', '')))}</strong> — {html.escape(str(item.get('description', '')))}</p>" for item in quant)
-        strategy_html = "".join(f"<p><strong>{html.escape(str(item.get('title', '')))}</strong> — {html.escape(str(item.get('description', '')))}</p>" for item in strategy)
-        concept_id = html.escape(str(concept.get("id", "")))
-        mastery = self.repository.get_mastery_state(self.config.session_id, str(concept.get("id", "")))
-        return (
-            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            f"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{title} · Knowledge</title>"
-            '<style>body{font:16px system-ui,sans-serif;max-width:820px;margin:0 auto;padding:24px;color:#182026;background:#f7f7f2}article{background:white;border:1px solid #d8dfdb;border-radius:10px;padding:18px;margin:12px 0}a{color:#095a66}code{background:#eef2ef;padding:3px}</style></head>'
-            f"<body><a href='/knowledge'>← Knowledge index</a><main><h1>{title}</h1>"
-            f"<article><h2>Intuition</h2><p>{intuition}</p></article>"
-            f"<article><h2>Formal</h2><p>{formal}</p></article>"
-            f"<article><h2>Equation</h2><code>{equation}</code></article>"
-            f"<article><h2>Derivation</h2><ol>{derivation_html}</ol></article>"
-            f"<article><h2>Code</h2>{code_html}</article>"
-            f"<article><h2>Finance</h2>{finance_html}</article>"
-            f"<article><h2>Quant</h2>{quant_html}</article>"
-            f"<article><h2>Strategy</h2>{strategy_html}</article>"
-            f"<article><h2>Current context</h2><p>{current}</p></article>"
-            f"<article><h2>Personal mastery</h2><p><strong>{html.escape(mastery.state)}</strong> · {mastery.evidence_count} evidence item(s). {html.escape(mastery.explanation)}</p></article>"
-            f"<article><h2>Assumptions and proof boundary</h2><ul>{assumptions or '<li>No extra assumptions recorded.</li>'}</ul><ol>{proofs}</ol></article>"
-            f"<article><h2>Misconceptions</h2><ul>{misconceptions or '<li>No misconception has been recorded.</li>'}</ul></article>"
-            f"<article><h2>Sources and limits</h2><ul>{sources or '<li>Source locator unavailable.</li>'}</ul></article>"
-            f"<article><h2>Prerequisites</h2><p>{links or 'None'}</p></article>"
-            f'<article><h2>Check your understanding</h2><form method="post" action="/api/personal/save"><input type="hidden" name="_csrf" value="{self.csrf_token}"><input type="hidden" name="node_type" value="learning_card"><input type="hidden" name="title" value="{title} self-check"><input type="hidden" name="concept_id" value="{concept_id}"><label for="outcome">What is the main caveat?</label><select id="outcome" name="outcome"><option value="correct">I can explain it with its assumptions</option><option value="incorrect">I would treat it as a guarantee</option></select><button type="submit">Save learning evidence</button></form></article>'
-            f"<p>Progressive path: intuition → formal → equation → derivation → code → finance → quant → current context. <a href='/api/concepts/{concept_id}'>View structured source contract</a>.</p></main></body></html>"
+        raw_id = str(concept.get("id", ""))
+        title_text = str(concept.get("title", raw_id or "Concept"))
+        esc = lambda value: html.escape(str(value or ""))
+        prerequisites = concept.get("prerequisites", ()) or ()
+        prerequisite_links = " ".join(
+            f'<a href="/knowledge/{html.escape(str(item))}">{html.escape(str(item))}</a>' for item in prerequisites
+        ) or "No prerequisites recorded."
+
+        def list_items(values: Any, *, mapping_keys: tuple[str, ...] = ("statement", "text")) -> str:
+            rendered: list[str] = []
+            for item in values or ():
+                if isinstance(item, Mapping):
+                    value = next((item.get(key) for key in mapping_keys if item.get(key)), "")
+                else:
+                    value = item
+                if value:
+                    rendered.append(f"<li>{esc(value)}</li>")
+            return "".join(rendered) or "<li>No additional material is recorded for this level.</li>"
+
+        derivation_rows = "".join(
+            f'<li><strong>{esc(item.get("statement"))}</strong><br><span class="meta">{esc(item.get("what_changed"))} {esc(item.get("why_valid"))}</span></li>'
+            for item in concept.get("derivations", []) or () if isinstance(item, Mapping)
+        ) or "<li>No derivation steps are recorded for this concept.</li>"
+        code_blocks = "".join(
+            f'<pre><code>{esc(item.get("code"))}</code></pre><p class="meta">{esc(item.get("input_description"))} {esc(item.get("output_description"))}</p>'
+            for item in concept.get("code_examples", []) or () if isinstance(item, Mapping)
+        ) or '<div class="empty-state">No executable example is attached yet; treat this level as unavailable.</div>'
+        def application(values: Any) -> str:
+            return "".join(
+                f'<p><strong>{esc(item.get("title"))}</strong> — {esc(item.get("description"))}</p>'
+                for item in values or () if isinstance(item, Mapping)
+            ) or '<p class="meta">No application note is recorded for this level.</p>'
+
+        source_rows: list[str] = []
+        for item in concept.get("source_references", []) or ():
+            if not isinstance(item, Mapping):
+                continue
+            locator = str(item.get("locator") or item.get("url") or "").strip()
+            label = esc(item.get("title") or item.get("reference_id") or "Source")
+            kind = esc(item.get("kind", "reference"))
+            if locator.startswith(("https://", "http://")):
+                source_rows.append(f'<li><a rel="noopener noreferrer" target="_blank" href="{html.escape(locator)}">{label}</a> <small>{kind}</small></li>')
+            else:
+                source_rows.append(f"<li>{label} <small>{kind}; locator unavailable</small></li>")
+        sources_html = "".join(source_rows) or "<li>Source locator unavailable.</li>"
+        mastery = self.repository.get_mastery_state(self.config.session_id, raw_id)
+        concept_id = html.escape(raw_id)
+        body = (
+            f'<div class="status-row">{self._status("CURATED", "complete")}{self._status("SAMPLE", "sample")} {self._status("LEARNING", "learning")}</div>'
+            f'<h1>{esc(title_text)}</h1><p class="lede">A progressive path from intuition to current context. The catalog fingerprint and source boundary remain visible so understanding is not confused with certainty.</p>'
+            '<nav class="stepper" aria-label="Knowledge depth">'
+            + "".join(f'<div class="step{(" step--active" if index == 0 else "")}"><strong>{index + 1}</strong><br>{label}</div>' for index, label in enumerate(("Intuition", "Definition", "Equation", "Derivation", "Proof", "Code", "Finance / Quant / Strategy", "Current context")))
+            + '</nav>'
+            f'<div class="grid"><section class="card"><h2>Intuition</h2><p>{esc(concept.get("intuition"))}</p></section>'
+            f'<section class="card"><h2>Definition / Formal</h2><p>{esc(concept.get("formal_definition") or concept.get("definition"))}</p></section>'
+            f'<section class="card card--quiet"><h2>Equation</h2><pre aria-label="Equation"><code>{esc(concept.get("equation"))}</code></pre></section>'
+            f'<section class="card"><h2>Derivation</h2><ol>{derivation_rows}</ol></section>'
+            f'<section class="card"><h2>Proof boundary</h2><p class="meta">Proofs are claims with assumptions, not guarantees.</p><ul>{list_items(concept.get("proofs"))}</ul><h3>Assumptions</h3><ul>{list_items(concept.get("assumptions"), mapping_keys=("assumption", "text"))}</ul></section>'
+            f'<section class="card"><h2>Code</h2>{code_blocks}</section>'
+            f'<section class="card"><h2>Finance / Quant / Strategy</h2>{application(concept.get("financial_interpretations"))}{application(concept.get("quant_applications"))}{application(concept.get("strategy_applications"))}</section>'
+            f'<section class="card"><h2>Current context</h2><p>{esc(concept.get("current_context"))}</p></section></div>'
+            '<section class="section card card--evidence"><div class="section-heading"><h2>Data → Math → Code → Finance → Strategy role</h2><span class="meta">Linked interpretation</span></div><p class="lede">Trace the selected concept from observable data to a bounded strategy role. The mapping is explanatory; it is not a recommendation.</p><div class="grid"><div><strong>Data</strong><p class="meta">Observed series and availability window</p></div><div><strong>Math</strong><p class="meta">Definition, equation, and assumptions</p></div><div><strong>Code</strong><p class="meta">Reviewed implementation example</p></div><div><strong>Finance / Strategy</strong><p class="meta">Interpretation and limitation</p></div></div></section>'
+            f'<section class="section card"><h2>Personal mastery</h2><p><strong>{esc(mastery.state)}</strong> · {mastery.evidence_count} evidence item(s). {esc(mastery.explanation)}</p><form class="form-grid" method="post" action="/api/personal/save"><input type="hidden" name="_csrf" value="{self.csrf_token}"><input type="hidden" name="node_type" value="learning_card"><input type="hidden" name="title" value="{esc(title_text)} self-check"><input type="hidden" name="concept_id" value="{concept_id}"><label for="outcome">What is the main caveat?<select id="outcome" name="outcome" required aria-describedby="outcome-help"><option value="correct">I can explain it with its assumptions</option><option value="incorrect">I would treat it as a guarantee</option></select></label><p class="field-help" id="outcome-help">Choose the statement that best represents your current understanding.</p><button type="submit">Save learning evidence</button></form></section>'
+            f'<section class="card"><h2>Sources, misconceptions, and prerequisites</h2><h3>Sources</h3><ul>{sources_html}</ul><h3>Common misconceptions</h3><ul>{list_items(concept.get("misconceptions"), mapping_keys=("claim", "correction"))}</ul><h3>Prerequisites</h3><p>{prerequisite_links}</p></section>'
+            f'<p class="meta">Structured source contract: <a href="/api/concepts/{concept_id}">JSON concept record</a>. Return to <a href="/knowledge">Knowledge index</a>.</p>'
         )
+        return self.render_shell("/knowledge", title_text, body, inspector=self._inspector("Knowledge provenance", {"Concept": title_text, "Catalog": DEFAULT_CATALOG.fingerprint, "Mastery": mastery.state, "Boundary": "Sample curriculum; verify sources"}, status="CURATED"), eyebrow="Knowledge / progressive depth")
 
-    def _page_body(self, page: str) -> str:
+    def _page_inspector(self, page: str) -> str:
+        if page == "/events":
+            return self._inspector("Event provenance", {"Source": "U.S. Bureau of Labor Statistics", "Mode": "CAPTURED / SAMPLE", "Next": "Show Evidence → Knowledge → Quant"}, status="CAPTURED")
+        if page == "/quant":
+            return self._inspector("Experiment contract", {"Method": "OLS on deterministic fixture", "Uncertainty": "SE + confidence interval", "Mutation": "POST creates a private ResearchRun"}, status="READY")
+        if page == "/strategy":
+            return self._inspector("Strategy boundary", {"Stages": "Spec → Features → Backtest → OOS → Paper", "Execution": "PAPER ONLY", "Live orders": "Unavailable"}, status="PAPER")
+        if page in {"/personal", "/workspace"}:
+            personal = self.personal()
+            return self._inspector("Workspace continuity", {"Nodes": len(personal.get("nodes", [])), "History": len(personal.get("history", [])), "Privacy": "Private by default"}, status="READY")
+        if page == "/community":
+            return self._inspector("Projection boundary", {"Visibility": "Private by default", "Sharing": "Explicit allow-list + consent", "Ranking": "No leaderboards"}, status="LIMITED")
+        return self._inspector("Local context", {"Mode": "SAMPLE / OFFLINE" if self.config.offline else "NETWORK ENABLED", "Storage": "SQLite local store", "Real money": "Unavailable"}, status="OFFLINE" if self.config.offline else "READY")
+
+    def _page_body(self, page: str, *, query: Mapping[str, list[str]] | None = None) -> str:
         if page == "/":
-            return "<h1>Finahinking local research lab</h1><p>Follow an evidence-bound path: understand an event, learn the concept, run a quant experiment, then keep the strategy paper-only.</p><ul><li>Start with the <a href='/events'>sample CPI event</a>.</li><li>Browse the <a href='/knowledge'>structured knowledge path</a>.</li><li>Open <a href='/diagnostics'>diagnostics</a> if a local step needs attention.</li></ul><p>Real-money execution is intentionally unavailable.</p>"
+            return (
+                '<section class="hero"><div class="hero-copy"><div class="status-row">'
+                f'{self._status("READY", "ready")}{self._status("SAMPLE", "sample")}{self._status("OFFLINE", "offline")}'
+                '</div><h1>Understand today. Think tomorrow.</h1><p class="lede">Finathink turns financial events into evidence-bound learning, then lets you test a question with transparent math and paper-only research.</p><div class="action-row"><a class="button-primary" href="/events">Start with today’s event</a><a class="button-secondary" href="/explore">Explore a question</a></div></div><div class="hero-art"><div class="splash-stage" aria-label="Finathink launch frames"><img class="splash-frame" src="/assets/finathink-splash-map.jpg" width="1536" height="1024" loading="eager" decoding="async" alt="Finathink map connecting real-world events, knowledge, quantitative thinking, personal learning, trust and evidence, strategy research, and open extension points"><img class="splash-frame splash-frame--secondary" src="/assets/finathink-research-splash.jpg" width="900" height="900" loading="lazy" decoding="async" alt="" aria-hidden="true"></div><p class="meta">Launch map · static frames with a restrained gradient transition · <a href="/events">Enter the real product journey</a></p></div></section>'
+                '<section class="section"><div class="section-heading"><h2>What can I understand today?</h2><span class="meta">One calm path from event to evidence</span></div><div class="grid"><article class="card card--evidence"><h3>Today / Events</h3><p>Start with a captured CPI release, see what changed, and inspect the source before interpreting it.</p><a href="/events">Open Events →</a></article><article class="card"><h3>Continue learning</h3><p>Move from intuition to equation, derivation, code, finance, quant, strategy role, and current context.</p><a href="/knowledge">Open Knowledge →</a></article><article class="card"><h3>Current research</h3><p>Ask a bounded quant question or formalize a strategy idea with uncertainty and provenance visible.</p><a href="/quant">Open Quant →</a></article><article class="card"><h3>Paper simulation</h3><p>Backtest, check OOS validity, compare to paper state, and keep live execution unavailable.</p><a href="/strategy">Open Strategy Lab →</a></article></div></section>'
+                '<section class="section"><div class="section-heading"><h2>Continue where you stopped</h2><span class="meta">Private local continuity</span></div><div class="card card--quiet"><p>Reopen <strong>Workspace</strong> to find saved events, research runs, learning evidence, and exports by human-readable names.</p><a class="button-secondary" href="/workspace">Open Workspace</a></div></section>'
+            )
         if page == "/events":
             event = self.event()
-            claims = "".join(f"<li>{html.escape(str(item.get('text', item.get('claim', ''))))}</li>" for item in event.get("claims", []))
-            evidence = "".join(f"<li><a href='{html.escape(str(item.get('reference', '#')))}'>{html.escape(str(item.get('evidence_id', 'evidence')))}</a>: {html.escape(str(item.get('scope', '')))}</li>" for item in event.get("evidence", []))
-            return f"<h1>Events</h1><article><h2>{html.escape(event['title'])}</h2><p><span class='badge'>{event['status']}</span> <span class='badge'>{event['data_mode']}</span></p><p>{html.escape(' → '.join(event['chain']))}</p><p>Continue to <a href='/knowledge/inflation'>inflation knowledge</a>, <a href='/knowledge/beta'>beta and uncertainty</a>, or the <a href='/quant'>quant experiment</a>.</p><h3>What changed</h3><p>{html.escape(str(event.get('what_changed','')))}</p><h3>Claims</h3><ul>{claims}</ul><h3>Show evidence</h3><ul>{evidence}</ul><p>{html.escape(event['limitations'][0])}</p><form method='post' action='/api/events/learn'><input type='hidden' name='_csrf' value='{self.csrf_token}'><button type='submit'>Save this private learning thread</button></form></article>"
+            claims = event.get("claims", []) or []
+            claim_types = ("FACT", "INTERPRETATION", "HYPOTHESIS", "QUANT FINDING", "UNKNOWN", "LIMITATION")
+            claim_cards: list[str] = []
+            for index, claim_type in enumerate(claim_types):
+                source = claims[index] if index < len(claims) else {}
+                text_value = source.get("text", source.get("claim", "No claim of this type is recorded in the sample journey.")) if isinstance(source, Mapping) else source
+                claim_cards.append(f'<article class="card"><div class="status-row">{self._status(claim_type, claim_type)}</div><p>{html.escape(str(text_value))}</p></article>')
+            evidence = event.get("evidence", []) or []
+            evidence_rows = "".join(
+                f'<li class="evidence-item" id="evidence-{index}"><strong>{html.escape(str(item.get("evidence_id", "Evidence")))}</strong><span>{html.escape(str(item.get("scope", "Source evidence")))}</span><br><small>Publisher: {html.escape(str(event.get("publisher", "Source")))} · Published/available time retained in artifact</small></li>'
+                for index, item in enumerate(evidence)
+                if isinstance(item, Mapping)
+            ) or '<li class="empty-state">No evidence rows were captured for this event.</li>'
+            return (
+                f'<div class="status-row">{self._status(event.get("status"), "complete")}{self._status(event.get("data_mode"), "sample")}</div><h1>Events</h1><p class="lede">What happened → what changed → why it may matter. The sample is captured, not live, and every conclusion keeps its limitations.</p>'
+                f'<section class="card"><h2>What happened</h2><p><strong>{html.escape(str(event.get("title", "Event")))}</strong></p><p>{html.escape(str(event.get("publisher", "")))} · {html.escape(str(event.get("reference_period", "sample period")))}</p><p class="meta">Chain: {html.escape(" → ".join(event.get("chain", [])))}</p></section>'
+                f'<section class="section"><div class="section-heading"><h2>What changed</h2><span class="meta">Interpretation stays separate from fact</span></div><div class="prose"><p>{html.escape(str(event.get("what_changed", "The captured release is available for inspection.")))}</p><p>{html.escape(str(event.get("why_it_may_matter", "Use the evidence and quant path to test implications.")))}</p></div></section>'
+                f'<section class="section"><div class="section-heading"><h2>Claim ladder</h2><span class="meta">Six explicit claim types</span></div><div class="grid">{"".join(claim_cards)}</div></section>'
+                f'<section class="section card card--evidence" id="show-evidence"><div class="section-heading"><h2>Show Evidence</h2><span class="meta">Why is Finathink saying this?</span></div><ul class="evidence-list">{evidence_rows}</ul><p class="meta">Artifact: {html.escape(str(event.get("artifact_id", "artifact retained in local journey")))} · ResearchRun: captured event journey · QuantRun: {html.escape(str(event.get("quant_status", "available")))}</p></section>'
+                f'<section class="section"><div class="section-heading"><h2>Continue the ladder</h2><span class="meta">Knowledge → test → learn</span></div><div class="action-row"><a class="button-secondary" href="/knowledge/volatility">Open Knowledge</a><a class="button-secondary" href="/quant">Test the idea in Quant</a><a class="button-secondary" href="#learning">Jump to learning</a></div></section>'
+                f'<section class="section card" id="learning"><h2>Learn privately</h2><p>{html.escape(str((event.get("limitations") or ["Limitations remain attached."])[0]))}</p><form method="post" action="/api/events/learn"><input type="hidden" name="_csrf" value="{self.csrf_token}"><button type="submit">Save this private learning thread</button></form></section>'
+            )
+        if page == "/explore":
+            return '<h1>Explore</h1><p class="lede">Start with a human question, then choose the evidence, learning, or research path that fits. Internal IDs stay in the inspector, not in your way.</p><section class="card"><form class="form-grid" method="get" action="/knowledge"><label for="explore-q">What do you want to understand?<input id="explore-q" name="q" autocomplete="off" placeholder="e.g. volatility, beta, drawdown"></label><p class="field-help">Search the curated knowledge catalog; no external query is sent.</p><button type="submit">Search Knowledge</button></form></section><div class="grid"><article class="card"><h2>Event → Evidence</h2><p>Read a captured release, inspect claims, and follow the source chain.</p><a href="/events">Open Events</a></article><article class="card"><h2>Knowledge → Application</h2><p>Trace intuition, math, code, finance, quant, and strategy role.</p><a href="/knowledge">Browse Knowledge</a></article><article class="card"><h2>Question → Quant</h2><p>Make uncertainty, sample, period, method, and limitations explicit.</p><a href="/quant">Open Quant</a></article><article class="card"><h2>Idea → Paper</h2><p>Formalize one StrategySpec and inspect backtest/OOS/paper validity.</p><a href="/strategy">Open Strategy Lab</a></article></div>'
         if page == "/knowledge":
-            cards = "".join(f"<article><h2><a href='/knowledge/{item['id']}'>{html.escape(item['title'])}</a></h2><p>{html.escape(item['definition'])}</p><p><code>{html.escape(item['equation'])}</code></p><p>Prerequisites: {html.escape(', '.join(item['prerequisites']) or 'none')}</p></article>" for item in self._concepts())
-            return f"<h1>Knowledge</h1><p>Progressive levels: intuition → formal → equation → derivation → code → finance → quant.</p>{cards}"
+            search_query = (query or {}).get("q", [""])[0]
+            concepts = self._concepts(search_query)
+            cards = "".join(
+                f'<article class="card"><h2><a href="/knowledge/{html.escape(str(item["id"]))}">{html.escape(str(item["title"]))}</a></h2><p>{html.escape(str(item["definition"]))}</p><pre><code>{html.escape(str(item["equation"]))}</code></pre><p class="meta">Prerequisites: {html.escape(", ".join(item.get("prerequisites", [])) or "none")}</p></article>'
+                for item in concepts
+            ) or '<div class="empty-state"><h2>No concepts match yet</h2><p>Try a shorter term or start with the sample event.</p><a href="/events">Open Events</a></div>'
+            return f'<h1>Knowledge</h1><p class="lede">Eight levels make a concept usable: intuition, definition, equation, derivation, proof, code, finance/quant/strategy, and current context.</p><section class="card"><form class="form-grid" method="get" action="/knowledge"><label for="knowledge-q">Find a concept<input id="knowledge-q" name="q" autocomplete="off" value="{html.escape(search_query)}" placeholder="volatility, beta, returns"></label><button type="submit">Filter concepts</button></form></section><section class="section"><div class="section-heading"><h2>Structured learning paths</h2><span class="meta">{html.escape(search_query) if search_query else "All concepts"} · Catalog fingerprint: {html.escape(DEFAULT_CATALOG.fingerprint)}</span></div><div class="grid">{cards}</div></section>'
         if page == "/quant":
-            return f"<h1>Quant lab</h1><article><h2>Question → hypothesis → experiment → result → evidence</h2><form method='post' action='/api/quant'><input type='hidden' name='_csrf' value='{self.csrf_token}'><label for='question'>Research question</label><input id='question' name='question' value='Does beta explain the sample?'><button type='submit'>Run deterministic experiment</button></form><p>Results carry a fixture fingerprint, uncertainty, and limitations. A run is descriptive research, not a trading instruction.</p><span class='badge'>SAMPLE</span></article>"
+            stages = ("Question", "Hypothesis", "Data", "Method", "Experiment")
+            step_html = "".join(
+                f'<div class="step{(" step--active" if index == 0 else "")}"><strong>{index + 1}</strong><br>{label}</div>'
+                for index, label in enumerate(stages)
+            )
+            return f'<h1>Quant lab</h1><p class="lede">Begin with a question, not a model button. The deterministic sample exposes value, context, uncertainty, sample, period, method, limitations, and provenance.</p><nav class="stepper" aria-label="Quant workflow">{step_html}</nav><section class="card"><form class="form-grid" method="post" action="/api/quant"><input type="hidden" name="_csrf" value="{self.csrf_token}"><label for="question">Research question<input id="question" name="question" required maxlength="256" autocomplete="off" value="Does beta explain the sample?"></label><label for="hypothesis">Hypothesis<textarea id="hypothesis" name="hypothesis" maxlength="1000">Market returns have a measurable historical beta to asset returns.</textarea></label><p class="field-help">POST creates a private ResearchRun. GET only describes this contract.</p><button type="submit">Run bounded experiment</button></form></section><section class="section grid"><article class="card"><h2>Result contract</h2><div class="metric-row"><div class="metric"><span class="metric-value">β</span><span class="metric-label">beta</span></div><div class="metric"><span class="metric-value">SE</span><span class="metric-label">standard error</span></div><div class="metric"><span class="metric-value">CI</span><span class="metric-label">confidence interval</span></div></div></article><article class="card card--quiet"><h2>Uncertainty first</h2><p>Read the estimate with its sample count, period, method, fixture fingerprint, and limitations. A result is not a forecast or a trade instruction.</p><p><strong>Provenance:</strong> fixture fingerprint, ResearchRun, and source lineage stay attached.</p>{self._status("SAMPLE", "sample")}</article></section><div class="loading-state" aria-label="Experiment stages"><strong>When you submit, stages are explicit:</strong> preparing dataset → validating availability → running experiment → evaluating result → saving artifact.</div>'
         if page == "/strategy":
-            return f"<h1>Strategy lab</h1><article><h2>One StrategySpec, multiple review stages</h2><form method='post' action='/api/strategy'><input type='hidden' name='_csrf' value='{self.csrf_token}'><label for='idea'>Strategy idea</label><input id='idea' name='idea' value='Long recent winners'><button type='submit'>Review and run paper research</button></form><p>Idea → spec → features → code → backtest → out-of-sample → paper → compare → learn → export.</p><p><strong>Paper-only:</strong> broker connections and real-money orders are not implemented.</p></article>"
-        if page == "/personal":
+            stages = ("Idea", "StrategySpec", "Features", "Backtest", "OOS", "Paper", "Compare", "Learn")
+            stage_html = "".join(f'<div class="step{(" step--active" if i == 0 else "")}"><strong>{i + 1}</strong><br>{label}</div>' for i, label in enumerate(stages))
+            return f'<h1>Strategy Lab</h1><p class="lede">Turn one idea into one reviewed StrategySpec, then inspect feature lineage, code/math/finance meaning, validity, OOS, paper state, and comparison.</p><div class="status-row">{self._status("PAPER SIMULATION", "limitation")}{self._status("OOS", "quant")}{self._status("NO LIVE ORDERS", "unknown")}</div><nav class="stepper" aria-label="Strategy workflow">{stage_html}</nav><section class="card"><form class="form-grid" method="post" action="/api/strategy"><input type="hidden" name="_csrf" value="{self.csrf_token}"><label for="idea">I have an idea<input id="idea" name="idea" required maxlength="512" autocomplete="off" value="moving average trend"></label><p class="field-help">The sample starts with the reviewed moving-average template. Guided and Advanced views share this StrategySpec; review the interpretation before research execution.</p><button type="submit">Formalize and run paper research</button></form></section><section class="section grid"><article class="card"><h2>Feature Graph</h2><p><code>Price → 20D Return → Momentum → Rank</code></p><p><code>Returns → 20D Std Dev → Volatility → Filter</code></p><p><code>Signal → Portfolio</code></p><a href="#inspector">Inspect a feature</a></article><article class="card"><h2>Code / Math / Finance</h2><p><code>rolling(20).std()</code> → sample standard deviation → realized volatility → high-volatility filter.</p></article><article class="card"><h2>Research Preview</h2><p>Universe · period · features · signal · rebalance · execution · cost · slippage · benchmark · OOS · assumptions · limitations.</p></article><article class="card"><h2>Validity</h2><ul><li>Look-ahead: PASS</li><li>OOS: ENABLED</li><li>Transaction costs: MODELED</li><li>Slippage: MODELED</li><li>Liquidity / capacity: UNKNOWN</li></ul></article></section><section class="section card card--quiet"><h2>PAPER SIMULATION</h2><p>Frozen Strategy · virtual clock · virtual cash · positions · virtual orders/fills · P&amp;L · benchmark. There is no Connect Broker, Deploy, or Trade Live action.</p></section>'
+        if page in {"/personal", "/workspace"}:
             personal = self.personal()
-            return f"<h1>Personal continuity</h1><p>Private graph for <code>{html.escape(self.config.principal_id)}</code>. Saved nodes: {len(personal.get('nodes', []))}; histories: {len(personal.get('history', []))}.</p><form method=\"post\" action=\"/api/personal/save\"><input type=\"hidden\" name=\"_csrf\" value=\"{self.csrf_token}\"><input type=\"hidden\" name=\"node_type\" value=\"note\"><label for=\"note-title\">Save a note</label><input id=\"note-title\" name=\"title\"><button type=\"submit\">Save privately</button></form><p>Reopen this page after restart to continue where you stopped.</p>"
+            nodes = personal.get("nodes", []) or []
+            node_rows = "".join(f'<li class="evidence-item"><strong>{html.escape(str(node.get("title", "Saved work")))}</strong><span>{html.escape(str(node.get("node_type", "research")))}</span></li>' for node in nodes[:12] if isinstance(node, Mapping))
+            saved_html = f'<ul class="evidence-list">{node_rows}</ul>' if node_rows else '<div class="empty-state"><h3>NO RESEARCH YET</h3><p>Explore an event or run a bounded question to create your first private thread.</p><a href="/events">Start with an event</a></div>'
+            return f'<h1>Workspace</h1><p class="lede">Personal continuity for <code>{html.escape(self.config.principal_id)}</code>. Resume research by human-readable name, not artifact UUID.</p><section class="grid"><article class="card"><h2>Research</h2><p>{len(nodes)} saved node(s) · {len(personal.get("history", []) or [])} learning/history record(s).</p></article><article class="card"><h2>Learning</h2><p>Mastery evidence stays local and can be backed up without personal payloads in diagnostics.</p></article><article class="card"><h2>Paper Runs</h2><p>Reopen paper-only strategy research with its validity and OOS boundary.</p></article><article class="card"><h2>Exports</h2><p><a href="/api/personal/backup">Create a private backup</a> or inspect <a href="/diagnostics">redacted diagnostics</a>.</p></article></section><section class="section card"><h2>Saved work</h2>{saved_html}</section><section class="section card"><h2>Save a note</h2><form class="form-grid" method="post" action="/api/personal/save"><input type="hidden" name="_csrf" value="{self.csrf_token}"><input type="hidden" name="node_type" value="note"><label for="note-title">Note title<input id="note-title" name="title" required maxlength="256" autocomplete="off"></label><button type="submit">Save privately</button></form><p class="field-help">Restarting the local app restores this workspace from SQLite.</p></section>'
         if page == "/community":
             community = self.route("GET", "/api/community")[2]
-            posts = "".join(f"<article><h3>{html.escape(str(item.get('title','')))}</h3><p>{html.escape(str(item.get('body','')))}</p><small>{html.escape(str(item.get('claim_type','')))} · evidence: {html.escape(', '.join(item.get('evidence_ids', [])))}</small></article>" for item in community.get("posts", []))
+            posts = community.get("posts", []) or []
+            post_html = "".join(f'<article class="card"><div class="status-row">{self._status(item.get("claim_type", "HYPOTHESIS"), "hypothesis")}</div><h3>{html.escape(str(item.get("title", "Private question")))}</h3><p>{html.escape(str(item.get("body", "")))}</p><small>Evidence: {html.escape(", ".join(item.get("evidence_ids", [])) or "not projected")}</small></article>' for item in posts if isinstance(item, Mapping))
+            empty = '' if post_html else '<div class="empty-state"><h3>NO DISCUSSIONS YET</h3><p>Save a private question first; explicit projection is required before anything can be shared.</p></div>'
             event_id = html.escape(str(self.event().get("id", "")))
-            return f"<h1>Community</h1><article><h2>Calm evidence discussion</h2><p>Claims, evidence, research runs, questions, and counter-evidence are visible only through explicit projection. Nothing private is shared without explicit projection consent. There are no leaderboards or hype rankings.</p><form method='post' action='/api/community'><input type='hidden' name='_csrf' value='{self.csrf_token}'><label for='claim'>Claim or question</label><textarea id='claim' name='claim'></textarea><button type='submit'>Save private question</button></form><form method='post' action='/api/community/project'><input type='hidden' name='_csrf' value='{self.csrf_token}'><input type='hidden' name='source_id' value='{event_id}'><input type='hidden' name='fields' value='event_type,reference_period,published_at,revision_status,limitations'><label><input type='checkbox' name='consent' value='true'> I consent to this explicit descriptive projection</label><button type='submit'>Project selected event fields</button></form><span class='badge'>PRIVATE BY DEFAULT</span></article>{posts}"
-        return "<h1>Diagnostics</h1><p><a href='/api/diagnostics/bundle'>Download a redacted diagnostic bundle</a> · <a href='/api/personal/backup'>Back up private personal data</a></p><pre>" + html.escape(json.dumps(self.diagnostics(), indent=2, sort_keys=True)) + "</pre>"
+            return f'<h1>Community</h1><p class="lede">Calm evidence discussion: claims, questions, and counter-evidence remain private until explicit projection consent and an allow-listed field set exist.</p><div class="status-row">{self._status("PRIVATE BY DEFAULT", "limitation")}{self._status("NO LEADERBOARDS", "ready")}</div><section class="card"><form class="form-grid" method="post" action="/api/community"><input type="hidden" name="_csrf" value="{self.csrf_token}"><label for="claim">Claim or question<textarea id="claim" name="claim" required maxlength="2000" aria-describedby="claim-help"></textarea></label><p class="field-help" id="claim-help">State what you are unsure about; do not paste credentials or private identifiers.</p><button type="submit">Save private question</button></form></section><section class="card"><h2>Explicit projection</h2><form class="form-grid" method="post" action="/api/community/project"><input type="hidden" name="_csrf" value="{self.csrf_token}"><input type="hidden" name="source_id" value="{event_id}"><input type="hidden" name="fields" value="event_type,reference_period,published_at,revision_status,limitations"><label><span><input type="checkbox" name="consent" value="true" required> I consent to this descriptive projection</span></label><button type="submit">Project selected event fields</button></form></section><section class="section"><h2>Questions</h2>{empty}<div class="grid">{post_html}</div></section>'
+        diagnostics = html.escape(json.dumps(self.diagnostics(), indent=2, sort_keys=True))
+        return f'<h1>Diagnostics</h1><p class="lede">A redacted local health view with clear recovery actions. Personal payloads and secrets are omitted.</p><div class="action-row"><a class="button-secondary" href="/api/diagnostics/bundle">Download redacted bundle</a><a class="button-secondary" href="/api/personal/backup">Back up private data</a></div><section class="card"><pre>{diagnostics}</pre></section>'
 
     def close(self) -> None:
         self.connection.close()
@@ -567,7 +970,12 @@ class _Handler(BaseHTTPRequestHandler):
         return self.server.application
 
     def _send(self, status: int, content_type: str, payload: Any) -> None:
-        raw = payload.encode("utf-8") if isinstance(payload, str) else json.dumps(payload, sort_keys=True).encode("utf-8")
+        if isinstance(payload, bytes):
+            raw = payload
+        elif isinstance(payload, str):
+            raw = payload.encode("utf-8")
+        else:
+            raw = json.dumps(payload, sort_keys=True).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
@@ -575,7 +983,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'unsafe-inline'; script-src 'none'; form-action 'self'; frame-ancestors 'none'")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'")
         self.send_header("Set-Cookie", "finahinking_session=local; HttpOnly; SameSite=Strict; Path=/")
         self.end_headers()
         self.wfile.write(raw)

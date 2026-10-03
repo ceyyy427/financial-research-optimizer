@@ -4,11 +4,25 @@ All notable changes are recorded here. Entries describe user-visible
 research, reproducibility, or governance changes and link to the relevant
 phase gate where possible.
 
-The P7 entry below is the current governed delivery. P8 remains a readiness
-report and requires a new human review.
+The P8.1 entry below is the current local work-in-progress record. Remote
+publication remains conditional until the unrelated canonical history is
+deliberately reconciled by a human-reviewed strategy.
 
 ## Unreleased
 
+- P8.1 product polish: added a shared responsive shell with Home, Events,
+  Explore, Knowledge, Quant, Strategy Lab, Workspace, Inspector context,
+  semantic status tokens, actionable empty/error states, progressive knowledge
+  depth, staged research language, and reduced-motion-aware launch frames.
+- Added the two user-provided Finathink launch assets under `site/assets/` and
+  packaged optimized copies for the local application. The animation is a
+  finite CSS crossfade/gradient welcome cue, not a financial chart.
+- Recorded the actual canonical GitHub audit: authenticated remote is healthy
+  with successful CI and a published `v1.3.0`, but local and remote histories
+  are unrelated. No force push, silent overwrite, or false public-beta claim
+  was made.
+- Repaired the optional-quant import-boundary test to run in a fresh
+  interpreter, removing order dependence in the `.venv-quant` full suite.
 - Prepared the P8 public-beta distribution surface: source-install quickstart,
   public contribution contracts, privacy/security/limitations documentation,
   issue templates, CI and release workflow definitions, and reproducible P8

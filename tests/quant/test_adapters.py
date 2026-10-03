@@ -1,5 +1,8 @@
 import importlib
+import os
+import subprocess
 import sys
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -12,12 +15,24 @@ from finahinking.quant.adapters.statsmodels_adapter import (
 
 
 def test_core_quant_imports_do_not_load_optional_packages():
-    for module_name in ("statsmodels", "pypfopt", "alphalens", "pyfolio", "quantstats", "vectorbt"):
-        assert module_name not in sys.modules
-    importlib.import_module("finahinking.quant.interfaces")
-    importlib.import_module("finahinking.quant.engines.backtest")
-    for module_name in ("statsmodels", "pypfopt", "alphalens", "pyfolio", "quantstats", "vectorbt"):
-        assert module_name not in sys.modules
+    # Run this import-boundary check in a fresh interpreter.  Other quant
+    # tests may legitimately exercise the optional statsmodels adapter first;
+    # inspecting the parent interpreter would make the contract order
+    # dependent rather than testing the core import boundary itself.
+    code = """
+import importlib
+import sys
+optional = ("statsmodels", "pypfopt", "alphalens", "pyfolio", "quantstats", "vectorbt")
+assert all(name not in sys.modules for name in optional)
+importlib.import_module("finahinking.quant.interfaces")
+importlib.import_module("finahinking.quant.engines.backtest")
+assert all(name not in sys.modules for name in optional)
+"""
+    env = os.environ.copy()
+    source_root = str(Path(__file__).resolve().parents[2] / "src")
+    env["PYTHONPATH"] = source_root + os.pathsep + env.get("PYTHONPATH", "")
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 def test_statsmodels_adapter_reports_optional_dependency_without_returning_foreign_objects():

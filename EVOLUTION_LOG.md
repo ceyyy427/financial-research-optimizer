@@ -11,6 +11,26 @@ Record material architecture and governance changes here. Each entry should
 state the date, change, reason, evidence, compatibility impact, and review
 result. Small documentation corrections may be grouped in one entry.
 
+## 2026-10-03 — P8.1 product shell and launch frames
+
+- Change: added a shared responsive Finathink shell with semantic research
+  states, left navigation, workspace/inspector context, progressive knowledge
+  depth, question-led Quant, staged Strategy Lab language, actionable empty and
+  error states, and two optimized user-provided launch frames with a finite
+  reduced-motion-aware gradient crossfade.
+- Reason: make the local research slice understandable and visually coherent
+  without introducing a frontend framework, external font/CDN, or decorative
+  market claims.
+- Evidence: focused UI contract tests, full `.venv` and `.venv-quant` suites
+  (276 passed, 1 skipped in each), Ruff, loopback HTTP smoke, CUA browser
+  inspection of Home/Events/marketing screens, and asset/package checks.
+- Compatibility: server-rendered HTML and the existing CSP remain in place;
+  package data adds only two static JPEG assets; no database migration or
+  runtime dependency was added.
+- Review: local product work is ready for P8.1 validation. Canonical GitHub
+  reconciliation remains conditional because the verified remote and local
+  histories have no common ancestor.
+
 ## 2026-10-03 — P6.6 contract repair and P7 private intelligence
 
 - Change: repaired P6.6 threshold/rank/window/configuration parity and explicit

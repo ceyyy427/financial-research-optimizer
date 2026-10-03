@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -50,12 +51,41 @@ def test_quant_and_strategy_are_real_research_artifacts() -> None:
     app.close()
 
 
+def test_strategy_lab_prefill_is_a_supported_reviewed_template() -> None:
+    """The primary form path must submit the same contract it advertises."""
+
+    app = LocalApplication(connection=sqlite3.connect(":memory:"))
+    page = app.route("GET", "/strategy")[2]
+    match = re.search(r'name="idea"[^>]*value="([^"]+)"', page)
+    assert match, "Strategy Lab should provide a usable default idea"
+
+    result = app.route("POST", "/api/strategy", body={"idea": match.group(1)})
+    assert result[0] == 200
+    assert result[2]["strategy_spec"]["reviewed"] is True
+    app.close()
+
+
 def test_rendered_worlds_expose_actions_and_explicit_projection_language() -> None:
     app = LocalApplication(connection=sqlite3.connect(":memory:"))
-    for path in ("/events", "/quant", "/strategy", "/personal", "/community"):
+    for path in ("/events", "/quant", "/strategy", "/personal", "/workspace", "/community"):
         page = app.route("GET", path)[2]
         assert "form" in page.lower(), path
+        assert "inspector" in page.lower(), path
     assert "explicit projection" in app.route("GET", "/community")[2].lower()
+    app.close()
+
+
+def test_event_and_research_pages_show_claim_types_and_validity_language() -> None:
+    app = LocalApplication(connection=sqlite3.connect(":memory:"))
+    event = app.route("GET", "/events")[2]
+    for label in ("FACT", "INTERPRETATION", "HYPOTHESIS", "QUANT FINDING", "UNKNOWN", "LIMITATION", "Show Evidence"):
+        assert label in event
+    quant = app.route("GET", "/quant")[2]
+    for label in ("Question", "Hypothesis", "Data", "Method", "Experiment", "Result", "Uncertainty", "Provenance"):
+        assert label in quant
+    strategy = app.route("GET", "/strategy")[2]
+    for label in ("StrategySpec", "Feature Graph", "Research Preview", "Validity", "PAPER SIMULATION"):
+        assert label in strategy
     app.close()
 
 

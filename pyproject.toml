@@ -20,7 +20,7 @@ research = ["jupyterlab>=4,<5", "ipykernel>=6,<8"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-finahinking = ["_package_data/migrations/*.sql", "_package_data/fixtures/**/*"]
+finahinking = ["_package_data/migrations/*.sql", "_package_data/fixtures/**/*", "_package_data/assets/*.jpg"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

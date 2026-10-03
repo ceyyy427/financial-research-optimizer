@@ -352,6 +352,46 @@ class GovernanceValidatorTests(unittest.TestCase):
             result = _run_validator(tmp_path)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_validator_accepts_p8_1_conditional_state_with_report_set(self) -> None:
+        """P8.1 is a governed phase, even when publication remains conditional."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            _write_complete_repository(tmp_path)
+            state = tmp_path / "docs/PROJECT_STATE.md"
+            state.write_text(
+                "Current phase: P8.1 Product UI/UX Polish\n"
+                "P0 gate: PASS\nP1 gate: PASS\nP2 gate: PASS\nP3 gate: PASS\n"
+                "P4 gate: PASS\nP5 gate: PASS\nP5.5 gate: PASS\nP6 gate: PASS\n"
+                "P6.5 gate: PASS\nP6.6 gate: PASS\nP7 gate: PASS\n"
+                "P7.5 gate: PASS\nP8.1 status: CONDITIONAL\n"
+                "canonical GitHub: conditional\npublic-beta: conditional\n",
+                encoding="utf-8",
+            )
+            report_names = (
+                "P8_1_EXECUTION_PLAN.md",
+                "P8_1_CAPABILITY_MATRIX.md",
+                "P8_1_REPOSITORY_BASELINE.md",
+                "P8_1_UI_AUDIT.md",
+                "P8_1_DESIGN_SYSTEM_AUDIT.md",
+                "P8_1_INFORMATION_ARCHITECTURE.md",
+                "P8_1_PRODUCT_POLISH_REPORT.md",
+                "P8_1_ACCESSIBILITY_REVIEW.md",
+                "P8_1_PERFORMANCE_REVIEW.md",
+                "P8_1_HISTORY_RECONCILIATION.md",
+                "P8_1_REMOTE_CI_REPORT.md",
+                "P8_1_RELEASE_REPORT.md",
+                "P8_1_SECURITY_REVIEW.md",
+                "P8_1_FINAL_VALIDATION_REPORT.md",
+            )
+            for name in report_names:
+                target = tmp_path / "docs" / "p8_1" / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("P8.1 conditional public-beta canonical\n", encoding="utf-8")
+
+            result = _run_validator(tmp_path)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

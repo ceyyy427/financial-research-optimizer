@@ -158,7 +158,7 @@ def validate_repository(root: Path | str) -> list[str]:
     phase_match = re.search(r"current\s+phase\s*:\s*(P\d+(?:\.\d+)?)\b", phase_source, re.IGNORECASE)
     if phase_match is None:
         issues.append("docs/PROJECT_STATE.md must declare the current phase")
-    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6", "P6.5", "P6.6", "P7", "P7.5", "P8"}:
+    elif phase_match.group(1).upper() not in {"P0", "P1", "P2", "P3", "P4", "P4.5", "P5", "P5.5", "P6", "P6.5", "P6.6", "P7", "P7.5", "P8", "P8.1"}:
         issues.append("docs/PROJECT_STATE.md declares an invalid phase")
     current_phase = phase_match.group(1).upper() if phase_match else ""
     if current_phase == "P3":
@@ -379,6 +379,31 @@ def validate_repository(root: Path | str) -> list[str]:
         ):
             if not (repository / relative).is_file():
                 issues.append(f"missing P8 phase file: {relative}")
+    elif current_phase == "P8.1":
+        _require_markers(
+            contents["docs/PROJECT_STATE.md"],
+            "docs/PROJECT_STATE.md",
+            ("P7.5 gate: PASS", "P8.1 status:", "canonical", "public-beta"),
+            issues,
+        )
+        for relative in (
+            "docs/p8_1/P8_1_EXECUTION_PLAN.md",
+            "docs/p8_1/P8_1_CAPABILITY_MATRIX.md",
+            "docs/p8_1/P8_1_REPOSITORY_BASELINE.md",
+            "docs/p8_1/P8_1_UI_AUDIT.md",
+            "docs/p8_1/P8_1_DESIGN_SYSTEM_AUDIT.md",
+            "docs/p8_1/P8_1_INFORMATION_ARCHITECTURE.md",
+            "docs/p8_1/P8_1_PRODUCT_POLISH_REPORT.md",
+            "docs/p8_1/P8_1_ACCESSIBILITY_REVIEW.md",
+            "docs/p8_1/P8_1_PERFORMANCE_REVIEW.md",
+            "docs/p8_1/P8_1_HISTORY_RECONCILIATION.md",
+            "docs/p8_1/P8_1_REMOTE_CI_REPORT.md",
+            "docs/p8_1/P8_1_RELEASE_REPORT.md",
+            "docs/p8_1/P8_1_SECURITY_REVIEW.md",
+            "docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md",
+        ):
+            if not (repository / relative).is_file():
+                issues.append(f"missing P8.1 phase file: {relative}")
     else:
         _require_markers(state, "docs/PROJECT_STATE.md", ("P0 gate: PASS", "P4", "out of scope"), issues)
 

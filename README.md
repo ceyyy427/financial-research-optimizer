@@ -1,10 +1,12 @@
-# Finahinking
+# Finathink
 
-Finahinking is a local-first financial research laboratory for learning from
+Finathink (the Python package remains `finahinking`) is a local-first financial research laboratory for learning from
 real evidence, mathematics, code, and reproducible experiments. It is a
 research and education tool, not a broker, trading system, investment adviser,
 or source of financial advice. Finahinking provides no investment advice. The
-current public-beta line is `0.1.x`.
+current local source-beta line is `0.1.x`. The P8.1 product surface is
+server-rendered, loopback-only, and usable offline with deterministic sample
+data.
 
 What it is:
 
@@ -36,6 +38,13 @@ REAL EVENT → EVIDENCE → UNDERSTANDING → LEARNING
 IDEA → FEATURE → MATH → CODE → BACKTEST → PAPER → LEARNING
 ```
 
+The product shell is organized around human questions: Home, Events, Explore,
+Knowledge, Quant, Strategy Lab, and Workspace. The launch surface uses two
+static Finathink frames with a short, reduced-motion-aware gradient transition;
+the frames are brand orientation, not financial evidence.
+
+![Finathink launch map](site/assets/finathink-splash-map.jpg)
+
 ## First run (source install)
 
 Python 3.11+ is required. The deterministic path is deliberately useful
@@ -65,10 +74,10 @@ and [Known Limitations](docs/KNOWN_LIMITATIONS.md).
 - `docs/` — phase contracts, tutorials, and validation evidence.
 - `.github/` — CI, release workflow, issue forms, and security automation.
 
-The phase history is P0–P7.5; P8 makes the source distribution public-beta
-ready without changing the research-only boundary. The current gate evidence
-is in `docs/p8/P8_PUBLIC_BETA_GATE.md` and
-`docs/p8/P8_FINAL_VALIDATION_REPORT.md`.
+The phase history is P0–P7.5; P8.1 polishes the local product and performs
+canonical-repository reconciliation without changing the research-only
+boundary. Current evidence is indexed in
+[`docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`](docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md).
 
 ## Development and contribution
 
@@ -87,13 +96,19 @@ The authoritative state record remains [docs/PROJECT_STATE.md](docs/PROJECT_STAT
 
 ## Distribution and website
 
-The canonical public distribution is the GitHub Releases page for this
-repository once a maintainer publishes a signed `v0.x.y` tag. The repository
-currently contains the reproducible source-install and release workflow; no
-release asset is claimed until that external publication exists. A future
-`finathink.cloud` marketing/docs surface should link to that page rather than
-duplicating version strings. Suggested copy is “Understand finance by
-thinking with data.” See the [finathink.cloud content contract](docs/FINATHINK_CLOUD.md).
+The mission-specified canonical repository is
+[`ceyyy427/financial-research-optimizer`](https://github.com/ceyyy427/financial-research-optimizer).
+The authenticated remote is reachable and has real CI and a published `v1.3.0`,
+but this checkout and that remote currently have unrelated Git histories. P8.1
+therefore preserves both lines and does not claim that this local `0.1.x`
+product has been merged into or released from canonical `main`. See
+[`docs/p8_1/P8_1_HISTORY_RECONCILIATION.md`](docs/p8_1/P8_1_HISTORY_RECONCILIATION.md)
+for the evidence and safe next action.
+
+The static marketing surface is in [`site/index.html`](site/index.html). It
+uses the real launch assets, links to the verified canonical repository, and
+keeps GitHub release/download claims conditional until a release containing
+this product is actually created.
 
 ## License
 
