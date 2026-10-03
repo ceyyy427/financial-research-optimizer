@@ -257,6 +257,26 @@ class LocalApplication:
             "status": "ok",
         }
 
+    def diagnostics_bundle(self) -> dict[str, Any]:
+        """Return a shareable, path-redacted diagnostic bundle."""
+
+        return {
+            "bundle_version": 1,
+            "service": "finahinking-local",
+            "diagnostics": self.diagnostics(),
+            "schema": {"tables": self.diagnostics()["tables"], "migration": "001-003 additive"},
+            "privacy": {"database_path": "redacted", "secrets": "omitted", "personal_payloads": "omitted"},
+            "next_action": "Attach this bundle to a local issue only after checking that no private text was added by a future extension.",
+        }
+
+    def backup_personal(self) -> dict[str, Any]:
+        """Write a canonical private export to the persistent artifact area."""
+
+        export = self.personal()
+        path = self.artifact_root / f"personal-export-{self.config.principal_id}.json"
+        path.write_text(json.dumps(export, sort_keys=True, indent=2, ensure_ascii=False), encoding="utf-8")
+        return {"backup_path": str(path), "export_fingerprint": export["export_fingerprint"], "node_count": len(export.get("nodes", [])), "private": True}
+
     def personal(self) -> dict[str, Any]:
         with self._lock:
             return self.repository.export_personal(self.config.session_id)
@@ -301,6 +321,8 @@ class LocalApplication:
             return 200, "application/json", {"status": "ok", "service": "finahinking-local", "version": "0.1.0"}
         if clean == "/api/diagnostics":
             return 200, "application/json", self.diagnostics()
+        if clean == "/api/diagnostics/bundle":
+            return 200, "application/json", self.diagnostics_bundle()
         if clean in {"/api/knowledge", "/knowledge.json"}:
             return 200, "application/json", self.knowledge((query.get("q") or [""])[0])
         if clean.startswith("/api/concepts/"):
@@ -368,6 +390,8 @@ class LocalApplication:
             return 200, "application/json", artifact
         if clean == "/api/personal":
             return 200, "application/json", self.personal()
+        if clean in {"/api/personal/backup", "/api/personal/export"} and method in {"GET", "POST"}:
+            return 200, "application/json", self.backup_personal()
         if clean == "/api/community":
             if method == "POST":
                 values = dict(body or {}) if isinstance(body, Mapping) else {}
@@ -528,7 +552,7 @@ class LocalApplication:
             posts = "".join(f"<article><h3>{html.escape(str(item.get('title','')))}</h3><p>{html.escape(str(item.get('body','')))}</p><small>{html.escape(str(item.get('claim_type','')))} · evidence: {html.escape(', '.join(item.get('evidence_ids', [])))}</small></article>" for item in community.get("posts", []))
             event_id = html.escape(str(self.event().get("id", "")))
             return f"<h1>Community</h1><article><h2>Calm evidence discussion</h2><p>Claims, evidence, research runs, questions, and counter-evidence are visible only through explicit projection. Nothing private is shared without explicit projection consent. There are no leaderboards or hype rankings.</p><form method='post' action='/api/community'><input type='hidden' name='_csrf' value='{self.csrf_token}'><label for='claim'>Claim or question</label><textarea id='claim' name='claim'></textarea><button type='submit'>Save private question</button></form><form method='post' action='/api/community/project'><input type='hidden' name='_csrf' value='{self.csrf_token}'><input type='hidden' name='source_id' value='{event_id}'><input type='hidden' name='fields' value='event_type,reference_period,published_at,revision_status,limitations'><label><input type='checkbox' name='consent' value='true'> I consent to this explicit descriptive projection</label><button type='submit'>Project selected event fields</button></form><span class='badge'>PRIVATE BY DEFAULT</span></article>{posts}"
-        return "<h1>Diagnostics</h1><pre>" + html.escape(json.dumps(self.diagnostics(), indent=2, sort_keys=True)) + "</pre>"
+        return "<h1>Diagnostics</h1><p><a href='/api/diagnostics/bundle'>Download a redacted diagnostic bundle</a> · <a href='/api/personal/backup'>Back up private personal data</a></p><pre>" + html.escape(json.dumps(self.diagnostics(), indent=2, sort_keys=True)) + "</pre>"
 
     def close(self) -> None:
         self.connection.close()

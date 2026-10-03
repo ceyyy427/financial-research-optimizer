@@ -90,3 +90,14 @@ def test_research_artifact_can_be_reopened_after_process_restart(tmp_path) -> No
     assert status == 200 and artifact["node_id"] == node_id and artifact["artifact_fingerprint"]
     assert Path(artifact["artifact_path"]).is_file()
     reopened.close()
+
+
+def test_diagnostic_bundle_and_private_backup_are_redacted_and_replayable(tmp_path) -> None:
+    app = LocalApplication(LocalAppConfig(db_path=str(tmp_path / "app.sqlite3")))
+    app.route("POST", "/api/personal/save", body={"title": "private", "payload": {"secret_note": "do not share"}})
+    bundle = app.route("GET", "/api/diagnostics/bundle")[2]
+    assert bundle["privacy"]["database_path"] == "redacted"
+    assert "secret_note" not in str(bundle)
+    backup = app.route("GET", "/api/personal/backup")[2]
+    assert backup["private"] is True and Path(backup["backup_path"]).is_file()
+    app.close()
