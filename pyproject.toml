@@ -11,16 +11,19 @@ dependencies = ["numpy>=2.0,<3", "pandas>=2.2,<4"]
 
 [project.scripts]
 finahinking = "finahinking.local_app:main"
+finathink = "finahinking.local_app:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.8,<1"]
 research = ["jupyterlab>=4,<5", "ipykernel>=6,<8"]
+math = ["sympy>=1.13,<2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 finahinking = ["_package_data/migrations/*.sql", "_package_data/fixtures/**/*", "_package_data/assets/*.jpg", "_package_data/assets/*.js"]
+"finahinking.p8_2b" = ["content/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
