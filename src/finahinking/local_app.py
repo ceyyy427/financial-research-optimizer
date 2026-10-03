@@ -138,7 +138,8 @@ class LocalApplication:
             payload["id"] = payload["concept_id"]
             payload["definition"] = payload["formal_definition"]
             payload["equation"] = payload["equations"][0]["expression"]
-            payload["source_state"] = "CURATED"
+            payload["source_state"] = "SAMPLE"
+            payload["curation_state"] = "CURATED"
             payload["data_mode"] = "SAMPLE"
             result.append(payload)
         return result
@@ -176,7 +177,8 @@ class LocalApplication:
         result["id"] = result["concept_id"]
         result["definition"] = result["formal_definition"]
         result["equation"] = result["equations"][0]["expression"]
-        result["source_state"] = "CURATED"
+        result["source_state"] = "SAMPLE"
+        result["curation_state"] = "CURATED"
         result["data_mode"] = "SAMPLE"
         result.update(
             {
