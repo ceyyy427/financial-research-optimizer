@@ -26,7 +26,7 @@ namespace remains `finahinking`; the public distribution and CLI identity are
 | Local KaTeX stylesheet and fonts | package-data, route, clean-wheel probes | **PASS** |
 | Learning evidence source scoping and CSRF | local save route tests | **PASS** |
 | Frontend schema/rendering contract | `npm test` — 6 passed | **PASS** |
-| Full Python regression | `pytest -q` — 331 passed, 1 skipped | **PASS** |
+| Full Python regression | `pytest -q` — 332 passed, 1 skipped | **PASS** |
 | Static/dependency/governance gates | Ruff, pip check, secret scan, governance, clean install | **PASS** |
 
 ## Publication boundary

@@ -37,6 +37,23 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def _fingerprint_safe(value: Any) -> Any:
+    """Normalize numeric noise before hashing cross-platform experiment results."""
+
+    safe = _safe(value)
+    if isinstance(safe, dict):
+        return {str(key): _fingerprint_safe(item) for key, item in safe.items()}
+    if isinstance(safe, (list, tuple)):
+        return [_fingerprint_safe(item) for item in safe]
+    if isinstance(safe, float):
+        return float(format(safe, ".15g"))
+    return safe
+
+
+def _stable_digest(value: Any) -> str:
+    return hashlib.sha256(json.dumps(_fingerprint_safe(value), sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+
+
 def dataset_payload(dataset: Dataset) -> dict[str, Any]:
     frame = dataset.frame.copy()
     records = []
@@ -125,7 +142,7 @@ class ResearchRun:
 
     @property
     def result_fingerprint(self) -> str:
-        return _digest({"dataset": self.dataset_fingerprint, "factor": self.factor_name, "factor_definition": self.factor_definition, "method": self.method, "parameters": self.parameters, "result": self.result})
+        return _stable_digest({"dataset": self.dataset_fingerprint, "factor": self.factor_name, "factor_definition": self.factor_definition, "method": self.method, "parameters": self.parameters, "result": self.result})
 
     def to_dict(self) -> dict[str, Any]:
         return {"schema_version": 1, **{key: _safe(value) for key, value in self.__dict__.items()}, "result_fingerprint": self.result_fingerprint}

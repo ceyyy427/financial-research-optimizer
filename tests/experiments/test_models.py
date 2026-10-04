@@ -63,3 +63,20 @@ def test_research_run_rejects_tampered_dataset_fingerprint():
     payload["dataset"]["records"][0]["close"] = 999.0
     with pytest.raises(ValueError, match="dataset fingerprint"):
         ResearchRun.from_dict(payload)
+
+
+def test_result_fingerprint_ignores_cross_platform_float_rounding_noise():
+    common = {
+        "question": "q",
+        "hypothesis": "h",
+        "dataset": dataset(),
+        "factor": momentum_factor(2),
+        "method": "information_coefficient",
+        "parameters": {"horizon": 1},
+        "conclusion": "c",
+        "insight": "i",
+        "limitations": [],
+    }
+    left = ResearchRun.create(result={"information_coefficient": 0.09026243397759831}, **common)
+    right = ResearchRun.create(result={"information_coefficient": 0.09026243397759832}, **common)
+    assert left.result_fingerprint == right.result_fingerprint

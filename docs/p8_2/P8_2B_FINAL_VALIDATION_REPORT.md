@@ -37,7 +37,7 @@ The education-specific checklist and evidence are also recorded in
 
 | Gate | Result |
 | --- | --- |
-| Full repository regression | **PASS — 331 passed, 1 skipped** |
+| Full repository regression | **PASS — 332 passed, 1 skipped** |
 | P8.2B focused Python tests | **PASS — 32 passed** |
 | Citation integrity | **PASS — live Crossref audit passed** |
 | P8.2 and P7.5 local regression | **PASS — covered by full regression above** |

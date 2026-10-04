@@ -15,10 +15,14 @@ remains pending pull-request review.
   rendering, code/math/data traces, context-aware learning routes, typed
   widgets, local KaTeX CSS/fonts, scoped learning evidence, and `finathink`
   distribution/CLI identity while preserving `finahinking` imports.
-- P8.2B final local gate: 331 Python tests passed with one environment skip,
+- P8.2B final local gate: 332 Python tests passed with one environment skip,
   32 focused tests passed, frontend tests/build/performance passed, Crossref
   citation audit passed, and the clean wheel install passed. Browser-level
   assistive-technology verification remains explicitly unverified.
+- Normalized experiment result fingerprints to 15 significant digits to avoid
+  cross-platform NumPy floating-point noise. Dataset fingerprints and stored
+  numeric result values remain unchanged; new regression coverage guards the
+  stable-hash contract.
 - Published the reviewed P8.2B commit on
   `codex/finathink-p82b-release`; no force push, merge, GitHub release, or
   hosted deployment was claimed before review. The branch now carries a
