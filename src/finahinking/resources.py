@@ -1,4 +1,4 @@
-"""Paths to runtime data shipped inside the Finahinking distribution.
+"""Paths to runtime data shipped inside the Finathink distribution.
 
 The source checkout keeps migrations and fixtures at repository root for
 reviewability.  Wheels cannot rely on that checkout layout, so release builds

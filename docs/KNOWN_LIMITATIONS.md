@@ -1,6 +1,6 @@
 # Known limitations
 
-Finahinking is a public beta and intentionally conservative.
+Finathink (Financial Research Optimizer) is a public beta and intentionally conservative.
 
 - Source install is the validated distribution. A signed macOS Apple Silicon
   binary and platform installers are not claimed until a maintainer publishes

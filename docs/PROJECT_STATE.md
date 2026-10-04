@@ -1,6 +1,7 @@
 # Project State
 
-This file is the authoritative status record for the Finahinking delivery.
+This file is the authoritative status record for the Finathink delivery.
+Public product name: **Finathink**. Descriptive subtitle: **Financial Research Optimizer**.
 Phase changes require the corresponding gate design and an independent review.
 
 ## Current state
@@ -41,7 +42,7 @@ override the Current state section above:
 
 ## Delivery status
 
-Finahinking P0–P7.5: COMPLETE for the local, research-only learning slice
+Finathink P0–P7.5: COMPLETE for the local, research-only learning slice
 Feature/factor/quant/research/strategy authorities: VALIDATED
 Knowledge Engine, personal continuity, and evidence-linked community: VALIDATED locally
 Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED

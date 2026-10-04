@@ -59,7 +59,10 @@ treated as passed.
 ## Publication boundary
 
 The reviewed commit `dd2e18c` is published without force on
-[`codex/finathink-p82b-release`](https://github.com/ceyyy427/financial-research-optimizer/tree/codex/finathink-p82b-release).
+[`codex/finathink-p82b-release`](https://github.com/ceyyy427/finathink/tree/codex/finathink-p82b-release)
+in the renamed `ceyyy427/finathink` repository. The GitHub description now
+uses **Finathink — Financial Research Optimizer** so the product name leads
+and the research-optimizer phrase remains discoverable.
 GitHub cannot create a pull request because that branch and the existing
 `main` have no common history; `main` was not overwritten. A maintainer must
 choose an explicit history-reconciliation strategy before merging or cutting

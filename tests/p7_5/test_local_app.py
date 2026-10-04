@@ -30,7 +30,7 @@ def test_routes_expose_each_product_world_and_structured_knowledge() -> None:
         status, content_type, payload = app.route("GET", path)
         assert status == 200
         assert content_type.startswith("text/html")
-        assert "Finahinking" in payload
+        assert "Finathink" in payload
     payload = app.route("GET", "/api/knowledge", query={"q": ["volatility"]})[2]
     assert payload["concepts"][0]["id"] == "volatility"
     concept = app.route("GET", "/api/concepts/volatility")[2]

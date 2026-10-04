@@ -1,4 +1,4 @@
-"""Finahinking-owned regression experiment service.
+"""Finathink-owned regression experiment service.
 
 The optional statsmodels adapter is deliberately contained in the quant
 domain.  Guided application code receives only normalized records and never

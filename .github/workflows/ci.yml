@@ -38,8 +38,8 @@ jobs:
           python scripts/secret_scan.py
       - name: Build smoke
         run: |
-          python -m pip wheel --no-deps --wheel-dir /tmp/finahinking-wheel .
-          python scripts/clean_install.py --wheel "$(find /tmp/finahinking-wheel -name 'finathink-*.whl' -print -quit)"
+          python -m pip wheel --no-deps --wheel-dir /tmp/finathink-wheel .
+          python scripts/clean_install.py --wheel "$(find /tmp/finathink-wheel -name 'finathink-*.whl' -print -quit)"
       - name: Diff whitespace
         run: git diff --check
 
@@ -71,4 +71,4 @@ jobs:
           cache: pip
       - run: python -m pip install -e '.[dev,research]'
       - name: Notebook gate
-        run: python -m jupyter nbconvert --to notebook --execute --output /tmp/finahinking_research_workflow_executed.ipynb notebooks/01_research_workflow.ipynb
+        run: python -m jupyter nbconvert --to notebook --execute --output /tmp/finathink_research_workflow_executed.ipynb notebooks/01_research_workflow.ipynb

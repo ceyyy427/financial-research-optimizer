@@ -1,4 +1,4 @@
-"""Small, offline-first local application shell for Finahinking.
+"""Small, offline-first local application shell for Finathink.
 
 The shell deliberately contains no domain logic or provider credentials.  It
 adapts the existing P7 repository and exposes deterministic HTML/JSON routes
@@ -254,7 +254,7 @@ class LocalAppConfig:
     def __post_init__(self) -> None:
         host = self.host.strip().lower().strip("[]")
         if host not in {"127.0.0.1", "localhost", "::1"}:
-            raise ValueError("Finahinking local API only binds to loopback addresses")
+            raise ValueError("Finathink local API only binds to loopback addresses")
 
     @classmethod
     def from_env(cls) -> LocalAppConfig:
@@ -727,7 +727,7 @@ class LocalApplication:
             for href in secondary
         )
         return (
-            '<a class="brand" href="/" aria-label="Finahinking home">'
+            '<a class="brand" href="/" aria-label="Finathink home">'
             '<span class="brand-mark" aria-hidden="true">F</span><span class="brand-name">Finathink</span></a>'
             '<section class="nav-section" aria-labelledby="nav-research">'
             '<h2 class="nav-section-title" id="nav-research">Research</h2><ul class="nav-list">'
@@ -1370,7 +1370,7 @@ class LocalApplication:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "FinahinkingLocal/0.1"
+    server_version = "FinathinkLocal/0.1"
 
     def _application(self) -> LocalApplication:
         return self.server.application
@@ -1468,7 +1468,7 @@ def create_server(application: LocalApplication | None = None, *, host: str | No
     app = application or LocalApplication()
     resolved_host = host or app.config.host
     if resolved_host.strip().lower().strip("[]") not in {"127.0.0.1", "localhost", "::1"}:
-        raise ValueError("Finahinking local API only binds to loopback addresses")
+        raise ValueError("Finathink local API only binds to loopback addresses")
     address = (resolved_host, int(port if port is not None else app.config.port))
     server = ThreadingHTTPServer(address, _Handler)
     server.application = app  # type: ignore[attr-defined]
@@ -1476,7 +1476,7 @@ def create_server(application: LocalApplication | None = None, *, host: str | No
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Run the Finahinking local-first sample application")
+    parser = argparse.ArgumentParser(description="Run the Finathink local-first sample application")
     parser.add_argument("--host", default=None, help="loopback host to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=None, help="TCP port (default: 8765)")
     parser.add_argument("--db", default=None, help="SQLite path (default: user-local persistent file)")
@@ -1506,7 +1506,7 @@ def main(argv: list[str] | None = None) -> None:
         app.close()
         return
     server = create_server(app)
-    print(f"Finahinking local app listening on http://{server.server_address[0]}:{server.server_address[1]}")
+    print(f"Finathink local app listening on http://{server.server_address[0]}:{server.server_address[1]}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

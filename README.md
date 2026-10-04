@@ -1,5 +1,7 @@
 # Finathink
 
+### Financial Research Optimizer
+
 Finathink (the Python import namespace remains `finahinking`; the distribution and CLI identity is `finathink`) is a local-first financial research laboratory for learning from
 real evidence, mathematics, code, and reproducible experiments. It is a
 research and education tool, not a broker, trading system, investment adviser,
@@ -102,10 +104,11 @@ The authoritative state record remains [docs/PROJECT_STATE.md](docs/PROJECT_STAT
 
 ## Distribution and website
 
-The mission-specified canonical repository is
-[`ceyyy427/financial-research-optimizer`](https://github.com/ceyyy427/financial-research-optimizer).
+The canonical repository is
+[`ceyyy427/finathink`](https://github.com/ceyyy427/finathink), with Financial
+Research Optimizer retained as the descriptive product subtitle.
 The reviewed P8.2B source is published on the non-force branch
-[`codex/finathink-p82b-release`](https://github.com/ceyyy427/financial-research-optimizer/tree/codex/finathink-p82b-release).
+[`codex/finathink-p82b-release`](https://github.com/ceyyy427/finathink/tree/codex/finathink-p82b-release).
 The authenticated remote has real CI and a published `v1.3.0`, but this
 checkout and that remote currently have unrelated Git histories. The branch
 is therefore published without claiming that this local `0.1.x` product has

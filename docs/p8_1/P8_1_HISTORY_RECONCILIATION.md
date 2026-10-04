@@ -8,7 +8,7 @@ Status: **CASE D — UNRELATED HISTORY; not reconciled**.
 
 | Field | Local validated line | Canonical GitHub line |
 |---|---|---|
-| Repository | current workspace | `https://github.com/ceyyy427/financial-research-optimizer.git` |
+| Repository | current workspace | `https://github.com/ceyyy427/finathink.git` |
 | Branch | `main` | `main` (default branch) |
 | Commit at comparison | `e715b289a9f118858982045800694fefb129a7b2` | `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` |
 | Root commit | `9f0fa1ca9d4c835ecddd253b988ad6f37abc485e` | `760324057aa81c98c4707fcd61bd0c6d8d3c02cb` |

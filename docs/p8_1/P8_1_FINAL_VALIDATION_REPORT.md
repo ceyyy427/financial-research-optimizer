@@ -26,7 +26,7 @@ for the local line.
 | --- | --- |
 | Starting local HEAD | `e715b289a9f118858982045800694fefb129a7b2` (`main`, local tag `v0.1.0` peels to this commit) |
 | Candidate local HEAD | `7532114e6ca311f7d30961c0caa0c42cd78539ac` (`feat: complete local P8.1 product polish`) |
-| Canonical URL | `https://github.com/ceyyy427/financial-research-optimizer.git` |
+| Canonical URL | `https://github.com/ceyyy427/finathink.git` |
 | Canonical default branch | `main` |
 | Canonical tip | `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` |
 | Local root | `9f0fa1ca9d4c835ecddd253b988ad6f37abc485e` |

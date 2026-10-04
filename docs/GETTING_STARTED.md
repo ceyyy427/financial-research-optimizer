@@ -1,6 +1,6 @@
 # Getting started
 
-Finahinking is a local-first research and education workspace. The first
+Finathink (Financial Research Optimizer) is a local-first research and education workspace. The first
 workflow is deliberately offline: open a captured BLS CPI event, follow its
 evidence to a concept, run a deterministic quant example, and save learning
 state. No market-data credential is needed.

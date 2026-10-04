@@ -9,7 +9,7 @@ the unrelated local P8.1 line.
 ## Canonical repository evidence
 
 The public repository
-[`ceyyy427/financial-research-optimizer`](https://github.com/ceyyy427/financial-research-optimizer)
+[`ceyyy427/financial-research-optimizer`](https://github.com/ceyyy427/finathink)
 has default branch `main`. At the audit point, `main` resolves to
 `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` and contains these workflows:
 
@@ -24,8 +24,8 @@ install/CLI exercises on Python 3.11 and 3.12.
 
 | Workflow | Run | Event / commit | Result | Verified jobs |
 |---|---|---|---|---|
-| `financial-research-optimizer-ci` | [36587291653](https://github.com/ceyyy427/financial-research-optimizer/actions/runs/36587291653) | push to `main` at `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` | completed / success | `test`, `clean install (3.11)`, and `clean install (3.12)` all succeeded |
-| `publish-python-package` | [36587333322](https://github.com/ceyyy427/financial-research-optimizer/actions/runs/36587333322) | workflow dispatch at `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` | completed / success | distribution build/upload and GHCR container publication succeeded |
+| `financial-research-optimizer-ci` | [36587291653](https://github.com/ceyyy427/finathink/actions/runs/36587291653) | push to `main` at `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` | completed / success | `test`, `clean install (3.11)`, and `clean install (3.12)` all succeeded |
+| `publish-python-package` | [36587333322](https://github.com/ceyyy427/finathink/actions/runs/36587333322) | workflow dispatch at `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` | completed / success | distribution build/upload and GHCR container publication succeeded |
 
 The first run was created at `2026-09-29T15:03:42Z` and completed at
 `15:04:16Z`. The publish run was created at `15:04:01Z` and completed at

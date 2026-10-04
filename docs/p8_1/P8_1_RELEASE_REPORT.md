@@ -15,7 +15,7 @@ There are two real but unrelated release lines at this checkpoint:
 | Canonical GitHub line | remote `main` and peeled `v1.3.0` at `f0cb4b6ed282966dcc17f63e8616e6ccb004f4c5` | public repository, successful CI, successful publish workflow, published `v1.3.0` assets | no validation of the unrelated local Finathink P8.1 tree |
 
 The existing GitHub release is
-[`v1.3.0 — Explainable Forecasting Knowledge System`](https://github.com/ceyyy427/financial-research-optimizer/releases/tag/v1.3.0).
+[`v1.3.0 — Explainable Forecasting Knowledge System`](https://github.com/ceyyy427/finathink/releases/tag/v1.3.0).
 It is published, not a draft or prerelease, and exposes:
 
 - `financial_research_optimizer-1.3.0-py3-none-any.whl` — 236,634 bytes,

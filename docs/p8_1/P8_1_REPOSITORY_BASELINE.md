@@ -12,7 +12,7 @@ Recorded: 2026-10-03 (Asia/Shanghai)
 | Local tag | `v0.1.0` |
 | Configured remotes | none |
 | Recent history | latest commit `e715b28 docs: point gates at local release tag`; preceding validated product/release commits include `4a6efc1`, `1c8ff26`, `a159c59`, `2cdda3d`, `c7d07eb` |
-| Canonical URL required by mission | `https://github.com/ceyyy427/financial-research-optimizer.git` |
+| Canonical URL required by mission | `https://github.com/ceyyy427/finathink.git` |
 
 The reported starting commit was verified rather than assumed. The canonical
 remote was not configured locally at baseline, so no remote mutation has yet

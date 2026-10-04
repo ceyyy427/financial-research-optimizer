@@ -1,6 +1,6 @@
 # Privacy and local data
 
-Finahinking is local-first. By default, research runs, personal learning
+Finathink is local-first. By default, research runs, personal learning
 state, saved strategies, community drafts, and the local SQLite database stay
 on the user's machine. The app does not require an account or telemetry for
 sample mode.
