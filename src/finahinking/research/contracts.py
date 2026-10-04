@@ -284,6 +284,7 @@ class RunEvent:
 class ResearchRunState:
     run_id: str
     current_state: ResearchState
+    as_of: date | str | None = None
     state_history: tuple[ResearchState, ...] = ()
     analyst_reports: tuple[AgentReport, ...] = ()
     failure_kind: FailureKind | None = None
@@ -295,6 +296,8 @@ class ResearchRunState:
         object.__setattr__(self, "run_id", _nonempty(self.run_id, "run_id"))
         if not isinstance(self.current_state, ResearchState):
             object.__setattr__(self, "current_state", ResearchState(self.current_state))
+        if self.as_of is not None:
+            object.__setattr__(self, "as_of", _as_date(self.as_of))
         history = tuple(ResearchState(item) for item in self.state_history) or (self.current_state,)
         object.__setattr__(self, "state_history", history)
         object.__setattr__(self, "analyst_reports", tuple(self.analyst_reports))

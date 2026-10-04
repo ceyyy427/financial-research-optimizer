@@ -107,6 +107,7 @@ class ResearchOrchestrator:
             state = ResearchRunState(
                 run_id=request.run_id,
                 current_state=next_state,
+                as_of=request.as_of,
                 state_history=tuple(state_history),
                 analyst_reports=reports,
                 failure_kind=kind,
@@ -187,6 +188,7 @@ class ResearchOrchestrator:
         state = ResearchRunState(
             run_id=request.run_id,
             current_state=ResearchState.LEARNING_RECORDED,
+            as_of=request.as_of,
             state_history=tuple(state_history),
             analyst_reports=reports,
             failure_message=failure_message,

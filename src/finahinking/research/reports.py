@@ -147,7 +147,7 @@ class ReportBundleWriter:
             run_id=result.state.run_id,
             schema_version="research-report.v1",
             files=files,
-            source_snapshot={"state_digest": stable_digest(result.state), "decision_digest": stable_digest(result.decision) if result.decision else None},
+            source_snapshot={"as_of": result.state.as_of, "state_digest": stable_digest(result.state), "decision_digest": stable_digest(result.decision) if result.decision else None},
             created_at=datetime.now(UTC),
         )
         write_manifest(manifest, bundle / "manifest.json")

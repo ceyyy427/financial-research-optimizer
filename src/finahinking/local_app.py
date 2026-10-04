@@ -285,6 +285,60 @@ class LocalApplication:
         else:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
+        self._research_runs: dict[str, dict[str, Any]] = {}
+
+    def register_research_run(self, result: Any, manifest: Any) -> None:
+        """Register a completed research result for read-only local inspection."""
+
+        run_id = str(result.state.run_id)
+        if not run_id or "/" in run_id or "\\" in run_id:
+            raise ValueError("research run id is invalid")
+        bundle = self.artifact_root / "reports" / run_id
+        if not (bundle / "manifest.json").exists():
+            raise ValueError("research report manifest is missing")
+        self._research_runs[run_id] = {"state": result.state, "manifest": manifest, "bundle": bundle}
+
+    def _research_run_route(self, clean: str) -> tuple[int, str, Any]:
+        from finahinking.research.ui import research_view_model
+
+        parts = [part for part in clean.removeprefix("/research/").split("/") if part]
+        if not parts:
+            return 404, "application/json", {"error": "research run not found"}
+        run_id = parts[0]
+        entry = self._research_runs.get(run_id)
+        if entry is None:
+            return 404, "application/json", {"error": "research run not found"}
+        view_model = research_view_model(entry["state"], entry["manifest"])
+        if len(parts) == 2 and parts[1] == "status":
+            return 200, "application/json", view_model
+        if len(parts) == 1:
+            links = view_model["report_links"]
+            link_html = " ".join(
+                f'<a class="button-secondary" href="{html.escape(url)}">{html.escape(section.replace("_", " ").title())}</a>'
+                for section, url in sorted(links.items())
+            )
+            body = (
+                f'<div class="status-row"><span class="status status--offline">OFFLINE</span><span class="status status--ready">PAPER-ONLY</span><span class="status status--quant">{html.escape(view_model["state"])}</span></div>'
+                f'<h1>Research run {html.escape(run_id)}</h1>'
+                f'<p class="lede">As-of: {html.escape(str(view_model.get("as_of") or "not attached"))}. This view is read-only and never submits an order.</p>'
+                f'<section class="card"><h2>Analyst status</h2><pre>{html.escape(json.dumps(view_model, ensure_ascii=False, indent=2, sort_keys=True))}</pre></section>'
+                f'<div class="action-row">{link_html}</div>'
+                f'<section data-research-run data-payload-url="/research/{html.escape(run_id)}/status"><p class="field-help" data-research-run-status>SERVER-RENDERED · {html.escape(view_model["state"])}</p><p class="field-help" data-research-run-summary>As-of {html.escape(str(view_model.get("as_of") or "not attached"))}</p><p class="error-state" data-research-run-error hidden></p></section>'
+            )
+            return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"))
+        if len(parts) == 3 and parts[1] == "report":
+            section = parts[2]
+            allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html"}
+            if section not in allowed:
+                return 422, "application/json", {"error": "report section is not allow-listed"}
+            relative = allowed[section]
+            if section not in view_model.get("report_links", {}):
+                return 404, "application/json", {"error": "report section not found"}
+            report_path = entry["bundle"] / relative
+            if not report_path.exists():
+                return 404, "application/json", {"error": "report section not found"}
+            return 200, "text/html; charset=utf-8", report_path.read_text(encoding="utf-8")
+        return 404, "application/json", {"error": "research route not found"}
 
     @property
     def csrf_token(self) -> str:
@@ -800,6 +854,10 @@ class LocalApplication:
             return 200, "image/jpeg", self.research_splash_asset()
         if clean == "/assets/finathink-research.js" and method == "GET":
             return 200, "application/javascript; charset=utf-8", self.research_script_asset()
+        if clean.startswith("/research/"):
+            if method != "GET":
+                return 405, "application/json", {"error": "research routes are read-only"}
+            return self._research_run_route(clean)
         if clean == "/assets/katex/katex.min.css" and method == "GET":
             return 200, "text/css; charset=utf-8", self.katex_asset("katex.min.css")
         if clean.startswith("/assets/katex/fonts/") and method == "GET":

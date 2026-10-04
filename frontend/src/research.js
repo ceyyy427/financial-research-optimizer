@@ -15,6 +15,7 @@ import './knowledge.js';
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
 const MAX_POINTS = 10_000;
+const RESEARCH_RUN_STATES = new Set(['RECEIVED', 'IDENTIFIED', 'DATA_CHECKED', 'ANALYSTS_RUNNING', 'ANALYSTS_READY', 'EVIDENCE_REVIEW', 'RESEARCH_PLAN_READY', 'QUANT_VALIDATION', 'RISK_REVIEW', 'PAPER_DECISION_READY', 'REPORT_PUBLISHED', 'LEARNING_RECORDED', 'REJECTED', 'NO_DATA_AVAILABLE', 'DATA_UNAVAILABLE', 'PROVIDER_NOT_CONFIGURED', 'VALIDATION_FAILED', 'CANCELLED', 'FAILED']);
 
 function humanizeKey(value) {
   const text = String(value).replaceAll('_', ' ');
@@ -31,6 +32,53 @@ function finite(value, field) {
 function requiredText(value, field) {
   if (typeof value !== 'string' || value.trim() === '') throw new TypeError(`${field} is required`);
   return value;
+}
+
+export function normalizeResearchRun(payload) {
+  if (!payload || payload.schema_version !== 1) throw new TypeError('research run payload schema is invalid');
+  if (typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research run id is invalid');
+  if (!RESEARCH_RUN_STATES.has(payload.state)) throw new TypeError('research run state is invalid');
+  if (payload.mode !== 'OFFLINE' || payload.paper_only !== true) throw new TypeError('research run boundary is invalid');
+  if (!Array.isArray(payload.analysts) || payload.analysts.some((item) => !item || typeof item.role !== 'string' || typeof item.status !== 'string')) throw new TypeError('research analyst status is invalid');
+  return {
+    ...payload,
+    analysts: [...payload.analysts].sort((left, right) => left.role.localeCompare(right.role)).map((item) => ({ ...item, limitations: Array.isArray(item.limitations) ? [...item.limitations] : [] })),
+    missing_analysts: Array.isArray(payload.missing_analysts) ? [...payload.missing_analysts].sort() : [],
+    report_links: payload.report_links && typeof payload.report_links === 'object' ? { ...payload.report_links } : {},
+  };
+}
+
+export function researchRunStatus(payload, error = null) {
+  if (error) return 'ERROR';
+  if (!payload) return 'LOADING';
+  if (['FAILED', 'VALIDATION_FAILED', 'NO_DATA_AVAILABLE', 'DATA_UNAVAILABLE', 'PROVIDER_NOT_CONFIGURED', 'REJECTED', 'CANCELLED'].includes(payload.state)) return 'BLOCKED';
+  if ((payload.missing_analysts ?? []).length > 0) return 'PARTIAL';
+  return 'READY';
+}
+
+export function renderResearchRun(root, payload) {
+  const normalized = normalizeResearchRun(payload);
+  root.dataset.state = normalized.state;
+  root.dataset.status = researchRunStatus(normalized);
+  const status = root.querySelector('[data-research-run-status]');
+  if (status) status.textContent = `${researchRunStatus(normalized)} · ${normalized.state} · ${normalized.mode} · PAPER-ONLY`;
+  const summary = root.querySelector('[data-research-run-summary]');
+  if (summary) summary.textContent = `As-of ${normalized.as_of ?? 'not attached'} · ${normalized.analysts.length} analyst report(s) · ${normalized.decision_eligible ? 'decision eligible' : 'decision blocked'}`;
+  return normalized;
+}
+
+export function mountResearchRun(root, { payload, payloadUrl } = {}) {
+  if (root) root.dataset.status = 'LOADING';
+  const load = payload ? Promise.resolve(payload) : fetch(payloadUrl || root.dataset.payloadUrl).then((response) => {
+    if (!response.ok) throw new Error(`research run request failed (${response.status})`);
+    return response.json();
+  });
+  return load.then((raw) => renderResearchRun(root, raw)).catch((error) => {
+    if (root) root.dataset.status = 'ERROR';
+    const target = root?.querySelector('[data-research-run-error]');
+    if (target) { target.textContent = `Research run unavailable: ${error.message}`; target.hidden = false; }
+    throw error;
+  });
 }
 
 export function normalizePayload(payload) {
@@ -232,4 +280,5 @@ export function mountResearch(root, { payload, payloadUrl } = {}) {
 
 if (typeof document !== 'undefined') {
   document.querySelectorAll('[data-finathink-research]').forEach((root) => { mountResearch(root); });
+  document.querySelectorAll('[data-research-run]').forEach((root) => { mountResearchRun(root).catch(() => {}); });
 }

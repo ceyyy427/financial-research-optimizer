@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   formatResearchPoint,
+  normalizeResearchRun,
   normalizePayload,
+  researchRunStatus,
   selectPoint,
 } from '../src/research.js';
 
@@ -49,4 +51,31 @@ test('formatResearchPoint exposes a keyboard/table-friendly research summary', (
   assert.match(text, /Close 11/);
   assert.match(text, /Momentum 0\.2/);
   assert.match(text, /CPI release/);
+});
+
+const runPayload = {
+  schema_version: 1,
+  run_id: 'run-ui',
+  state: 'LEARNING_RECORDED',
+  mode: 'OFFLINE',
+  paper_only: true,
+  as_of: '2026-10-01',
+  decision_eligible: true,
+  analysts: [{ role: 'technical', status: 'READY' }],
+  missing_analysts: [],
+  report_links: { complete: '/research/run-ui/report/complete' },
+};
+
+test('research run status covers loading, success, partial, blocked, and error', () => {
+  assert.equal(researchRunStatus(null), 'LOADING');
+  const ready = normalizeResearchRun(runPayload);
+  assert.equal(researchRunStatus(ready), 'READY');
+  assert.equal(researchRunStatus(normalizeResearchRun({ ...runPayload, missing_analysts: ['news'] })), 'PARTIAL');
+  assert.equal(researchRunStatus(normalizeResearchRun({ ...runPayload, state: 'VALIDATION_FAILED', decision_eligible: false })), 'BLOCKED');
+  assert.equal(researchRunStatus(ready, new Error('offline failure')), 'ERROR');
+});
+
+test('research run payload rejects non-offline or non-paper boundaries', () => {
+  assert.throws(() => normalizeResearchRun({ ...runPayload, paper_only: false }), /boundary/i);
+  assert.throws(() => normalizeResearchRun({ ...runPayload, state: 'UNKNOWN' }), /state/i);
 });
