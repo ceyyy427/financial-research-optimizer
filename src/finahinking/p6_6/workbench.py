@@ -16,7 +16,6 @@ from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Any
 
-
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _SECRET = re.compile(r"(?i)(api[_-]?key|token|secret|password|private[_-]?key)\s*[=:]")
 _PATH = re.compile(r"(?:/Users/|/home/|[A-Za-z]:[\\/])")
@@ -37,12 +36,12 @@ def _id(value: Any, field_name: str) -> str:
 def _text(value: Any, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} is required")
-    return value.strip()
+    return _safe(value.strip(), field_name)
 
 
 def _finite(value: Any, field_name: str) -> float:
     if isinstance(value, bool):
-        raise ValueError(f"{field_name} must be finite")
+        raise TypeError(f"{field_name} must be numeric, not boolean")
     try:
         result = float(value)
     except (TypeError, ValueError) as exc:
@@ -54,7 +53,7 @@ def _finite(value: Any, field_name: str) -> float:
 
 def _safe(value: Any, path: str = "payload") -> Any:
     if callable(value):
-        raise ValueError(f"{path} cannot contain executable values")
+        raise TypeError(f"{path} cannot contain executable values")
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError(f"{path} must be finite")
     if isinstance(value, str):
@@ -77,7 +76,13 @@ def _freeze(value: Mapping[str, Any] | None, field_name: str) -> Mapping[str, An
         return MappingProxyType({})
     if not isinstance(value, Mapping):
         raise TypeError(f"{field_name} must be a mapping")
-    return MappingProxyType(_safe(value, field_name))
+    def immutable(item: Any) -> Any:
+        if isinstance(item, dict):
+            return MappingProxyType({key: immutable(child) for key, child in item.items()})
+        if isinstance(item, list):
+            return tuple(immutable(child) for child in item)
+        return item
+    return immutable(_safe(value, field_name))
 
 
 def _tuple_text(value: Sequence[str] | None, field_name: str) -> tuple[str, ...]:
@@ -131,6 +136,8 @@ class PositionPolicySpec(_Fingerprint):
             object.__setattr__(self, "target_volatility", target)
         if not isinstance(self.long_only, bool):
             raise TypeError("long_only must be boolean")
+        if not self.long_only:
+            raise ValueError("first-version position policies are long-only")
 
     def to_dict(self) -> dict[str, Any]:
         return {"policy_id": self.policy_id, "version": self.version, "mapping": self.mapping, "target_volatility": self.target_volatility, "max_single_weight": self.max_single_weight, "max_exposure": self.max_exposure, "cash_buffer": self.cash_buffer, "max_turnover": self.max_turnover, "max_trade_weight": self.max_trade_weight, "liquidity_participation": self.liquidity_participation, "long_only": self.long_only}
@@ -198,8 +205,8 @@ class ExecutionPolicy(_Fingerprint):
             object.__setattr__(self, field_name, value)
         if self.liquidity_participation > 1:
             raise ValueError("liquidity_participation must be between 0 and 1")
-        if isinstance(self.delay_periods, bool) or int(self.delay_periods) < 0:
-            raise ValueError("delay_periods must be non-negative")
+        if isinstance(self.delay_periods, bool) or int(self.delay_periods) < 1 or int(self.delay_periods) != self.delay_periods:
+            raise ValueError("delay_periods must be a positive integer; same-period fills are forbidden")
         object.__setattr__(self, "delay_periods", int(self.delay_periods))
 
     def to_dict(self) -> dict[str, Any]:
@@ -264,11 +271,11 @@ class ResearchCharter(_Fingerprint):
         if not self.test_accessible:
             raise ValueError("test/OOS data is frozen until explicit test evaluation")
 
-    def freeze_test(self) -> "ResearchCharter":
+    def freeze_test(self) -> ResearchCharter:
         return replace(self, test_accessible=True)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"charter_id": self.charter_id, "research_question": self.research_question, "hypothesis_scope": self.hypothesis_scope, "dataset_reference": self.dataset_reference, "data_split": dict(self.data_split), "evaluation_metrics": list(self.evaluation_metrics), "hard_constraints": dict(self.hard_constraints), "allowed_primitives": list(self.allowed_primitives), "max_experiments": self.max_experiments, "iteration_budget": self.iteration_budget, "paper_only": self.paper_only, "test_accessible": self.test_accessible}
+        return _safe({"charter_id": self.charter_id, "research_question": self.research_question, "hypothesis_scope": self.hypothesis_scope, "dataset_reference": self.dataset_reference, "data_split": self.data_split, "evaluation_metrics": self.evaluation_metrics, "hard_constraints": self.hard_constraints, "allowed_primitives": self.allowed_primitives, "max_experiments": self.max_experiments, "iteration_budget": self.iteration_budget, "paper_only": self.paper_only, "test_accessible": self.test_accessible})
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,7 +305,7 @@ class PolicyProposal(_Fingerprint):
         object.__setattr__(self, "warnings", _tuple_text(self.warnings, "warning"))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"proposal_id": self.proposal_id, "provider": self.provider, "model": self.model, "input_context_fingerprint": self.input_context_fingerprint, "target_component": self.target_component, "allowed_parameter_diff": dict(self.allowed_parameter_diff), "reasoning_summary": self.reasoning_summary, "candidate_range": dict(self.candidate_range), "required_experiments": list(self.required_experiments), "warnings": list(self.warnings)}
+        return _safe({"proposal_id": self.proposal_id, "provider": self.provider, "model": self.model, "input_context_fingerprint": self.input_context_fingerprint, "target_component": self.target_component, "allowed_parameter_diff": self.allowed_parameter_diff, "reasoning_summary": self.reasoning_summary, "candidate_range": self.candidate_range, "required_experiments": self.required_experiments, "warnings": self.warnings})
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,7 +347,7 @@ class ParameterChangeExplanation(_Fingerprint):
         return str(self.attribution.get("status", "ATTRIBUTION_AVAILABLE"))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"explanation_id": self.explanation_id, "strategy_id": self.strategy_id, "parameter_changes": dict(self.parameter_changes), "intent": self.intent, "formula_before": self.formula_before, "formula_after": self.formula_after, "derivation": list(self.derivation), "code_trace": list(self.code_trace), "finance_interpretation": self.finance_interpretation, "expected_effects": list(self.expected_effects), "paired_metrics": dict(self.paired_metrics), "attribution": {**dict(self.attribution), "status": self.attribution_status}, "oos_status": self.oos_status, "stress_status": self.stress_status, "stability_status": self.stability_status, "assumptions": list(self.assumptions), "limitations": list(self.limitations), "next_experiment": self.next_experiment}
+        return _safe({"explanation_id": self.explanation_id, "strategy_id": self.strategy_id, "parameter_changes": self.parameter_changes, "intent": self.intent, "formula_before": self.formula_before, "formula_after": self.formula_after, "derivation": self.derivation, "code_trace": self.code_trace, "finance_interpretation": self.finance_interpretation, "expected_effects": self.expected_effects, "paired_metrics": self.paired_metrics, "attribution": {**dict(self.attribution), "status": self.attribution_status}, "oos_status": self.oos_status, "stress_status": self.stress_status, "stability_status": self.stability_status, "assumptions": self.assumptions, "limitations": self.limitations, "next_experiment": self.next_experiment})
 
 
 __all__ = [

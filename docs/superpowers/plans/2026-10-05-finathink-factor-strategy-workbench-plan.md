@@ -157,4 +157,23 @@
 
 ## Execution Notes
 
-The implementation is deliberately offline-first. Dependency installation is limited to the already locked development dependencies needed for the repository tests/build; no unknown package, credential, network connector, broker SDK, or external model provider is introduced. Any optional research resource is documented as a future adapter boundary rather than silently downloaded into the product.
+The implementation is deliberately offline-first. Dependencies may be obtained from official sources when needed and reviewed for license, safety, reproducibility, and compatibility; downloaded reference code is not automatically executed or admitted as a runtime dependency. User instruction controls this scope and authorizes GitHub publication after validation, without enabling paid APIs or real trading.
+
+### Task 8: Controlled factor graph and bounded research history
+
+**Files:**
+- Create: `src/finahinking/p6_6/workbench_factors.py`
+- Create: `src/finahinking/p6_6/workbench_research.py`
+- Test: `tests/p6_6/test_workbench_research.py`
+
+**Interfaces:**
+- Consumes: policy contracts, engine, and explanation packages.
+- Produces: `FactorGraphSpec`, `evaluate_factor_graph()`, `ResearchSession`, and content-addressed `WorkbenchStore`; frozen-test, all-attempt retention, and explicit freeze/evaluate boundaries.
+
+- [ ] Write and watch failing tests for graph cycles/unknown primitives/PIT, immutable history, experiment budget, no test access before explicit freeze, once-only test evaluation, invalid proposal/hard-limit changes, and version reopen/rollback.
+- [ ] Implement bounded primitives and the deterministic train/validation research loop, with failed attempts archived and no best-strategy label.
+- [ ] Wire these contracts into the payload/UI before the final release gate.
+- [ ] Run the focused tests, full regression, and serialization checks.
+- [ ] Commit `feat(workbench): retain bounded research and factor history`.
+
+Task 8 is executed after Task 3 and before Tasks 4–7; it covers design sections 14–16 missing from the first plan pass. Repository credential connections and external model calls remain deferred at the user's direction.

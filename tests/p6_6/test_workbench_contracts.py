@@ -11,7 +11,6 @@ from finahinking.p6_6.workbench import (
     PolicyProposal,
     PositionPolicySpec,
     ResearchCharter,
-    RiskStatePolicy,
 )
 
 
@@ -21,6 +20,27 @@ def test_position_policy_is_frozen_and_fingerprinted() -> None:
     assert len(policy.fingerprint) == 64
     with pytest.raises((AttributeError, TypeError)):
         policy.mapping = "rank_weight"  # type: ignore[misc]
+
+
+def test_nested_inputs_and_exports_cannot_mutate_contracts() -> None:
+    values = {"lookback": {"before": 3, "after": [5, 8]}}
+    proposal = PolicyProposal("nested", "offline", "fixture", "a" * 64, "factor", values, "Compare horizons")
+    original = proposal.fingerprint
+    values["lookback"]["after"].append(12)
+    exported = proposal.to_dict()
+    exported["allowed_parameter_diff"]["lookback"]["after"].append(20)
+    assert proposal.fingerprint == original
+
+
+@pytest.mark.parametrize("settings", [{"long_only": False}, {"max_exposure": 1.5}])
+def test_first_version_cannot_enable_shorting_or_leverage(settings) -> None:
+    with pytest.raises(ValueError):
+        PositionPolicySpec("boundary", "v1", "equal_weight", **settings)
+
+
+def test_execution_cannot_fill_at_signal_period() -> None:
+    with pytest.raises(ValueError, match="delay"):
+        ExecutionPolicy("execution", "v1", delay_periods=0)
 
 
 def test_policies_reject_non_allowlisted_actions_and_invalid_values() -> None:
