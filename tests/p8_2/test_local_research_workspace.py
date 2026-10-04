@@ -69,6 +69,7 @@ def test_http_research_response_sets_self_only_script_policy() -> None:
             csp = response.headers["Content-Security-Policy"]
         assert response.status == 200
         assert "script-src 'self'" in csp
+        assert "style-src 'self' 'unsafe-inline'" in csp
         assert "finathink-research.js" in body
     finally:
         server.shutdown()

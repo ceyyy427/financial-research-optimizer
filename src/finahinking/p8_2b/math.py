@@ -12,7 +12,7 @@ from hashlib import sha256
 from numbers import Real
 
 _BINARY = {"+", "-", "*", "/", "^"}
-_FUNCTIONS = {"abs", "exp", "log", "sqrt", "mean", "std"}
+_FUNCTIONS = {"abs", "exp", "log", "sqrt", "mean", "std", "partition"}
 
 
 def _finite(value: float) -> float:
@@ -129,23 +129,47 @@ class MathExpression:
         return {"ast": self.node, "fingerprint": self.fingerprint}
 
 
-def _latex(node: Mapping[str, object]) -> str:
+def _precedence(node: Mapping[str, object]) -> int:
+    if node["type"] == "binary":
+        return {"+": 10, "-": 10, "*": 20, "/": 20, "^": 30}[str(node["op"])]
+    if node["type"] == "unary":
+        return 25
+    return 40
+
+
+def _latex(node: Mapping[str, object], parent_precedence: int = 0, *, right_child: bool = False) -> str:
     kind = node["type"]
     if kind == "symbol":
         return str(node["name"])
     if kind == "number":
         return format(float(node["value"]), ".15g")
     if kind == "unary":
-        return "-" + _latex(node["value"])
+        value = _latex(node["value"], _precedence(node))
+        if _precedence(node["value"]) < _precedence(node):
+            value = rf"\left({_latex(node['value'])}\right)"
+        return "-" + value
     if kind == "binary":
-        left, right, op = _latex(node["left"]), _latex(node["right"]), node["op"]
+        op = str(node["op"])
+        precedence = _precedence(node)
+        left = _latex(node["left"], precedence)
+        right = _latex(node["right"], precedence, right_child=True)
         if op == "/":
-            return rf"\frac{{{left}}}{{{right}}}"
-        if op == "^":
-            return rf"{{{left}}}^{{{right}}}"
-        return f"{left} {op} {right}"
+            rendered = rf"\frac{{{_latex(node['left'])}}}{{{_latex(node['right'])}}}"
+        elif op == "^":
+            rendered = rf"{{{_latex(node['left'])}}}^{{{_latex(node['right'])}}}"
+        elif op == "*":
+            rendered = f"{left} \\cdot {right}"
+        else:
+            rendered = f"{left} {op} {right}"
+        if precedence < parent_precedence or (right_child and op in {"-", "/"} and precedence == parent_precedence):
+            return rf"\left({rendered}\right)"
+        return rendered
     name = str(node["name"])
     args = node["args"]
+    if name == "partition":
+        if len(args) == 2:
+            return f"{_latex(args[0])} \\sqcup {_latex(args[1])}"
+        return f"{_latex(args[0])} = {_latex(args[1])} \\sqcup {_latex(args[2])}"
     if name == "sqrt":
         return rf"\sqrt{{{_latex(args[0])}}}"
     command = {"abs": "left|", "exp": "exp", "log": "log", "mean": "operatorname{mean}", "std": "operatorname{std}"}[name]
@@ -175,6 +199,10 @@ def _mathml(node: Mapping[str, object]) -> str:
         return f"<mrow>{_mathml(node['left'])}<mo>{html.escape(op)}</mo>{_mathml(node['right'])}</mrow>"
     name = html.escape(str(node["name"]))
     args = "".join(_mathml(arg) for arg in node["args"])
+    if name == "partition" and len(node["args"]) == 2:
+        return f"<mrow>{_mathml(node['args'][0])}<mo>⊔</mo>{_mathml(node['args'][1])}</mrow>"
+    if name == "partition" and len(node["args"]) == 3:
+        return f"<mrow>{_mathml(node['args'][0])}<mo>=</mo>{_mathml(node['args'][1])}<mo>⊔</mo>{_mathml(node['args'][2])}</mrow>"
     return f"<mrow><mi>{name}</mi><mo>⁡</mo><mfenced>{args}</mfenced></mrow>"
 
 
@@ -217,6 +245,8 @@ def _evaluate(node: Mapping[str, object]) -> float:
     if name == "std":
         mean = sum(values) / len(values)
         return math.sqrt(sum((value - mean) ** 2 for value in values) / (len(values) - 1))
+    if name == "partition":
+        raise ValueError("partition is structural and cannot be numerically evaluated")
     raise ValueError("unsupported function")
 
 

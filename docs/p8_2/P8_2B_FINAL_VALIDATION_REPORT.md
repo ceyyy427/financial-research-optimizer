@@ -11,6 +11,9 @@ P8.2B adds an additive `finahinking.p8_2b` layer while preserving the existing
 `finahinking` import namespace. Its public identity contract is `finathink`
 for distribution, CLI, and product language. The layer provides:
 
+The education-specific checklist and evidence are also recorded in
+[`P8_2_EDUCATION_FINAL_VALIDATION.md`](P8_2_EDUCATION_FINAL_VALIDATION.md).
+
 - immutable math ASTs with deterministic LaTeX, MathML, evaluation,
   substitution, structural equivalence, and optional SymPy equivalence;
 - structured knowledge units with history, why-now, symbols, derivations,
@@ -18,13 +21,15 @@ for distribution, CLI, and product language. The layer provides:
   traces;
 - offline reference metadata, DOI normalization, duplicate detection, and
   Markdown/LaTeX/BibTeX/CSL exports;
+- Crossref-audited DOI/title/author/year metadata for the flagship papers,
+  plus an opt-in `scripts/p8_2b_reference_audit.py --live` integrity gate;
 - point-in-time context bindings carrying current values, evidence, feature,
   availability, and dataset fingerprints;
 - typed, bounded educational widgets for volatility, Sharpe, OLS, momentum,
   and OOS splitting;
 - local API and HTML routes, a research observation-to-lesson link, bundled
-  KaTeX rendering, keyboard/no-JavaScript fallbacks, and explicit context
-  status;
+  KaTeX rendering with locally packaged CSS/fonts, keyboard/no-JavaScript
+  fallbacks, and explicit context status;
 - no arbitrary Python execution, broker/order path, credential path, remote
   script, or Computer Use action.
 
@@ -32,9 +37,10 @@ for distribution, CLI, and product language. The layer provides:
 
 | Gate | Result |
 | --- | --- |
-| Full repository regression | **PASS — 326 passed, 1 skipped** |
-| P8.2B focused Python tests | **PASS — 27 passed** |
-| P8.2 and P7.5 local regression | **PASS — 27 passed** |
+| Full repository regression | **PASS — 331 passed, 1 skipped** |
+| P8.2B focused Python tests | **PASS — 32 passed** |
+| Citation integrity | **PASS — live Crossref audit passed** |
+| P8.2 and P7.5 local regression | **PASS — covered by full regression above** |
 | Frontend unit tests | **PASS — 6 passed** |
 | Frontend build | **PASS — esbuild bundle generated** |
 | Frontend performance smoke | **PASS — 1k and 10k payload checks** |
@@ -43,7 +49,8 @@ for distribution, CLI, and product language. The layer provides:
 | Clean `finathink` wheel install | **PASS — wheel built and P8.2B catalog route imported outside checkout** |
 | npm production audit | **PASS — 0 vulnerabilities** |
 | Browser DOM/screen-reader E2E | **NOT VERIFIED — Computer Use forbidden** |
-| Live Crossref/QMT/provider admission | **NOT VERIFIED — optional/deferred** |
+| Live Crossref citation metadata | **PASS — audit completed** |
+| QMT/provider admission | **NOT VERIFIED — optional/deferred** |
 
 The full repository regression and clean-wheel gates are now passed locally.
 Browser and vendor/provider items are explicitly conditional, not silently

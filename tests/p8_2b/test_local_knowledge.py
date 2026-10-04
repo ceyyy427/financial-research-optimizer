@@ -32,6 +32,38 @@ def test_context_route_and_html_use_server_owned_values_and_no_js_fallback() -> 
     assert 'data-knowledge-equation="ols-line"' in html
     assert "MathML" in html
     assert "Teach me this" in html
+    assert 'name="_csrf"' in html
+
+    status, _, contextual_html = app.route(
+        "GET",
+        "/knowledge/volatility",
+        query={"context_type": ["research_point"], "context_id": ["DEMO-20260103T000000Z"]},
+    )
+    assert status == 200
+    assert "context_type=research_point" in contextual_html
+    assert "context_id=DEMO-20260103T000000Z" in contextual_html
+    assert '/assets/katex/katex.min.css' in contextual_html
+
+
+def test_local_katex_assets_and_p82b_learning_evidence_are_scoped() -> None:
+    app = _app()
+    status, content_type, css = app.route("GET", "/assets/katex/katex.min.css")
+    assert status == 200 and content_type.startswith("text/css") and b"@font-face" in css
+    status, content_type, font = app.route("GET", "/assets/katex/fonts/KaTeX_Main-Regular.woff2")
+    assert status == 200 and content_type == "font/woff2" and font
+    status, _, _ = app.route("GET", "/assets/katex/fonts/../katex.min.css")
+    assert status == 404
+
+    result = app.save_personal({
+        "title": "OLS self-check",
+        "node_type": "learning_card",
+        "knowledge_source": "p8_2b",
+        "concept_id": "ols",
+        "outcome": "correct",
+    })
+    assert result["knowledge_source"] == "p8_2b"
+    assert result["node_id"] == "p8_2b:ols"
+    assert result["source_fingerprint"]
 
 
 def test_widget_route_is_typed_and_rejects_unknown_kind() -> None:

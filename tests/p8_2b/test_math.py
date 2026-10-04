@@ -39,3 +39,12 @@ def test_symbolic_adapter_is_explicit_about_verification_capability() -> None:
     result, status = symbolic_equivalence(MathExpression.add(MathExpression.symbol("x"), MathExpression.symbol("y")), MathExpression.add(MathExpression.symbol("y"), MathExpression.symbol("x")))
     assert result is True
     assert status in {"SYMBOLICALLY_VERIFIED", "UNAVAILABLE_AST_NORMALIZATION", "AST_FALLBACK"}
+
+
+def test_latex_preserves_ast_precedence() -> None:
+    expression = MathExpression.multiply(
+        MathExpression.add(MathExpression.symbol("a"), MathExpression.symbol("b")),
+        MathExpression.symbol("c"),
+    )
+    assert render_latex(expression) == r"\left(a + b\right) \cdot c"
+    assert render_latex(MathExpression.negate(MathExpression.add(MathExpression.symbol("a"), MathExpression.symbol("b")))) == r"-\left(a + b\right)"

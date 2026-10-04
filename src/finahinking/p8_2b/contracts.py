@@ -229,8 +229,25 @@ class KnowledgeUnit:
         for item in payload["equations"]:
             expression = item["expression"]
             expressions.append({**item, "expression": MathExpression.from_node(expression.get("ast", expression))})
+        derivations = tuple(
+            DerivationStep(
+                item["step_id"], item.get("previous_equation_id"),
+                MathExpression.from_node(item["result"].get("ast", item["result"])),
+                item["operation"], item["reason"], item["rule_or_theorem"],
+                tuple(item["assumptions"]), tuple(item.get("reference_ids", ())),
+            )
+            for item in payload.get("derivations", ())
+        )
+        proofs = tuple(
+            Proof(item["proof_id"], item["statement"], item["strategy"], tuple(item["step_ids"]), item["status"])
+            for item in payload.get("proofs", ())
+        )
+        trace_payload = payload.get("data_trace")
+        data_trace = None
+        if trace_payload:
+            data_trace = DataTrace(trace_payload["trace_id"], tuple(trace_payload["steps"]), tuple(trace_payload["sample_values"]), trace_payload["source_state"])
         return cls(
-            unit_id=payload["unit_id"], title=payload["title"], domain=payload["domain"], level=payload["level"], why_now=payload["why_now"], background=payload["background"], history=payload.get("history", payload["background"]), intuition=payload["intuition"], symbols=tuple(SymbolDefinition(**item) for item in payload["symbols"]), equations=tuple(expressions), prerequisites=tuple(payload["prerequisites"]), code_segments=tuple(CodeSegment(item["segment_id"], item["code"], tuple(item["line_range"]), tuple(item["equation_ids"]), tuple(item["feature_ids"]), item["data_input"], item["data_output"]) for item in payload["code_segments"]), references=tuple(payload["references"]), provenance=payload["provenance"], assumptions=tuple(payload["assumptions"]), limitations=tuple(payload["limitations"]), derivations=(), proofs=(), misconceptions=tuple(payload.get("misconceptions", ())), exercises=tuple(payload.get("exercises", ())), applications=tuple(payload.get("applications", ())), tags=tuple(payload.get("tags", ())))
+            unit_id=payload["unit_id"], title=payload["title"], domain=payload["domain"], level=payload["level"], why_now=payload["why_now"], background=payload["background"], history=payload.get("history", payload["background"]), intuition=payload["intuition"], symbols=tuple(SymbolDefinition(**item) for item in payload["symbols"]), equations=tuple(expressions), prerequisites=tuple(payload["prerequisites"]), code_segments=tuple(CodeSegment(item["segment_id"], item["code"], tuple(item["line_range"]), tuple(item["equation_ids"]), tuple(item.get("feature_ids", ())), item["data_input"], item["data_output"]) for item in payload["code_segments"]), references=tuple(payload["references"]), provenance=payload["provenance"], assumptions=tuple(payload["assumptions"]), limitations=tuple(payload["limitations"]), derivations=derivations, proofs=proofs, misconceptions=tuple(payload.get("misconceptions", ())), exercises=tuple(payload.get("exercises", ())), applications=tuple(payload.get("applications", ())), data_trace=data_trace, tags=tuple(payload.get("tags", ())))
 
 
 @dataclass(frozen=True)

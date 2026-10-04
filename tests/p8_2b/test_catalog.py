@@ -27,3 +27,17 @@ def test_validator_rejects_prerequisite_cycle() -> None:
     broken = replace(DEFAULT_KNOWLEDGE_CATALOG, units=(cycle, *DEFAULT_KNOWLEDGE_CATALOG.units[1:]))
     with pytest.raises(ValueError, match="cycle"):
         validate_catalog(broken)
+
+
+def test_catalog_math_history_and_round_trip_are_explicit() -> None:
+    volatility = get_knowledge_unit("volatility")
+    sharpe = get_knowledge_unit("sharpe")
+    oos = get_knowledge_unit("oos-overfitting")
+    assert volatility.history != volatility.background
+    assert "k" in sharpe.equations[0].symbol_ids
+    assert oos.equations[0].expression.node["type"] == "function"
+    assert oos.equations[0].expression.node["name"] == "partition"
+    restored = type(volatility).from_dict(volatility.to_dict())
+    assert restored.fingerprint == volatility.fingerprint
+    assert len(restored.derivations) == len(volatility.derivations)
+    assert len(restored.proofs) == len(volatility.proofs)

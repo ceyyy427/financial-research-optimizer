@@ -10,6 +10,16 @@ deliberately reconciled by a human-reviewed strategy.
 
 ## Unreleased
 
+- P8.2B education and mathematics layer: added the six-unit flagship knowledge
+  catalog, Crossref-audited literature metadata, precedence-aware MathML/LaTeX
+  rendering, code/math/data traces, context-aware learning routes, typed
+  widgets, local KaTeX CSS/fonts, scoped learning evidence, and `finathink`
+  distribution/CLI identity while preserving `finahinking` imports.
+- P8.2B final local gate: 331 Python tests passed with one environment skip,
+  32 focused tests passed, frontend tests/build/performance passed, Crossref
+  citation audit passed, and the clean wheel install passed. Browser-level
+  assistive-technology verification remains explicitly unverified.
+
 - P8.2 local conditional checkpoint: added Finathink-owned research/market
   contracts with PIT-aware timezone validation, bounded parameter sweeps,
   deterministic ML fallback, ML/Parameter Lab routes, and a same-origin
@@ -21,7 +31,8 @@ deliberately reconciled by a human-reviewed strategy.
 - Added P8.2 reference, architecture, security, performance, dependency, UI,
   QMT, Qlib, vectorbt, and final validation records. Browser-level E2E,
   native Qlib provider/PIT data, live QMT, and optional-license admission are
-  explicitly deferred; P8.2B has not started.
+  explicitly deferred; P8.2B is recorded in the education final validation
+  report and remains local/publication-pending.
 - P8.1 product polish: added a shared responsive shell with Home, Events,
   Explore, Knowledge, Quant, Strategy Lab, Workspace, Inspector context,
   semantic status tokens, actionable empty/error states, progressive knowledge

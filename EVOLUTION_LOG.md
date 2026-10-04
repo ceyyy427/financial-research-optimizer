@@ -33,6 +33,25 @@ result. Small documentation corrections may be grouped in one entry.
   remote publication remain open. P8.2B is intentionally waiting for human
   review and was not started.
 
+## 2026-10-04 — P8.2B knowledge and education gate
+
+- Change: added the structured mathematical knowledge catalog, literature
+  metadata and Crossref audit, precedence-aware MathML/LaTeX fallback,
+  code-to-equation traces, context-aware education routes, typed widgets,
+  scoped learning evidence, and vendored KaTeX assets under the `finathink`
+  distribution identity.
+- Reason: make quantitative research inspectable and teachable without moving
+  canonical values or arbitrary execution into the browser.
+- Evidence: `docs/p8_2/P8_2_EDUCATION_FINAL_VALIDATION.md`, 331 passed/1 skipped
+  Python tests, 32 focused P8.2B tests, frontend tests/build/performance,
+  Crossref live audit, clean wheel install, Ruff, pip, secret, and governance
+  gates. No Computer Use was used.
+- Compatibility: `finahinking` imports and CLI alias remain supported;
+  KaTeX is same-origin and packaged locally; no broker, credential, hosted,
+  or real-money path was added.
+- Review: local validation PASS; browser/assistive-technology, optional
+  provider, and remote publication gates remain explicitly conditional.
+
 ## 2026-10-03 — P8.1 product shell and launch frames
 
 - Change: added a shared responsive Finathink shell with semantic research

@@ -3,7 +3,7 @@
 Finathink (the Python import namespace remains `finahinking`; the distribution and CLI identity is `finathink`) is a local-first financial research laboratory for learning from
 real evidence, mathematics, code, and reproducible experiments. It is a
 research and education tool, not a broker, trading system, investment adviser,
-or source of financial advice. Finahinking provides no investment advice. The
+or source of financial advice. Finathink provides no investment advice. The
 current local source-beta line is `0.1.x`. The P8.2 product surface is
 server-rendered, loopback-only, and usable offline with deterministic sample
 data. Research, ML, Parameter Lab, engine, and data-source surfaces remain
@@ -25,7 +25,7 @@ execution path, a substitute for professional advice, or a hosted account
 service. Real-money trading, broker credentials, cloud accounts, and required
 telemetry are explicitly out of scope.
 
-## The Finahinking loop
+## The Finathink loop
 
 ```text
 REAL EVENT → EVIDENCE → UNDERSTANDING → MATHEMATICS → CODE

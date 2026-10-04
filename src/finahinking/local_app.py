@@ -24,7 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources as importlib_resources
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from finahinking.p7 import (
     CommunityClaim,
@@ -426,11 +426,19 @@ class LocalApplication:
             "provenance": "CURATED OFFLINE: structured source metadata and deterministic fixture values; no live citation lookup performed.",
         }
 
-    def render_p8_2b_concept_page(self, unit: Any, *, context: Any) -> str:
+    def render_p8_2b_concept_page(self, unit: Any, *, context: Any, query: Mapping[str, list[str]] | None = None) -> str:
         """Render a rich P8.2B unit while retaining a no-JavaScript fallback."""
 
         payload = self._p8_2b_unit_payload(unit, context=context)
         esc = lambda value: html.escape(str(value or ""))
+        context_params = {
+            key: (query or {}).get(key, [""])[0]
+            for key in ("context_type", "context_id")
+            if (query or {}).get(key, [""])[0].strip()
+        }
+        payload_url = f"/api/p8_2b/knowledge/{unit.unit_id}"
+        if context_params:
+            payload_url = f"{payload_url}?{urlencode(context_params)}"
         equation_html = "".join(
             f'<article class="knowledge-equation" data-knowledge-equation="{esc(equation.equation_id)}" aria-label="Equation {esc(equation.equation_id)}">'
             f'<strong>{esc(equation.number or equation.equation_id)} · MathML</strong>{render_mathml(equation.expression)}'
@@ -467,7 +475,7 @@ class LocalApplication:
         body = (
             f'<div class="status-row">{self._status("CURATED", "complete")}{self._status("OFFLINE", "offline")}{self._status(unit.provenance.value, "evidence")}</div>'
             f'<h1>{esc(unit.title)}</h1><p class="lede">{esc(unit.intuition)}</p>'
-            f'<section data-finathink-knowledge data-payload-url="/api/p8_2b/knowledge/{esc(unit.unit_id)}" class="knowledge-layout">'
+            f'<section data-finathink-knowledge data-payload-url="{esc(payload_url)}" class="knowledge-layout">'
             f'{context_html}<section class="card"><h2>Intuition</h2><p>{esc(unit.intuition)}</p><h2>Definition / Formal</h2><p>{esc(unit.why_now)}</p><h3>Background and history</h3><p>{esc(unit.background)}</p><p>{esc(unit.history)}</p></section>'
             f'<section class="card"><h2>Symbols</h2><div class="knowledge-symbols">{symbols_html}</div></section>'
             f'<section class="card"><h2>Equation</h2>{equation_html}<p class="meta">MathML is server-provided for offline accessibility; KaTeX upgrades the visual rendering when JavaScript is available.</p></section>'
@@ -475,13 +483,13 @@ class LocalApplication:
             f'<section class="card"><h2>Code ↔ math ↔ data</h2><div class="knowledge-code-lines" data-knowledge-code-lines>{code_buttons}</div><p class="meta" data-knowledge-code-inspector>Select a reviewed line to inspect its data input and output. Arbitrary Python execution is unavailable.</p><noscript><p class="field-help">JavaScript is disabled; the reviewed code segments remain listed above.</p></noscript></section>'
             f'<section class="card"><h2>Assumptions and limitations</h2><ul>{"".join(f"<li>{esc(item)}</li>" for item in unit.assumptions)}</ul><h3>Limitations</h3><ul>{"".join(f"<li>{esc(item)}</li>" for item in unit.limitations)}</ul></section>'
             f'<section class="card"><h2>Finance / Quant / Strategy</h2><ul>{"".join(f"<li>{esc(item)}</li>" for item in unit.applications)}</ul><p><a class="button-primary" href="/knowledge/{esc(unit.unit_id)}?depth=deep">Teach me this</a></p></section>'
-            f'<section class="card"><h2>Personal learning evidence</h2><p>Browsing is not mastery. Record a self-check explicitly in the private learning store.</p><form class="form-grid" method="post" action="/api/personal/save"><input type="hidden" name="node_type" value="learning_card"><input type="hidden" name="title" value="{esc(unit.title)} self-check"><input type="hidden" name="concept_id" value="{esc(unit.unit_id)}"><label for="outcome">What is the main caveat?<select id="outcome" name="outcome" required><option value="correct">I can explain it with assumptions</option><option value="incorrect">I would treat it as a guarantee</option></select></label><button type="submit">Save learning evidence</button></form></section>'
+            f'<section class="card"><h2>Personal learning evidence</h2><p>Browsing is not mastery. Record a self-check explicitly in the private learning store.</p><form class="form-grid" method="post" action="/api/personal/save"><input type="hidden" name="_csrf" value="{self.csrf_token}"><input type="hidden" name="node_type" value="learning_card"><input type="hidden" name="knowledge_source" value="p8_2b"><input type="hidden" name="title" value="{esc(unit.title)} self-check"><input type="hidden" name="concept_id" value="{esc(unit.unit_id)}"><label for="outcome">What is the main caveat?<select id="outcome" name="outcome" required><option value="correct">I can explain it with assumptions</option><option value="incorrect">I would treat it as a guarantee</option></select></label><button type="submit">Save learning evidence</button></form></section>'
             f'<section class="card"><h2>Current context</h2><p>{esc(binding["why_now"] if binding else "NO_CONTEXT_AVAILABLE")}</p></section>'
             f'<section class="card"><h2>References</h2><ul>{refs_html}</ul><p class="meta">Reference metadata is local and curated; DOI is not treated as verified full text.</p></section>'
             f'<section class="card"><h2>Export</h2><div class="knowledge-inline-actions">{export_links}</div></section>'
             f'<p class="meta">Catalog fingerprint: <code>{esc(DEFAULT_KNOWLEDGE_CATALOG.fingerprint)}</code> · <a href="/knowledge">Back to Knowledge</a> · <a href="/api/p8_2b/knowledge/{esc(unit.unit_id)}">JSON contract</a></p></section>'
         )
-        return self.render_shell("/knowledge", unit.title, body, inspector=self._inspector("Knowledge provenance", {"Unit": unit.unit_id, "Catalog": DEFAULT_KNOWLEDGE_CATALOG.fingerprint, "Context": context.status, "Boundary": "Static code trace; no arbitrary execution"}, status="CURATED"), eyebrow="Knowledge / P8.2B", scripts=("/assets/finathink-research.js",))
+        return self.render_shell("/knowledge", unit.title, body, inspector=self._inspector("Knowledge provenance", {"Unit": unit.unit_id, "Catalog": DEFAULT_KNOWLEDGE_CATALOG.fingerprint, "Context": context.status, "Boundary": "Static code trace; no arbitrary execution"}, status="CURATED"), eyebrow="Knowledge / P8.2B", scripts=("/assets/finathink-research.js",), styles=("/assets/katex/katex.min.css",))
 
     def event(self) -> dict[str, Any]:
         """Replay the admitted BLS fixture when P6.5 is available.
@@ -586,20 +594,47 @@ class LocalApplication:
         if node_type == "learning_card":
             concept_id = str(payload.get("concept_id", "")).strip()
             outcome = str(payload.get("outcome", "neutral")).strip()
-            if concept_id not in {item.concept_id for item in DEFAULT_CATALOG.concepts}:
-                raise ValueError("concept_id is not in the structured knowledge catalog")
             if outcome not in {"correct", "incorrect", "neutral", "corrected"}:
                 raise ValueError("outcome is invalid")
-            node_id = concept_id
-            node = PersonalNode(node_id, "concept", DEFAULT_CATALOG.get(concept_id).title, {"concept_id": concept_id, "source": "p7_5_catalog", "source_fingerprint": DEFAULT_CATALOG.fingerprint})
+            source = str(payload.get("knowledge_source", "")).strip().lower()
+            p7_ids = {item.concept_id for item in DEFAULT_CATALOG.concepts}
+            p8_unit = None
+            if source == "p8_2b":
+                try:
+                    p8_unit = get_knowledge_unit(concept_id)
+                except KeyError as exc:
+                    raise ValueError("concept_id is not in the P8.2B knowledge catalog") from exc
+            elif source not in {"", "p7_5"}:
+                raise ValueError("knowledge_source is not supported")
+            elif concept_id not in p7_ids:
+                try:
+                    p8_unit = get_knowledge_unit(concept_id)
+                except KeyError as exc:
+                    raise ValueError("concept_id is not in the structured knowledge catalog") from exc
+
+            if p8_unit is not None:
+                # Prefix the node identity and record the exact catalog fingerprint so
+                # similarly named P7 concepts cannot silently receive P8.2B evidence.
+                node_id = f"p8_2b:{p8_unit.unit_id}"
+                node = PersonalNode(node_id, "concept", p8_unit.title, {"unit_id": p8_unit.unit_id, "source": "p8_2b_catalog", "source_fingerprint": DEFAULT_KNOWLEDGE_CATALOG.fingerprint})
+                evidence_reference = f"knowledge:p8_2b:{p8_unit.unit_id}:self-check"
+                result_id = p8_unit.unit_id
+            else:
+                node_id = concept_id
+                node = PersonalNode(node_id, "concept", DEFAULT_CATALOG.get(concept_id).title, {"concept_id": concept_id, "source": "p7_5_catalog", "source_fingerprint": DEFAULT_CATALOG.fingerprint})
+                evidence_reference = f"knowledge:{concept_id}:self-check"
+                result_id = concept_id
             with self._lock:
                 try:
                     self.repository.get_node(self.config.session_id, node_id)
                 except KeyError:
                     self.repository.save_node(self.config.session_id, node)
-                evidence = MasteryEvidence(f"mastery:{concept_id}:{uuid.uuid4().hex}", node_id, "quiz_response", f"knowledge:{concept_id}:self-check", outcome, "2026-10-03T00:00:00Z", {"response": str(payload.get("outcome"))})
+                evidence = MasteryEvidence(f"mastery:{node_id}:{uuid.uuid4().hex}", node_id, "quiz_response", evidence_reference, outcome, "2026-10-03T00:00:00Z", {"response": str(payload.get("outcome")), "source": node.payload["source"], "source_fingerprint": node.payload["source_fingerprint"]})
                 self.repository.save_mastery_evidence(self.config.session_id, evidence)
-            return {"node_id": node_id, "node_type": "concept", "concept_id": concept_id, "outcome": outcome, "saved": True}
+            result = {"node_id": node_id, "node_type": node.node_type, "concept_id": result_id, "outcome": outcome, "saved": True}
+            if p8_unit is not None:
+                result.update({"unit_id": p8_unit.unit_id, "knowledge_source": "p8_2b", "source_fingerprint": DEFAULT_KNOWLEDGE_CATALOG.fingerprint})
+            return result
         node = PersonalNode(f"local-{uuid.uuid4().hex}", node_type, title, dict(body))
         with self._lock:
             self.repository.save_node(self.config.session_id, node)
@@ -657,6 +692,21 @@ class LocalApplication:
     def research_script_asset() -> bytes:
         return LocalApplication.asset_bytes("finathink-research.js")
 
+    @staticmethod
+    def katex_asset(asset_name: str, *, font: bool = False) -> bytes:
+        """Read one vendored KaTeX stylesheet/font without allowing path traversal."""
+
+        if not asset_name or asset_name in {".", ".."} or "/" in asset_name or "\\" in asset_name or ".." in asset_name:
+            raise FileNotFoundError(asset_name)
+        if asset_name != "katex.min.css" and not asset_name.endswith((".woff2", ".woff", ".ttf")):
+            raise FileNotFoundError(asset_name)
+        relative = f"_package_data/assets/katex/{'fonts/' if font else ''}{asset_name}"
+        try:
+            return importlib_resources.files("finahinking").joinpath(relative).read_bytes()
+        except (FileNotFoundError, ModuleNotFoundError):
+            fallback = Path(__file__).resolve().parent / "_package_data" / "assets" / "katex" / ("fonts" if font else "") / asset_name
+            return fallback.read_bytes()
+
     def _nav(self, page: str) -> str:
         names = self._page_names()
         primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/research", "/ml", "/parameter", "/strategy", "/workspace")
@@ -706,6 +756,7 @@ class LocalApplication:
         inspector: str = "",
         eyebrow: str = "Local research workspace",
         scripts: tuple[str, ...] = (),
+        styles: tuple[str, ...] = (),
     ) -> str:
         """Wrap every HTML journey in the same accessible product shell."""
 
@@ -718,14 +769,15 @@ class LocalApplication:
                 "Next": "Open an evidence or learning path",
             },
         )
+        style_tags = "".join(f'<link rel="stylesheet" href="{html.escape(path)}">' for path in styles)
         script_tags = "".join(f'<script src="{html.escape(path)}" defer></script>' for path in scripts)
         return (
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             f"<title>{html.escape(title)} · Finathink</title>"
             '<meta name="theme-color" content="#edf2f1">'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
-            f"<style>{_APP_CSS}</style>{script_tags}</head><body>"
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'self\' \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
+            f"<style>{_APP_CSS}</style>{style_tags}{script_tags}</head><body>"
             '<a class="skip-link" href="#main">Skip to content</a>'
             '<div class="app-shell">'
             f'<nav class="sidebar" aria-label="Primary">{self._nav(clean_page)}</nav>'
@@ -748,6 +800,14 @@ class LocalApplication:
             return 200, "image/jpeg", self.research_splash_asset()
         if clean == "/assets/finathink-research.js" and method == "GET":
             return 200, "application/javascript; charset=utf-8", self.research_script_asset()
+        if clean == "/assets/katex/katex.min.css" and method == "GET":
+            return 200, "text/css; charset=utf-8", self.katex_asset("katex.min.css")
+        if clean.startswith("/assets/katex/fonts/") and method == "GET":
+            font_name = clean.removeprefix("/assets/katex/fonts/")
+            try:
+                return 200, "font/woff2" if font_name.endswith(".woff2") else "font/woff" if font_name.endswith(".woff") else "font/ttf", self.katex_asset(font_name, font=True)
+            except FileNotFoundError:
+                return 404, "application/json", {"error": "asset not found"}
         if clean in {"/health", "/api/health"}:
             return 200, "application/json", {"status": "ok", "service": "finahinking-local", "version": "0.1.0"}
         if clean == "/api/diagnostics":
@@ -934,7 +994,7 @@ class LocalApplication:
             except KeyError:
                 unit = None
             if unit is not None:
-                return 200, "text/html; charset=utf-8", self.render_p8_2b_concept_page(unit, context=self._p8_2b_context(unit, query))
+                return 200, "text/html; charset=utf-8", self.render_p8_2b_concept_page(unit, context=self._p8_2b_context(unit, query), query=query)
             concept = self.concept(unit_id)
             if concept is None:
                 return 404, "text/html; charset=utf-8", self.render_error_page(
@@ -1330,7 +1390,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
-        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'")
         self.send_header("Set-Cookie", "finahinking_session=local; HttpOnly; SameSite=Strict; Path=/")
         self.end_headers()
         self.wfile.write(raw)

@@ -64,6 +64,8 @@ assert quant['numeric_results']['sample_count'] >= 70
 assert quant['artifact_fingerprint']
 assert app.route('GET', '/api/strategy')[2]['execution'] == 'paper-only'
 assert app.route('GET', '/api/p8_2b/knowledge/ols')[2]['unit']['unit_id'] == 'ols'
+assert app.route('GET', '/assets/katex/katex.min.css')[0] == 200
+assert app.route('GET', '/assets/katex/fonts/KaTeX_Main-Regular.woff2')[0] == 200
 assert get_knowledge_unit('sharpe').unit_id == 'sharpe'
 app.close()
 """

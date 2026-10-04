@@ -96,3 +96,13 @@ Python 3.12 Docker environment; no Qlib package is installed in `.venv` or
 was not installed; the repository contains only a Finathink-owned,
 read-only, token-bounded mock boundary. No new Codex plugin, MCP connector,
 broker SDK, credential store, or live-trading dependency was installed.
+
+## P8.2B capability decision
+
+P8.2B adds only the audited frontend `katex` package (`0.16.27`) to the
+existing separate `frontend/` npm workspace. Its CSS and font files are
+vendored into the same-origin site and Python package assets; no CDN, remote
+font, browser runtime, or Python runtime dependency is introduced. The
+Crossref audit uses Python's standard-library HTTP client only and is opt-in;
+deterministic CI uses the local citation cache. CodeMirror was not added
+because the reviewed code traces are static and do not require an editor.
