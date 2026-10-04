@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from .contracts import ProviderSelection, stable_digest, to_jsonable
@@ -100,3 +102,67 @@ class ProviderRegistry:
 
 def envelope_digest(envelope: ModelEnvelope) -> str:
     return stable_digest(envelope)
+
+
+def load_provider_config_from_mapping(payload: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, Mapping) or not isinstance(payload.get("defaults"), Mapping):
+        raise TypeError("provider config requires a defaults mapping")
+    providers = payload.get("providers")
+    if not isinstance(providers, list):
+        raise TypeError("provider config requires a providers list")
+    allowed_provider_keys = {"name", "model", "capabilities", "enabled", "offline"}
+    normalized: list[dict[str, Any]] = []
+    for item in providers:
+        if not isinstance(item, Mapping) or not str(item.get("name", "")).strip():
+            raise ValueError("each provider requires a name")
+        if set(item) - allowed_provider_keys:
+            raise ValueError("provider config contains unsupported or secret fields")
+        normalized.append({key: item[key] for key in sorted(item)})
+    defaults = dict(payload["defaults"])
+    if set(defaults) - {"provider", "model", "role_models", "capabilities"}:
+        raise ValueError("defaults contains unsupported or secret fields")
+    return {"defaults": defaults, "providers": normalized}
+
+
+def load_provider_config(path: str | Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"provider config cannot be read: {exc}") from exc
+    return load_provider_config_from_mapping(payload)
+
+
+def resolve_provider_selection(
+    *,
+    defaults: Mapping[str, Any],
+    local_config: Mapping[str, Any] | None = None,
+    environment: Mapping[str, Any] | None = None,
+    cli_ui: Mapping[str, Any] | None = None,
+    run_override: Mapping[str, Any] | None = None,
+) -> ProviderSelection:
+    """Merge non-secret provider settings in documented precedence order."""
+
+    merged: dict[str, Any] = {"provider": "offline", "model": "fixture-v1", "role_models": {}, "capabilities": ()}
+    role_models: dict[str, str] = {}
+    for layer in (defaults, local_config or {}):
+        if not isinstance(layer, Mapping):
+            raise TypeError("provider config layers must be mappings")
+        merged.update({key: layer[key] for key in ("provider", "model", "capabilities") if key in layer})
+        role_models.update({str(key): str(value) for key, value in dict(layer.get("role_models", {})).items()})
+    env = environment or {}
+    if "FINAHINKING_PROVIDER" in env:
+        merged["provider"] = str(env["FINAHINKING_PROVIDER"])
+    if "FINAHINKING_MODEL" in env:
+        merged["model"] = str(env["FINAHINKING_MODEL"])
+    for layer in (cli_ui or {}, run_override or {}):
+        if not isinstance(layer, Mapping):
+            raise TypeError("provider config layers must be mappings")
+        merged.update({key: layer[key] for key in ("provider", "model", "capabilities") if key in layer})
+        role_models.update({str(key): str(value) for key, value in dict(layer.get("role_models", {})).items()})
+    return ProviderSelection(
+        provider=str(merged["provider"]),
+        model=str(merged["model"]),
+        role_models=role_models,
+        capabilities=tuple(str(item) for item in merged.get("capabilities", ())),
+        metadata={"config_precedence": "defaults>local>environment>cli_ui>run_override"},
+    )

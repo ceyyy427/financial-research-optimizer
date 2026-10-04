@@ -1,0 +1,24 @@
+{
+  "defaults": {
+    "provider": "offline",
+    "model": "fixture-v1",
+    "role_models": {},
+    "capabilities": ["structured_output", "offline"]
+  },
+  "providers": [
+    {
+      "name": "offline",
+      "model": "fixture-v1",
+      "capabilities": ["structured_output", "offline"],
+      "enabled": true,
+      "offline": true
+    },
+    {
+      "name": "user-compatible",
+      "model": "YOUR_MODEL_ALIAS",
+      "capabilities": ["structured_output"],
+      "enabled": false,
+      "offline": false
+    }
+  ]
+}

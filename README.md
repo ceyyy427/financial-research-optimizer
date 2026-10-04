@@ -89,6 +89,18 @@ The P8.2B gate is indexed in
 
 ## Development and contribution
 
+### Governed research agents
+
+The research-agent layer is offline-first and paper-only by default. It uses
+Finathink's typed data, factor, quant, risk, provenance, and report contracts
+as the source of truth. Codex handoffs are explicit review envelopes; local
+code never calls the current chat implicitly, executes model-supplied code, or
+connects a broker. Users may provide their own provider adapter and model
+credentials, but secrets remain outside `ProviderSelection`, reports, logs,
+and checkpoints. See [RESEARCH_AGENT_GUIDE.md](docs/RESEARCH_AGENT_GUIDE.md),
+the [provider example](docs/research-providers.example.json), and the
+[release checklist](docs/RESEARCH_RELEASE_CHECKLIST.md).
+
 ```bash
 python scripts/validate_governance.py .
 python -m pytest -q
