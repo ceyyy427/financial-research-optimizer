@@ -46,7 +46,10 @@ def _fingerprint_safe(value: Any) -> Any:
     if isinstance(safe, (list, tuple)):
         return [_fingerprint_safe(item) for item in safe]
     if isinstance(safe, float):
-        return float(format(safe, ".15g"))
+        # BLAS/pandas builds can differ by a few ulps for derived statistics.
+        # Fourteen significant digits preserve materially useful precision while
+        # making result fingerprints stable across supported Python platforms.
+        return float(format(safe, ".14g"))
     return safe
 
 

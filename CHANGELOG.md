@@ -19,7 +19,7 @@ remains pending pull-request review.
   32 focused tests passed, frontend tests/build/performance passed, Crossref
   citation audit passed, and the clean wheel install passed. Browser-level
   assistive-technology verification remains explicitly unverified.
-- Normalized experiment result fingerprints to 15 significant digits to avoid
+- Normalized experiment result fingerprints to 14 significant digits to avoid
   cross-platform NumPy floating-point noise. Dataset fingerprints and stored
   numeric result values remain unchanged; new regression coverage guards the
   stable-hash contract.
