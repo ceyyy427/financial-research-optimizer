@@ -1,5 +1,12 @@
 """Governed, offline-first research-agent contracts and orchestration hooks."""
 
+from finahinking.factors.registry import (
+    FactorHealth,
+    FactorHealthStatus,
+    FactorMetadata,
+    FactorRegistry,
+)
+
 from .contracts import (
     AgentReport,
     CheckpointIdentity,
@@ -18,22 +25,62 @@ from .contracts import (
     to_jsonable,
     validate_transition,
 )
+from .drivers import CodexInteractiveDriver, CompatibleApiDriver, OfflineDriver, UserApiDriver
+from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
+from .reports import (
+    BundleVerification,
+    ReportBundleWriter,
+    render_section_html,
+    verify_report_bundle,
+)
+from .tools import (
+    ResearchToolGateway,
+    ResearchToolName,
+    ResearchToolRequest,
+    ResearchToolResponse,
+    ResearchToolStatus,
+)
+from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
 __all__ = [
     "AgentReport",
+    "AnalystSpec",
+    "BundleVerification",
     "CheckpointIdentity",
+    "CodexInteractiveDriver",
+    "CompatibleApiDriver",
     "DecisionCard",
+    "FactorHealth",
+    "FactorHealthStatus",
+    "FactorMetadata",
+    "FactorRegistry",
     "FailureKind",
+    "LearningEntry",
+    "LearningStore",
+    "OfflineDriver",
     "ProviderSelection",
+    "ReportBundleWriter",
     "ReportManifest",
+    "ResearchOrchestrator",
     "ResearchPlan",
     "ResearchRequest",
     "ResearchRunResult",
     "ResearchRunState",
     "ResearchState",
+    "ResearchToolGateway",
+    "ResearchToolName",
+    "ResearchToolRequest",
+    "ResearchToolResponse",
+    "ResearchToolStatus",
     "RiskReview",
     "RunEvent",
+    "UserApiDriver",
+    "WorkflowLimits",
+    "reconcile_learning",
+    "render_section_html",
     "stable_digest",
     "to_jsonable",
+    "validate_learning_entry",
     "validate_transition",
+    "verify_report_bundle",
 ]
