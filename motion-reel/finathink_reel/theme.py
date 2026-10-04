@@ -1,113 +1,111 @@
-"""REEL CONFIG — everything a new film needs to change lives in this file.
+"""Finathink bilingual motion-reel configuration.
 
-A 15-second reel on a musical grid. One scene per bar, so every cut lands on a
-downbeat and picture and music share one timeline instead of being married up
-in the edit.
-
-Replace the identity, palette and copy below. The palette shipped here is a
-placeholder: for a real brand, sample the values from the brand's own assets
-(its website stylesheet, or the product's own screenshots) rather than picking
-them by eye. The dark version of a light product's palette is not a different
-palette — it is the same colours read at the other end of the exposure.
+The film is authored at 1280x720 and delivered at 1920x1080. Copy, timing,
+palette, and source asset paths live here so scene code stays about motion and
+composition rather than identity decisions.
 """
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
 
 # --- identity ---------------------------------------------------------------
-BRAND = "STUDIO"
-DOMAIN = "STUDIO.DEV"
-PRODUCT = "PANEL"
-STUDIO = "REEL"
-PLATFORMS = "DESIGN · MOTION · CODE"
-TAGLINE = "MADE WITH CODE"
+BRAND = "FINATHINK"
+DOMAIN = "FINATHINK.CLOUD"
+PRODUCT = "FINANCIAL RESEARCH OPTIMIZER"
+STUDIO = "THINK THROUGH FINANCE"
+PLATFORMS = "EVENTS · KNOWLEDGE · QUANT · YOU"
+TAGLINE = "THINK THROUGH FINANCE"
 
 # --- timeline ---------------------------------------------------------------
-# 15.000 s exactly. One scene per bar, every cut lands on a downbeat.
-#   seconds = bars * 4 * 60 / BPM      BPM = 240 * bars / seconds
-#   8 bars -> 128 BPM | 6 bars -> 96 | 5 bars -> 80 | 4 bars -> 64
-# 30 fps: 450 frames. At 30 a 6-frame settle is 0.2 s, so entrances settle in
-# about 4~6 frames again and out_expo(x, 4~4.5) is the general-purpose landing.
 FPS = 30
 BPM = 128
-BEAT = 60.0 / BPM          # 0.46875 s
-BAR = BEAT * 4             # 1.875 s
+BEAT = 60.0 / BPM
+BAR = BEAT * 4
 BARS = 8
-DUR = BAR * BARS           # 15.000 s
-NFRAMES = int(round(DUR * FPS))   # 450
+DUR = BAR * BARS
+NFRAMES = int(round(DUR * FPS))
 
-# Layout is authored in W/H; OUT_W/OUT_H is the file that comes out. Delivery
-# is 1920x1080 at 30 fps. Keeping the authoring space at 720p is what makes
-# that cheap to lay out: type, rules and everything vector is rendered at the
-# delivery size regardless, so only the soft masks (glow, grain, paper tooth)
-# are built at the authoring size and resampled once. A film that leans on
-# fine print texture — halftone dots, stipple — should instead author at the
-# delivery size by setting W, H = OUT_W, OUT_H, so those masks are born sharp.
+# --- layout -----------------------------------------------------------------
 OUT_W, OUT_H = 1920, 1080
 W, H = 1280, 720
+SAFE_X = 80.0
+SAFE_Y = 54.0
+INFO_W = W * 0.72
+INFO_H = H * 0.68
+HUD_M = 28.0
+HUD_TOP = 22.0
+HUD_BOT = H - 28.0
+M = 58.0
 
-# --- palette ----------------------------------------------------------------
-# Every colour should trace to a measured brand value, never to taste. See
-# references/design-grammar.md for how to sample them.
-INK = (5, 9, 15)           # deepest plate
-BG0 = (8, 15, 24)
-BG1 = (13, 24, 38)
-BG2 = (20, 34, 52)
+# --- source assets ----------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ASSET_RESEARCH = str(PROJECT_ROOT / "assets" / "finathink-research-splash.jpg")
+ASSET_MAP = str(PROJECT_ROOT / "assets" / "finathink-splash-map.jpg")
 
-ACCENT = (32, 165, 58)     # primary brand colour
-ACCENT_BR = (62, 224, 106)  # primary pushed into glow
-ACCENT_LT = (169, 229, 189)  # light tint of the brand
-ACCENT_DK = (10, 122, 36)
+# Pillow can load a macOS TrueType Collection directly. The font is deliberately
+# referenced by path rather than copied into the project, so the source project
+# does not redistribute a system font.
+CJK_FONT_PATH = os.environ.get(
+    "FINATHINK_CJK_FONT", "/System/Library/Fonts/Hiragino Sans GB.ttc"
+)
 
-ALT = (255, 215, 0)        # secondary / highlight
-INFO = (48, 144, 232)
-WARN = (240, 128, 24)
-ERR = (230, 52, 52)
-
-WHITE = (238, 246, 240)
-PAPER = (240, 245, 240)    # the light scene's plate
+# --- measured product palette ----------------------------------------------
+INK = (15, 23, 42)
+BG0 = (248, 250, 252)
+BG1 = (239, 244, 247)
+BG2 = (226, 234, 241)
+PAPER = (248, 250, 252)
 CARD = (255, 255, 255)
-GREY = (127, 143, 158)
-GREY_D = (58, 74, 92)
-SLATE = (29, 44, 62)
+WHITE = (255, 255, 255)
+ACCENT = (30, 58, 95)       # #1E3A5F
+ACCENT_BR = (37, 99, 235)   # #2563EB
+ACCENT_LT = (161, 185, 214)
+ACCENT_DK = (18, 42, 72)
+ALT = (161, 98, 7)          # #A16207
+INFO = (37, 99, 235)
+WARN = (161, 98, 7)
+ERR = (165, 65, 62)
+EVIDENCE = (47, 107, 87)
+GREY = (71, 85, 105)
+GREY_D = (100, 116, 135)
+SLATE = (203, 213, 225)
 
 # --- type -------------------------------------------------------------------
-S_HERO = 153.0
-S_WORD = 156.0
-S_MONO = 96.0
-S_LOGOTYPE = 62.0
-S_SUB = 17.0
-S_HUD = 9.5
-S_TAG = 10.5
+S_HERO = 126.0
+S_WORD = 120.0
+S_MONO = 72.0
+S_LOGOTYPE = 58.0
+S_SUB = 18.0
+S_HUD = 9.0
+S_TAG = 10.0
+TRACK_HERO = -2.6
+TRACK_WORD = -2.4
+TRACK_SUB = 1.0
+TRACK_HUD = 1.2
 
-TRACK_HERO = -4.0
-TRACK_WORD = -3.5
-TRACK_SUB = 3.2
-TRACK_HUD = 1.5
-
-# --- HUD chrome -------------------------------------------------------------
-M = 58.0           # live-area margin for panel-style layouts
-HUD_M = 27.0
-HUD_TOP = 24.0
-HUD_BOT = 700.0
-
+# Each entry is (id, chrome label, English title, Chinese subtitle).
 SCENES = [
-    ("01", "OPEN",        "Title build"),
-    ("02", "KINETIC TYPE", "Four words, one beat each"),
-    ("03", "HARDWARE",     "Rack, modelled in 3D"),
-    ("04", "MONITOR",      "Live panel readouts"),
-    ("05", "TRAFFIC",      "Data streamlines"),
-    ("06", "THE PANEL",    "Product UI, light theme"),
-    ("07", "DEPLOY",       "Speed ramp"),
-    ("08", "SIGN OFF",     "Lockup"),
+    ("01", "OPEN", "FINATHINK", "穿透金融，形成判断"),
+    ("02", "BRIDGE", "FROM NOISE TO KNOWLEDGE", "从噪声，到知识"),
+    ("03", "EVIDENCE", "EVIDENCE FIRST", "先看证据，再下判断"),
+    ("04", "KNOWLEDGE", "UNDERSTAND THE WHY", "理解背后的逻辑"),
+    ("05", "QUANT", "TEST, DON'T GUESS", "用量化验证，不靠猜测"),
+    ("06", "STRATEGY", "BACKTEST / OUT OF SAMPLE", "回测，也要守住样本外边界"),
+    ("07", "LEARNING", "LEARN WITH AN AGENT", "与智能代理一起学习"),
+    ("08", "SIGNOFF", "THINK THROUGH FINANCE", "把金融问题，想得更清楚"),
 ]
 
-KINETIC_WORDS = ["BOLD", "SIMPLE", "STABLE", "FAST"]
+# Kept for the template audio/chrome interfaces; scene code replaces the
+# original neon copy with the light editorial treatment.
+KINETIC_WORDS = ["EVIDENCE", "KNOWLEDGE", "QUANT", "LEARNING"]
 KINETIC_SUBS = [
-    "WEIGHT 900 / TIGHT TRACKING",
-    "ONE IDEA PER BEAT",
-    "STEADY, THEN SUDDEN",
-    "SHORT WORDS HIT HARDER",
+    "SOURCE BEFORE STORY",
+    "EQUATIONS INTO INSIGHT",
+    "TEST THE QUESTION",
+    "KEEP THE THREAD",
 ]
-
-# readouts for the data scene — illustrative UI values, not product claims
-GAUGES = [("CPU", 0.42, ACCENT), ("MEM", 0.61, ACCENT), ("DISK", 0.73, WARN),
-          ("NET", 0.28, INFO)]
-METRICS = [("LOAD", "0.84"), ("PROC", "212"), ("NODES", "38"), ("WORK", "12")]
+GAUGES = [("EVIDENCE", 0.86, EVIDENCE), ("OOS", 0.64, INFO),
+          ("RISK", 0.42, WARN), ("TRACE", 0.78, ACCENT)]
+METRICS = [("CLAIMS", "04"), ("SOURCES", "12"), ("NODES", "38"), ("STEPS", "08")]

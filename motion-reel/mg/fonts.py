@@ -6,6 +6,24 @@ monospace (HUD chrome). We mirror that pairing, with Inter for mid-weight copy.
 import os
 from PIL import ImageFont
 
+
+def cjk(size, path=None, index=0):
+    """Load the locally available CJK face for Chinese supporting copy."""
+    font_path = path or os.environ.get(
+        "FINATHINK_CJK_FONT", "/System/Library/Fonts/Hiragino Sans GB.ttc"
+    )
+    if not os.path.isfile(font_path):
+        raise RuntimeError(
+            "CJK font not found at %s; set FINATHINK_CJK_FONT to a local "
+            "TrueType or TrueType Collection font" % font_path
+        )
+    key = ("__cjk__", font_path, round(size, 2), index)
+    f = _CACHE.get(key)
+    if f is None:
+        f = ImageFont.truetype(font_path, size, index=index)
+        _CACHE[key] = f
+    return f
+
 def _find_font_dir():
     """Locate the bundled faces.
 
