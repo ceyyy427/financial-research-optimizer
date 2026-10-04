@@ -1,5 +1,0 @@
-{
-  "cik": "0000320193",
-  "entityName": "Example Issuer",
-  "facts": {"us-gaap": {"Revenues": {"label": "Revenues", "units": {"USD": [{"fy": 2025, "fp": "FY", "form": "10-K", "filed": "2026-02-01", "val": 100.0}]}}}}
-}

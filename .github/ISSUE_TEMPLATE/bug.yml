@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible product or test failure.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Include the smallest reproduction and expected behaviour.
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes: {label: Version/commit}
+  - type: textarea
+    id: environment
+    attributes: {label: Environment, description: OS, Python, install path, and sample/live mode.}
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, credentials, and private research.
+          required: true

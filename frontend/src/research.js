@@ -1,0 +1,235 @@
+import {
+  CandlestickSeries,
+  ColorType,
+  HistogramSeries,
+  LineSeries,
+  createChart,
+  createSeriesMarkers,
+} from 'lightweight-charts';
+import * as echarts from 'echarts/core';
+import { LineChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+import './knowledge.js';
+
+echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+
+const MAX_POINTS = 10_000;
+
+function humanizeKey(value) {
+  const text = String(value).replaceAll('_', ' ');
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+function finite(value, field) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new TypeError(`${field} must be finite`);
+  }
+  return value;
+}
+
+function requiredText(value, field) {
+  if (typeof value !== 'string' || value.trim() === '') throw new TypeError(`${field} is required`);
+  return value;
+}
+
+export function normalizePayload(payload) {
+  if (!payload || payload.schema_version !== 1) throw new TypeError('chart payload schema is invalid');
+  const dataset = payload.dataset;
+  if (!dataset || !requiredText(dataset.id, 'dataset id') || !requiredText(dataset.fingerprint, 'dataset fingerprint')) {
+    throw new TypeError('dataset provenance is invalid');
+  }
+  if (!Array.isArray(payload.points) || payload.points.length > MAX_POINTS) throw new TypeError('chart points are invalid or too large');
+  const pointIds = new Set();
+  const pointTimes = new Set();
+  const points = payload.points.map((point, index) => {
+    if (!point || !requiredText(point.id, `point ${index} id`) || !requiredText(point.time, `point ${index} time`)) throw new TypeError('chart point identity is invalid');
+    const parsed = Date.parse(point.time);
+    if (!Number.isFinite(parsed)) throw new TypeError(`point ${index} time is invalid`);
+    if (pointIds.has(point.id) || pointTimes.has(parsed)) throw new TypeError('chart point ids and times must be unique');
+    pointIds.add(point.id);
+    pointTimes.add(parsed);
+    for (const field of ['open', 'high', 'low', 'close', 'volume']) finite(point[field], `point ${index} ${field}`);
+    if (!point.features || typeof point.features !== 'object' || Array.isArray(point.features)) throw new TypeError('point features are invalid');
+    for (const [feature, value] of Object.entries(point.features)) finite(value, `point ${index} feature ${feature}`);
+    return { ...point, events: Array.isArray(point.events) ? [...point.events] : [], features: { ...point.features } };
+  });
+  for (let index = 1; index < points.length; index += 1) {
+    if (Date.parse(points[index - 1].time) > Date.parse(points[index].time)) throw new TypeError('chart points must be chronological');
+  }
+  return {
+    schema_version: 1,
+    dataset: { ...dataset },
+    points,
+    features: Array.isArray(payload.features) ? payload.features.map((item) => ({ ...item })) : [],
+    events: Array.isArray(payload.events) ? payload.events.map((item) => ({ ...item })) : [],
+    sweep: payload.sweep && typeof payload.sweep === 'object' ? { ...payload.sweep } : null,
+    limitations: Array.isArray(payload.limitations) ? [...payload.limitations] : [],
+  };
+}
+
+export function selectPoint(points, pointId) {
+  return points.find((point) => point.id === pointId) ?? null;
+}
+
+export function formatResearchPoint(point, eventLabels = {}) {
+  const featureText = Object.entries(point.features ?? {}).map(([key, value]) => `${humanizeKey(key)} ${value}`).join(', ') || 'none';
+  const events = (point.events ?? []).map((event) => eventLabels[event] ?? event).join(', ') || 'none';
+  return `${point.time} · Open ${point.open} · High ${point.high} · Low ${point.low} · Close ${point.close} · Volume ${point.volume} · Features ${featureText} · Events ${events}`;
+}
+
+function announcePoint(root, point, eventLabels) {
+  const summary = formatResearchPoint(point, eventLabels);
+  const inspector = root.querySelector('[data-research-inspector]');
+  const tooltip = root.querySelector('[data-research-tooltip]');
+  if (inspector) inspector.textContent = summary;
+  if (tooltip) tooltip.textContent = summary;
+  const link = root.querySelector('[data-knowledge-context-link]');
+  const status = root.querySelector('[data-knowledge-context-status]');
+  if (link) link.href = `/knowledge/volatility?context_type=research_point&context_id=${encodeURIComponent(point.id)}`;
+  if (status) status.textContent = `Point-in-time values and evidence are available for ${point.time}.`;
+}
+
+function pointTable(root, payload, selectedId = null) {
+  const existing = root.querySelector('[data-research-point-table]');
+  if (existing) existing.remove();
+  const target = root.querySelector('[data-research-table-anchor]') || root;
+  const wrapper = document.createElement('div');
+  wrapper.dataset.researchPointTable = 'true';
+  wrapper.className = 'table-wrap';
+  const table = document.createElement('table');
+  table.setAttribute('aria-label', 'Research observations');
+  const head = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  ['Time', 'Close', 'Volume', 'Features', 'Events'].forEach((label) => {
+    const cell = document.createElement('th');
+    cell.textContent = label;
+    headerRow.appendChild(cell);
+  });
+  head.appendChild(headerRow);
+  table.appendChild(head);
+  const body = document.createElement('tbody');
+  const eventLabels = Object.fromEntries(payload.events.map((event) => [event.id, event.label ?? event.title ?? event.id]));
+  payload.points.forEach((point) => {
+    const row = document.createElement('tr');
+    row.dataset.pointId = point.id;
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-label', formatResearchPoint(point, eventLabels));
+    [
+      point.time,
+      point.close,
+      point.volume,
+      Object.entries(point.features).map(([key, value]) => `${humanizeKey(key)}: ${value}`).join(', ') || '—',
+      point.events.map((event) => eventLabels[event] ?? event).join(', ') || '—',
+    ].forEach((value) => {
+      const cell = document.createElement('td');
+      cell.textContent = String(value);
+      row.appendChild(cell);
+    });
+    row.addEventListener('click', () => selectAndAnnounce(root, payload, point.id));
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectAndAnnounce(root, payload, point.id); }
+    });
+    if (point.id === selectedId) row.setAttribute('aria-current', 'true');
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  wrapper.appendChild(table);
+  target.appendChild(wrapper);
+}
+
+function selectAndAnnounce(root, payload, pointId) {
+  const point = selectPoint(payload.points, pointId);
+  if (!point) return;
+  root.querySelectorAll('[data-point-id][aria-current="true"]').forEach((row) => row.removeAttribute('aria-current'));
+  const row = [...root.querySelectorAll('[data-point-id]')].find((candidate) => candidate.dataset.pointId === pointId);
+  if (row) row.setAttribute('aria-current', 'true');
+  const eventLabels = Object.fromEntries(payload.events.map((event) => [event.id, event.label ?? event.title ?? event.id]));
+  announcePoint(root, point, eventLabels);
+  root.dispatchEvent(new CustomEvent('finathink:point-selected', { bubbles: true, detail: { pointId } }));
+}
+
+function renderSweep(root, sweep) {
+  if (!sweep || !Array.isArray(sweep.experiments) || !sweep.experiments.length) return;
+  const target = root.querySelector('[data-research-sweep]');
+  if (!target) return;
+  const chart = echarts.init(target, null, { renderer: 'canvas' });
+  const rows = sweep.experiments.map((item) => {
+    const score = Number(item.oos?.score ?? item.metrics?.oos ?? item.metrics?.score ?? 0);
+    return [String(item.parameters?.window ?? item.experiment_id ?? item.index), Number.isFinite(score) ? score : 0];
+  });
+  chart.setOption({
+    animation: !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    grid: { left: 48, right: 16, top: 20, bottom: 32 },
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: rows.map((item) => item[0]), name: 'Parameter' },
+    yAxis: { type: 'value', name: 'OOS metric' },
+    series: [{ type: 'line', data: rows.map((item) => item[1]), smooth: false, lineStyle: { color: '#0b6670' }, itemStyle: { color: '#0b6670' } }],
+  });
+  const onResize = () => chart.resize();
+  window.addEventListener('resize', onResize, { passive: true });
+  return () => {
+    window.removeEventListener('resize', onResize);
+    chart.dispose();
+  };
+}
+
+export function mountResearch(root, { payload, payloadUrl } = {}) {
+  if (root._finathinkCleanup) root._finathinkCleanup();
+  const load = payload ? Promise.resolve(payload) : fetch(payloadUrl || root.dataset.payloadUrl).then((response) => {
+    if (!response.ok) throw new Error(`research payload request failed (${response.status})`);
+    return response.json();
+  });
+  return load.then((raw) => {
+    const normalized = normalizePayload(raw);
+    const chartContainer = root.querySelector('[data-research-chart]');
+    if (chartContainer && normalized.points.length) {
+      const chart = createChart(chartContainer, { autoSize: true, layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#40545d' }, grid: { vertLines: { color: '#e3e9e8' }, horzLines: { color: '#e3e9e8' } }, rightPriceScale: { borderColor: '#b5c4c4' }, timeScale: { borderColor: '#b5c4c4', rightOffset: 3 } });
+      const candles = chart.addSeries(CandlestickSeries, { upColor: '#2f6b57', downColor: '#a5413e', borderVisible: false, wickUpColor: '#2f6b57', wickDownColor: '#a5413e' });
+      candles.setData(normalized.points.map((point) => ({ time: Math.floor(Date.parse(point.time) / 1000), open: point.open, high: point.high, low: point.low, close: point.close })));
+      const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: '' });
+      volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+      volume.setData(normalized.points.map((point) => ({ time: Math.floor(Date.parse(point.time) / 1000), value: point.volume, color: point.close >= point.open ? '#9cc9b4' : '#e8b0ad' })));
+      for (const [featureName, color] of [['return_1d', '#8a5a17'], ['range_pct', '#63528a']]) {
+        if (!normalized.points.some((point) => Object.prototype.hasOwnProperty.call(point.features, featureName))) continue;
+        const series = chart.addSeries(LineSeries, { title: featureName, color, lineWidth: 1, priceScaleId: featureName });
+        series.priceScale().applyOptions({ scaleMargins: { top: 0.72, bottom: 0.05 } });
+        series.setData(normalized.points.map((point) => ({ time: Math.floor(Date.parse(point.time) / 1000), value: point.features[featureName] })));
+      }
+      const markers = normalized.points.flatMap((point) => (point.events ?? []).map((event) => ({ time: Math.floor(Date.parse(point.time) / 1000), position: 'aboveBar', color: '#8a5a17', shape: 'arrowDown', text: event })));
+      if (markers.length) createSeriesMarkers(candles, markers);
+      chart.subscribeCrosshairMove((param) => {
+        const timestamp = param.time;
+        const point = normalized.points.find((candidate) => Math.floor(Date.parse(candidate.time) / 1000) === timestamp);
+        if (point) selectAndAnnounce(root, normalized, point.id);
+      });
+      chart.subscribeClick((param) => {
+        const timestamp = param.time;
+        const point = normalized.points.find((candidate) => Math.floor(Date.parse(candidate.time) / 1000) === timestamp);
+        if (point) selectAndAnnounce(root, normalized, point.id);
+      });
+      root._finathinkChart = chart;
+      root._finathinkCleanup = () => chart.remove();
+    }
+    pointTable(root, normalized, normalized.points[0]?.id ?? null);
+    if (normalized.points[0]) selectAndAnnounce(root, normalized, normalized.points[0].id);
+    const sweepCleanup = renderSweep(root, normalized.sweep);
+    const priorCleanup = root._finathinkCleanup;
+    root._finathinkCleanup = () => {
+      if (priorCleanup) priorCleanup();
+      if (sweepCleanup) sweepCleanup();
+    };
+    return normalized;
+  }).catch((error) => {
+    const target = root.querySelector('[data-research-error]') || root;
+    target.textContent = `Research visualization unavailable: ${error.message}`;
+    target.hidden = false;
+    target.setAttribute('role', 'alert');
+    throw error;
+  });
+}
+
+if (typeof document !== 'undefined') {
+  document.querySelectorAll('[data-finathink-research]').forEach((root) => { mountResearch(root); });
+}

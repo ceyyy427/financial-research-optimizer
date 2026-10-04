@@ -1,0 +1,19 @@
+name: Installation report
+description: Report a clean-install or startup problem.
+title: "[Install] "
+labels: [installation]
+body:
+  - type: textarea
+    id: steps
+    attributes: {label: Steps and output, description: Paste commands and the relevant redacted output.}
+    validations: {required: true}
+  - type: input
+    id: platform
+    attributes: {label: OS/architecture/Python}
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets and private paths where practical.
+          required: true

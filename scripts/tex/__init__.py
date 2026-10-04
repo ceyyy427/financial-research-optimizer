@@ -1,1 +1,0 @@
-"""Optional formula artifact helpers."""

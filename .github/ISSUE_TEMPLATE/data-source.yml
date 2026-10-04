@@ -1,0 +1,12 @@
+name: Data source report
+description: Report source admission, provenance, or provider behaviour.
+title: "[Data source] "
+labels: [data-source, research-integrity]
+body:
+  - type: textarea
+    id: source
+    attributes: {label: Source and terms, description: Include the official URL, timestamp, and reuse concern.}
+    validations: {required: true}
+  - type: textarea
+    id: reproduction
+    attributes: {label: Reproduction, description: Include fixture/capture id and expected temporal semantics.}

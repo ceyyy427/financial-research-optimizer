@@ -1,58 +1,74 @@
-name: financial-research-optimizer-ci
+name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install test dependencies
-        run: python3 -m pip install --upgrade -r requirements-dev.txt
-      - name: Validate contracts and preflight
-        run: |
-          python3 scripts/validate_research_config.py examples/research_config.json
-          python3 scripts/validate_experiment_manifest.py examples/experiment_manifest.json
-          python3 scripts/validate_source_registry.py
-          python3 scripts/adapters/status.py
-          python3 scripts/validate_schemas.py
-          python3 scripts/verify_result_lineage.py examples/demo_analysis.json
-          python3 scripts/run_preflight.py --config examples/research_config.json --manifest examples/experiment_manifest.json --analysis examples/demo_analysis.json --output /tmp/preflight.json
-          python3 scripts/overfitting_applicability.py --candidate-count 4 --trial-count 8 --observations 690 --paired-loss --portfolio-returns --output /tmp/overfitting_applicability.json
-          python3 scripts/run_online_refresh.py --config examples/research_config.json --output /tmp/refresh_plan.json
-          python3 scripts/build_refresh_plan.py --config examples/research_config.json --output /tmp/refresh_plan_v2.json
-          python3 scripts/source_router.py --topic "US CPI vintage" --universe CPIAUCSL --capability point_in_time --capability vintage_data --output /tmp/source_plan.json
-      - name: Generate offline example artifacts
-        run: python3 scripts/generate_financial_html.py examples/demo_analysis.json --config examples/research_config.json --manifest examples/experiment_manifest.json --output-dir /tmp/artifacts --decision-format both
-      - name: Run tests
-        run: python3 -m pytest -q
-
-  clean-install:
-    name: clean install (${{ matrix.python-version }})
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ['3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Build and install wheel
+          cache: pip
+      - name: Install package and test tools
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[dev]'
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Ruff
+        run: ruff check src tests scripts
+      - name: Governance and dependency checks
         run: |
-          python3 -m pip install --upgrade build
-          python3 -m build
-          python3 -m venv /tmp/fro-clean
-          /tmp/fro-clean/bin/python -m pip install dist/*.whl jsonschema
-      - name: Exercise installed CLI
+          python scripts/validate_governance.py .
+          python -m pip check
+          python -m pip install pip-audit==2.10.1
+          pip-audit -r requirements.lock --strict --progress-spinner off
+          python scripts/prepare_release.py --check
+          python scripts/secret_scan.py
+      - name: Build smoke
         run: |
-          /tmp/fro-clean/bin/fro-adapter-status --registry "$GITHUB_WORKSPACE/config/source_registry.yaml"
-          /tmp/fro-clean/bin/fro-validate-schemas --root "$GITHUB_WORKSPACE"
-          /tmp/fro-clean/bin/fro-preflight --config "$GITHUB_WORKSPACE/examples/research_config.json" --manifest "$GITHUB_WORKSPACE/examples/experiment_manifest.json" --analysis "$GITHUB_WORKSPACE/examples/demo_analysis.json" --output /tmp/fro-preflight.json
-          /tmp/fro-clean/bin/fro-html "$GITHUB_WORKSPACE/examples/demo_analysis.json" --config "$GITHUB_WORKSPACE/examples/research_config.json" --manifest "$GITHUB_WORKSPACE/examples/experiment_manifest.json" --output-dir /tmp/fro-artifacts --decision-format both
+          python -m pip wheel --no-deps --wheel-dir /tmp/finathink-wheel .
+          python scripts/clean_install.py --wheel "$(find /tmp/finathink-wheel -name 'finathink-*.whl' -print -quit)"
+      - name: Diff whitespace
+        run: git diff --check
+
+  quant-and-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install research and quant dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[dev,research]' statsmodels==0.15.0
+      - name: Quant dependency and SQLite migration smoke
+        run: |
+          python -m pip check
+          python -c "import sqlite3; from finahinking.p6_5.repository import apply_migration; from finahinking.p7 import apply_p7_migration; c=sqlite3.connect(':memory:'); apply_migration(c); apply_p7_migration(c)"
+          python -c "import pandas as pd; from finahinking.quant.adapters.statsmodels_adapter import StatsmodelsAdapter; print(StatsmodelsAdapter().fit_ols(pd.DataFrame({'y':[1.,2.,3.], 'x':[0.,1.,2.]}), 'y', ['x']).fingerprint)"
+      - name: PostgreSQL migration gate
+        run: bash scripts/verify_p6_5_postgres.sh
+
+  notebook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -e '.[dev,research]'
+      - name: Notebook gate
+        run: python -m jupyter nbconvert --to notebook --execute --output /tmp/finathink_research_workflow_executed.ipynb notebooks/01_research_workflow.ipynb

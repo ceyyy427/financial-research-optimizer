@@ -1,0 +1,97 @@
+"""P7 private intelligence and evidence-driven community contracts."""
+
+from .community import (
+    CommunityClaim,
+    CommunityIntegrityError,
+    CommunityIntegrityService,
+    CommunitySummary,
+    EvidenceAttachment,
+    SanitizedCommunityContent,
+    sanitize_untrusted_content,
+    summarize_discussion,
+)
+from .context import (
+    EvidenceGroundedGuidance,
+    Guidance,
+    GuidanceResult,
+    GuidanceSuggestion,
+    PersonalGuidance,
+    suggest_guidance,
+)
+from .event_learning import EventLearningAdapter, EventLearningSlice
+from .models import (
+    CommunityComment,
+    CommunityPost,
+    CommunityRoom,
+    ConceptMasteryState,
+    LearningThread,
+    MasteryEvidence,
+    PersonalEdge,
+    PersonalNode,
+    Principal,
+    ProjectionSpec,
+    PublicProjection,
+)
+from .personal import (
+    MisconceptionContinuity,
+    PersonalIntelligenceService,
+    PersonalTimeline,
+    TimelineEvent,
+    build_personal_timeline,
+    correct_misconception,
+    record_misconception,
+)
+from .product import PersonalHomeService, PersonalHomeSnapshot
+from .repository import MIGRATION_PATH, SQLiteP7Repository, apply_p7_migration
+from .workflows import (
+    StrategyJourneyInput,
+    StrategyJourneyResult,
+    StrategyPersonalCommunityWorkflow,
+    run_strategy_personal_community_journey,
+)
+
+__all__ = [
+    "MIGRATION_PATH",
+    "CommunityClaim",
+    "CommunityComment",
+    "CommunityIntegrityError",
+    "CommunityIntegrityService",
+    "CommunityPost",
+    "CommunityRoom",
+    "CommunitySummary",
+    "ConceptMasteryState",
+    "EventLearningAdapter",
+    "EventLearningSlice",
+    "EvidenceAttachment",
+    "EvidenceGroundedGuidance",
+    "Guidance",
+    "GuidanceResult",
+    "GuidanceSuggestion",
+    "LearningThread",
+    "MasteryEvidence",
+    "MisconceptionContinuity",
+    "PersonalEdge",
+    "PersonalGuidance",
+    "PersonalHomeService",
+    "PersonalHomeSnapshot",
+    "PersonalIntelligenceService",
+    "PersonalNode",
+    "PersonalTimeline",
+    "Principal",
+    "ProjectionSpec",
+    "PublicProjection",
+    "SQLiteP7Repository",
+    "SanitizedCommunityContent",
+    "StrategyJourneyInput",
+    "StrategyJourneyResult",
+    "StrategyPersonalCommunityWorkflow",
+    "TimelineEvent",
+    "apply_p7_migration",
+    "build_personal_timeline",
+    "correct_misconception",
+    "record_misconception",
+    "run_strategy_personal_community_journey",
+    "sanitize_untrusted_content",
+    "suggest_guidance",
+    "summarize_discussion",
+]

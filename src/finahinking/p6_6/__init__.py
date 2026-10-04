@@ -1,0 +1,126 @@
+"""P6.6 Strategy Research & Simulation Lab contracts."""
+
+from .backtest import (
+    BacktestConfiguration,
+    ResearchPreview,
+    preview_backtest,
+    run_historical_backtest,
+    run_panel_backtest,
+)
+from .compiler import CompiledStrategy, StrategyCompiler, compile_strategy, strategy_ir
+from .diagnostics import (
+    BacktestPaperComparison,
+    FeatureDriftReport,
+    compare_backtest_paper,
+    compute_feature_drift,
+    feature_drift,
+)
+from .education import (
+    CodeSafetyReport,
+    EducationalCode,
+    StrategyLearningTrace,
+    generate_educational_code,
+    learning_cards,
+    scan_educational_code,
+    validate_generated_code,
+)
+from .export import ResearchPackage, ResearchPackageExporter, export_research_package
+from .features import (
+    FeatureRegistry,
+    PointInTimeViolation,
+    assert_point_in_time,
+    builtin_feature_registry,
+    feature_graph_for_template,
+)
+from .lab import LabRun, StrategyLab, StrategyResearchLab
+from .learning import StrategyLearningBundle, strategy_learning_bundle
+from .models import (
+    FeatureDefinition,
+    FeatureGraph,
+    FeatureNode,
+    FeatureVersion,
+    StrategyIR,
+    StrategyIRNode,
+    StrategyReview,
+    StrategySpec,
+    StrategyVersion,
+)
+from .paper import (
+    PaperRun,
+    PaperSignal,
+    PaperSimulator,
+    VirtualFill,
+    VirtualOrder,
+    VirtualPortfolio,
+    run_paper,
+)
+from .strategy import StrategyInterpreter, review_strategy
+from .validation import (
+    MultipleTestingSummary,
+    WalkForwardReport,
+    WalkForwardWindow,
+    evaluate_frozen_oos,
+    make_oos_plan,
+    walk_forward,
+)
+
+__all__ = [
+    "BacktestConfiguration",
+    "BacktestPaperComparison",
+    "CodeSafetyReport",
+    "CompiledStrategy",
+    "EducationalCode",
+    "FeatureDefinition",
+    "FeatureDriftReport",
+    "FeatureGraph",
+    "FeatureNode",
+    "FeatureRegistry",
+    "FeatureVersion",
+    "LabRun",
+    "MultipleTestingSummary",
+    "PaperRun",
+    "PaperSignal",
+    "PaperSimulator",
+    "PointInTimeViolation",
+    "ResearchPackage",
+    "ResearchPackageExporter",
+    "ResearchPreview",
+    "StrategyCompiler",
+    "StrategyIR",
+    "StrategyIRNode",
+    "StrategyInterpreter",
+    "StrategyLab",
+    "StrategyLearningBundle",
+    "StrategyLearningTrace",
+    "StrategyResearchLab",
+    "StrategyReview",
+    "StrategySpec",
+    "StrategyVersion",
+    "VirtualFill",
+    "VirtualOrder",
+    "VirtualPortfolio",
+    "WalkForwardReport",
+    "WalkForwardWindow",
+    "assert_point_in_time",
+    "builtin_feature_registry",
+    "compare_backtest_paper",
+    "compile_strategy",
+    "compute_feature_drift",
+    "evaluate_frozen_oos",
+    "export_research_package",
+    "feature_drift",
+    "feature_graph_for_template",
+    "generate_educational_code",
+    "learning_cards",
+    "make_oos_plan",
+    "preview_backtest",
+    "review_strategy",
+    "run_historical_backtest",
+    "run_panel_backtest",
+    "run_paper",
+    "scan_educational_code",
+    "strategy_ir",
+    "strategy_learning_bundle",
+    "validate_generated_code",
+    "walk_forward",
+]

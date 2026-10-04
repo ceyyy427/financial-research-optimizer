@@ -1,0 +1,12 @@
+name: Feature request
+description: Propose a bounded research or learning capability.
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes: {label: Problem and user journey, description: Explain who benefits and what evidence would show success.}
+    validations: {required: true}
+  - type: textarea
+    id: boundary
+    attributes: {label: Safety and research boundary, description: Explain privacy, provenance, and no-real-money implications.}
