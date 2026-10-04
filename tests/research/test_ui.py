@@ -90,3 +90,21 @@ def test_local_app_exposes_server_owned_workbench_payload_read_only() -> None:
     assert rejected == 405
     assert rejected_type == "application/json"
     assert "error" in rejected_payload
+
+
+def test_local_app_renders_first_class_workbench_page() -> None:
+    app = LocalApplication(LocalAppConfig(db_path=":memory:", offline=True), connection=sqlite3.connect(":memory:"))
+    status, content_type, page = app.route("GET", "/workbench")
+    assert status == 200 and content_type.startswith("text/html")
+    assert "Factor strategy workbench" in page
+    assert "PAPER-ONLY" in page
+    assert "/api/research/workbench" in page
+    assert "Factor to execution flow" in page
+    assert "<table" in page
+
+
+def test_research_page_links_to_the_standalone_workbench() -> None:
+    app = LocalApplication(LocalAppConfig(db_path=":memory:", offline=True), connection=sqlite3.connect(":memory:"))
+    status, _, page = app.route("GET", "/research")
+    assert status == 200
+    assert "/workbench" in page
