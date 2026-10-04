@@ -46,5 +46,6 @@ def test_p4_5_volatility_workflow_round_trips_and_reproduces(tmp_path):
     assert run.result["coverage"] == 7 / 12
     assert run.result["information_coefficient"] == pytest.approx(0.09026243397759831)
     assert run.dataset_fingerprint == "fe468014d020fbb3f59dd8b39a7b3edf8a45dab2ae414e5694ac16eab3df0a0a"
+    print("DIAGNOSTIC_RESULT", repr(run.result), run.result_fingerprint)
     assert run.result_fingerprint == "256aafbb0d87b3a6ef4470170072b8f1122ada8c9ce4aed66431b2870219730b"
     assert reproduced.result_fingerprint == run.result_fingerprint
