@@ -99,7 +99,7 @@ broker SDK, credential store, or live-trading dependency was installed.
 
 ## P8.2B capability decision
 
-P8.2B adds only the audited frontend `katex` package (`0.16.27`) to the
+P8.2B adds only the audited frontend `katex` package (`0.19.0`) to the
 existing separate `frontend/` npm workspace. Its CSS and font files are
 vendored into the same-origin site and Python package assets; no CDN, remote
 font, browser runtime, or Python runtime dependency is introduced. The
