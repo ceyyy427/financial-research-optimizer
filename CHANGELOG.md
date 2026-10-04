@@ -4,9 +4,9 @@ All notable changes are recorded here. Entries describe user-visible
 research, reproducibility, or governance changes and link to the relevant
 phase gate where possible.
 
-The P8.1 entry below is the current local work-in-progress record. Remote
-publication remains conditional until the unrelated canonical history is
-deliberately reconciled by a human-reviewed strategy.
+The P8.1 entry below is the historical local work-in-progress record. The
+reviewed P8.2B branch is published without force; remote `main` integration
+remains conditional because the histories are unrelated.
 
 ## Unreleased
 
@@ -19,6 +19,10 @@ deliberately reconciled by a human-reviewed strategy.
   32 focused tests passed, frontend tests/build/performance passed, Crossref
   citation audit passed, and the clean wheel install passed. Browser-level
   assistive-technology verification remains explicitly unverified.
+- Published the reviewed P8.2B commit on
+  `codex/finathink-p82b-release`; no force push, merge, GitHub release, or
+  hosted deployment was claimed because the target `main` has unrelated
+  history.
 
 - P8.2 local conditional checkpoint: added Finathink-owned research/market
   contracts with PIT-aware timezone validation, bounded parameter sweeps,

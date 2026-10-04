@@ -58,8 +58,9 @@ treated as passed.
 
 ## Publication boundary
 
-No GitHub push, force push, release, or repository rename is included in this
-local gate. The target repository has an existing identity/history that must
-be inspected read-only before choosing a safe branch or merge strategy. The
-next gate is: full regression → fresh review → remote inspection → authenticated
-publish without replacing unrelated history.
+The reviewed commit `dd2e18c` is published without force on
+[`codex/finathink-p82b-release`](https://github.com/ceyyy427/financial-research-optimizer/tree/codex/finathink-p82b-release).
+GitHub cannot create a pull request because that branch and the existing
+`main` have no common history; `main` was not overwritten. A maintainer must
+choose an explicit history-reconciliation strategy before merging or cutting
+a release. No hosted deployment or GitHub release is claimed.

@@ -38,6 +38,8 @@ vectorbt, QMT, provider, broker, hosted-account, and real-money execution
 paths remain out of scope. This report does not claim a production browser or
 hosted deployment certification.
 
-The local tree is ready for a non-force publication branch. The requested
-remote has an unrelated existing `main` history, so `main` must remain
-untouched unless a human explicitly chooses a history-reconciliation strategy.
+The reviewed commit is published on the non-force branch
+[`codex/finathink-p82b-release`](https://github.com/ceyyy427/financial-research-optimizer/tree/codex/finathink-p82b-release).
+The requested remote has an unrelated existing `main` history, so `main`
+remains untouched unless a human explicitly chooses a history-reconciliation
+strategy.

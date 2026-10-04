@@ -103,10 +103,12 @@ The authoritative state record remains [docs/PROJECT_STATE.md](docs/PROJECT_STAT
 
 The mission-specified canonical repository is
 [`ceyyy427/financial-research-optimizer`](https://github.com/ceyyy427/financial-research-optimizer).
-The authenticated remote is reachable and has real CI and a published `v1.3.0`,
-but this checkout and that remote currently have unrelated Git histories. P8.1
-therefore preserves both lines and does not claim that this local `0.1.x`
-product has been merged into or released from canonical `main`. See
+The reviewed P8.2B source is published on the non-force branch
+[`codex/finathink-p82b-release`](https://github.com/ceyyy427/financial-research-optimizer/tree/codex/finathink-p82b-release).
+The authenticated remote has real CI and a published `v1.3.0`, but this
+checkout and that remote currently have unrelated Git histories. The branch
+is therefore published without claiming that this local `0.1.x` product has
+been merged into or released from canonical `main`. See
 [`docs/p8_1/P8_1_HISTORY_RECONCILIATION.md`](docs/p8_1/P8_1_HISTORY_RECONCILIATION.md)
 for the evidence and safe next action.
 
