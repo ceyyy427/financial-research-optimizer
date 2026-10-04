@@ -50,7 +50,7 @@ def draw(p, t, scene_i, light=False):
     p.text(T.HUD_M, T.HUD_BOT, _tc(t), F.mono(T.S_HUD), ink, T.TRACK_HUD)
 
     # --- scene name, bottom right
-    sid, sname, _ = T.SCENES[scene_i]
+    sid, sname, *_ = T.SCENES[scene_i]
     wlab = p.text(W - T.HUD_M, T.HUD_BOT, f"SCENE {sid} / {sname}", F.mono(T.S_HUD),
                   ink, T.TRACK_HUD, anchor="rs")
     p.rect(W - T.HUD_M - wlab - 11, T.HUD_BOT - 3.0, 5, 5, acc, 0.9)
@@ -88,15 +88,9 @@ def draw(p, t, scene_i, light=False):
 # finishing — the default neon look; retune per film
 # --------------------------------------------------------------------------
 POST = {
-    0: dict(bloom=(0.70, 0.24), chroma=1.4, vig=0.44, grain=0.0120, scan=0.014, white=1.16),
-    1: dict(bloom=(0.68, 0.26), chroma=1.8, vig=0.46, grain=0.0140, scan=0.016, white=1.16),
-    2: dict(bloom=(0.70, 0.26), chroma=1.3, vig=0.54, grain=0.0125, scan=0.016, white=1.16),
-    3: dict(bloom=(0.66, 0.28), chroma=1.3, vig=0.50, grain=0.0130, scan=0.016, white=1.18),
-    4: dict(bloom=(0.60, 0.30), chroma=1.2, vig=0.54, grain=0.0135, scan=0.016, white=1.20),
-    5: dict(bloom=(0.95, 0.26), chroma=0.9, vig=0.16, grain=0.0060, scan=0.000, white=1.00,
-            light=True),
-    6: dict(bloom=(0.64, 0.28), chroma=2.2, vig=0.52, grain=0.0150, scan=0.018, white=1.16),
-    7: dict(bloom=(0.70, 0.26), chroma=1.5, vig=0.44, grain=0.0125, scan=0.014, white=1.16),
+    i: dict(bloom=(1.00, 0.02), chroma=0.0, vig=0.04, grain=0.0010,
+            scan=0.0, white=1.00, light=True)
+    for i in range(8)
 }
 
 

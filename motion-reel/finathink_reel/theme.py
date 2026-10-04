@@ -41,8 +41,10 @@ M = 58.0
 
 # --- source assets ----------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ASSET_RESEARCH = str(PROJECT_ROOT / "assets" / "finathink-research-splash.jpg")
-ASSET_MAP = str(PROJECT_ROOT / "assets" / "finathink-splash-map.jpg")
+ASSET_RESEARCH_SOURCE = str(PROJECT_ROOT / "assets" / "finathink-research-splash.jpg")
+ASSET_MAP_SOURCE = str(PROJECT_ROOT / "assets" / "finathink-splash-map.jpg")
+ASSET_RESEARCH = str(PROJECT_ROOT / "assets" / "finathink-research-splash-contrast.jpg")
+ASSET_MAP = str(PROJECT_ROOT / "assets" / "finathink-splash-map-contrast.jpg")
 
 # Pillow can load a macOS TrueType Collection directly. The font is deliberately
 # referenced by path rather than copied into the project, so the source project
