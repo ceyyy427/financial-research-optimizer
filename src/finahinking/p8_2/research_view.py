@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -170,8 +171,105 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
             "Parameter results retain train, validation, OOS, and multiple-testing warnings.",
         ],
     }
+    payload["workbench"] = _default_workbench_payload(dataset)
     payload["payload_fingerprint"] = _digest(payload)
     return payload
+
+
+def _default_workbench_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
+    """Build the bounded factor/position/risk slice shown beside the series."""
+
+    from finahinking.p6_6.workbench import (
+        ExecutionPolicy,
+        FaultPolicy,
+        PositionPolicySpec,
+        RiskStatePolicy,
+    )
+    from finahinking.p6_6.workbench_engine import run_workbench
+    from finahinking.p6_6.workbench_explanations import build_explanation_package
+
+    first_close: dict[str, float] = {}
+    previous_close: dict[str, float] = {}
+    rows: list[dict[str, Any]] = []
+    for item in sorted(dataset.observations, key=lambda observation: (observation.timestamp, observation.instrument)):
+        first = first_close.setdefault(item.instrument, float(item.close))
+        previous = previous_close.get(item.instrument)
+        one_period_return = 0.0 if previous is None else (float(item.close) / previous) - 1.0
+        score = (float(item.close) / first) - 1.0
+        rows.append(
+            {
+                "id": f"{item.instrument}-{item.timestamp.strftime('%Y%m%dT%H%M%SZ')}",
+                "time": item.timestamp.isoformat(),
+                "available_at": item.available_at.isoformat(),
+                "instrument": item.instrument,
+                "score": round(score, 8),
+                "signal": bool(previous is not None and score > 0),
+                "volatility": round(abs((item.high - item.low) / item.close), 8),
+                "return": round(one_period_return, 8),
+                "price": float(item.close),
+                "volume": float(item.volume),
+            }
+        )
+        previous_close[item.instrument] = float(item.close)
+    run = run_workbench(
+        "fixture-workbench-v1",
+        rows,
+        PositionPolicySpec("fixture-position", "v1", "equal_weight", target_volatility=0.20, max_exposure=0.90, cash_buffer=0.10),
+        RiskStatePolicy("fixture-risk", "v1"),
+        ExecutionPolicy("fixture-execution", "v1", fee_bps=5.0, slippage_bps=5.0, stress_slippage_bps=15.0),
+        FaultPolicy("fixture-fault", "v1"),
+        dataset_fingerprint=dataset.fingerprint,
+        strategy_fingerprint=_digest({"strategy": "lagged-close-strength", "version": "v1"}),
+    )
+    explanation = build_explanation_package(
+        run,
+        strategy_id="fixture-strategy",
+        parameter_changes={"lookback": {"before": 20, "after": 40}},
+        intent="Test whether a slower signal would reduce noise and turnover.",
+        formula_before="P_(t-1) / P_(t-21) - 1",
+        formula_after="P_(t-1) / P_(t-41) - 1",
+        code_trace=("momentum", "lag", "weights", "risk", "costs", "oos"),
+    )
+    return build_workbench_payload(run, explanation)
+
+
+def build_workbench_payload(run: Any, explanation: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Normalize one engine run for renderers; no browser-side calculation."""
+
+    from finahinking.p6_6.workbench_engine import WorkbenchRun
+
+    if not isinstance(run, WorkbenchRun):
+        raise TypeError("run must be a WorkbenchRun")
+    points = [point.to_dict() for point in sorted(run.points, key=lambda item: (item.time, item.instrument))]
+    by_ref = lambda point: {"id": point["point_id"], "time": point["time"], "instrument": point["instrument"]}
+    workbench: dict[str, Any] = {
+        "schema_version": 1,
+        "view": "factor-strategy-workbench",
+        "run_id": run.run_id,
+        "paper_only": True,
+        "points": points,
+        "factor_observations": [{**by_ref(point), "score": point["score"], "available_at": point["available_at"]} for point in points],
+        "signals": [{**by_ref(point), "signal": point["signal"], "score": point["score"]} for point in points],
+        "raw_weights": [{**by_ref(point), "value": point["raw_weight"]} for point in points],
+        "risk_scales": [{**by_ref(point), "value": point["risk_scale"], "state": point["risk_state"]} for point in points],
+        "final_weights": [{**by_ref(point), "value": point["final_weight"], "held": point["held_weight"]} for point in points],
+        "exposure": [{**by_ref(point), "value": point["exposure"]} for point in points],
+        "cash": [{**by_ref(point), "value": point["cash"]} for point in points],
+        "risk_states": [{**by_ref(point), "state": point["risk_state"], "reasons": point["risk_reasons"], "allowed_actions": point["allowed_actions"]} for point in points],
+        "trades": [{**by_ref(point), "weight": point["trade_weight"]} for point in points if point["trade_weight"] != 0],
+        "costs": [{**by_ref(point), "fees": point["fees"], "slippage": point["slippage"]} for point in points],
+        "slippage": [{**by_ref(point), "value": point["slippage"]} for point in points],
+        "fault_events": [{**event, "point_id": point["point_id"]} for point in points for event in point["fault_events"]],
+        "metrics": dict(run.metrics),
+        "limitations": list(run.limitations),
+        "provenance": {"run_id": run.run_id, "dataset_fingerprint": run.dataset_fingerprint, "strategy_fingerprint": run.strategy_fingerprint, "policy_fingerprint": _digest(run.to_dict()["policies"])},
+        "explanation_refs": [{"id": explanation.get("parameter_change", {}).get("explanation_id", f"explanation-{run.run_id}"), "components": sorted((explanation or {}).get("traces", {}).keys())}],
+        "baseline_variant_refs": [{"baseline": (explanation or {}).get("parameter_change", {}).get("paired_metrics", {}).get("baseline", run.metrics), "variant": (explanation or {}).get("parameter_change", {}).get("paired_metrics", {}).get("variant", run.metrics)}],
+    }
+    if explanation is not None:
+        workbench["explanation"] = explanation
+    workbench["payload_fingerprint"] = _digest(workbench)
+    return workbench
 
 
 def capability_payload() -> dict[str, Any]:
