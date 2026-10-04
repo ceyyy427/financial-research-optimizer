@@ -75,3 +75,18 @@ def test_local_app_exposes_read_only_status_and_report_routes(tmp_path) -> None:
     missing_status, _, missing = app.route("GET", "/research/missing/status")
     assert missing_status == 404
     assert missing["error"] == "research run not found"
+
+
+def test_local_app_exposes_server_owned_workbench_payload_read_only() -> None:
+    app = LocalApplication(LocalAppConfig(db_path=":memory:", offline=True), connection=sqlite3.connect(":memory:"))
+    status, content_type, payload = app.route("GET", "/api/research/series")
+    assert (status, content_type) == (200, "application/json")
+    assert payload["workbench"]["paper_only"] is True
+    assert payload["workbench"]["provenance"]["dataset_fingerprint"] == payload["dataset"]["fingerprint"]
+    workbench_status, workbench_type, workbench_payload = app.route("GET", "/api/research/workbench")
+    assert (workbench_status, workbench_type) == (200, "application/json")
+    assert workbench_payload["run_id"] == payload["workbench"]["run_id"]
+    rejected, rejected_type, rejected_payload = app.route("POST", "/api/research/workbench", body={})
+    assert rejected == 405
+    assert rejected_type == "application/json"
+    assert "error" in rejected_payload

@@ -116,6 +116,96 @@ export function normalizePayload(payload) {
   };
 }
 
+const WORKBENCH_NUMERIC_FIELDS = ['score', 'raw_weight', 'risk_scale', 'final_weight', 'held_weight', 'exposure', 'cash', 'trade_weight', 'fees', 'slippage', 'gross_return', 'net_return', 'equity', 'drawdown'];
+
+export function normalizeWorkbenchPayload(payload) {
+  if (!payload || payload.schema_version !== 1 || payload.view !== 'factor-strategy-workbench') throw new TypeError('workbench payload schema is invalid');
+  if (typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('workbench run id is invalid');
+  if (payload.paper_only !== true) throw new TypeError('workbench boundary is not paper-only');
+  if (!Array.isArray(payload.points) || payload.points.length > MAX_POINTS) throw new TypeError('workbench points are invalid or too large');
+  const seen = new Set();
+  const points = payload.points.map((point, index) => {
+    if (!point || typeof point.point_id !== 'string' || point.point_id.trim() === '' || typeof point.instrument !== 'string') throw new TypeError(`workbench point ${index} identity is invalid`);
+    if (seen.has(point.point_id)) throw new TypeError('workbench point ids must be unique');
+    seen.add(point.point_id);
+    if (!Number.isFinite(Date.parse(point.time))) throw new TypeError(`workbench point ${index} time is invalid`);
+    for (const field of WORKBENCH_NUMERIC_FIELDS) finite(point[field], `workbench point ${index} ${field}`);
+    if (!Array.isArray(point.fault_events)) throw new TypeError(`workbench point ${index} faults are invalid`);
+    return { ...point, fault_events: point.fault_events.map((event) => ({ ...event })) };
+  });
+  for (let index = 1; index < points.length; index += 1) {
+    if (Date.parse(points[index - 1].time) > Date.parse(points[index].time)) throw new TypeError('workbench points must be chronological');
+  }
+  const layers = ['factor_observations', 'signals', 'raw_weights', 'risk_scales', 'final_weights', 'exposure', 'cash', 'risk_states', 'trades', 'costs', 'slippage', 'fault_events', 'explanation_refs', 'baseline_variant_refs'];
+  return {
+    ...payload,
+    points,
+    metrics: payload.metrics && typeof payload.metrics === 'object' ? { ...payload.metrics } : {},
+    provenance: payload.provenance && typeof payload.provenance === 'object' ? { ...payload.provenance } : {},
+    limitations: Array.isArray(payload.limitations) ? [...payload.limitations] : [],
+    ...Object.fromEntries(layers.map((layer) => [layer, Array.isArray(payload[layer]) ? payload[layer].map((item) => ({ ...item })) : []])),
+  };
+}
+
+export function selectWorkbenchPoint(payload, pointId) {
+  return payload?.points?.find((point) => point.point_id === pointId) ?? null;
+}
+
+export function previewWorkbenchParameter(root, parameter, value) {
+  requiredText(parameter, 'workbench parameter');
+  finite(value, 'workbench preview value');
+  const preview = { parameter, value, saved: false };
+  if (root?.dataset) root.dataset.workbenchPreview = JSON.stringify(preview);
+  const target = root?.querySelector?.('[data-workbench-preview]');
+  if (target) target.textContent = `Preview only · ${parameter} = ${value} · not saved`;
+  return preview;
+}
+
+export function renderWorkbench(root, payload) {
+  const normalized = normalizeWorkbenchPayload(payload);
+  root.dataset.workbenchStatus = 'READY';
+  root.dataset.workbenchRunId = normalized.run_id;
+  const status = root.querySelector('[data-workbench-status]');
+  if (status) status.textContent = `PAPER-ONLY · ${normalized.points.length} point(s) · render-only`;
+  for (const [key, value] of Object.entries(normalized.metrics)) {
+    const target = root.querySelector(`[data-workbench-metric="${CSS.escape(key)}"]`);
+    if (target) target.textContent = String(value);
+  }
+  const announce = (point) => {
+    const target = root.querySelector('[data-workbench-inspector]');
+    if (target) target.textContent = `${point.time} · ${point.instrument} · score ${point.score} · target ${point.final_weight} · held ${point.held_weight} · risk ${point.risk_state} · net ${point.net_return}`;
+    root.querySelectorAll('[data-workbench-row][aria-current="true"]').forEach((row) => row.removeAttribute('aria-current'));
+    const row = [...root.querySelectorAll('[data-workbench-row]')].find((candidate) => candidate.dataset.pointId === point.point_id);
+    if (row) row.setAttribute('aria-current', 'true');
+    root.dispatchEvent(new CustomEvent('finathink:workbench-point-selected', { bubbles: true, detail: { pointId: point.point_id } }));
+  };
+  root.querySelectorAll('[data-workbench-row]').forEach((row) => {
+    const point = selectWorkbenchPoint(normalized, row.dataset.pointId);
+    if (!point) return;
+    row.addEventListener('click', () => announce(point));
+    row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); announce(point); } });
+  });
+  root.querySelectorAll('[data-workbench-parameter]').forEach((input) => {
+    input.addEventListener('input', () => previewWorkbenchParameter(root, input.dataset.workbenchParameter, Number(input.value)));
+  });
+  if (normalized.points[0]) announce(normalized.points[0]);
+  return normalized;
+}
+
+export function mountWorkbench(root, { payload, payloadUrl } = {}) {
+  if (root) root.dataset.workbenchStatus = 'LOADING';
+  const load = payload ? Promise.resolve(payload) : fetch(payloadUrl || root.dataset.payloadUrl).then((response) => {
+    if (!response.ok) throw new Error(`workbench request failed (${response.status})`);
+    return response.json();
+  });
+  return load.then((raw) => renderWorkbench(root, raw)).catch((error) => {
+    if (root) root.dataset.workbenchStatus = 'ERROR';
+    const target = root?.querySelector('[data-workbench-error]');
+    if (target) { target.textContent = `Workbench unavailable: ${error.message}`; target.hidden = false; }
+    throw error;
+  });
+}
+
 export function selectPoint(points, pointId) {
   return points.find((point) => point.id === pointId) ?? null;
 }
@@ -231,6 +321,8 @@ export function mountResearch(root, { payload, payloadUrl } = {}) {
   });
   return load.then((raw) => {
     const normalized = normalizePayload(raw);
+    const workbenchRoot = root.querySelector('[data-finathink-workbench]');
+    if (workbenchRoot && normalized.workbench) renderWorkbench(workbenchRoot, normalized.workbench);
     const chartContainer = root.querySelector('[data-research-chart]');
     if (chartContainer && normalized.points.length) {
       const chart = createChart(chartContainer, { autoSize: true, layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#40545d' }, grid: { vertLines: { color: '#e3e9e8' }, horzLines: { color: '#e3e9e8' } }, rightPriceScale: { borderColor: '#b5c4c4' }, timeScale: { borderColor: '#b5c4c4', rightOffset: 3 } });
@@ -281,4 +373,5 @@ export function mountResearch(root, { payload, payloadUrl } = {}) {
 if (typeof document !== 'undefined') {
   document.querySelectorAll('[data-finathink-research]').forEach((root) => { mountResearch(root); });
   document.querySelectorAll('[data-research-run]').forEach((root) => { mountResearchRun(root).catch(() => {}); });
+  document.querySelectorAll('[data-finathink-workbench]').forEach((root) => { if (!root.closest('[data-finathink-research]')) mountWorkbench(root).catch(() => {}); });
 }

@@ -214,6 +214,22 @@ th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-tr
 .research-panel ul { margin-bottom: 0; }
 .research-inspector { min-height: 88px; padding: var(--space-3); border-left: 3px solid var(--evidence); background: #f4f8f7; color: var(--text-secondary); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .research-limitations { margin: 0; padding-left: 1.25rem; color: var(--text-secondary); }
+.workbench-frame { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(18px, 3vw, 28px); border: 1px solid #c7c0b4; background: #f2efe7; color: #173137; }
+.workbench-head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; border-bottom: 1px solid #173137; padding-bottom: var(--space-3); }
+.workbench-head h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
+.workbench-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #c7c0b4; border-bottom: 1px solid #c7c0b4; }
+.workbench-metric { min-height: 76px; padding: var(--space-3); border-right: 1px solid #c7c0b4; }
+.workbench-metric:last-child { border-right: 0; }
+.workbench-metric strong { display: block; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.workbench-metric span { color: #617174; font-size: .76rem; text-transform: capitalize; }
+.workbench-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr); gap: var(--space-4); }
+.workbench-inspector { min-height: 90px; padding: var(--space-3); border-left: 3px solid #c36e48; background: #fbfaf6; color: #617174; font-variant-numeric: tabular-nums; }
+.workbench-table { overflow: auto; background: #fbfaf6; border-top: 1px solid #173137; border-bottom: 1px solid #173137; }
+.workbench-table table { min-width: 720px; }
+.workbench-table tbody tr { cursor: pointer; }
+.workbench-table tbody tr[aria-current="true"], .workbench-table tbody tr:hover, .workbench-table tbody tr:focus-visible { background: #e6eeea; box-shadow: inset 3px 0 0 #c36e48; }
+.workbench-preview { padding: var(--space-3); border: 1px solid #c7c0b4; background: #fbfaf6; color: #617174; }
+.workbench-preview input { accent-color: #c36e48; }
 [data-research-point-table] tbody tr { cursor: pointer; }
 [data-research-point-table] tbody tr:hover, [data-research-point-table] tbody tr:focus-visible { background: #eef5f5; }
 [data-research-point-table] tbody tr[aria-current="true"] { background: #e7f1ef; box-shadow: inset 3px 0 0 var(--evidence); }
@@ -234,7 +250,7 @@ th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-tr
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .footer-note { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); color: var(--text-muted); font-size: .82rem; }
 @media (max-width: 1180px) { .app-shell { grid-template-columns: 210px minmax(0, 1fr); } .inspector { grid-column: 2; border-top: 1px solid var(--border); border-left: 0; padding-top: var(--space-5); } .inspector-inner { position: static; } }
-@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid, .research-grid, .settings-grid { grid-template-columns: 1fr; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
+@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid, .research-grid, .settings-grid, .workbench-grid { grid-template-columns: 1fr; } .workbench-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workbench-metric:nth-child(2n) { border-right: 0; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } .splash-frame--secondary { display: none; } }
 """
 
@@ -968,6 +984,12 @@ class LocalApplication:
             from finahinking.p8_2.research_view import build_research_payload
 
             return 200, "application/json", build_research_payload()
+        if clean == "/api/research/workbench":
+            if method != "GET":
+                return 405, "application/json", {"error": "research workbench is read-only"}
+            from finahinking.p8_2.research_view import build_research_payload
+
+            return 200, "application/json", build_research_payload()["workbench"]
         if clean == "/api/research/capabilities" and method == "GET":
             from finahinking.p8_2.research_view import capability_payload
 
@@ -1271,6 +1293,16 @@ class LocalApplication:
                 f'<li class="evidence-item"><strong>{html.escape(str(item.get("label", item.get("id", "Feature"))))}</strong><span>{html.escape(str(item.get("definition", "Server-normalized feature.")))}</span><br><small>Source: {html.escape(str(item.get("source", "normalized")))} · Look-ahead: {html.escape(str(item.get("lookahead", "declared")))}</small></li>'
                 for item in research_payload.get("features", []) if isinstance(item, Mapping)
             )
+            workbench = research_payload.get("workbench", {})
+            workbench_metrics = "".join(
+                f'<div class="workbench-metric"><strong data-workbench-metric="{html.escape(str(key))}">{html.escape(str(value))}</strong><span>{html.escape(str(key).replace("_", " "))}</span></div>'
+                for key, value in list((workbench.get("metrics") or {}).items())[:4]
+            )
+            workbench_rows = "".join(
+                f'<tr data-workbench-row data-point-id="{html.escape(str(point.get("point_id")))}" tabindex="0" role="button" aria-label="{html.escape(str(point.get("time")))} {html.escape(str(point.get("instrument")))}"><th scope="row">{html.escape(str(point.get("time")))}</th><td>{html.escape(str(point.get("instrument")))}</td><td>{html.escape(str(point.get("score")))}</td><td>{html.escape(str(point.get("final_weight")))}</td><td>{html.escape(str(point.get("risk_state")))}</td><td>{html.escape(str(point.get("net_return")))}</td></tr>'
+                for point in workbench.get("points", []) if isinstance(point, Mapping)
+            )
+            workbench_table = '<div class="workbench-table"><table aria-label="Factor strategy workbench audit"><thead><tr><th scope="col">Time</th><th scope="col">Instrument</th><th scope="col">Score</th><th scope="col">Final weight</th><th scope="col">Risk</th><th scope="col">Net return</th></tr></thead><tbody>' + workbench_rows + '</tbody></table></div>'
             return (
                 '<div class="status-row">'
                 f'{self._status("SAMPLE", "sample")}{self._status("PIT-AWARE", "evidence")}{self._status("READ-ONLY", "ready")}'
@@ -1280,6 +1312,7 @@ class LocalApplication:
                 '<section class="research-workspace" data-finathink-research data-payload-url="/api/research/series">'
                 '<div class="research-toolbar"><div><h2>Price, volume, and evidence</h2><p class="source-state">Crosshair and point selection update the inspector; the fallback table remains available to keyboard users.</p></div><span class="status status--sample">FIXTURE / OFFLINE</span></div>'
                 '<div class="research-panel"><div class="research-chart" data-research-chart role="img" aria-label="Candlestick, volume, and feature overlay chart for the normalized research sample"></div><p class="research-tooltip" data-research-tooltip role="status" aria-live="polite">Hover or focus a point to inspect its canonical values.</p><p class="error-state" data-research-error hidden></p></div>'
+                f'<section class="workbench-frame" data-finathink-workbench data-payload-url="/api/research/workbench"><div class="workbench-head"><div><h2>Factor / strategy workbench</h2><p class="source-state">Signal, capital, risk and execution stay separate. Select a row to inspect the server-owned point.</p></div><span class="status status--offline" data-workbench-status>PAPER-ONLY · OFFLINE</span></div><div class="workbench-metrics">{workbench_metrics}</div><div class="workbench-grid"><div><p class="workbench-inspector" data-workbench-inspector role="status" aria-live="polite">Select a workbench row to inspect its canonical values.</p>{workbench_table}</div><div class="workbench-preview"><h3>Parameter preview</h3><label for="workbench-lookback">Lookback window<input id="workbench-lookback" data-workbench-parameter="lookback" type="range" min="5" max="60" value="20" step="5"></label><p class="field-help" data-workbench-preview>Preview only · not saved and never used to rewrite the frozen run.</p><p class="error-state" data-workbench-error hidden></p></div></div></section>'
                 '<div class="research-grid"><section class="research-panel"><h2>Selected observation</h2><p class="research-inspector" data-research-inspector role="status" aria-live="polite">Select a candle or row to inspect its canonical values.</p><div class="knowledge-context" data-knowledge-context><h3>Learn from this observation</h3><p data-knowledge-context-status>Choose a point to bind a point-in-time explanation.</p><a class="button-secondary" data-knowledge-context-link href="/knowledge/volatility">Teach me this</a></div></section><section class="research-panel"><h2>Declared parameter sweep</h2><div class="research-sweep" data-research-sweep role="img" aria-label="Out-of-sample parameter comparison"></div><p class="field-help">OOS values and multiple-testing context are retained; no winning strategy is named.</p></section></div>'
                 f'<section class="research-panel"><h2>Feature lineage</h2><p class="field-help">Features are computed server-side and linked to the dataset fingerprint; the renderer only displays them.</p><ul class="evidence-list">{feature_cards}</ul></section>'
                 f'<section class="research-panel"><h2>Accessible observation table</h2><p class="field-help">Use Enter or Space on a row to select an exact point. Values are not recomputed in the browser.</p><div data-research-table-anchor>{static_table}</div></section>'

@@ -5,8 +5,11 @@ import {
   formatResearchPoint,
   normalizeResearchRun,
   normalizePayload,
+  normalizeWorkbenchPayload,
   researchRunStatus,
   selectPoint,
+  selectWorkbenchPoint,
+  previewWorkbenchParameter,
 } from '../src/research.js';
 
 const payload = {
@@ -78,4 +81,35 @@ test('research run status covers loading, success, partial, blocked, and error',
 test('research run payload rejects non-offline or non-paper boundaries', () => {
   assert.throws(() => normalizeResearchRun({ ...runPayload, paper_only: false }), /boundary/i);
   assert.throws(() => normalizeResearchRun({ ...runPayload, state: 'UNKNOWN' }), /state/i);
+});
+
+const workbench = {
+  schema_version: 1,
+  view: 'factor-strategy-workbench',
+  run_id: 'fixture-workbench-v1',
+  paper_only: true,
+  points: [
+    { point_id: 'p-1', time: '2026-01-01T00:00:00Z', instrument: 'AAA', score: 0.2, signal: true, raw_weight: 1, risk_scale: 1, final_weight: 1, held_weight: 0, exposure: 1, cash: 0, risk_state: 'NORMAL', trade_weight: 0, fees: 0, slippage: 0, gross_return: 0, net_return: 0, equity: 1, drawdown: 0, fault_events: [] },
+  ],
+  metrics: { total_return: 0 },
+  provenance: { dataset_fingerprint: 'dataset', policy_fingerprint: 'policy' },
+  factor_observations: [], signals: [], raw_weights: [], risk_scales: [], final_weights: [], exposure: [], cash: [], risk_states: [], trades: [], costs: [], slippage: [], fault_events: [], explanation_refs: [], baseline_variant_refs: [], limitations: [],
+};
+
+test('normalizeWorkbenchPayload validates paper-only server-owned layers', () => {
+  const normalized = normalizeWorkbenchPayload(workbench);
+  assert.equal(normalized.points[0].held_weight, 0);
+  assert.equal(normalized.provenance.policy_fingerprint, 'policy');
+  assert.throws(() => normalizeWorkbenchPayload({ ...workbench, paper_only: false }), /paper/i);
+  assert.throws(() => normalizeWorkbenchPayload({ ...workbench, points: [{ ...workbench.points[0], net_return: NaN }] }), /finite/i);
+});
+
+test('selectWorkbenchPoint and previewWorkbenchParameter keep interaction render-only', () => {
+  const normalized = normalizeWorkbenchPayload(workbench);
+  assert.equal(selectWorkbenchPoint(normalized, 'p-1').risk_state, 'NORMAL');
+  assert.equal(selectWorkbenchPoint(normalized, 'missing'), null);
+  const root = { dataset: {} };
+  const preview = previewWorkbenchParameter(root, 'lookback', 40);
+  assert.deepEqual(preview, { parameter: 'lookback', value: 40, saved: false });
+  assert.equal(root.dataset.workbenchPreview, JSON.stringify(preview));
 });
