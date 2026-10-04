@@ -19,8 +19,8 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.6 gate: PASS
 - P7 gate: PASS
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
-- Next action: human review and decision on reconciling the unrelated remote `main`; the reviewed non-force publication branch is already pushed
-- P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; canonical remote main cannot be replaced or merged automatically because histories are unrelated
+- Next action: human review of the Finathink P8.2B pull request; remote `main` remains untouched pending approval
+- P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; the renamed remote retains its original `main` history and the release branch uses a reviewable history bridge
 - P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
 - P8.2B status: LOCAL VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are implemented; browser/vendor/provider gates remain conditional
 - Last reviewed: 2026-10-04
@@ -68,7 +68,7 @@ P8.2B: local knowledge/pedagogy capability is complete; the reviewed branch `cod
 | P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection/restart/backup journeys, 272 passed/1 skipped |
 | P8.1 | CONDITIONAL | `docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`; local UI and dual-environment tests pass, canonical remote is reachable, but histories are unrelated and no local-product GitHub release is claimed |
 | P8.2 | CONDITIONAL | `docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`; local contracts/routes/UI bundle, QMT mock boundary, vectorbt sandbox smoke, Qlib isolated model smoke, and offline gates pass; browser/vendor/native-provider/license gates remain explicitly deferred |
-| P8.2B | LOCAL PASS / BRANCH PUBLISHED | `docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`; branch `codex/finathink-p82b-release` is pushed without force, while PR/main integration is blocked by unrelated histories; browser/vendor/provider gates remain explicitly deferred |
+| P8.2B | LOCAL PASS / PR READY | `docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`; branch `codex/finathink-p82b-release` is pushed without force with a reviewable history bridge, while `main` remains untouched; browser/vendor/provider gates remain explicitly deferred |
 
 ## Constraints
 

@@ -109,10 +109,10 @@ The canonical repository is
 Research Optimizer retained as the descriptive product subtitle.
 The reviewed P8.2B source is published on the non-force branch
 [`codex/finathink-p82b-release`](https://github.com/ceyyy427/finathink/tree/codex/finathink-p82b-release).
-The authenticated remote has real CI and a published `v1.3.0`, but this
-checkout and that remote currently have unrelated Git histories. The branch
-is therefore published without claiming that this local `0.1.x` product has
-been merged into or released from canonical `main`. See
+The authenticated remote has real CI and a published `v1.3.0`. The release
+branch preserves the existing `main` history through a reviewable bridge; it is
+published without claiming that this local `0.1.x` product has already merged
+into or released from canonical `main`. See
 [`docs/p8_1/P8_1_HISTORY_RECONCILIATION.md`](docs/p8_1/P8_1_HISTORY_RECONCILIATION.md)
 for the evidence and safe next action.
 

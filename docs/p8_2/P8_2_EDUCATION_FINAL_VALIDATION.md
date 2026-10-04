@@ -41,6 +41,5 @@ hosted deployment certification.
 The reviewed P8.2B branch is published in the renamed `ceyyy427/finathink`
 repository on the non-force branch
 [`codex/finathink-p82b-release`](https://github.com/ceyyy427/finathink/tree/codex/finathink-p82b-release).
-The requested remote has an unrelated existing `main` history, so `main`
-remains untouched unless a human explicitly chooses a history-reconciliation
-strategy.
+The branch includes a non-destructive history bridge to the existing `main`,
+so a normal pull request can be reviewed while `main` remains untouched.

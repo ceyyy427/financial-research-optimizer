@@ -6,7 +6,7 @@ phase gate where possible.
 
 The P8.1 entry below is the historical local work-in-progress record. The
 reviewed P8.2B branch is published without force; remote `main` integration
-remains conditional because the histories are unrelated.
+remains pending pull-request review.
 
 ## Unreleased
 
@@ -21,8 +21,8 @@ remains conditional because the histories are unrelated.
   assistive-technology verification remains explicitly unverified.
 - Published the reviewed P8.2B commit on
   `codex/finathink-p82b-release`; no force push, merge, GitHub release, or
-  hosted deployment was claimed because the target `main` has unrelated
-  history.
+  hosted deployment was claimed before review. The branch now carries a
+  non-destructive history bridge to the renamed repository's `main`.
 
 - P8.2 local conditional checkpoint: added Finathink-owned research/market
   contracts with PIT-aware timezone validation, bounded parameter sweeps,
