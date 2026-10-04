@@ -59,7 +59,13 @@ CREATED=1
 
 ready=0
 for _attempt in $(seq 1 60); do
-    if docker exec "${CONTAINER_NAME}" pg_isready -U postgres -d "${DATABASE_NAME}" >/dev/null 2>&1; then
+    # pg_isready can report a ready server while initdb is still creating
+    # POSTGRES_DB. Probe the target database with psql so migrations never race
+    # the image's initialization scripts.
+    if docker exec "${CONTAINER_NAME}" psql \
+        --username=postgres \
+        --dbname="${DATABASE_NAME}" \
+        --command='SELECT 1' >/dev/null 2>&1; then
         ready=1
         break
     fi
