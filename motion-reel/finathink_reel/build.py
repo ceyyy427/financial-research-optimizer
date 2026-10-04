@@ -204,7 +204,7 @@ def main():
             counts = pool.starmap(render_one, [(i, args.ss) for i in idx])
         print(f"frames {sum(counts)} in {time.time() - t0:.1f}s ({jobs} workers)")
 
-    print("out:", encode())
+    print("out:", encode("finathink_motion_reel"))
 
 
 if __name__ == "__main__":
