@@ -5,8 +5,8 @@ research, reproducibility, or governance changes and link to the relevant
 phase gate where possible.
 
 The P8.1 entry below is the historical local work-in-progress record. The
-reviewed P8.2B branch is published without force; remote `main` integration
-remains pending pull-request review.
+reviewed P8.2B branch was published without force and is now merged into the
+renamed repository's remote `main` through PR #2.
 
 ## Unreleased
 
@@ -24,8 +24,8 @@ remains pending pull-request review.
   numeric result values remain unchanged; new regression coverage guards the
   stable-hash contract.
 - Published the reviewed P8.2B commit on
-  `codex/finathink-p82b-release`; no force push, merge, GitHub release, or
-  hosted deployment was claimed before review. The branch now carries a
+  `codex/finathink-p82b-release` and merged it into `main` through PR #2;
+  no force push or hosted deployment was used. The branch carries a
   non-destructive history bridge to the renamed repository's `main`.
 
 - P8.2 local conditional checkpoint: added Finathink-owned research/market
@@ -40,7 +40,7 @@ remains pending pull-request review.
   QMT, Qlib, vectorbt, and final validation records. Browser-level E2E,
   native Qlib provider/PIT data, live QMT, and optional-license admission are
   explicitly deferred; P8.2B is recorded in the education final validation
-  report and remains local/publication-pending.
+  report.
 - P8.1 product polish: added a shared responsive shell with Home, Events,
   Explore, Knowledge, Quant, Strategy Lab, Workspace, Inspector context,
   semantic status tokens, actionable empty/error states, progressive knowledge

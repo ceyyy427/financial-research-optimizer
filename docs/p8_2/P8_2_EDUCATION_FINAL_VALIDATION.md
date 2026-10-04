@@ -1,7 +1,7 @@
 # Finathink P8.2B Education Final Validation
 
 **Date:** 2026-10-04 (Asia/Shanghai)  
-**Decision:** LOCAL VALIDATION PASS / PUBLICATION PENDING  
+**Decision:** LOCAL AND REMOTE VALIDATION PASS / BROWSER GATES DEFERRED  
 **Computer Use:** NOT USED (the mission and user instruction prohibit it)
 
 ## Scope
@@ -42,4 +42,5 @@ The reviewed P8.2B branch is published in the renamed `ceyyy427/finathink`
 repository on the non-force branch
 [`codex/finathink-p82b-release`](https://github.com/ceyyy427/finathink/tree/codex/finathink-p82b-release).
 The branch includes a non-destructive history bridge to the existing `main`,
-so a normal pull request can be reviewed while `main` remains untouched.
+and PR #2 is merged into the default `main` at commit `aa515e8` after the
+Python, notebook, quant, and migration CI gates passed.
