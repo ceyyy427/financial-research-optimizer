@@ -76,10 +76,11 @@ and [Known Limitations](docs/KNOWN_LIMITATIONS.md).
 - `docs/` — phase contracts, tutorials, and validation evidence.
 - `.github/` — CI, release workflow, issue forms, and security automation.
 
-The phase history is P0–P8.1; P8.2 and P8.2B are the current conditional local
-checkpoints. P8.2 adds the inspectable research workspace and P8.2B adds the
-structured mathematical knowledge/pedagogy layer while preserving the
-research-only boundary. Current evidence is indexed in
+The phase history is P0–P8.1; P8.2 and P8.2B are validated in this checkout.
+P8.2 adds the inspectable research workspace and P8.2B adds the structured
+mathematical knowledge/pedagogy layer while preserving the research-only
+boundary. The reviewed P8.2B branch is published, while integration with the
+unrelated remote `main` remains a maintainer decision. Current evidence is indexed in
 [`docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`](docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md).
 The P8.2B gate is indexed in
 [`docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`](docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md).
