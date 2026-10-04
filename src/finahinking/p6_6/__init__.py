@@ -78,6 +78,13 @@ from .workbench import (
 )
 from .workbench_engine import WorkbenchPoint, WorkbenchRun, run_workbench, transition_risk
 from .workbench_explanations import build_explanation_package
+from .workbench_research import (
+    FactorGraphSpec,
+    ResearchAttempt,
+    ResearchSession,
+    WorkbenchStore,
+    evaluate_factor_graph,
+)
 
 __all__ = [
     "ALLOWED_FAULT_ACTIONS",
@@ -90,6 +97,7 @@ __all__ = [
     "CompiledStrategy",
     "EducationalCode",
     "ExecutionPolicy",
+    "FactorGraphSpec",
     "FaultPolicy",
     "FeatureDefinition",
     "FeatureDriftReport",
@@ -106,10 +114,12 @@ __all__ = [
     "PointInTimeViolation",
     "PolicyProposal",
     "PositionPolicySpec",
+    "ResearchAttempt",
     "ResearchCharter",
     "ResearchPackage",
     "ResearchPackageExporter",
     "ResearchPreview",
+    "ResearchSession",
     "RiskStatePolicy",
     "StrategyCompiler",
     "StrategyIR",
@@ -129,12 +139,14 @@ __all__ = [
     "WalkForwardWindow",
     "WorkbenchPoint",
     "WorkbenchRun",
+    "WorkbenchStore",
     "assert_point_in_time",
     "build_explanation_package",
     "builtin_feature_registry",
     "compare_backtest_paper",
     "compile_strategy",
     "compute_feature_drift",
+    "evaluate_factor_graph",
     "evaluate_frozen_oos",
     "export_research_package",
     "feature_drift",
