@@ -19,7 +19,7 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.6 gate: PASS
 - P7 gate: PASS
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
-- Next action: optional human product review; P8.2B has merged to remote `main` via PR #2 (`aa515e8`)
+- Next action: optional human review of the merged product; P8.2B has merged to remote `main` via PR #2 (`aa515e8`)
 - P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; the renamed remote retains its original `main` history and the release branch uses a reviewable history bridge
 - P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
 - P8.2B status: REMOTE VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are merged; browser/vendor/provider gates remain conditional
