@@ -40,11 +40,11 @@
 - Consumes: existing `p6_6.models.digest` conventions and JSON-safe contract style.
 - Produces: `PositionPolicySpec`, `RiskStatePolicy`, `ExecutionPolicy`, `FaultPolicy`, `ResearchCharter`, `PolicyProposal`, `ParameterChangeExplanation` data types with `to_dict()` and `fingerprint` properties.
 
-- [ ] Write failing tests for immutable policy fields, allow-listed actions, frozen charter/test boundary, proposal diff limits, and stable fingerprints.
-- [ ] Run `python3 -m pytest tests/p6_6/test_workbench_contracts.py -q` and observe the missing-contract failure.
-- [ ] Implement the frozen contracts with finite-value, identifier, secret/path/callable, and hard-boundary validation.
-- [ ] Re-run focused tests, then `python3 -m pytest tests/p6_6/test_workbench_contracts.py -q`.
-- [ ] Commit `feat(workbench): add factor strategy policy contracts`.
+- [x] Write failing tests for immutable policy fields, allow-listed actions, frozen charter/test boundary, proposal diff limits, and stable fingerprints.
+- [x] Run `python3 -m pytest tests/p6_6/test_workbench_contracts.py -q` and observe the missing-contract failure.
+- [x] Implement the frozen contracts with finite-value, identifier, secret/path/callable, and hard-boundary validation.
+- [x] Re-run focused tests, then `python3 -m pytest tests/p6_6/test_workbench_contracts.py -q`.
+- [x] Commit `feat(workbench): add factor strategy policy contracts`.
 
 ### Task 2: Deterministic position, risk, execution, and fault engine
 
@@ -57,11 +57,11 @@
 - Consumes: Task 1 policy contracts and point-in-time factor observations.
 - Produces: `WorkbenchPoint`, `WorkbenchRun`, `run_workbench()` and deterministic transitions `NORMAL → CAUTION → DEFENSIVE → FREEZE/FLATTEN → RECOVERY`.
 
-- [ ] Write failing tests for equal/rank/inverse-volatility/risk-budget mapping, volatility scaling, long-only projection, turnover/cash/liquidity limits, risk transitions, and fault actions.
-- [ ] Run the focused test file and observe missing engine behavior.
-- [ ] Implement the engine as pure functions; keep factor score generation separate from target weight policy and execution/fault recording.
-- [ ] Re-run focused tests and ensure repeated runs have identical payload fingerprints.
-- [ ] Commit `feat(workbench): add deterministic portfolio policy engine`.
+- [x] Write failing tests for equal/rank/inverse-volatility/risk-budget mapping, volatility scaling, long-only projection, turnover/cash/liquidity limits, risk transitions, and fault actions.
+- [x] Run the focused test file and observe missing engine behavior.
+- [x] Implement the engine as pure functions; keep factor score generation separate from target weight policy and execution/fault recording.
+- [x] Re-run focused tests and ensure repeated runs have identical payload fingerprints.
+- [x] Commit `feat(workbench): add deterministic portfolio policy engine`.
 
 ### Task 3: Algorithm trace, paired replay, and learning explanation package
 
@@ -74,11 +74,11 @@
 - Consumes: `WorkbenchRun`, a baseline/variant parameter mapping, and existing `StrategyLearningTrace` conventions.
 - Produces: nine-block trace records, paired metric attribution, `ParameterChangeExplanation`, and `build_explanation_package()`.
 
-- [ ] Write failing tests for nine required sections, single-parameter paired attribution, multi-parameter confounding, and limitation/next-experiment fields.
-- [ ] Run the focused file and observe failure.
-- [ ] Implement explanation generation from engine-owned intermediate values; never infer causality from prose.
-- [ ] Re-run focused tests and verify all fields serialize without secrets or executable source.
-- [ ] Commit `feat(workbench): add algorithm explanation packages`.
+- [x] Write failing tests for nine required sections, single-parameter paired attribution, multi-parameter confounding, and limitation/next-experiment fields.
+- [x] Run the focused file and observe failure.
+- [x] Implement explanation generation from engine-owned intermediate values; never infer causality from prose.
+- [x] Re-run focused tests and verify all fields serialize without secrets or executable source.
+- [x] Commit `feat(workbench): add algorithm explanation packages`.
 
 ### Task 4: Canonical workbench payload and offline report renderer
 
@@ -93,11 +93,11 @@
 - Consumes: `WorkbenchRun`, explanation package, existing dataset snapshot and report manifest.
 - Produces: payload sections `factor_observations`, `signals`, `raw_weights`, `risk_scales`, `final_weights`, `exposure`, `cash`, `risk_states`, `trades`, `costs`, `slippage`, `fault_events`, `explanation_refs`, `baseline_variant_refs`; a self-contained polished report.
 
-- [ ] Write failing tests for payload provenance, cross-section identity, report section headings, inline SVG/accessible tables, and offline/no-script rendering.
-- [ ] Run focused tests and observe the old raw-JSON report behavior.
-- [ ] Implement normalized payload assembly and a publication-style HTML template: evidence-led opening, asymmetric grid, restrained mineral palette, clear “historical/paper-only” boundary, inline SVG timeline, readable tables, and explicit limitations.
-- [ ] Re-run focused tests and bundle verification; ensure report HTML does not contain secrets, absolute paths, CDN URLs, or generic “AI-generated” copy.
-- [ ] Commit `feat(reports): render factor strategy workbench reports`.
+- [x] Write failing tests for payload provenance, cross-section identity, report section headings, inline SVG/accessible tables, and offline/no-script rendering.
+- [x] Run focused tests and observe the old raw-JSON report behavior.
+- [x] Implement normalized payload assembly and a publication-style HTML template: evidence-led opening, asymmetric grid, restrained mineral palette, clear “historical/paper-only” boundary, inline SVG timeline, readable tables, and explicit limitations.
+- [x] Re-run focused tests and bundle verification; ensure report HTML does not contain secrets, absolute paths, CDN URLs, or generic “AI-generated” copy.
+- [x] Commit `feat(reports): render factor strategy workbench reports`.
 
 ### Task 5: Interactive research workspace linkage
 
@@ -111,11 +111,11 @@
 - Consumes: Task 4 normalized workbench payload.
 - Produces: accessible workbench panels with point selection, table fallback, parameter preview state, and report links; no client-side financial recomputation.
 
-- [ ] Write failing Node/Python tests for payload normalization, selected-point propagation, preview-is-not-saved semantics, and read-only workbench route.
-- [ ] Run focused frontend/backend tests and observe missing workbench behavior.
-- [ ] Implement render-only layers, using text/table fallbacks for every chart fact and `prefers-reduced-motion` compliance.
-- [ ] Re-run focused frontend/backend tests and verify old research/knowledge journeys still work.
-- [ ] Commit `feat(ui): add linked factor strategy workbench view`.
+- [x] Write failing Node/Python tests for payload normalization, selected-point propagation, preview-is-not-saved semantics, and read-only workbench route.
+- [x] Run focused frontend/backend tests and observe missing workbench behavior.
+- [x] Implement render-only layers, using text/table fallbacks for every chart fact and `prefers-reduced-motion` compliance.
+- [x] Re-run focused frontend/backend tests and verify old research/knowledge journeys still work.
+- [x] Commit `feat(ui): add linked factor strategy workbench view`.
 
 ### Task 6: Product shell and launch/report presentation pass
 
@@ -130,11 +130,11 @@
 - Consumes: report renderer and workbench payload from Tasks 4–5.
 - Produces: `/workbench` entry point, consistent research navigation, and a first-screen narrative that leads with the research question and evidence chain.
 
-- [ ] Write failing tests for the workbench link, report boundary copy, responsive shell classes, and no-network CSP.
-- [ ] Run focused tests and observe missing route/presentation behavior.
-- [ ] Implement the final copy and style tokens without adding a new runtime dependency; preserve keyboard focus, reduced motion, and mobile layout.
-- [ ] Run browser-facing tests/build and inspect generated HTML/CSS for CSP and asset-path correctness.
-- [ ] Commit `feat(ui): polish research launch and workbench shell`.
+- [x] Write failing tests for the workbench link, report boundary copy, responsive shell classes, and no-network CSP.
+- [x] Run focused tests and observe missing route/presentation behavior.
+- [x] Implement the final copy and style tokens without adding a new runtime dependency; preserve keyboard focus, reduced motion, and mobile layout.
+- [x] Run browser-facing tests/build and inspect generated HTML/CSS for CSP and asset-path correctness.
+- [x] Commit `feat(ui): polish research launch and workbench shell`.
 
 ### Task 7: Documentation, release evidence, and final verification
 
@@ -149,9 +149,9 @@
 - Consumes: all completed contracts, payloads, report examples, and test outputs.
 - Produces: user-facing implementation guide, explicit out-of-scope statement, and release evidence.
 
-- [ ] Write failing documentation tests for phase coverage, paper-only boundary, API-key exclusion, and report entry points.
-- [ ] Run focused docs tests and observe missing documents.
-- [ ] Write the guide and validation report with completed/limited/unverified distinctions.
+- [x] Write failing documentation tests for phase coverage, paper-only boundary, API-key exclusion, and report entry points.
+- [x] Run focused docs tests and observe missing documents.
+- [x] Write the guide and validation report with completed/limited/unverified distinctions.
 - [ ] Run `python3 -m ruff check src tests`, `python3 -m compileall -q src tests`, `python3 -m pytest -q`, `npm test`, `npm run build`, and `git diff --check`.
 - [ ] Commit `docs(workbench): document implementation and validation`.
 
@@ -170,10 +170,10 @@ The implementation is deliberately offline-first. Dependencies may be obtained f
 - Consumes: policy contracts, engine, and explanation packages.
 - Produces: `FactorGraphSpec`, `evaluate_factor_graph()`, `ResearchSession`, and content-addressed `WorkbenchStore`; frozen-test, all-attempt retention, and explicit freeze/evaluate boundaries.
 
-- [ ] Write and watch failing tests for graph cycles/unknown primitives/PIT, immutable history, experiment budget, no test access before explicit freeze, once-only test evaluation, invalid proposal/hard-limit changes, and version reopen/rollback.
-- [ ] Implement bounded primitives and the deterministic train/validation research loop, with failed attempts archived and no best-strategy label.
-- [ ] Wire these contracts into the payload/UI before the final release gate.
-- [ ] Run the focused tests, full regression, and serialization checks.
-- [ ] Commit `feat(workbench): retain bounded research and factor history`.
+- [x] Write and watch failing tests for graph cycles/unknown primitives/PIT, immutable history, experiment budget, no test access before explicit freeze, once-only test evaluation, and version reopen/rollback.
+- [x] Implement bounded primitives and the deterministic train/validation research loop, with failed attempts archived and no best-strategy label.
+- [x] Wire these contracts into the payload/UI before the final release gate.
+- [x] Run the focused tests, full regression, and serialization checks.
+- [x] Commit `feat(workbench): retain bounded research and factor history`.
 
 Task 8 is executed after Task 3 and before Tasks 4–7; it covers design sections 14–16 missing from the first plan pass. Repository credential connections and external model calls remain deferred at the user's direction.

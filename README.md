@@ -20,6 +20,8 @@ What it is:
   fixture and needs no credential);
 - a deterministic quant and research-only Strategy Lab with OOS and paper
   simulation boundaries;
+- a Factor Strategy Workbench that keeps factor, signal, position, risk,
+  delayed execution, costs, faults, and explanations separately inspectable;
 - private personal continuity and evidence-linked community projections.
 
 What it is not: a promise of alpha, an autonomous stock picker, a real-money
@@ -132,6 +134,13 @@ The static marketing surface is in [`site/index.html`](site/index.html). It
 uses the real launch assets, links to the verified canonical repository, and
 keeps GitHub release/download claims conditional until a release containing
 this product is actually created.
+
+The factor strategy workbench is documented in the
+[`Factor Strategy Workbench Guide`](docs/FACTOR_STRATEGY_WORKBENCH_GUIDE.md)
+and its release evidence is tracked in the
+[`validation record`](docs/FACTOR_STRATEGY_WORKBENCH_VALIDATION.md). It is
+offline, read-only, and paper-only in this phase; user API keys, live data,
+hosted models, brokers, and real-money execution remain deferred.
 
 ## License
 
