@@ -77,6 +77,7 @@ from .workbench import (
     RiskStatePolicy,
 )
 from .workbench_engine import WorkbenchPoint, WorkbenchRun, run_workbench, transition_risk
+from .workbench_explanations import build_explanation_package
 
 __all__ = [
     "ALLOWED_FAULT_ACTIONS",
@@ -129,6 +130,7 @@ __all__ = [
     "WorkbenchPoint",
     "WorkbenchRun",
     "assert_point_in_time",
+    "build_explanation_package",
     "builtin_feature_registry",
     "compare_backtest_paper",
     "compile_strategy",
