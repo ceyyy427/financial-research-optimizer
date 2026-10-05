@@ -1,5 +1,6 @@
 import numbers
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,8 @@ class FactorDefinition:
     explanation: str
     limitations: str
     compute: callable
+    metadata: Any | None = None
+    health: Any | None = None
 
 
 def momentum_factor(window: int = 20) -> FactorDefinition:

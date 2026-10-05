@@ -7,34 +7,37 @@
   <title>Finathink · Think through finance</title>
   <meta name="description" content="Finathink — Financial Research Optimizer: a local-first workspace for evidence, mathematics, code, and reproducible experiments.">
   <style>
-    :root { color-scheme: light; --ink:#14232b; --muted:#526066; --paper:#f5f7f7; --card:#fff; --border:#d7dfdf; --accent:#0b6670; --warm:#8a5a17; }
+    :root { color-scheme: light; --ink:#173137; --muted:#617174; --paper:#f0ede5; --card:#fbfaf6; --border:#c7c0b4; --accent:#176b70; --warm:#c36e48; --violet:#665b84; }
     * { box-sizing:border-box; }
     html { background:var(--paper); }
     body { margin:0; color:var(--ink); background:var(--paper); font:16px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     a { color:var(--accent); text-underline-offset:3px; }
     a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
     main { width:min(1180px,100%); margin:auto; padding:clamp(28px,6vw,72px) clamp(18px,4vw,48px); }
-    .eyebrow { margin:0 0 12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-size:.76rem; font-weight:800; }
-    h1,h2 { line-height:1.08; letter-spacing:-.025em; } h1 { max-width:720px; margin:.5rem 0 1rem; font-family:Georgia,"Times New Roman",serif; font-size:clamp(2.8rem,7vw,6rem); } h2 { margin-top:0; }
+    .eyebrow { margin:0 0 12px; letter-spacing:.08em; color:var(--accent); font-size:.82rem; font-weight:700; }
+    h1,h2 { line-height:1.08; letter-spacing:-.035em; } h1 { max-width:720px; margin:.5rem 0 1rem; font-family:Georgia,"Times New Roman",serif; font-size:clamp(3rem,7vw,6.5rem); } h2 { margin-top:0; }
     .lede { max-width:690px; color:var(--muted); font-size:clamp(1.05rem,2vw,1.28rem); }
-    .actions { display:flex; flex-wrap:wrap; gap:12px; margin:28px 0 48px; }
-    .button { display:inline-flex; align-items:center; min-height:44px; padding:10px 16px; border:1px solid var(--accent); border-radius:8px; text-decoration:none; font-weight:700; transition:background-color .16s ease,transform .16s ease; }
-    .button:hover { transform:translateY(-1px); } .button.primary { color:#fff; background:var(--accent); } .button.primary:hover { background:#084c54; } .button.secondary { background:var(--card); }
-    .launch { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,.9fr); gap:28px; align-items:center; margin:0 0 64px; }
-    .launch-copy { padding:28px; border:1px solid var(--border); border-radius:18px; background:var(--card); box-shadow:0 10px 28px rgba(20,35,43,.06); }
-    .frames { position:relative; overflow:hidden; isolation:isolate; border:1px solid var(--border); border-radius:18px; background:#f8f6f1; box-shadow:0 10px 28px rgba(20,35,43,.06); }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin:28px 0 34px; }
+    .button { display:inline-flex; align-items:center; min-height:44px; padding:10px 16px; border:1px solid var(--accent); border-radius:6px; text-decoration:none; font-weight:700; transition:background-color .16s ease,transform .16s ease; }
+    .button:hover { transform:translateY(-1px); } .button.primary { color:#fff; background:var(--accent); } .button.primary:hover { background:#10555a; } .button.secondary { background:var(--card); }
+    .launch { display:grid; grid-template-columns:minmax(0,1.08fr) minmax(300px,.92fr); gap:34px; align-items:stretch; margin:0 0 72px; }
+    .launch-copy { padding:clamp(28px,5vw,56px); border:1px solid var(--border); border-radius:2px; background:var(--card); box-shadow:0 14px 30px rgba(20,35,43,.06); }
+    .frames { position:relative; overflow:hidden; isolation:isolate; min-height:100%; border:1px solid var(--border); border-radius:2px; background:#f8f6f1; box-shadow:0 14px 30px rgba(20,35,43,.06); }
     .frames::before { content:""; position:absolute; inset:7%; z-index:-1; border-radius:50%; background:conic-gradient(from 15deg,rgba(11,102,112,.1),rgba(138,90,23,.15),rgba(90,79,140,.12),rgba(11,102,112,.1)); filter:blur(22px); animation:spin 18s linear 2; animation-fill-mode:both; }
     .frame { display:block; width:100%; height:auto; animation:fade 14s ease-in-out 2; animation-fill-mode:both; }
     .frame.secondary { position:absolute; inset:0; object-fit:cover; opacity:0; animation-delay:-7s; }
     @keyframes spin { to { transform:rotate(360deg); } }
     @keyframes fade { 0%,42% { opacity:1; transform:scale(1) rotate(0deg); } 50%,92% { opacity:.08; transform:scale(1.015) rotate(1deg); } 100% { opacity:1; transform:scale(1) rotate(0deg); } }
     .frame-caption { margin:10px 0 0; color:var(--muted); font-size:.84rem; }
+    .signal-line { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin:22px 0 0; color:var(--muted); font-size:.82rem; }
+    .signal-line span { padding:5px 8px; border:1px solid var(--border); border-radius:999px; background:#f7f3eb; }
+    .signal-line i { color:var(--warm); font-style:normal; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
     article { padding:20px; background:var(--card); border:1px solid var(--border); border-radius:12px; }
-    .loop { margin:56px 0 0; padding:24px; border:1px solid var(--border); border-radius:12px; background:#eef4f3; }
+    .loop { margin:56px 0 0; padding:24px; border:1px solid var(--border); border-radius:2px; background:#e7eeeb; }
     .loop code { display:block; margin-top:8px; color:var(--accent); font:700 1rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }
     footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; margin-top:56px; padding-top:18px; border-top:1px solid var(--border); color:var(--muted); font-size:.9rem; }
-    @media (max-width:820px) { .launch { grid-template-columns:1fr; } }
+    @media (max-width:820px) { .launch { grid-template-columns:1fr; } .frames { min-height:0; } }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } .frame.secondary { display:none; } .button:hover { transform:none; } }
   </style>
 </head>
@@ -42,11 +45,14 @@
   <main>
     <section class="launch" aria-labelledby="launch-title">
       <div class="launch-copy">
-        <p class="eyebrow">Finathink · Financial Research Optimizer</p>
-        <h1 id="launch-title">Think through finance.</h1>
-        <p class="lede">From market noise to understanding: move from a captured event to evidence, math, code, quantitative research, paper-only strategy work, and your own learning history.</p>
+        <p class="eyebrow">Finathink · research artifact / factor strategy workbench</p>
+        <h1 id="launch-title">A factor idea, held to account.</h1>
+        <p class="lede">Turn a market question into a traceable research artifact. Observe the factor, separate signal from position, make risk visible, then replay execution on paper with every assumption attached.</p>
+        <div class="signal-line" aria-label="Factor strategy evidence chain"><span>Factor</span><i aria-hidden="true">→</i><span>Signal</span><i aria-hidden="true">→</i><span>Position</span><i aria-hidden="true">→</i><span>Risk</span><i aria-hidden="true">→</i><span>Paper</span></div>
         <div class="actions">
-          <a class="button primary" href="https://github.com/ceyyy427/finathink">Download / view the canonical repository</a>
+          <a class="button primary" href="../docs/FACTOR_STRATEGY_WORKBENCH_GUIDE.md">Read the workbench guide</a>
+          <a class="button secondary" href="https://github.com/ceyyy427/finathink">View the canonical repository</a>
+          <a class="button secondary" href="https://github.com/ceyyy427/finathink/archive/refs/heads/main.zip">Download the source archive</a>
           <a class="button secondary" href="../README.md">Read the local product boundary</a>
           <a class="button secondary" href="../docs/QUICKSTART.md">Read the quickstart</a>
         </div>
@@ -60,9 +66,9 @@
       </div>
     </section>
     <section class="grid" aria-label="Product boundaries">
-      <article><h2>Evidence first</h2><p>Captured source records stay distinct from interpretation, unknowns, and hypotheses.</p></article>
-      <article><h2>Research, not orders</h2><p>Backtests, OOS checks, paper replay, and limitations are visible. Brokers and real-money execution are absent.</p></article>
-      <article><h2>Private by default</h2><p>Personal research stays local until you choose an allow-listed projection with explicit consent.</p></article>
+      <article><p class="eyebrow">01 / Evidence</p><h2>Every value has a home.</h2><p>Captured observations, factor scores, weights, costs, and faults remain separate and attributable.</p></article>
+      <article><p class="eyebrow">02 / Algorithm</p><h2>Signal is not a position.</h2><p>Position mapping, risk state, delayed holdings, and execution constraints are visible as distinct gates.</p></article>
+      <article><p class="eyebrow">03 / Boundary</p><h2>Paper is the finish line.</h2><p>Offline reports and paper replay are available now. Live feeds, personal API keys, brokers, and real-money actions are intentionally deferred.</p></article>
     </section>
     <section class="loop"><h2>Two loops, one evidence boundary</h2><p>Reality loop</p><code>Event → Evidence → Understanding → Quant → Learning</code><p>Strategy loop</p><code>Idea → Feature → Math → Code → Backtest → OOS → Paper → Learning</code></section>
     <footer><span>Open source · local-first · education and research only</span><span>Apple signing and notarization: deferred for this beta path</span></footer>

@@ -12,8 +12,12 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
+
+import pandas as pd
 
 from finahinking.p8_2.contracts import DatasetSnapshot, MarketObservation
 
@@ -77,6 +81,94 @@ def _sweep_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
     payload["dataset_fingerprint"] = dataset.fingerprint
     payload["selection_policy"] = spec.selection_policy
     return payload
+
+
+def _factor_research_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
+    """Run the bounded, validation-only factor loop for the local report."""
+
+    from finahinking.factors.mining import generate_candidates
+    from finahinking.p6_6.workbench import ResearchCharter
+    from finahinking.research.factor_loop import run_factor_research
+
+    observations = sorted(dataset.observations, key=lambda item: (item.timestamp, item.instrument))
+    instrument = observations[0].instrument if observations else "DEMO"
+    rows = [item for item in observations if item.instrument == instrument]
+    index = pd.DatetimeIndex([item.timestamp for item in rows])
+    close = pd.Series([float(item.close) for item in rows], index=index, dtype=float)
+    frame = pd.DataFrame(
+        {
+            "close": close,
+            "volume": pd.Series([float(item.volume) for item in rows], index=index, dtype=float),
+            "return_1d": close.pct_change(),
+        },
+        index=index,
+    )
+    forward_return = close.pct_change().shift(-1).rename("forward_return")
+    charter = ResearchCharter(
+        charter_id="fixture-factor-charter-v1",
+        research_question="Which bounded factor template is worth a paper-only follow-up?",
+        hypothesis_scope="trend, mean reversion, volatility, and liquidity templates",
+        dataset_reference=dataset.fingerprint,
+        data_split={"train": 0.4, "validation": 0.4, "test": 0.2},
+        evaluation_metrics=("ic", "icir", "turnover", "decay"),
+        hard_constraints={
+            "shift_periods": 1,
+            "min_samples": 4,
+            "train_ratio": 0.6,
+            "validation_ratio": 0.2,
+            "decay_horizons": (1, 3),
+            "paper_only": True,
+        },
+        allowed_primitives=("input", "return", "rolling", "rank", "combine", "negate"),
+        max_experiments=6,
+        iteration_budget=6,
+    )
+    candidates = generate_candidates(
+        "discover bounded trend, mean reversion, volatility, and liquidity factors",
+        field_catalog=tuple(frame.columns),
+        max_candidates=charter.max_experiments,
+    )
+    run = run_factor_research(
+        charter,
+        candidates,
+        {"frame": frame, "forward_return": forward_return},
+        limits={"max_rounds": charter.iteration_budget},
+    )
+    result = run.to_dict()
+    result["dataset_fingerprint"] = dataset.fingerprint
+    result["instrument"] = instrument
+    result["boundary"] = "paper-only; validation evidence is visible, test/OOS remains hidden until a strategy is frozen"
+    return result
+
+
+def _provider_status_payload() -> dict[str, Any]:
+    from finahinking.research.provider_status import provider_status_payload
+
+    config = {
+        "defaults": {
+            "provider": os.environ.get("FINAHINKING_PROVIDER", "offline"),
+            "model": os.environ.get("FINAHINKING_MODEL", "fixture-v1"),
+            "role_models": {},
+        },
+        "providers": [
+            {
+                "name": "offline",
+                "model": "fixture-v1",
+                "capabilities": ["structured_output", "offline"],
+                "enabled": True,
+                "offline": True,
+            },
+            {
+                "name": "user-compatible",
+                "model": os.environ.get("FINAHINKING_MODEL", "user-model"),
+                "capabilities": ["structured_output", "tool_calling"],
+                "enabled": True,
+                "offline": False,
+                "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"},
+            },
+        ],
+    }
+    return provider_status_payload(config, os.environ)
 
 
 def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str, Any]:
@@ -146,6 +238,8 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
             "source": dataset.provenance.get("source", "finathink.fixture"),
         }
     ]
+    factor_research = _factor_research_payload(dataset)
+    rounds = factor_research["rounds"]
     payload: dict[str, Any] = {
         "schema_version": 1,
         "view": "research-series",
@@ -163,6 +257,16 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
         "features": feature_meta,
         "events": events,
         "sweep": _sweep_payload(dataset),
+        "factor_research": factor_research,
+        "factor_candidates": [item["candidate"] for item in rounds],
+        "factor_evaluations": [item["evaluation"] for item in rounds],
+        "factor_decay": [
+            {"candidate_id": item["candidate"]["candidate_id"], **item["evaluation"]["decay"]}
+            for item in rounds
+        ],
+        "factor_admission": [item["admission"] for item in rounds],
+        "research_rounds": rounds,
+        "provider_status": _provider_status_payload(),
         "limitations": list(dataset.limitations)
         + [
             "Sample data only; no live market feed is connected.",
@@ -170,8 +274,118 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
             "Parameter results retain train, validation, OOS, and multiple-testing warnings.",
         ],
     }
+    payload["workbench"] = _default_workbench_payload(dataset)
     payload["payload_fingerprint"] = _digest(payload)
     return payload
+
+
+def _default_workbench_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
+    """Build the bounded factor/position/risk slice shown beside the series."""
+
+    from finahinking.p6_6.workbench import (
+        ExecutionPolicy,
+        FaultPolicy,
+        PositionPolicySpec,
+        RiskStatePolicy,
+    )
+    from finahinking.p6_6.workbench_engine import run_workbench
+    from finahinking.p6_6.workbench_explanations import build_explanation_package
+
+    first_close: dict[str, float] = {}
+    previous_close: dict[str, float] = {}
+    rows: list[dict[str, Any]] = []
+    for item in sorted(dataset.observations, key=lambda observation: (observation.timestamp, observation.instrument)):
+        first = first_close.setdefault(item.instrument, float(item.close))
+        previous = previous_close.get(item.instrument)
+        one_period_return = 0.0 if previous is None else (float(item.close) / previous) - 1.0
+        score = (float(item.close) / first) - 1.0
+        rows.append(
+            {
+                "id": f"{item.instrument}-{item.timestamp.strftime('%Y%m%dT%H%M%SZ')}",
+                "time": item.timestamp.isoformat(),
+                "available_at": item.available_at.isoformat(),
+                "instrument": item.instrument,
+                "score": round(score, 8),
+                "signal": bool(previous is not None and score > 0),
+                "volatility": round(abs((item.high - item.low) / item.close), 8),
+                "return": round(one_period_return, 8),
+                "price": float(item.close),
+                "volume": float(item.volume),
+            }
+        )
+        previous_close[item.instrument] = float(item.close)
+    run = run_workbench(
+        "fixture-workbench-v1",
+        rows,
+        PositionPolicySpec("fixture-position", "v1", "equal_weight", target_volatility=0.20, max_exposure=0.90, cash_buffer=0.10),
+        RiskStatePolicy("fixture-risk", "v1"),
+        ExecutionPolicy("fixture-execution", "v1", fee_bps=5.0, slippage_bps=5.0, stress_slippage_bps=15.0),
+        FaultPolicy("fixture-fault", "v1"),
+        dataset_fingerprint=dataset.fingerprint,
+        strategy_fingerprint=_digest({"strategy": "lagged-close-strength", "version": "v1"}),
+    )
+    explanation = build_explanation_package(
+        run,
+        strategy_id="fixture-strategy",
+        parameter_changes={"lookback": {"before": 20, "after": 40}},
+        intent="Test whether a slower signal would reduce noise and turnover.",
+        formula_before="P_(t-1) / P_(t-21) - 1",
+        formula_after="P_(t-1) / P_(t-41) - 1",
+        code_trace=("momentum", "lag", "weights", "risk", "costs", "oos"),
+    )
+    workbench = build_workbench_payload(run, explanation)
+    factor_research = _factor_research_payload(dataset)
+    workbench["factor_research"] = factor_research
+    rounds = factor_research["rounds"]
+    workbench["factor_candidates"] = [item["candidate"] for item in rounds]
+    workbench["factor_evaluations"] = [item["evaluation"] for item in rounds]
+    workbench["factor_decay"] = [
+        {"candidate_id": item["candidate"]["candidate_id"], **item["evaluation"]["decay"]}
+        for item in rounds
+    ]
+    workbench["factor_admission"] = [item["admission"] for item in rounds]
+    workbench["research_rounds"] = rounds
+    workbench["provider_status"] = _provider_status_payload()
+    return workbench
+
+
+def build_workbench_payload(run: Any, explanation: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Normalize one engine run for renderers; no browser-side calculation."""
+
+    from finahinking.p6_6.workbench_engine import WorkbenchRun
+
+    if not isinstance(run, WorkbenchRun):
+        raise TypeError("run must be a WorkbenchRun")
+    points = [point.to_dict() for point in sorted(run.points, key=lambda item: (item.time, item.instrument))]
+    by_ref = lambda point: {"id": point["point_id"], "time": point["time"], "instrument": point["instrument"]}
+    workbench: dict[str, Any] = {
+        "schema_version": 1,
+        "view": "factor-strategy-workbench",
+        "run_id": run.run_id,
+        "paper_only": True,
+        "points": points,
+        "factor_observations": [{**by_ref(point), "score": point["score"], "available_at": point["available_at"]} for point in points],
+        "signals": [{**by_ref(point), "signal": point["signal"], "score": point["score"]} for point in points],
+        "raw_weights": [{**by_ref(point), "value": point["raw_weight"]} for point in points],
+        "risk_scales": [{**by_ref(point), "value": point["risk_scale"], "state": point["risk_state"]} for point in points],
+        "final_weights": [{**by_ref(point), "value": point["final_weight"], "held": point["held_weight"]} for point in points],
+        "exposure": [{**by_ref(point), "value": point["exposure"]} for point in points],
+        "cash": [{**by_ref(point), "value": point["cash"]} for point in points],
+        "risk_states": [{**by_ref(point), "state": point["risk_state"], "reasons": point["risk_reasons"], "allowed_actions": point["allowed_actions"]} for point in points],
+        "trades": [{**by_ref(point), "weight": point["trade_weight"]} for point in points if point["trade_weight"] != 0],
+        "costs": [{**by_ref(point), "fees": point["fees"], "slippage": point["slippage"]} for point in points],
+        "slippage": [{**by_ref(point), "value": point["slippage"]} for point in points],
+        "fault_events": [{**event, "point_id": point["point_id"]} for point in points for event in point["fault_events"]],
+        "metrics": dict(run.metrics),
+        "limitations": list(run.limitations),
+        "provenance": {"run_id": run.run_id, "dataset_fingerprint": run.dataset_fingerprint, "strategy_fingerprint": run.strategy_fingerprint, "policy_fingerprint": _digest(run.to_dict()["policies"])},
+        "explanation_refs": [{"id": explanation.get("parameter_change", {}).get("explanation_id", f"explanation-{run.run_id}"), "components": sorted((explanation or {}).get("traces", {}).keys())}],
+        "baseline_variant_refs": [{"baseline": (explanation or {}).get("parameter_change", {}).get("paired_metrics", {}).get("baseline", run.metrics), "variant": (explanation or {}).get("parameter_change", {}).get("paired_metrics", {}).get("variant", run.metrics)}],
+    }
+    if explanation is not None:
+        workbench["explanation"] = explanation
+    workbench["payload_fingerprint"] = _digest(workbench)
+    return workbench
 
 
 def capability_payload() -> dict[str, Any]:

@@ -214,6 +214,29 @@ th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-tr
 .research-panel ul { margin-bottom: 0; }
 .research-inspector { min-height: 88px; padding: var(--space-3); border-left: 3px solid var(--evidence); background: #f4f8f7; color: var(--text-secondary); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .research-limitations { margin: 0; padding-left: 1.25rem; color: var(--text-secondary); }
+.workbench-frame { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: clamp(18px, 3vw, 28px); border: 1px solid #c7c0b4; background: #f2efe7; color: #173137; }
+.workbench-head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; border-bottom: 1px solid #173137; padding-bottom: var(--space-3); }
+.workbench-head h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
+.workbench-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #c7c0b4; border-bottom: 1px solid #c7c0b4; }
+.workbench-metric { min-height: 76px; padding: var(--space-3); border-right: 1px solid #c7c0b4; }
+.workbench-metric:last-child { border-right: 0; }
+.workbench-metric strong { display: block; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.workbench-metric span { color: #617174; font-size: .76rem; text-transform: capitalize; }
+.workbench-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr); gap: var(--space-4); }
+.workbench-inspector { min-height: 90px; padding: var(--space-3); border-left: 3px solid #c36e48; background: #fbfaf6; color: #617174; font-variant-numeric: tabular-nums; }
+.workbench-table { overflow: auto; background: #fbfaf6; border-top: 1px solid #173137; border-bottom: 1px solid #173137; }
+.workbench-table table { min-width: 720px; }
+.workbench-table tbody tr { cursor: pointer; }
+.workbench-table tbody tr[aria-current="true"], .workbench-table tbody tr:hover, .workbench-table tbody tr:focus-visible { background: #e6eeea; box-shadow: inset 3px 0 0 #c36e48; }
+.workbench-preview { padding: var(--space-3); border: 1px solid #c7c0b4; background: #fbfaf6; color: #617174; }
+.workbench-preview input { accent-color: #c36e48; }
+.workbench-frame--standalone { margin-top: var(--space-6); }
+.workbench-grid--standalone { grid-template-columns: minmax(0, 1.35fr) minmax(240px, .65fr); }
+.workbench-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #173137; font: 600 .82rem/1.2 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.workbench-flow span { padding: 7px 10px; border: 1px solid #c7c0b4; border-radius: 999px; background: #fbfaf6; }
+.workbench-flow i { color: #c36e48; font-style: normal; }
+.workbench-notes { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(240px, .9fr); gap: var(--space-5); align-items: start; }
+.workbench-notes h2 { margin-top: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
 [data-research-point-table] tbody tr { cursor: pointer; }
 [data-research-point-table] tbody tr:hover, [data-research-point-table] tbody tr:focus-visible { background: #eef5f5; }
 [data-research-point-table] tbody tr[aria-current="true"] { background: #e7f1ef; box-shadow: inset 3px 0 0 var(--evidence); }
@@ -234,7 +257,7 @@ th { color: var(--text-muted); font-size: .78rem; letter-spacing: .06em; text-tr
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .footer-note { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); color: var(--text-muted); font-size: .82rem; }
 @media (max-width: 1180px) { .app-shell { grid-template-columns: 210px minmax(0, 1fr); } .inspector { grid-column: 2; border-top: 1px solid var(--border); border-left: 0; padding-top: var(--space-5); } .inspector-inner { position: static; } }
-@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid, .research-grid, .settings-grid { grid-template-columns: 1fr; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
+@media (max-width: 880px) { .app-shell { display: block; } .sidebar { position: static; min-height: auto; padding: var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin-bottom: var(--space-4); } .nav-list { display: flex; flex-wrap: wrap; } .nav-section-title, .sidebar-note { display: none; } .workspace { padding: var(--space-6) var(--space-4); } .hero, .grid, .research-grid, .settings-grid, .workbench-grid, .workbench-notes { grid-template-columns: 1fr; } .workbench-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workbench-metric:nth-child(2n) { border-right: 0; } .stepper { grid-template-columns: 1fr; } .step { min-height: auto; border-top: 0; border-left: 3px solid var(--border); } .step--active { border-left-color: var(--evidence); } .inspector { border-top: 1px solid var(--border); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } .splash-frame--secondary { display: none; } }
 """
 
@@ -285,6 +308,60 @@ class LocalApplication:
         else:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
+        self._research_runs: dict[str, dict[str, Any]] = {}
+
+    def register_research_run(self, result: Any, manifest: Any) -> None:
+        """Register a completed research result for read-only local inspection."""
+
+        run_id = str(result.state.run_id)
+        if not run_id or "/" in run_id or "\\" in run_id:
+            raise ValueError("research run id is invalid")
+        bundle = self.artifact_root / "reports" / run_id
+        if not (bundle / "manifest.json").exists():
+            raise ValueError("research report manifest is missing")
+        self._research_runs[run_id] = {"state": result.state, "manifest": manifest, "bundle": bundle}
+
+    def _research_run_route(self, clean: str) -> tuple[int, str, Any]:
+        from finahinking.research.ui import research_view_model
+
+        parts = [part for part in clean.removeprefix("/research/").split("/") if part]
+        if not parts:
+            return 404, "application/json", {"error": "research run not found"}
+        run_id = parts[0]
+        entry = self._research_runs.get(run_id)
+        if entry is None:
+            return 404, "application/json", {"error": "research run not found"}
+        view_model = research_view_model(entry["state"], entry["manifest"])
+        if len(parts) == 2 and parts[1] == "status":
+            return 200, "application/json", view_model
+        if len(parts) == 1:
+            links = view_model["report_links"]
+            link_html = " ".join(
+                f'<a class="button-secondary" href="{html.escape(url)}">{html.escape(section.replace("_", " ").title())}</a>'
+                for section, url in sorted(links.items())
+            )
+            body = (
+                f'<div class="status-row"><span class="status status--offline">OFFLINE</span><span class="status status--ready">PAPER-ONLY</span><span class="status status--quant">{html.escape(view_model["state"])}</span></div>'
+                f'<h1>Research run {html.escape(run_id)}</h1>'
+                f'<p class="lede">As-of: {html.escape(str(view_model.get("as_of") or "not attached"))}. This view is read-only and never submits an order.</p>'
+                f'<section class="card"><h2>Analyst status</h2><pre>{html.escape(json.dumps(view_model, ensure_ascii=False, indent=2, sort_keys=True))}</pre></section>'
+                f'<div class="action-row">{link_html}</div>'
+                f'<section data-research-run data-payload-url="/research/{html.escape(run_id)}/status"><p class="field-help" data-research-run-status>SERVER-RENDERED · {html.escape(view_model["state"])}</p><p class="field-help" data-research-run-summary>As-of {html.escape(str(view_model.get("as_of") or "not attached"))}</p><p class="error-state" data-research-run-error hidden></p></section>'
+            )
+            return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"))
+        if len(parts) == 3 and parts[1] == "report":
+            section = parts[2]
+            allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html"}
+            if section not in allowed:
+                return 422, "application/json", {"error": "report section is not allow-listed"}
+            relative = allowed[section]
+            if section not in view_model.get("report_links", {}):
+                return 404, "application/json", {"error": "report section not found"}
+            report_path = entry["bundle"] / relative
+            if not report_path.exists():
+                return 404, "application/json", {"error": "report section not found"}
+            return 200, "text/html; charset=utf-8", report_path.read_text(encoding="utf-8")
+        return 404, "application/json", {"error": "research route not found"}
 
     @property
     def csrf_token(self) -> str:
@@ -658,11 +735,13 @@ class LocalApplication:
             "/quant": "Quant",
             "/strategy": "Strategy Lab",
             "/research": "Research Workspace",
+            "/workbench": "Factor Strategy Workbench",
             "/ml": "ML Lab",
             "/parameter": "Parameter Lab",
             "/workspace": "Workspace",
             "/community": "Community",
             "/settings/engines": "Engine Settings",
+            "/settings/providers": "Provider Access",
             "/settings/data-sources": "Data Sources",
             "/diagnostics": "Diagnostics",
         }
@@ -693,6 +772,35 @@ class LocalApplication:
         return LocalApplication.asset_bytes("finathink-research.js")
 
     @staticmethod
+    def _provider_config() -> dict[str, Any]:
+        """Return the local provider registry without accepting secret values."""
+
+        return {
+            "defaults": {
+                "provider": os.environ.get("FINAHINKING_PROVIDER", "offline"),
+                "model": os.environ.get("FINAHINKING_MODEL", "fixture-v1"),
+                "role_models": {},
+            },
+            "providers": [
+                {
+                    "name": "offline",
+                    "model": "fixture-v1",
+                    "capabilities": ["structured_output", "offline"],
+                    "enabled": True,
+                    "offline": True,
+                },
+                {
+                    "name": "user-compatible",
+                    "model": os.environ.get("FINAHINKING_MODEL", "user-model"),
+                    "capabilities": ["structured_output", "tool_calling"],
+                    "enabled": True,
+                    "offline": False,
+                    "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"},
+                },
+            ],
+        }
+
+    @staticmethod
     def katex_asset(asset_name: str, *, font: bool = False) -> bytes:
         """Read one vendored KaTeX stylesheet/font without allowing path traversal."""
 
@@ -709,8 +817,8 @@ class LocalApplication:
 
     def _nav(self, page: str) -> str:
         names = self._page_names()
-        primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/research", "/ml", "/parameter", "/strategy", "/workspace")
-        secondary = ("/community", "/settings/engines", "/settings/data-sources", "/diagnostics")
+        primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/research", "/workbench", "/ml", "/parameter", "/strategy", "/workspace")
+        secondary = ("/community", "/settings/engines", "/settings/providers", "/settings/data-sources", "/diagnostics")
 
         # Keep the conditional attribute construction explicit so the rendered
         # HTML remains easy to inspect in a browser and in snapshot tests.
@@ -800,6 +908,10 @@ class LocalApplication:
             return 200, "image/jpeg", self.research_splash_asset()
         if clean == "/assets/finathink-research.js" and method == "GET":
             return 200, "application/javascript; charset=utf-8", self.research_script_asset()
+        if clean.startswith("/research/"):
+            if method != "GET":
+                return 405, "application/json", {"error": "research routes are read-only"}
+            return self._research_run_route(clean)
         if clean == "/assets/katex/katex.min.css" and method == "GET":
             return 200, "text/css; charset=utf-8", self.katex_asset("katex.min.css")
         if clean.startswith("/assets/katex/fonts/") and method == "GET":
@@ -906,10 +1018,22 @@ class LocalApplication:
             except (TypeError, ValueError, PermissionError) as exc:
                 return 400, "application/json", {"error": str(exc), "action": "choose a supported reviewed strategy template"}
             return 200, "application/json", {**result, "strategy_spec": result.get("strategy"), "real_money": False, "execution": "paper-only", "backtest": {**dict(result.get("backtest") or {}), "metrics": result.get("numeric_results", {})}, "oos": {**dict(result.get("oos") or {}), "metrics": result.get("numeric_results", {})}, "paper": {**dict(result.get("paper") or {}), "status": "PAPER_ONLY"}}
+        if clean == "/api/research/providers":
+            if method != "GET":
+                return 405, "application/json", {"error": "provider status is read-only"}
+            from finahinking.research.provider_status import provider_status_payload
+
+            return 200, "application/json", provider_status_payload(self._provider_config(), os.environ)
         if clean == "/api/research/series" and method == "GET":
             from finahinking.p8_2.research_view import build_research_payload
 
             return 200, "application/json", build_research_payload()
+        if clean == "/api/research/workbench":
+            if method != "GET":
+                return 405, "application/json", {"error": "research workbench is read-only"}
+            from finahinking.p8_2.research_view import build_research_payload
+
+            return 200, "application/json", build_research_payload()["workbench"]
         if clean == "/api/research/capabilities" and method == "GET":
             from finahinking.p8_2.research_view import capability_payload
 
@@ -1004,7 +1128,7 @@ class LocalApplication:
                     links=(("/knowledge", "Browse Knowledge"), ("/explore", "Open Explore")),
                 )
             return 200, "text/html; charset=utf-8", self.render_concept_page(concept)
-        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/research", "/ml", "/parameter", "/strategy", "/personal", "/workspace", "/community", "/settings/engines", "/settings/data-sources", "/diagnostics"}:
+        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/research", "/workbench", "/ml", "/parameter", "/strategy", "/personal", "/workspace", "/community", "/settings/engines", "/settings/providers", "/settings/data-sources", "/diagnostics"}:
             return 200, "text/html; charset=utf-8", self.render_page(clean, query=query)
         if not clean.startswith("/api/"):
             return 404, "text/html; charset=utf-8", self.render_error_page(
@@ -1021,7 +1145,7 @@ class LocalApplication:
         title = names.get(page, "Finathink")
         body = self._page_body(page, query=query)
         inspector = self._page_inspector(page)
-        scripts = ("/assets/finathink-research.js",) if page == "/research" else ()
+        scripts = ("/assets/finathink-research.js",) if page in {"/research", "/workbench"} else ()
         return self.render_shell(active_page, title, body, inspector=inspector, scripts=scripts)
 
     def render_result_page(self, title: str, payload: Any) -> str:
@@ -1178,16 +1302,48 @@ class LocalApplication:
             return self._inspector("Projection boundary", {"Visibility": "Private by default", "Sharing": "Explicit allow-list + consent", "Ranking": "No leaderboards"}, status="LIMITED")
         if page == "/research":
             return self._inspector("Research boundary", {"Data": "SAMPLE / PIT-aware", "Renderer": "Local bundle", "Mutation": "Read-only view"}, status="SAMPLE")
+        if page == "/workbench":
+            return self._inspector("Workbench boundary", {"Data": "SAMPLE / PIT-aware", "Mode": "READ-ONLY", "Live orders": "Unavailable"}, status="PAPER")
         if page == "/ml":
             return self._inspector("ML boundary", {"Engine": "Typed adapter", "Fallback": "Finathink baseline", "External objects": "Never exposed"}, status="FALLBACK")
         if page == "/parameter":
             return self._inspector("Sweep boundary", {"OOS": "Visible", "Multiple testing": "Reported", "Winner label": "Not emitted"}, status="REVIEW")
-        if page in {"/settings/engines", "/settings/data-sources"}:
+        if page in {"/settings/engines", "/settings/providers", "/settings/data-sources"}:
             return self._inspector("Capability boundary", {"Core": "Finathink-owned", "Optional": "Isolated", "QMT": "Read-only bridge"}, status="GOVERNED")
         return self._inspector("Local context", {"Mode": "SAMPLE / OFFLINE" if self.config.offline else "NETWORK ENABLED", "Storage": "SQLite local store", "Real money": "Unavailable"}, status="OFFLINE" if self.config.offline else "READY")
 
     def _p8_2_page_body(self, page: str) -> str:
         """Render P8.2 surfaces with server-owned facts and explicit limits."""
+
+        if page == "/workbench":
+            from finahinking.p8_2.research_view import build_research_payload
+
+            workbench = build_research_payload().get("workbench", {})
+            metrics = workbench.get("metrics", {}) if isinstance(workbench, Mapping) else {}
+            metric_items = list(metrics.items())[:5] if isinstance(metrics, Mapping) else []
+            metric_html = "".join(
+                f'<div class="workbench-metric"><strong data-workbench-metric="{html.escape(str(key))}">{html.escape(str(value))}</strong><span>{html.escape(str(key).replace("_", " "))}</span></div>'
+                for key, value in metric_items
+            )
+            rows = "".join(
+                f'<tr data-workbench-row data-point-id="{html.escape(str(point.get("point_id")))}" tabindex="0" role="button" aria-label="{html.escape(str(point.get("time")))} {html.escape(str(point.get("instrument")))}"><th scope="row">{html.escape(str(point.get("time")))}</th><td>{html.escape(str(point.get("instrument")))}</td><td>{html.escape(str(point.get("score")))}</td><td>{html.escape(str(point.get("raw_weight")))}</td><td>{html.escape(str(point.get("risk_scale")))}</td><td>{html.escape(str(point.get("final_weight")))}</td><td>{html.escape(str(point.get("risk_state")))}</td><td>{html.escape(str(point.get("net_return")))}</td></tr>'
+                for point in workbench.get("points", []) if isinstance(point, Mapping)
+            )
+            table = '<div class="workbench-table table-wrap"><table aria-label="Factor strategy workbench audit"><caption class="meta">Server-owned replay values · select a row to inspect its frozen point</caption><thead><tr><th scope="col">Time</th><th scope="col">Instrument</th><th scope="col">Score</th><th scope="col">Raw weight</th><th scope="col">Risk scale</th><th scope="col">Final weight</th><th scope="col">Risk state</th><th scope="col">Net return</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+            return (
+                '<div class="status-row">'
+                f'{self._status("PAPER-ONLY", "limitation")}{self._status("OFFLINE", "offline")}{self._status("READ-ONLY", "ready")}'
+                '</div><h1>Factor strategy workbench</h1>'
+                '<p class="lede">A quiet audit surface for the algorithmic path: factor observation → signal → position mapping → risk scaling → delayed execution. Every value below belongs to the frozen server-side replay.</p>'
+                '<div class="action-row"><a class="button-primary" href="#audit-table">Inspect the replay</a><a class="button-secondary" href="/research">Return to Research Workspace</a></div>'
+                '<section class="workbench-frame workbench-frame--standalone" data-finathink-workbench data-payload-url="/api/research/workbench">'
+                '<div class="workbench-head"><div><p class="eyebrow">Algorithm / evidence boundary</p><h2>One signal, four gates</h2><p class="source-state">The browser explains and selects; it never recalculates finance, rewrites the frozen run, or places an order.</p></div><span class="status status--offline" data-workbench-status>PAPER-ONLY · OFFLINE</span></div>'
+                '<div class="workbench-flow" aria-label="Factor to execution flow"><span>Factor</span><i aria-hidden="true">→</i><span>Signal</span><i aria-hidden="true">→</i><span>Position</span><i aria-hidden="true">→</i><span>Risk</span><i aria-hidden="true">→</i><span>Execution</span></div>'
+                f'<div class="workbench-metrics">{metric_html}</div>'
+                '<div class="workbench-grid workbench-grid--standalone"><div><p class="workbench-inspector" data-workbench-inspector role="status" aria-live="polite">Select a workbench row to inspect its canonical values.</p><div id="audit-table">' + table + '</div></div>'
+                '<div class="workbench-preview"><h3>Parameter preview</h3><label for="workbench-lookback-standalone">Lookback window<input id="workbench-lookback-standalone" data-workbench-parameter="lookback" type="range" min="5" max="60" value="20" step="5"></label><p class="field-help" data-workbench-preview>Preview only · not saved and never used to rewrite the frozen run.</p><p class="error-state" data-workbench-error hidden></p></div></div></section>'
+                '<section class="section workbench-notes"><div><p class="eyebrow">What this page proves</p><h2>Decision logic stays inspectable.</h2><p>Signals are not positions. Risk state can scale or hold existing exposure. Delayed holdings, costs, slippage, and explicit fault events are retained in the same reportable chain.</p></div><ul class="research-limitations"><li>Fixture data only; no live market feed is connected.</li><li>Paper simulation only; no broker, account, or order operation exists.</li><li>Changing a parameter creates a preview, not a new saved strategy.</li></ul></section>'
+            )
 
         if page == "/research":
             from finahinking.p8_2.research_view import build_research_payload
@@ -1213,17 +1369,34 @@ class LocalApplication:
                 f'<li class="evidence-item"><strong>{html.escape(str(item.get("label", item.get("id", "Feature"))))}</strong><span>{html.escape(str(item.get("definition", "Server-normalized feature.")))}</span><br><small>Source: {html.escape(str(item.get("source", "normalized")))} · Look-ahead: {html.escape(str(item.get("lookahead", "declared")))}</small></li>'
                 for item in research_payload.get("features", []) if isinstance(item, Mapping)
             )
+            factor_research = research_payload.get("factor_research", {})
+            factor_rows = "".join(
+                f'<tr><th scope="row"><code>{html.escape(str(item.get("candidate", {}).get("candidate_id", "—")))}</code></th><td><code>{html.escape(str(item.get("candidate", {}).get("expression", "—")))}</code></td><td>{html.escape(str(item.get("evaluation", {}).get("status", "—")))}</td><td>{html.escape(str(item.get("evaluation", {}).get("information_coefficient", "—")))}</td><td>{html.escape(str(item.get("evaluation", {}).get("oos_status", "—")))}</td><td>{html.escape(str(item.get("admission", {}).get("status", "—")))}</td></tr>'
+                for item in factor_research.get("rounds", []) if isinstance(item, Mapping)
+            ) or '<tr><td colspan="6">No factor candidates were evaluated.</td></tr>'
+            workbench = research_payload.get("workbench", {})
+            workbench_metrics = "".join(
+                f'<div class="workbench-metric"><strong data-workbench-metric="{html.escape(str(key))}">{html.escape(str(value))}</strong><span>{html.escape(str(key).replace("_", " "))}</span></div>'
+                for key, value in list((workbench.get("metrics") or {}).items())[:4]
+            )
+            workbench_rows = "".join(
+                f'<tr data-workbench-row data-point-id="{html.escape(str(point.get("point_id")))}" tabindex="0" role="button" aria-label="{html.escape(str(point.get("time")))} {html.escape(str(point.get("instrument")))}"><th scope="row">{html.escape(str(point.get("time")))}</th><td>{html.escape(str(point.get("instrument")))}</td><td>{html.escape(str(point.get("score")))}</td><td>{html.escape(str(point.get("final_weight")))}</td><td>{html.escape(str(point.get("risk_state")))}</td><td>{html.escape(str(point.get("net_return")))}</td></tr>'
+                for point in workbench.get("points", []) if isinstance(point, Mapping)
+            )
+            workbench_table = '<div class="workbench-table"><table aria-label="Factor strategy workbench audit"><thead><tr><th scope="col">Time</th><th scope="col">Instrument</th><th scope="col">Score</th><th scope="col">Final weight</th><th scope="col">Risk</th><th scope="col">Net return</th></tr></thead><tbody>' + workbench_rows + '</tbody></table></div>'
             return (
                 '<div class="status-row">'
                 f'{self._status("SAMPLE", "sample")}{self._status("PIT-AWARE", "evidence")}{self._status("READ-ONLY", "ready")}'
                 '</div><h1>Research workspace</h1>'
                 '<p class="lede">Inspect a normalized market series, its features, events, provenance, and declared parameter experiments in one calm surface. The browser renders server-owned values; it does not calculate them.</p>'
-                '<div class="action-row"><a class="button-secondary" href="/ml">Open ML Lab</a><a class="button-secondary" href="/parameter">Open Parameter Lab</a><a class="button-secondary" href="/settings/data-sources">Review data sources</a></div>'
+                '<div class="action-row"><a class="button-primary" href="/workbench">Open Factor Strategy Workbench</a><a class="button-secondary" href="/ml">Open ML Lab</a><a class="button-secondary" href="/parameter">Open Parameter Lab</a><a class="button-secondary" href="/settings/data-sources">Review data sources</a></div>'
                 '<section class="research-workspace" data-finathink-research data-payload-url="/api/research/series">'
                 '<div class="research-toolbar"><div><h2>Price, volume, and evidence</h2><p class="source-state">Crosshair and point selection update the inspector; the fallback table remains available to keyboard users.</p></div><span class="status status--sample">FIXTURE / OFFLINE</span></div>'
                 '<div class="research-panel"><div class="research-chart" data-research-chart role="img" aria-label="Candlestick, volume, and feature overlay chart for the normalized research sample"></div><p class="research-tooltip" data-research-tooltip role="status" aria-live="polite">Hover or focus a point to inspect its canonical values.</p><p class="error-state" data-research-error hidden></p></div>'
+                f'<section class="workbench-frame" data-finathink-workbench data-payload-url="/api/research/workbench"><div class="workbench-head"><div><h2>Factor / strategy workbench</h2><p class="source-state">Signal, capital, risk and execution stay separate. Select a row to inspect the server-owned point.</p></div><span class="status status--offline" data-workbench-status>PAPER-ONLY · OFFLINE</span></div><div class="workbench-metrics">{workbench_metrics}</div><div class="workbench-grid"><div><p class="workbench-inspector" data-workbench-inspector role="status" aria-live="polite">Select a workbench row to inspect its canonical values.</p>{workbench_table}</div><div class="workbench-preview"><h3>Parameter preview</h3><label for="workbench-lookback">Lookback window<input id="workbench-lookback" data-workbench-parameter="lookback" type="range" min="5" max="60" value="20" step="5"></label><p class="field-help" data-workbench-preview>Preview only · not saved and never used to rewrite the frozen run.</p><p class="error-state" data-workbench-error hidden></p></div></div></section>'
                 '<div class="research-grid"><section class="research-panel"><h2>Selected observation</h2><p class="research-inspector" data-research-inspector role="status" aria-live="polite">Select a candle or row to inspect its canonical values.</p><div class="knowledge-context" data-knowledge-context><h3>Learn from this observation</h3><p data-knowledge-context-status>Choose a point to bind a point-in-time explanation.</p><a class="button-secondary" data-knowledge-context-link href="/knowledge/volatility">Teach me this</a></div></section><section class="research-panel"><h2>Declared parameter sweep</h2><div class="research-sweep" data-research-sweep role="img" aria-label="Out-of-sample parameter comparison"></div><p class="field-help">OOS values and multiple-testing context are retained; no winning strategy is named.</p></section></div>'
                 f'<section class="research-panel"><h2>Feature lineage</h2><p class="field-help">Features are computed server-side and linked to the dataset fingerprint; the renderer only displays them.</p><ul class="evidence-list">{feature_cards}</ul></section>'
+                f'<section class="research-panel"><h2>Factor research ledger</h2><p class="field-help">Bounded templates are evaluated on train/validation with T+1 timing. OOS remains hidden until a candidate is explicitly frozen.</p><div class="table-wrap"><table aria-label="Factor research ledger"><thead><tr><th>Candidate</th><th>Expression</th><th>Status</th><th>IC</th><th>OOS</th><th>Admission</th></tr></thead><tbody>{factor_rows}</tbody></table></div><p class="meta">{html.escape(str(factor_research.get("boundary", "paper-only factor evidence")))}</p></section>'
                 f'<section class="research-panel"><h2>Accessible observation table</h2><p class="field-help">Use Enter or Space on a row to select an exact point. Values are not recomputed in the browser.</p><div data-research-table-anchor>{static_table}</div></section>'
                 '</section>'
                 '<section class="section card card--quiet"><h2>Research limits</h2><ul class="research-limitations"><li>Deterministic sample data only; no live market feed is connected.</li><li>Feature values are descriptive and retain source, availability, and dataset fingerprint.</li><li>QMT, Qlib, and vectorbt remain replaceable, isolated adapters; no order or account operation exists here.</li></ul></section>'
@@ -1280,6 +1453,13 @@ class LocalApplication:
                 for name, item in capabilities.items() if isinstance(item, Mapping)
             )
             return f'<h1>Engine settings</h1><p class="lede">Core numerical code stays in the Finathink environment. Optional engines are detected without importing them and remain isolated until their gates pass.</p><section class="settings-grid">{cards}</section><section class="section card card--quiet"><h2>QMT bridge</h2><p>State: <strong>{html.escape(str(qmt.get("state", "NOT_CONFIGURED")))}</strong> · Read-only: <strong>{html.escape(str(qmt.get("read_only", True)))}</strong></p><p>{html.escape(str(qmt.get("message", "market-data-only bridge")))}</p><p class="meta">Denied by design: order, cancel, account, credentials.</p></section>'
+        if page == "/settings/providers":
+            payload = self.route("GET", "/api/research/providers")[2]
+            cards = "".join(
+                f'<article class="card"><div class="status-row">{self._status("READY" if item.get("configured") else "NOT CONFIGURED", "ready" if item.get("configured") else "sample")}{self._status("OFFLINE" if item.get("offline") else "USER KEY", "offline" if item.get("offline") else "quant")}</div><h2>{html.escape(str(item.get("provider")))}</h2><p>Model: <code>{html.escape(str(item.get("model")))}</code></p><p>{html.escape(str(item.get("reason")))}</p><p class="meta">Credential reference: <code>{html.escape(json.dumps(item.get("credential_ref", {}), sort_keys=True))}</code></p></article>'
+                for item in payload.get("providers", []) if isinstance(item, Mapping)
+            )
+            return f'<h1>Provider access</h1><p class="lede">Connect a user-owned model through a reference to an environment variable or keychain entry. Finathink never stores, echoes, or exports the secret value.</p><section class="settings-grid">{cards}</section><section class="section card card--quiet"><h2>Local setup</h2><p>Set <code>FINAHINK_USER_API_KEY</code> in the user environment before starting the local app. The readiness endpoint reports only configured/not configured status.</p><p class="meta">No browser form submits a secret. No provider SDK is required for the offline fixture.</p></section>'
         if page == "/settings/data-sources":
             from finahinking.p8_2.research_view import build_research_payload, qmt_payload
 
@@ -1294,7 +1474,7 @@ class LocalApplication:
         return ""
 
     def _page_body(self, page: str, *, query: Mapping[str, list[str]] | None = None) -> str:
-        if page in {"/research", "/ml", "/parameter", "/settings/engines", "/settings/data-sources"}:
+        if page in {"/research", "/workbench", "/ml", "/parameter", "/settings/engines", "/settings/providers", "/settings/data-sources"}:
             return self._p8_2_page_body(page)
         if page == "/":
             return (

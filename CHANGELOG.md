@@ -10,6 +10,20 @@ renamed repository's remote `main` through PR #2.
 
 ## Unreleased
 
+- Autonomous factor-research delivery: added an AST-checked factor DSL and
+  bounded candidate miner; deterministic IC/ICIR, quantile, turnover/cost,
+  decay, admission and append-only registry evidence; and a ResearchCharter
+  loop with explicit freeze-before-test/OOS visibility.
+- Added secret-free provider readiness at `/api/research/providers` and
+  `/settings/providers`. User-owned credentials are referenced by environment
+  variable/keychain name only; raw API-key values never enter the UI, logs,
+  prompts, checkpoints, or HTML reports.
+- Added factor research evidence to the server-owned workbench payload,
+  keyboard-readable research page, and self-contained offline HTML report.
+  The complete execution scope and release gates are in
+  `docs/FINATHINK_AUTONOMOUS_EXECUTION_REPORT.md` and
+  `docs/FINATHINK_AUTONOMOUS_VALIDATION.md`.
+
 - P8.2B education and mathematics layer: added the six-unit flagship knowledge
   catalog, Crossref-audited literature metadata, precedence-aware MathML/LaTeX
   rendering, code/math/data traces, context-aware learning routes, typed

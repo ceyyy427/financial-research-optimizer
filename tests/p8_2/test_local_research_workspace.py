@@ -19,12 +19,18 @@ def test_research_payload_is_server_normalized_and_provenance_bound() -> None:
     assert all("features" in point and "events" in point for point in payload["points"])
     assert payload["sweep"]["experiment_count"] == 6
     assert payload["sweep"]["multiple_testing"]["experiment_count"] == 6
+    assert payload["factor_research"]["boundary"].startswith("paper-only")
+    assert payload["factor_research"]["rounds"]
+    assert all("candidate" in item and "evaluation" in item and "admission" in item for item in payload["factor_research"]["rounds"])
+    for field in ("factor_candidates", "factor_evaluations", "factor_decay", "factor_admission", "research_rounds"):
+        assert len(payload[field]) == len(payload["factor_research"]["rounds"])
+    assert {item["provider"] for item in payload["provider_status"]["providers"]} == {"offline", "user-compatible"}
     app.close()
 
 
 def test_research_pages_and_local_asset_keep_external_execution_out() -> None:
     app = LocalApplication(connection=sqlite3.connect(":memory:"))
-    for path in ("/research", "/ml", "/parameter", "/settings/engines", "/settings/data-sources"):
+    for path in ("/research", "/ml", "/parameter", "/settings/engines", "/settings/providers", "/settings/data-sources"):
         status, content_type, body = app.route("GET", path)
         assert status == 200 and content_type.startswith("text/html")
         assert "Finathink" in body
@@ -33,6 +39,7 @@ def test_research_pages_and_local_asset_keep_external_execution_out() -> None:
     assert '/api/research/series' in research
     assert '/assets/finathink-research.js' in research
     assert 'data-research-point-table' in research and '<tbody>' in research
+    assert "Factor research ledger" in research
     assert "script-src 'self'" in research
     assert "http://" not in research and "https://" not in research
     asset = app.route("GET", "/assets/finathink-research.js")
