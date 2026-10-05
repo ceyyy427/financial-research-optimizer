@@ -13,11 +13,13 @@ from finahinking.research.contracts import (
     ResearchRunState,
     ResearchState,
     RunEvent,
+    validate_transition,
 )
 from finahinking.research.drivers import OfflineDriver
 from finahinking.research.run_store import (
     CheckpointCorruptError,
     CheckpointIdentityMismatch,
+    CheckpointIncompatibleError,
     CompletedRunError,
     ResearchRunStore,
     RunControl,
@@ -84,6 +86,32 @@ def test_checkpoint_round_trip_and_identity_validation(tmp_path) -> None:
     assert store.load_checkpoint("run-001", identity=expected) == original
     with pytest.raises(CheckpointIdentityMismatch):
         store.load_checkpoint("run-001", identity=identity(roles=("news",)))
+
+
+def test_cancellation_is_legal_from_every_resumable_intermediate_state() -> None:
+    for current in (
+        ResearchState.RECEIVED,
+        ResearchState.IDENTIFIED,
+        ResearchState.DATA_CHECKED,
+        ResearchState.ANALYSTS_RUNNING,
+        ResearchState.ANALYSTS_READY,
+        ResearchState.EVIDENCE_REVIEW,
+        ResearchState.RESEARCH_PLAN_READY,
+        ResearchState.QUANT_VALIDATION,
+        ResearchState.RISK_REVIEW,
+        ResearchState.PAPER_DECISION_READY,
+    ):
+        validate_transition(current, ResearchState.CANCELLED)
+
+
+def test_load_record_rejects_store_workflow_and_provider_capability_mismatch(tmp_path) -> None:
+    writer = ResearchRunStore(tmp_path, workflow_version="research.v1", provider_capability_digest="cap-v1")
+    writer.save_checkpoint(state(), identity())
+
+    with pytest.raises(CheckpointIncompatibleError):
+        ResearchRunStore(tmp_path, workflow_version="research.v2", provider_capability_digest="cap-v1").load_record("run-001")
+    with pytest.raises(CheckpointIdentityMismatch):
+        ResearchRunStore(tmp_path, workflow_version="research.v1", provider_capability_digest="cap-v2").load_record("run-001")
 
 
 def test_completed_checkpoint_cannot_be_resumed(tmp_path) -> None:
@@ -169,3 +197,36 @@ def test_checkpoint_rejects_secret_prompt_and_raw_provider_fields(tmp_path) -> N
 
     with pytest.raises(ValueError, match="checkpoint payload"):
         store.save_checkpoint(state(), secret_identity)
+
+
+def test_checkpoint_rejects_sensitive_strings_even_when_field_name_is_safe(tmp_path) -> None:
+    unsafe = ResearchRunState(
+        run_id="run-001",
+        current_state=ResearchState.EVIDENCE_REVIEW,
+        as_of=date(2026, 10, 1),
+        state_history=(ResearchState.RECEIVED, ResearchState.IDENTIFIED, ResearchState.EVIDENCE_REVIEW),
+        analyst_reports=(
+            AgentReport(
+                role="technical",
+                status="READY",
+                claims=("api_key=super-secret", "prompt: raw provider response"),
+                evidence_refs=("artifact:technical",),
+                model_ref="provider/model-v1",
+            ),
+        ),
+        failure_message="raw provider response: token=abc",
+    )
+
+    with pytest.raises(ValueError, match="checkpoint payload"):
+        ResearchRunStore(tmp_path).save_checkpoint(unsafe, identity())
+
+
+def test_checkpoint_rejects_unknown_fields_in_payload(tmp_path) -> None:
+    store = ResearchRunStore(tmp_path)
+    path = store.save_checkpoint(state(), identity())
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["unexpected"] = "malicious extension"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(CheckpointCorruptError):
+        store.load_checkpoint("run-001")

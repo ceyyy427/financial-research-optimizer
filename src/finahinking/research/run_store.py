@@ -75,6 +75,58 @@ _FORBIDDEN_KEYS = re.compile(
     r"(?:^|_)(?:prompt|raw_provider_response|provider_response|raw_response)(?:$|_)",
     re.IGNORECASE,
 )
+_FORBIDDEN_TEXT = re.compile(
+    r"(?:api[-_]?key|secret|token|password|credential|authorization|\bprompt\b|"
+    r"raw[\s_-]+provider[\s_-]+response|\bendpoint\b|absolute[-_ ]path|"
+    r"file[-_ ]path|private[-_ ]key|https?://|(?:^|[\s:=])/(?:Users|private|tmp)/)",
+    re.IGNORECASE,
+)
+_CHECKPOINT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "workflow_version",
+        "identity_digest",
+        "provider_capability_digest",
+        "dataset_snapshot_digest",
+        "analyst_set_digest",
+        "identity",
+        "state",
+    }
+)
+_IDENTITY_FIELDS = frozenset(
+    {
+        "instrument",
+        "as_of",
+        "dataset_snapshot",
+        "analyst_set",
+        "role_model_map",
+        "skill_versions",
+        "workflow_version",
+        "depth",
+        "rounds",
+        "config_digest",
+        "research_plan_digest",
+    }
+)
+_STATE_FIELDS = frozenset(
+    {
+        "run_id",
+        "current_state",
+        "as_of",
+        "state_history",
+        "analyst_reports",
+        "failure_kind",
+        "failure_message",
+        "decision_eligible",
+        "tool_call_digests",
+    }
+)
+_REPORT_FIELDS = frozenset(
+    {"role", "status", "claims", "evidence_refs", "limitations", "model_ref", "finished_at"}
+)
+_EVENT_FIELDS = frozenset(
+    {"event_id", "run_id", "state", "actor", "timestamp", "payload_digest", "severity", "metadata"}
+)
 
 
 def _run_id(run_id: str) -> str:
@@ -98,7 +150,10 @@ def _provider_capability_digest(identity: CheckpointIdentity) -> str:
 
 
 def _assert_safe_keys(value: Any, *, path: str = "checkpoint payload") -> None:
-    if isinstance(value, Mapping):
+    if isinstance(value, str):
+        if _FORBIDDEN_TEXT.search(value):
+            raise ValueError(f"{path} contains forbidden text")
+    elif isinstance(value, Mapping):
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError(f"{path} contains a non-string key")
@@ -110,9 +165,16 @@ def _assert_safe_keys(value: Any, *, path: str = "checkpoint payload") -> None:
             _assert_safe_keys(item, path=f"{path}[{index}]")
 
 
+def _reject_unknown_fields(value: Mapping[str, Any], allowed: frozenset[str], label: str) -> None:
+    unknown = set(value) - allowed
+    if unknown:
+        raise CheckpointCorruptError(f"{label} contains unknown fields")
+
+
 def _decode_report(value: Any) -> AgentReport:
     if not isinstance(value, Mapping):
         raise CheckpointCorruptError("checkpoint analyst report is malformed")
+    _reject_unknown_fields(value, _REPORT_FIELDS, "checkpoint analyst report")
     try:
         return AgentReport(
             role=value["role"],
@@ -130,6 +192,7 @@ def _decode_report(value: Any) -> AgentReport:
 def _decode_state(value: Any, run_id: str) -> ResearchRunState:
     if not isinstance(value, Mapping):
         raise CheckpointCorruptError("checkpoint state is malformed")
+    _reject_unknown_fields(value, _STATE_FIELDS, "checkpoint state")
     if value.get("run_id") != run_id:
         raise CheckpointIdentityMismatch("checkpoint state run_id does not match path")
     try:
@@ -152,6 +215,7 @@ def _decode_state(value: Any, run_id: str) -> ResearchRunState:
 def _decode_identity(value: Any) -> CheckpointIdentity:
     if not isinstance(value, Mapping):
         raise CheckpointCorruptError("checkpoint identity is malformed")
+    _reject_unknown_fields(value, _IDENTITY_FIELDS, "checkpoint identity")
     try:
         return CheckpointIdentity(
             instrument=value["instrument"],
@@ -173,6 +237,7 @@ def _decode_identity(value: Any) -> CheckpointIdentity:
 def _decode_event(value: Any) -> RunEvent:
     if not isinstance(value, Mapping):
         raise CheckpointCorruptError("event record is malformed")
+    _reject_unknown_fields(value, _EVENT_FIELDS, "event record")
     try:
         return RunEvent(
             event_id=value["event_id"],
@@ -283,9 +348,19 @@ class ResearchRunStore:
             raise CheckpointIdentityMismatch("provider capability digest does not match")
         return record.state
 
-    def load_record(self, run_id: str, identity: CheckpointIdentity | None = None) -> CheckpointRecord:
+    def load_record(
+        self,
+        run_id: str,
+        identity: CheckpointIdentity | None = None,
+        *,
+        expected_identity: CheckpointIdentity | None = None,
+        provider_capability_digest: str | None = None,
+    ) -> CheckpointRecord:
         """Load identity metadata as well as state for queue/recovery callers."""
 
+        if identity is not None and expected_identity is not None:
+            raise TypeError("provide identity or expected_identity, not both")
+        expected = identity or expected_identity
         path = self._path(run_id)
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -294,13 +369,19 @@ class ResearchRunStore:
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise CheckpointCorruptError("checkpoint JSON is corrupt") from exc
         record = self._decode_checkpoint(payload, _run_id(run_id))
-        if identity is not None and record.identity_digest != identity.digest():
+        if expected is not None and record.identity_digest != expected.digest():
             raise CheckpointIdentityMismatch("checkpoint identity does not match requested run")
+        if self.workflow_version is not None and record.identity.workflow_version != self.workflow_version:
+            raise CheckpointIncompatibleError("workflow version is incompatible")
+        expected_capability_digest = provider_capability_digest or self.provider_capability_digest
+        if expected_capability_digest is not None and record.provider_capability_digest != expected_capability_digest:
+            raise CheckpointIdentityMismatch("provider capability digest does not match")
         return record
 
     def _decode_checkpoint(self, payload: Any, run_id: str) -> CheckpointRecord:
         if not isinstance(payload, Mapping):
             raise CheckpointCorruptError("checkpoint must be a JSON object")
+        _reject_unknown_fields(payload, _CHECKPOINT_FIELDS, "checkpoint")
         try:
             _assert_safe_keys(payload)
         except ValueError as exc:

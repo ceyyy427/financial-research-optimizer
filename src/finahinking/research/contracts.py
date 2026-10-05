@@ -72,14 +72,14 @@ _TERMINAL_STATES = frozenset(
 _TRANSITIONS: dict[ResearchState, frozenset[ResearchState]] = {
     ResearchState.RECEIVED: frozenset({ResearchState.IDENTIFIED, ResearchState.REJECTED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.IDENTIFIED: frozenset({ResearchState.DATA_CHECKED, ResearchState.REJECTED, ResearchState.CANCELLED, ResearchState.FAILED}),
-    ResearchState.DATA_CHECKED: frozenset({ResearchState.ANALYSTS_RUNNING, ResearchState.NO_DATA_AVAILABLE, ResearchState.DATA_UNAVAILABLE, ResearchState.VALIDATION_FAILED, ResearchState.FAILED}),
+    ResearchState.DATA_CHECKED: frozenset({ResearchState.ANALYSTS_RUNNING, ResearchState.NO_DATA_AVAILABLE, ResearchState.DATA_UNAVAILABLE, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.ANALYSTS_RUNNING: frozenset({ResearchState.ANALYSTS_READY, ResearchState.PROVIDER_NOT_CONFIGURED, ResearchState.CANCELLED, ResearchState.FAILED}),
-    ResearchState.ANALYSTS_READY: frozenset({ResearchState.EVIDENCE_REVIEW, ResearchState.VALIDATION_FAILED, ResearchState.FAILED}),
-    ResearchState.EVIDENCE_REVIEW: frozenset({ResearchState.RESEARCH_PLAN_READY, ResearchState.VALIDATION_FAILED, ResearchState.FAILED}),
-    ResearchState.RESEARCH_PLAN_READY: frozenset({ResearchState.QUANT_VALIDATION, ResearchState.VALIDATION_FAILED, ResearchState.FAILED}),
-    ResearchState.QUANT_VALIDATION: frozenset({ResearchState.RISK_REVIEW, ResearchState.VALIDATION_FAILED, ResearchState.FAILED}),
-    ResearchState.RISK_REVIEW: frozenset({ResearchState.PAPER_DECISION_READY, ResearchState.VALIDATION_FAILED, ResearchState.FAILED}),
-    ResearchState.PAPER_DECISION_READY: frozenset({ResearchState.REPORT_PUBLISHED, ResearchState.FAILED}),
+    ResearchState.ANALYSTS_READY: frozenset({ResearchState.EVIDENCE_REVIEW, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
+    ResearchState.EVIDENCE_REVIEW: frozenset({ResearchState.RESEARCH_PLAN_READY, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
+    ResearchState.RESEARCH_PLAN_READY: frozenset({ResearchState.QUANT_VALIDATION, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
+    ResearchState.QUANT_VALIDATION: frozenset({ResearchState.RISK_REVIEW, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
+    ResearchState.RISK_REVIEW: frozenset({ResearchState.PAPER_DECISION_READY, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
+    ResearchState.PAPER_DECISION_READY: frozenset({ResearchState.REPORT_PUBLISHED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.REPORT_PUBLISHED: frozenset({ResearchState.LEARNING_RECORDED, ResearchState.FAILED}),
 }
 
