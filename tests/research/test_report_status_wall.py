@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 from finahinking.research.contracts import (
     AgentReport,
@@ -11,10 +11,12 @@ from finahinking.research.contracts import (
 )
 from finahinking.research.reports import (
     ReportBundleWriter,
+    append_event,
     compare_report_manifests,
     render_section_html,
     render_workbench_report_html,
     verify_report_bundle,
+    write_manifest,
 )
 from finahinking.research.ui import render_status_wall_html, research_view_model
 
@@ -195,3 +197,21 @@ def test_all_report_renderers_use_recursive_public_redaction() -> None:
     for output in (section, workbench):
         for forbidden in ("/tmp/private", "raw provider response", "SECRET", "prompt=hidden"):
             assert forbidden not in output
+
+
+def test_activity_manifest_and_status_title_redact_sensitive_values(tmp_path) -> None:
+    from finahinking.research.contracts import RunEvent
+
+    event_path = tmp_path / "activity.jsonl"
+    append_event(
+        RunEvent("event-safe", "run-wall", ResearchState.RECEIVED, "test", datetime(2026, 10, 1, tzinfo=UTC), "digest", metadata={"note": "prompt=hidden /Users/mac/private/x"}),
+        event_path,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    write_manifest(_manifest(note="prompt=hidden /tmp/private/x"), manifest_path)
+    title_html = render_status_wall_html(research_view_model(_state(), _manifest()), title="api_key=SECRET <script>")
+    for output in (event_path.read_text(encoding="utf-8"), manifest_path.read_text(encoding="utf-8"), title_html):
+        assert "prompt=hidden" not in output
+        assert "SECRET" not in output
+        assert "/tmp/private" not in output
+        assert "/Users/mac/private" not in output

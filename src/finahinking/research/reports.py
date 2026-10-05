@@ -171,7 +171,7 @@ def _digest_file(path: Path) -> str:
 
 def write_manifest(manifest: ReportManifest, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(to_jsonable(manifest), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    payload = json.dumps(redact_public_payload(manifest), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(payload, encoding="utf-8")
     temporary.replace(path)
@@ -180,7 +180,7 @@ def write_manifest(manifest: ReportManifest, path: Path) -> None:
 def append_event(event: RunEvent, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(to_jsonable(event), ensure_ascii=False, sort_keys=True) + "\n")
+        handle.write(json.dumps(redact_public_payload(event), ensure_ascii=False, sort_keys=True) + "\n")
 
 
 class ReportBundleWriter:
