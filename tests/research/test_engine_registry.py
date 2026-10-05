@@ -205,6 +205,8 @@ def test_result_validator_rejects_all_uri_schemes_code_and_relative_paths_but_ke
     for value in (
         "mailto:secret@example.test",
         "custom://provider",
+        "see custom://provider",
+        "file:/tmp/result.json",
         "def alpha(x): return x",
         "python source: import os",
         "foo/bar",
@@ -214,7 +216,12 @@ def test_result_validator_rejects_all_uri_schemes_code_and_relative_paths_but_ke
             EngineRegistry._validate_safe_payload({"description": value})
 
     EngineRegistry._validate_safe_payload(
-        {"description": "Source availability remains unknown; train/validation windows are explicit."}
+        {
+            "description": (
+                "Source availability remains unknown; train/validation windows are explicit. "
+                "Expected return is stable. From this sample, import growth is descriptive."
+            )
+        }
     )
 
 

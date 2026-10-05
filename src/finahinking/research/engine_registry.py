@@ -80,13 +80,22 @@ _EXECUTABLE_KEY = re.compile(
 )
 _SENSITIVE_VALUE = re.compile(
     r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|"
-    r"\b(?:eval|exec|shell|command|script|source[_-]?code|__import__|subprocess|os\.system)\b|"
-    r"\b(?:def|class|import|from|return)\s+[A-Za-z_])",
+    r"\b(?:eval|exec|__import__|subprocess|os\.system)\s*\()",
     re.IGNORECASE,
 )
-_URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+_URI_SCHEME = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z][A-Za-z0-9+.-]*:\/{0,2}(?=\S)")
 _RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.-]+(?:[/\\][A-Za-z0-9_.-]+)+$")
-_PATH_FIELD = re.compile(r"(?:path|code|source|command|script|endpoint|url)", re.IGNORECASE)
+_TRAILING_PATH = re.compile(r"^[A-Za-z0-9_.-]+[/\\]$")
+_PATH_FIELD = re.compile(r"(?:path|file|location|code|source|command|script|endpoint|url)", re.IGNORECASE)
+_CODE_FIELD = re.compile(r"(?:code|source|script|command|eval|exec)", re.IGNORECASE)
+_CODE_LINE = re.compile(
+    r"(?:^|[;{]|:\s*)(?:def\s+[A-Za-z_]\w*\s*\(|class\s+[A-Za-z_]\w*\s*[:(]|"
+    r"import\s+[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*$|"
+    r"from\s+[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s+import\s+[A-Za-z_]\w*|"
+    r"return\s+[A-Za-z_]\w*(?:[.\[\]()][A-Za-z0-9_.'\"\[\]() -]*)*)",
+    re.IGNORECASE | re.MULTILINE,
+)
+_CODE_HINT = re.compile(r"(?:\bpython\b|\bbash\b|\bshell\b|\bsql\b|\bjavascript\b|^#!)", re.IGNORECASE)
 _ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
 
 
@@ -296,11 +305,14 @@ class EngineRegistry:
         if isinstance(value, str):
             text = value.strip()
             if (
-                _URI_SCHEME.match(text)
+                _URI_SCHEME.search(text)
                 or _SENSITIVE_VALUE.search(text)
                 or _ABSOLUTE_PATH.match(text)
-                or (_RELATIVE_PATH.fullmatch(text) and _PATH_FIELD.search(key))
-                or (_RELATIVE_PATH.fullmatch(text) and text.count("/") + text.count("\\") > 0)
+                or _RELATIVE_PATH.fullmatch(text)
+                or _TRAILING_PATH.fullmatch(text)
+                or (_PATH_FIELD.search(key) and (_RELATIVE_PATH.search(text) or _TRAILING_PATH.search(text)))
+                or _CODE_LINE.search(text)
+                or (_CODE_FIELD.search(key) and (_CODE_HINT.search(text) or _CODE_LINE.search(text)))
             ):
                 raise ValueError("adapter result contains a restricted value")
             return
