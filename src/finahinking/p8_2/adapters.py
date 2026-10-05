@@ -42,7 +42,7 @@ class QlibResearchAdapter:
             return MLResearchResult(
                 specification_fingerprint=result.specification_fingerprint,
                 dataset_fingerprint=result.dataset_fingerprint,
-                status="NOT INSTALLED",
+                status="NOT_INSTALLED",
                 engine="finathink-deterministic-baseline",
                 metrics=result.metrics,
                 predictions=result.predictions,

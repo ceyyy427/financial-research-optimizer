@@ -61,7 +61,7 @@ def test_qlib_adapter_absence_is_a_typed_fallback_and_never_leaks_external_objec
     )
     adapter = QlibResearchAdapter(force_unavailable=True)
     result = adapter.run(spec, dataset)
-    assert result.status == "NOT INSTALLED"
+    assert result.status == "NOT_INSTALLED"
     assert result.fallback_used is True
     assert result.to_dict()["dataset_fingerprint"] == dataset.fingerprint
     assert all("qlib" not in type(value).__module__.lower() for value in result.to_dict().values())

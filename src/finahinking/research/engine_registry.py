@@ -10,9 +10,16 @@ reason remains part of the result.
 from __future__ import annotations
 
 import builtins
+import http.client
+import io
 import multiprocessing
+import os
+import pathlib
 import re
 import socket
+import subprocess
+import tempfile
+import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -52,10 +59,32 @@ def _restricted_worker(adapter: Any, specification: Any, dataset: DatasetSnapsho
             raise PermissionError("file writes are disabled in the research worker")
         return _ORIGINAL_OPEN(*args, **kwargs)
 
+    def _file_write_denied(*args: Any, **kwargs: Any) -> Any:
+        raise PermissionError("file writes are disabled in the research worker")
+
+    def _process_denied(*args: Any, **kwargs: Any) -> Any:
+        raise PermissionError("process execution is disabled in the research worker")
+
     try:
         socket.socket = _NetworkDeniedSocket  # type: ignore[assignment]
         socket.create_connection = _network_denied  # type: ignore[assignment]
+        socket.create_server = _network_denied  # type: ignore[assignment]
+        socket.socketpair = _network_denied  # type: ignore[assignment]
         builtins.open = _write_denied_open  # type: ignore[assignment]
+        io.open = _write_denied_open  # type: ignore[assignment]
+        os.open = _file_write_denied  # type: ignore[assignment]
+        for name in ("system", "popen", "spawnv", "spawnve", "spawnvp", "spawnvpe"):
+            setattr(os, name, _process_denied)
+        for name in ("run", "Popen", "call", "check_call", "check_output"):
+            setattr(subprocess, name, _process_denied)
+        for name in ("open", "write_text", "write_bytes", "mkdir", "touch", "rename", "replace", "unlink", "rmdir"):
+            setattr(pathlib.Path, name, _file_write_denied)
+        for name in ("NamedTemporaryFile", "TemporaryFile", "mkstemp", "mkdtemp", "SpooledTemporaryFile"):
+            setattr(tempfile, name, _file_write_denied)
+        urllib.request.urlopen = _network_denied  # type: ignore[assignment]
+        urllib.request.build_opener = _network_denied  # type: ignore[assignment]
+        http.client.HTTPConnection = _network_denied  # type: ignore[assignment, misc]
+        http.client.HTTPSConnection = _network_denied  # type: ignore[assignment, misc]
         result = adapter.run(specification, dataset)
         result_queue.put(("ok", result))
     except Exception as exc:  # noqa: BLE001 - worker reports only a typed error
@@ -66,7 +95,24 @@ _ORIGINAL_OPEN = builtins.open
 
 
 @dataclass(frozen=True, slots=True)
-class RestrictedProcessRunner:
+class TrustedSandboxRunner:
+    """Marker base for a separately audited OS sandbox runner.
+
+    The registry deliberately does not trust arbitrary objects that merely
+    expose ``run``. A deployment must provide a subclass backed by a real
+    sandbox policy; tests may use an explicit subclass as a contract double.
+    """
+
+    trusted_sandbox: ClassVar[bool] = True
+    network_disabled: ClassVar[bool] = True
+    file_write_disabled: ClassVar[bool] = True
+
+    def run(self, adapter: Any, specification: Any, dataset: DatasetSnapshot) -> Any:
+        raise NotImplementedError("a deployment must provide the audited sandbox runner")
+
+
+@dataclass(frozen=True, slots=True)
+class RestrictedProcessRunner(TrustedSandboxRunner):
     """Small process boundary used for optional adapters.
 
     This is intentionally conservative: no network sockets or file writes are
@@ -75,6 +121,7 @@ class RestrictedProcessRunner:
     arbitrary untrusted code; callers must provide this runner explicitly.
     """
 
+    trusted_sandbox: ClassVar[bool] = False
     timeout_seconds: float = 30.0
     network_disabled: bool = True
     file_write_disabled: bool = True
@@ -107,9 +154,13 @@ class RestrictedProcessRunner:
         return payload
 
 
-_SENSITIVE_KEY = re.compile(r"(?:api[_-]?key|token|secret|password|prompt|raw[ _-]?provider|endpoint|url)", re.IGNORECASE)
+_SENSITIVE_KEY = re.compile(r"(?:api[_-]?key|token|secret|password|prompt|raw[ _-]?provider|endpoint|url|path)", re.IGNORECASE)
 _EXECUTABLE_KEY = re.compile(r"(?:^__|eval|exec|shell|command|script|source[_-]?code|callable|globals|builtins)", re.IGNORECASE)
-_SENSITIVE_VALUE = re.compile(r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|https?://|ftp://)", re.IGNORECASE)
+_SENSITIVE_VALUE = re.compile(
+    r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|https?://|ftp://|"
+    r"\b(?:eval|exec|shell|command|script|source[_-]?code)\b|(?:^|[=: ])(?:\.\.?/|[A-Za-z]:[\\/]))",
+    re.IGNORECASE,
+)
 _ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
 
 
@@ -155,7 +206,7 @@ class EngineAdmission:
     raw_object_boundary: bool = False
     fallback: bool = False
     controlled_runner: bool = False
-    runner: RestrictedProcessRunner | None = None
+    runner: TrustedSandboxRunner | None = None
 
     _GATES: ClassVar[tuple[str, ...]] = (
         "software_version",
@@ -168,8 +219,10 @@ class EngineAdmission:
     )
 
     def __post_init__(self) -> None:
-        if self.controlled_runner != isinstance(self.runner, RestrictedProcessRunner):
-            raise ValueError("controlled_runner must be derived from RestrictedProcessRunner")
+        if self.controlled_runner != isinstance(self.runner, TrustedSandboxRunner) or (
+            self.runner is not None and not getattr(self.runner, "trusted_sandbox", False)
+        ):
+            raise ValueError("controlled_runner must be derived from a trusted sandbox runner")
 
     @classmethod
     def from_value(cls, value: Mapping[str, Any] | EngineAdmission | None, *, installed_default: bool) -> EngineAdmission:
@@ -184,8 +237,10 @@ class EngineAdmission:
         if unknown:
             raise ValueError("unknown engine admission fields")
         runner = value.get("runner")
-        if runner is not None and not isinstance(runner, RestrictedProcessRunner):
-            raise TypeError("runner must be a RestrictedProcessRunner")
+        if runner is not None and (
+            not isinstance(runner, TrustedSandboxRunner) or not getattr(runner, "trusted_sandbox", False)
+        ):
+            raise TypeError("runner must be an audited trusted sandbox runner")
         values: dict[str, bool] = {}
         for key in allowed:
             if key == "runner":
@@ -251,7 +306,7 @@ class EngineRegistry:
     def describe(self, name: str) -> dict[str, Any]:
         entry = self._entries.get(name.casefold() if isinstance(name, str) else "")
         if entry is None:
-            return {"name": name, "status": RegistryStatus.NOT_INSTALLED, "missing_gates": EngineAdmission._GATES}
+            return {"name": "unknown", "status": RegistryStatus.NOT_INSTALLED, "missing_gates": EngineAdmission._GATES}
         return {
             "name": entry.name,
             "capability": entry.capability,
@@ -372,4 +427,5 @@ __all__ = [
     "FinathinkSpecification",
     "RegistryStatus",
     "RestrictedProcessRunner",
+    "TrustedSandboxRunner",
 ]

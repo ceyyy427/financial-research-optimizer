@@ -11,6 +11,7 @@ from finahinking.research.engine_registry import (
     FinathinkSpecification,
     RegistryStatus,
     RestrictedProcessRunner,
+    TrustedSandboxRunner,
 )
 
 
@@ -36,6 +37,11 @@ class _AdmittedAdapter:
             fallback_used=False,
             model_artifact={"kind": "fixture"},
         )
+
+
+class _FakeTrustedRunner(TrustedSandboxRunner):
+    def run(self, adapter, specification, dataset):
+        return adapter.run(specification, dataset)
 
 
 def _ml_request() -> FinathinkSpecification:
@@ -129,7 +135,7 @@ def test_admitted_adapter_result_is_normalized_and_reports_actual_engine() -> No
             "raw_object_boundary": True,
             "fallback": True,
             "controlled_runner": True,
-            "runner": RestrictedProcessRunner(timeout_seconds=5),
+            "runner": _FakeTrustedRunner(),
         },
     )
 
@@ -146,6 +152,7 @@ def test_unknown_engine_is_typed_fallback_and_does_not_execute_user_code() -> No
     result = registry.run("unknown", _ml_request())
     assert result.fallback_used is True
     assert result.fallback_reason == "unknown optional engine is not installed in the approved isolated environment"
+    assert registry.describe("api_key=/tmp/key")["name"] == "unknown"
 
 
 def test_isolation_boolean_without_controlled_runner_can_never_be_available() -> None:
@@ -167,6 +174,17 @@ def test_isolation_boolean_without_controlled_runner_can_never_be_available() ->
     )
     assert registry.status("qlib") == RegistryStatus.DEFERRED
     assert "controlled_runner" in registry.describe("qlib")["missing_gates"]
+
+
+def test_monkeypatch_only_runner_is_rejected_as_untrusted() -> None:
+    registry = EngineRegistry()
+    with pytest.raises(TypeError, match="trusted sandbox"):
+        registry.register(
+            "qlib",
+            capability="ml",
+            adapter=_NoopAdapter(),
+            isolation={"installed": True, "runner": RestrictedProcessRunner()},
+        )
 
 
 def test_sensitive_adapter_payload_is_rejected_and_falls_back() -> None:
@@ -198,12 +216,12 @@ def test_sensitive_adapter_payload_is_rejected_and_falls_back() -> None:
             "normalized_fixture": True,
             "raw_object_boundary": True,
             "fallback": True,
-            "runner": RestrictedProcessRunner(timeout_seconds=5),
+            "runner": _FakeTrustedRunner(),
         },
     )
     result = registry.run("qlib", _ml_request())
     assert result.fallback_used is True
-    assert result.fallback_reason == "qlib adapter execution failed (RuntimeError)"
+    assert result.fallback_reason == "qlib adapter execution failed (ValueError)"
     assert "top-secret" not in result.to_json()
 
 
