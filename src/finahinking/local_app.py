@@ -1734,7 +1734,7 @@ class _Handler(BaseHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "").split(";", 1)[0].lower()
         if content_type == "application/x-www-form-urlencoded":
             values = parse_qs(raw.decode("utf-8", "replace"), keep_blank_values=True)
-            token = (values.pop("_csrf", [""]) or [""])[0]
+            token = (values.get("_csrf", [""]) or [""])[0]
             if token != self._application().csrf_token:
                 self._send(403, "application/json", {"error": "csrf token is required"})
                 return
