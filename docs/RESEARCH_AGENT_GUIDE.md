@@ -4,6 +4,8 @@
 
 Finathink 的研究代理默认运行在离线、纸面研究模式。Codex 可以通过显式 handoff envelope 提供研究计划，但本地运行时不会隐式调用当前会话，也不会读取 API key、endpoint 或本机路径。
 
+![多代理研究流程：专业分析师、研究经理、量化风控工具与报告](diagrams/research-agents.svg)
+
 完整流程是：数据检查 → 多角色研究摘要 → 证据审查 → 因子候选生成与训练/验证 → 因子衰减与准入 → 确定性风险门禁 → paper-only decision card → HTML 报告 → as-of 学习记录。分析角色可以包括基本面、技术、情绪、新闻和学习分析师；研究经理、交易员、风险管理、投资组合经理和学习经理只通过 typed contract 协作，不能绕过数据、因子、OOS 或风险门禁。
 
 ## User-provided providers
@@ -17,6 +19,8 @@ Finathink 的研究代理默认运行在离线、纸面研究模式。Codex 可�
 研究结果不是投资建议，也不是实时信号。系统不连接券商、不下单、不管理真实资金、不读取高频实时行情。`DecisionCard` 只表达纸面研究配置，必须保留 approval requirement、evidence refs 和 limitations。
 
 ## Report bundle
+
+![报告与学习闭环：证据、量化、风控、决策卡、HTML 与工作区](diagrams/report-learning.svg)
 
 每个 run 生成 `reports/<run_id>/`，其中 `complete_report.html` 是阅读层，`manifest.json`、Artifact、DatasetSnapshot 和 `activity.jsonl` 是可审计事实。报告包含五类分析师、evidence、research、quant、risk 和 paper decision 区块；HTML 由受控 renderer 转义模型和新闻文本。
 
