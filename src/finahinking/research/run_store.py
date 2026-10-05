@@ -77,9 +77,15 @@ _FORBIDDEN_KEYS = re.compile(
 )
 _FORBIDDEN_TEXT = re.compile(
     r"(?:api[-_]?key|secret|token|password|credential|authorization|\bprompt\b|"
-    r"raw[\s_-]+provider[\s_-]+response|\bendpoint\b|absolute[-_ ]path|"
-    r"file[-_ ]path|private[-_ ]key|https?://|(?:^|[\s:=])/(?:Users|private|tmp)/)",
+    r"(?:raw[\s_-]*)?provider[\s_-]*response|raw[\s_-]*response|\bendpoint\b|"
+    r"absolute[-_ ]path|file[-_ ]path|private[-_ ]key|https?://|"
+    r"(?:^|[\s:=])/(?:[^\s/]+/)*[^\s/]+|"
+    r"(?:^|[\s:=])(?:\.\.?/)+[^\s]+|"
+    r"(?:^|[\s:=])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+(?:$|[\s,:]))",
     re.IGNORECASE,
+)
+_RELATIVE_PATH = re.compile(
+    r"(?:^|[\s:=])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+(?:$|[\s,:])"
 )
 _CHECKPOINT_FIELDS = frozenset(
     {
@@ -151,7 +157,8 @@ def _provider_capability_digest(identity: CheckpointIdentity) -> str:
 
 def _assert_safe_keys(value: Any, *, path: str = "checkpoint payload") -> None:
     if isinstance(value, str):
-        if _FORBIDDEN_TEXT.search(value):
+        is_model_reference = "model_ref" in path or "role_model_map" in path
+        if _FORBIDDEN_TEXT.search(value) or (_RELATIVE_PATH.search(value) and not is_model_reference):
             raise ValueError(f"{path} contains forbidden text")
     elif isinstance(value, Mapping):
         for key, item in value.items():
@@ -344,7 +351,8 @@ class ResearchRunStore:
             raise CheckpointIncompatibleError("workflow version is incompatible")
         if provider_capability_digest is not None and record.provider_capability_digest != provider_capability_digest:
             raise CheckpointIdentityMismatch("provider capability digest does not match")
-        if self.provider_capability_digest is not None and record.provider_capability_digest != self.provider_capability_digest:
+        expected_capability_digest = self.provider_capability_digest or _provider_capability_digest(record.identity)
+        if record.provider_capability_digest != expected_capability_digest:
             raise CheckpointIdentityMismatch("provider capability digest does not match")
         return record.state
 
@@ -373,7 +381,7 @@ class ResearchRunStore:
             raise CheckpointIdentityMismatch("checkpoint identity does not match requested run")
         if self.workflow_version is not None and record.identity.workflow_version != self.workflow_version:
             raise CheckpointIncompatibleError("workflow version is incompatible")
-        expected_capability_digest = provider_capability_digest or self.provider_capability_digest
+        expected_capability_digest = provider_capability_digest or self.provider_capability_digest or _provider_capability_digest(record.identity)
         if expected_capability_digest is not None and record.provider_capability_digest != expected_capability_digest:
             raise CheckpointIdentityMismatch("provider capability digest does not match")
         return record

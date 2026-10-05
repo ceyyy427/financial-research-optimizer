@@ -299,12 +299,22 @@ class ResearchOrchestrator:
         if risk_response.status is not ResearchToolStatus.SUCCEEDED:
             return finish(ResearchState.VALIDATION_FAILED, FailureKind.RISK_REVIEW_FAILED, "risk review failed")
         risk_review = self.run_risk_review(plan, risk_response.result)
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled during risk review")
         if risk_review.blocking_reasons:
             return finish(ResearchState.VALIDATION_FAILED, FailureKind.RISK_REVIEW_FAILED, "; ".join(risk_review.blocking_reasons))
         transition(ResearchState.RISK_REVIEW, {"risk_digest": stable_digest(risk_review)})
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after risk review")
         decision = self.make_paper_decision(risk_review, reports, quant_response.result, request.instrument)
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled during paper decision")
         transition(ResearchState.PAPER_DECISION_READY, {"decision_digest": stable_digest(decision)})
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled before report publication")
         transition(ResearchState.REPORT_PUBLISHED, {"report": "pending-writer"})
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled before learning record")
         transition(ResearchState.LEARNING_RECORDED, {"learning": "pending-store"})
         state = ResearchRunState(
             run_id=request.run_id,

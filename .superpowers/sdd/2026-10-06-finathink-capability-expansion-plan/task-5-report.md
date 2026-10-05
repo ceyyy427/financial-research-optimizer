@@ -13,17 +13,19 @@ Changes:
 - Allowed cancellation transitions from every resumable pre-completion workflow state, including evidence, plan, quant, risk, and paper-decision stages.
 - Made `load_record()` enforce configured workflow and provider capability expectations, matching `load_checkpoint()`.
 - Added recursive sensitive-string checks and strict unknown-field rejection for checkpoint and event payloads.
+- Default stores now verify the intrinsic provider capability digest, so a forged envelope is rejected even without an explicit expected digest.
+- Recursive validation rejects absolute/relative paths and all provider/raw response text variants; workflow cancellation is checked throughout risk, decision, publication, and learning boundaries.
 - Exported store and typed failure classes from `finahinking.research`.
 
 TDD evidence:
 
 - `tests/research/test_run_store.py` was written before `run_store.py`; the first run failed at collection because the module did not exist (RED).
-- Review regressions were added first and observed RED (four failures: illegal cancellation transition, missing `load_record()` checks, sensitive strings persisted, and unknown fields accepted), then fixed.
-- The focused suite now passes: **11 passed**.
+- Review regressions were added first and observed RED (then four additional failures for forged default capability digests, path/response strings, and late cancellation), then fixed.
+- The focused suite now passes: **20 passed**.
 
 Validation:
 
-- `python3 -m pytest -q tests/research tests/p6 tests/p8_2 tests/p8_2b --disable-warnings --maxfail=1` → **226 passed, 1 skipped**.
+- `python3 -m pytest -q tests/research tests/p6 tests/p8_2 tests/p8_2b --disable-warnings --maxfail=1` → **235 passed, 1 skipped**.
 - `python3 -m ruff check src/finahinking/research/contracts.py src/finahinking/research/run_store.py src/finahinking/research/workflow.py src/finahinking/research/__init__.py tests/research/test_run_store.py` → **All checks passed**.
 
 Concerns:

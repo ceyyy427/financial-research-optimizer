@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
+from finahinking.quant.services import QuantServiceGateway
 from finahinking.research.contracts import (
     AgentReport,
     CheckpointIdentity,
@@ -114,6 +115,17 @@ def test_load_record_rejects_store_workflow_and_provider_capability_mismatch(tmp
         ResearchRunStore(tmp_path, workflow_version="research.v1", provider_capability_digest="cap-v2").load_record("run-001")
 
 
+def test_default_store_rejects_forged_provider_capability_digest(tmp_path) -> None:
+    store = ResearchRunStore(tmp_path)
+    path = store.save_checkpoint(state(), identity())
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["provider_capability_digest"] = "forged-capability"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(CheckpointIdentityMismatch):
+        store.load_record("run-001")
+
+
 def test_completed_checkpoint_cannot_be_resumed(tmp_path) -> None:
     store = ResearchRunStore(tmp_path)
     expected = identity()
@@ -221,6 +233,28 @@ def test_checkpoint_rejects_sensitive_strings_even_when_field_name_is_safe(tmp_p
         ResearchRunStore(tmp_path).save_checkpoint(unsafe, identity())
 
 
+@pytest.mark.parametrize("value", ("/etc/passwd", "src/foo.py", "src/foo", "provider response", "provider_response", "raw_response"))
+def test_checkpoint_rejects_path_and_provider_response_strings(tmp_path, value: str) -> None:
+    unsafe = ResearchRunState(
+        run_id="run-001",
+        current_state=ResearchState.EVIDENCE_REVIEW,
+        as_of=date(2026, 10, 1),
+        state_history=(ResearchState.RECEIVED, ResearchState.IDENTIFIED, ResearchState.EVIDENCE_REVIEW),
+        analyst_reports=(
+            AgentReport(
+                role="technical",
+                status="READY",
+                claims=(value,),
+                evidence_refs=("artifact:technical",),
+                model_ref="provider/model-v1",
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="checkpoint payload"):
+        ResearchRunStore(tmp_path).save_checkpoint(unsafe, identity())
+
+
 def test_checkpoint_rejects_unknown_fields_in_payload(tmp_path) -> None:
     store = ResearchRunStore(tmp_path)
     path = store.save_checkpoint(state(), identity())
@@ -230,3 +264,49 @@ def test_checkpoint_rejects_unknown_fields_in_payload(tmp_path) -> None:
 
     with pytest.raises(CheckpointCorruptError):
         store.load_checkpoint("run-001")
+
+
+def _quant_tools() -> ResearchToolGateway:
+    gateway = QuantServiceGateway()
+    gateway.register("quant.run_backtest", lambda params: {"annual_return": 0.1, "oos": True})
+    gateway.register("quant.analyze_risk", lambda params: {"passed": True, "max_drawdown": 0.08})
+    return ResearchToolGateway(quant_gateway=gateway)
+
+
+def _workflow_request(run_id: str) -> ResearchRequest:
+    return ResearchRequest(
+        run_id=run_id,
+        instrument="ETF:SPY",
+        as_of=date(2026, 10, 1),
+        research_plan=ResearchPlan(required_datasets=("fixture-prices",)),
+        analyst_roles=("technical",),
+        asset_class="ETF",
+        workflow_version="research.v1",
+        config_digest="cfg",
+    )
+
+
+@pytest.mark.parametrize("hook", ("risk", "decision"))
+def test_workflow_cancellation_during_risk_or_decision_cannot_reach_learning(hook: str) -> None:
+    control = RunControl()
+
+    class CancellingOrchestrator(ResearchOrchestrator):
+        def run_risk_review(self, plan, quant_result):
+            result = super().run_risk_review(plan, quant_result)
+            if hook == "risk":
+                control.cancel("run-late-cancel")
+            return result
+
+        def make_paper_decision(self, risk_review, reports, quant_result, instrument):
+            result = super().make_paper_decision(risk_review, reports, quant_result, instrument)
+            if hook == "decision":
+                control.cancel("run-late-cancel")
+            return result
+
+    result = CancellingOrchestrator().run(
+        _workflow_request("run-late-cancel"), OfflineDriver(), _quant_tools(), run_control=control
+    )
+
+    assert result.state.current_state is ResearchState.CANCELLED
+    assert result.decision is None
+    assert ResearchState.LEARNING_RECORDED not in result.state.state_history
