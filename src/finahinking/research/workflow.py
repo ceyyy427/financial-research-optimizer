@@ -95,6 +95,7 @@ class ResearchOrchestrator:
         limits: WorkflowLimits | None = None,
         analyst_pool: AnalystPool | None = None,
         manager: ResearchManager | None = None,
+        run_control: Any | None = None,
     ) -> ResearchRunResult:
         del provider_registry  # Provider checks happen at the driver boundary.
         limits = limits or WorkflowLimits()
@@ -123,6 +124,12 @@ class ResearchOrchestrator:
             )
             return ResearchRunResult(state=state, events=tuple(events))
 
+        def cancelled() -> bool:
+            return run_control is not None and bool(run_control.is_cancelled(request.run_id))
+
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled before execution")
+
         transition(ResearchState.IDENTIFIED, {"instrument": request.instrument})
         dataset_id = request.research_plan.required_datasets[0] if isinstance(request.research_plan, ResearchPlan) and request.research_plan.required_datasets else "fixture"
         data_response = tools.execute(
@@ -132,6 +139,8 @@ class ResearchOrchestrator:
                 run_id=request.run_id,
             )
         )
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after dataset check")
         if data_response.status is not ResearchToolStatus.SUCCEEDED:
             kind = data_response.failure_kind or FailureKind.DATA_UNAVAILABLE
             target = ResearchState.NO_DATA_AVAILABLE if kind is FailureKind.NO_DATA_AVAILABLE else ResearchState.DATA_UNAVAILABLE
@@ -159,6 +168,9 @@ class ResearchOrchestrator:
                 return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "analyst pool was cancelled")
             except Exception as exc:  # noqa: BLE001 - normalize pool boundary failures
                 return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, f"analyst pool failed: {exc}")
+
+            if cancelled():
+                return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after analyst stage")
 
             reports = tuple(
                 outcome.report
@@ -237,6 +249,8 @@ class ResearchOrchestrator:
 
         if not parallel:
             driver_result = driver.propose(request, {"dataset": data_response.result, "max_rounds": limits.max_analyst_rounds})
+            if cancelled():
+                return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after analyst stage")
             if driver_result.failure_kind is not None:
                 target = ResearchState.PROVIDER_NOT_CONFIGURED if driver_result.failure_kind is FailureKind.PROVIDER_NOT_CONFIGURED else ResearchState.FAILED
                 return finish(target, driver_result.failure_kind, driver_result.failure_message or "driver failed")
@@ -267,6 +281,8 @@ class ResearchOrchestrator:
                 run_id=request.run_id,
             )
         )
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after quant stage")
         if quant_response.status is not ResearchToolStatus.SUCCEEDED:
             return finish(ResearchState.VALIDATION_FAILED, FailureKind.QUANT_VALIDATION_FAILED, "quant validation failed")
         transition(ResearchState.QUANT_VALIDATION, {"quant_digest": stable_digest(quant_response.result)})
@@ -278,6 +294,8 @@ class ResearchOrchestrator:
                 run_id=request.run_id,
             )
         )
+        if cancelled():
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after risk stage")
         if risk_response.status is not ResearchToolStatus.SUCCEEDED:
             return finish(ResearchState.VALIDATION_FAILED, FailureKind.RISK_REVIEW_FAILED, "risk review failed")
         risk_review = self.run_risk_review(plan, risk_response.result)
