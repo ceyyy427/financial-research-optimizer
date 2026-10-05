@@ -48,6 +48,12 @@ class FailureKind(str, Enum):
     VALIDATION_FAILED = "VALIDATION_FAILED"
     TOOL_REJECTED = "TOOL_REJECTED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    ANALYST_REQUIRED_MISSING = "ANALYST_REQUIRED_MISSING"
+    ANALYST_OPTIONAL_FAILURE = "ANALYST_OPTIONAL_FAILURE"
+    ANALYST_TIMEOUT = "ANALYST_TIMEOUT"
+    QUANT_VALIDATION_FAILED = "QUANT_VALIDATION_FAILED"
+    RISK_REVIEW_FAILED = "RISK_REVIEW_FAILED"
+    CANCELLED = "CANCELLED"
 
 
 _TERMINAL_STATES = frozenset(
@@ -265,6 +271,7 @@ class RunEvent:
     timestamp: datetime | str
     payload_digest: str
     severity: str = "INFO"
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "event_id", _nonempty(self.event_id, "event_id"))
@@ -278,6 +285,7 @@ class RunEvent:
         object.__setattr__(self, "timestamp", timestamp)
         object.__setattr__(self, "payload_digest", _nonempty(self.payload_digest, "payload_digest"))
         object.__setattr__(self, "severity", _nonempty(self.severity, "severity").upper())
+        object.__setattr__(self, "metadata", dict(self.metadata))
 
 
 @dataclass(frozen=True, slots=True)
