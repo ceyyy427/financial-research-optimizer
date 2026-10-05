@@ -609,6 +609,8 @@ class SweepResult:
     unstable_regions: tuple[Mapping[str, Any], ...] = ()
     oos_comparison: tuple[Mapping[str, Any], ...] = ()
     status: str = "COMPLETE"
+    fallback_used: bool = False
+    fallback_reason: str | None = None
 
     def __post_init__(self) -> None:
         _fingerprint_text(self.specification_fingerprint, "specification_fingerprint")
@@ -622,6 +624,10 @@ class SweepResult:
         object.__setattr__(self, "unstable_regions", tuple(_payload(item) for item in self.unstable_regions))
         object.__setattr__(self, "oos_comparison", tuple(_payload(item) for item in self.oos_comparison))
         object.__setattr__(self, "status", _text(self.status, "status").upper())
+        if not isinstance(self.fallback_used, bool):
+            raise TypeError("fallback_used must be boolean")
+        if self.fallback_reason is not None:
+            object.__setattr__(self, "fallback_reason", _text(self.fallback_reason, "fallback_reason"))
 
     @property
     def experiment_count(self) -> int:
@@ -647,6 +653,8 @@ class SweepResult:
             "unstable_regions": [copy.deepcopy(dict(item)) for item in self.unstable_regions],
             "oos_comparison": [copy.deepcopy(dict(item)) for item in self.oos_comparison],
             "status": self.status,
+            "fallback_used": self.fallback_used,
+            "fallback_reason": self.fallback_reason,
         }
         if include_fingerprint:
             payload["fingerprint"] = self.fingerprint
@@ -820,6 +828,7 @@ class MLResearchResult:
     limitations: tuple[str, ...] = ()
     fallback_used: bool = False
     model_artifact: Mapping[str, Any] | None = None
+    fallback_reason: str | None = None
 
     def __post_init__(self) -> None:
         _fingerprint_text(self.specification_fingerprint, "specification_fingerprint")
@@ -834,6 +843,8 @@ class MLResearchResult:
         object.__setattr__(self, "limitations", tuple(_text(item, "limitation") for item in self.limitations))
         if self.model_artifact is not None:
             object.__setattr__(self, "model_artifact", _payload(self.model_artifact))
+        if self.fallback_reason is not None:
+            object.__setattr__(self, "fallback_reason", _text(self.fallback_reason, "fallback_reason"))
 
     @property
     def fingerprint(self) -> str:
@@ -852,6 +863,7 @@ class MLResearchResult:
             "limitations": list(self.limitations),
             "fallback_used": self.fallback_used,
             "model_artifact": copy.deepcopy(self.model_artifact),
+            "fallback_reason": self.fallback_reason,
         }
         if include_fingerprint:
             payload["fingerprint"] = self.fingerprint
@@ -876,6 +888,7 @@ class MLResearchResult:
             limitations=tuple(values.get("limitations", ())),
             fallback_used=bool(values.get("fallback_used", False)),
             model_artifact=values.get("model_artifact"),
+            fallback_reason=values.get("fallback_reason"),
         )
         if claimed is not None and claimed != result.fingerprint:
             raise ValueError("ML research result fingerprint is invalid")
