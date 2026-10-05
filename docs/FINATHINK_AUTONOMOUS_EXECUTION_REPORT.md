@@ -86,6 +86,7 @@ Qlib 和 RD-Agent 提供量化研究闭环与因子/模型迭代思想；Alphale
 - `a636004` — bounded factor research loop
 - `f1bd6b9` — secret-free provider readiness status
 - `e3ef1cf` — factor evidence in payloads and reports
+- `789eadf` — phase-safe factor evidence, provider/report aliases, and future-row regression checks
 
 执行计划见：
 
