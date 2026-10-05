@@ -16,7 +16,7 @@ from typing import Any
 from .contracts import ReportManifest, ResearchRunResult, RunEvent, stable_digest, to_jsonable
 
 _SECRET_TEXT = re.compile(r"(?i)(?:api[_-]?key|token|secret|password|endpoint)\s*[=:]\s*[^\s<]+")
-_ABSOLUTE_PATH = re.compile(r"(?:/Users/[^\s<]+|/home/[^\s<]+|[A-Za-z]:[\\/][^\s<]+)")
+_ABSOLUTE_PATH = re.compile(r"(?:/(?:Users|home|tmp|var|private|etc|opt|root|Volumes|Applications|Library)(?:/[^\s<]+)+|[A-Za-z]:[\\/][^\s<]+)")
 _HTML_HANDLER = re.compile(r"(?i)\bon[a-z]+\s*=")
 _PUBLIC_SENSITIVE_KEY = re.compile(
     r"(?i)(?:api[_-]?key|token|secret|password|credential(?![_-]?ref)|authorization|prompt|raw[_-]?(?:provider[_-]?)?response|endpoint|absolute[_-]?path|file[_-]?path)"
@@ -269,6 +269,7 @@ class ReportBundleWriter:
         activity_path = bundle / "activity.jsonl"
         if activity_path.exists():
             activity_path.unlink()
+        activity_path.touch()
         for event in result.events:
             append_event(event, activity_path)
 
@@ -297,10 +298,14 @@ def verify_report_bundle(manifest_path: str | Path) -> BundleVerification:
     errors: list[str] = []
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, Mapping):
+            return BundleVerification(ok=False, errors=("manifest must be a JSON object",))
         if payload.get("schema_version") != "research-report.v1":
             errors.append("manifest schema_version is invalid")
         bundle = manifest_path.parent
         files = payload.get("files", {})
+        if not isinstance(files, Mapping):
+            return BundleVerification(ok=False, errors=("manifest files must be an object",))
         required = {"complete_report.html", "activity.jsonl"}
         required.update(f"1_analysts/{role}.html" for role in _REQUIRED_ANALYSTS)
         required.update(f"{section}/index.html" for section in _REQUIRED_SECTIONS)
@@ -317,7 +322,7 @@ def verify_report_bundle(manifest_path: str | Path) -> BundleVerification:
                 errors.append(f"missing file: {relative}")
             elif _digest_file(path) != expected:
                 errors.append(f"digest mismatch: {relative}")
-    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError) as exc:
         errors.append(f"manifest unreadable: {exc}")
     return BundleVerification(ok=not errors, errors=tuple(errors))
 
@@ -403,20 +408,40 @@ def _plain(value: Any) -> Any:
     return str(value)
 
 
-def _assert_public_comparison_payload(value: Any, path: str = "manifest") -> None:
+_PUBLIC_UNSAFE_TEXT = re.compile(
+    r"(?i)(?:api[_-]?key\s*[=:]|token\s*[=:]|secret\s*[=:]|password\s*[=:]|prompt\b|raw[\s_-]*(?:provider[\s_-]*)?response\b|endpoint\b)"
+)
+_PUBLIC_ABSOLUTE_PATH = re.compile(r"(?:/(?:Users|home|tmp|var|private|etc|opt|root|Volumes|Applications|Library)(?:/[^\s<>\"']*)+|[A-Za-z]:[\\/][^\s<>\"']+)")
+
+
+def _sanitize_public(value: Any, path: str = "manifest") -> Any:
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        if _PUBLIC_UNSAFE_TEXT.search(value) or _PUBLIC_ABSOLUTE_PATH.search(value):
+            raise ValueError(f"unsafe text is not allowed in {path}")
+        return value
     if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
         for key, item in value.items():
             if _PUBLIC_SENSITIVE_KEY.search(str(key)):
                 raise ValueError(f"sensitive field is not allowed in {path}: {key}")
-            _assert_public_comparison_payload(item, f"{path}.{key}")
-    elif isinstance(value, (list, tuple)):
-        for index, item in enumerate(value):
-            _assert_public_comparison_payload(item, f"{path}[{index}]")
+            result[str(key)] = _sanitize_public(item, f"{path}.{key}")
+        return result
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_public(item, f"{path}[{index}]") for index, item in enumerate(value)]
+    raise TypeError(f"unsupported comparison value at {path}: {type(value).__name__}")
+
+
+def _assert_public_comparison_payload(value: Any, path: str = "manifest") -> None:
+    """Backward-compatible validation helper for callers that used it internally."""
+
+    _sanitize_public(value, path)
 
 
 def _comparison_view(value: ReportManifest | Mapping[str, Any]) -> dict[str, Any]:
     payload = _manifest_payload(value)
-    _assert_public_comparison_payload(payload)
+    payload = _sanitize_public(payload)
     run_id = payload.get("run_id")
     schema_version = payload.get("schema_version")
     files = payload.get("files", {})
@@ -428,20 +453,27 @@ def _comparison_view(value: ReportManifest | Mapping[str, Any]) -> dict[str, Any
         if relative.is_absolute() or ".." in relative.parts or not isinstance(digest, str):
             raise ValueError("manifest contains an unsafe file entry")
         safe_files[str(path)] = digest
-    snapshot = payload.get("source_snapshot", {})
+    snapshot = _sanitize_public(payload.get("source_snapshot", {}), "manifest.source_snapshot")
     if not isinstance(snapshot, Mapping):
         raise TypeError("manifest source snapshot is invalid")
-    metrics = payload.get("metrics", snapshot.get("metrics", {}))
+    metrics = _sanitize_public(payload.get("metrics", snapshot.get("metrics", {})), "manifest.metrics")
     limitations = payload.get("limitations", snapshot.get("limitations", []))
-    if not isinstance(metrics, Mapping) or not isinstance(limitations, (list, tuple)):
+    if not isinstance(metrics, Mapping) or not isinstance(limitations, (list, tuple)) or not all(isinstance(item, str) for item in limitations):
         raise TypeError("manifest metrics or limitations are invalid")
     return {
         "run_id": run_id,
         "schema_version": schema_version,
-        "manifest_digest": stable_digest({"run_id": run_id, "schema_version": schema_version, "files": safe_files, "source_snapshot": snapshot}),
+        "manifest_digest": hashlib.sha256(
+            json.dumps(
+                {"run_id": run_id, "schema_version": schema_version, "files": safe_files, "source_snapshot": snapshot},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
         "files": dict(sorted(safe_files.items())),
-        "metrics": _scrub(dict(metrics)),
-        "limitations": sorted(str(item) for item in limitations),
+        "metrics": dict(metrics),
+        "limitations": sorted(limitations),
         "source_digests": {key: value for key, value in snapshot.items() if key.endswith("_digest") and isinstance(value, str)},
     }
 

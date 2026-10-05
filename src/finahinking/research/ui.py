@@ -46,6 +46,10 @@ def research_view_model(run_state: ResearchRunState, manifest: ReportManifest | 
     if not isinstance(run_state, ResearchRunState):
         raise TypeError("run_state must be ResearchRunState")
     manifest_payload = _manifest_payload(manifest)
+    if manifest_payload.get("run_id") != run_state.run_id:
+        raise ValueError("manifest run_id does not match run state")
+    if manifest_payload.get("schema_version") != "research-report.v1":
+        raise ValueError("manifest schema is incompatible")
     reports = {report.role: report for report in run_state.analyst_reports}
     analysts = [
         {

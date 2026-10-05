@@ -5,10 +5,15 @@ from datetime import date
 from finahinking.research.contracts import (
     AgentReport,
     ReportManifest,
+    ResearchRunResult,
     ResearchRunState,
     ResearchState,
 )
-from finahinking.research.reports import compare_report_manifests, verify_report_bundle
+from finahinking.research.reports import (
+    ReportBundleWriter,
+    compare_report_manifests,
+    verify_report_bundle,
+)
 from finahinking.research.ui import render_status_wall_html, research_view_model
 
 
@@ -110,3 +115,58 @@ def test_verifier_requires_fixed_report_tree(tmp_path) -> None:
     verification = verify_report_bundle(manifest)
     assert verification.ok is False
     assert any("1_analysts/fundamentals.html" in error for error in verification.errors)
+
+
+def test_empty_event_runs_still_publish_empty_activity_and_verify(tmp_path) -> None:
+    result = ResearchRunResult(state=_state(ResearchState.CANCELLED), events=())
+    manifest = ReportBundleWriter().write(result, tmp_path / "reports")
+    activity = tmp_path / "reports" / "run-wall" / "activity.jsonl"
+    assert activity.exists()
+    assert activity.read_text(encoding="utf-8") == ""
+    assert "activity.jsonl" in manifest.files
+    assert verify_report_bundle(tmp_path / "reports" / "run-wall" / "manifest.json").ok
+
+
+def test_view_model_rejects_manifest_for_a_different_run_or_schema() -> None:
+    for manifest in (
+        ReportManifest(
+            run_id="run-other",
+            schema_version="research-report.v1",
+            files={},
+            source_snapshot={},
+            created_at="2026-10-01T00:00:00+00:00",
+        ),
+        {"run_id": "run-wall", "schema_version": "other", "files": {}, "source_snapshot": {}},
+    ):
+        try:
+            research_view_model(_state(), manifest)
+        except ValueError as exc:
+            assert "manifest" in str(exc).lower()
+        else:
+            raise AssertionError("mismatched manifest was accepted")
+
+
+def test_compare_rejects_nested_secret_and_absolute_path_values() -> None:
+    base = {"run_id": "x", "schema_version": "research-report.v1", "files": {}, "source_snapshot": {}}
+    for unsafe in (
+        {"source_snapshot": {"notes": "api_key=secret"}},
+        {"source_snapshot": {"notes": "raw provider response"}},
+        {"source_snapshot": {"notes": "/tmp/private/report.json"}},
+        {"source_snapshot": {"metrics": {"bad": object()}}},
+    ):
+        candidate = dict(base)
+        candidate.update(unsafe)
+        try:
+            compare_report_manifests(candidate, base)
+        except (TypeError, ValueError):
+            pass
+        else:
+            raise AssertionError("unsafe comparison payload was accepted")
+
+
+def test_verifier_reports_malformed_files_without_raising(tmp_path) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text('{"schema_version":"research-report.v1","files":[]}', encoding="utf-8")
+    verification = verify_report_bundle(manifest)
+    assert verification.ok is False
+    assert any("files" in error for error in verification.errors)
