@@ -80,11 +80,13 @@ _EXECUTABLE_KEY = re.compile(
 )
 _SENSITIVE_VALUE = re.compile(
     r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|"
-    r"\b(?:https?|ftp|file|ws|wss|data):|"
     r"\b(?:eval|exec|shell|command|script|source[_-]?code|__import__|subprocess|os\.system)\b|"
-    r"(?:^|[=: ])(?:\.\.?/|[A-Za-z]:[\\/]|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,8}(?:$|[\s,]))",
+    r"\b(?:def|class|import|from|return)\s+[A-Za-z_])",
     re.IGNORECASE,
 )
+_URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.-]+(?:[/\\][A-Za-z0-9_.-]+)+$")
+_PATH_FIELD = re.compile(r"(?:path|code|source|command|script|endpoint|url)", re.IGNORECASE)
 _ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
 
 
@@ -292,7 +294,14 @@ class EngineRegistry:
                 EngineRegistry._validate_safe_payload(item, key=key)
             return
         if isinstance(value, str):
-            if _SENSITIVE_VALUE.search(value) or _ABSOLUTE_PATH.match(value.strip()):
+            text = value.strip()
+            if (
+                _URI_SCHEME.match(text)
+                or _SENSITIVE_VALUE.search(text)
+                or _ABSOLUTE_PATH.match(text)
+                or (_RELATIVE_PATH.fullmatch(text) and _PATH_FIELD.search(key))
+                or (_RELATIVE_PATH.fullmatch(text) and text.count("/") + text.count("\\") > 0)
+            ):
                 raise ValueError("adapter result contains a restricted value")
             return
         if value is None or isinstance(value, (bool, int, float)):

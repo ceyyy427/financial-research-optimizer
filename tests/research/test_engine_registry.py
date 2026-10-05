@@ -201,6 +201,23 @@ def test_disabled_restricted_runner_never_executes_or_pickles_adapter() -> None:
         RestrictedProcessRunner().run(ExplodingAdapter(), _ml_request().ml, _ml_request().dataset)
 
 
+def test_result_validator_rejects_all_uri_schemes_code_and_relative_paths_but_keeps_research_text() -> None:
+    for value in (
+        "mailto:secret@example.test",
+        "custom://provider",
+        "def alpha(x): return x",
+        "python source: import os",
+        "foo/bar",
+        "foo\\bar",
+    ):
+        with pytest.raises(ValueError):
+            EngineRegistry._validate_safe_payload({"description": value})
+
+    EngineRegistry._validate_safe_payload(
+        {"description": "Source availability remains unknown; train/validation windows are explicit."}
+    )
+
+
 def test_sensitive_adapter_payload_is_rejected_and_falls_back() -> None:
     class SensitiveAdapter:
         def run(self, spec, dataset):
