@@ -10,9 +10,10 @@ The current path has six explicit layers:
 
 1. **Data** — a deterministic, point-in-time-aware fixture snapshot with a
    dataset fingerprint and source availability fields.
-2. **Factor** — an allow-listed factor graph with bounded primitives such as
-   `return`, `rolling`, `lag`, `normalize`, `rank`, `winsorize`, `combine`, and
-   `filter`.
+2. **Factor** — an allow-listed factor DSL with bounded primitives such as
+   `return`, `lag`, `rolling_mean`, `rolling_std`, `zscore`, `rank`,
+   `winsorize`, `combine`, and `negate`; candidate expressions are parsed by
+   AST and never executed as arbitrary Python.
 3. **Signal** — a score or eligibility observation kept separate from capital
    allocation.
 4. **Position and risk** — long-only policy mappings, caps, cash buffer,
@@ -45,6 +46,13 @@ explicitly frozen before test/OOS metrics can be read, and a frozen version can
 be evaluated only once. `WorkbenchStore` saves, reopens, lists history, and
 rolls back to immutable content-addressed versions.
 
+The local research payload also exposes a factor ledger. Each round preserves
+the candidate expression and hypothesis, evaluation status, sample/coverage,
+IC/ICIR, quantile and long-short results, turnover/cost, multi-horizon decay,
+evidence references, and admission reasons. Validation rounds report OOS as
+`HIDDEN`; the test set becomes readable only after an admitted candidate is
+explicitly frozen.
+
 ## Local use
 
 Install the development dependencies and start the sample application:
@@ -70,6 +78,16 @@ factor observations, signals, raw and final weights, delayed holdings, cash,
 risk states, trades, costs, slippage, fault events, report references, and
 limitations. `POST` is intentionally rejected.
 
+Provider readiness is a separate read-only boundary:
+
+```text
+GET /api/research/providers
+```
+
+It returns offline/user-compatible model capabilities and a credential
+reference such as `FINAHINK_USER_API_KEY`, never the referenced value. The
+human-facing setup page is `/settings/providers`.
+
 ## Offline HTML reports
 
 `ReportBundleWriter` writes `workbench/index.html` beside the main report.
@@ -80,13 +98,14 @@ It can be copied or archived as a research artifact without a running server.
 
 ## Explicitly deferred
 
-This phase does **not** connect a live market feed, ask users for API keys,
-call a hosted model, download a user's provider, connect a broker, submit or
-cancel orders, manage an account, or run an unattended daemon. Those are
-future adapter and product decisions after there is a user and a reviewed
-credential boundary. No API key, token, password, secret, private key, URL,
-absolute local path, callable, model code, SQL, shell command, or broker
-operation is accepted into the policy contracts or report payloads.
+This phase does **not** connect a live market feed, call a hosted model,
+download a user's provider, connect a broker, submit or cancel orders, manage
+an account, or run an unattended daemon. A future user may configure a local
+provider reference after a reviewed credential boundary; the current UI only
+reports readiness and retains the offline fallback. No API key, token,
+password, secret, private key, URL, absolute local path, callable, model code,
+SQL, shell command, or broker operation is accepted into the policy contracts
+or report payloads.
 
 ## Reading a result
 

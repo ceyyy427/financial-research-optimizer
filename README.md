@@ -22,6 +22,9 @@ What it is:
   simulation boundaries;
 - a Factor Strategy Workbench that keeps factor, signal, position, risk,
   delayed execution, costs, faults, and explanations separately inspectable;
+- a bounded factor research ledger with an allow-listed DSL, deterministic
+  candidate evaluation, IC/ICIR, decay, turnover/cost evidence, admission
+  decisions, and freeze-before-test semantics;
 - private personal continuity and evidence-linked community projections.
 
 What it is not: a promise of alpha, an autonomous stock picker, a real-money
@@ -141,6 +144,14 @@ and its release evidence is tracked in the
 [`validation record`](docs/FACTOR_STRATEGY_WORKBENCH_VALIDATION.md). It is
 offline, read-only, and paper-only in this phase; user API keys, live data,
 hosted models, brokers, and real-money execution remain deferred.
+
+Provider readiness is visible at `/settings/providers` and
+`GET /api/research/providers`. Users may reference a locally managed
+environment variable or keychain entry; the app reports only configured or
+unconfigured status and never accepts, stores, renders, or exports the secret
+value. The autonomous delivery scope and verification matrix are recorded in
+[`FINATHINK_AUTONOMOUS_EXECUTION_REPORT.md`](docs/FINATHINK_AUTONOMOUS_EXECUTION_REPORT.md)
+and [`FINATHINK_AUTONOMOUS_VALIDATION.md`](docs/FINATHINK_AUTONOMOUS_VALIDATION.md).
 
 ## License
 

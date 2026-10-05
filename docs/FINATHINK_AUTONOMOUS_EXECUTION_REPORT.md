@@ -18,7 +18,7 @@ Finathink 是本地优先的金融研究与学习工作台：用户提供自己�
 
   `/Users/mac/.codex/references/finathink-github-20261005/`
 
-- 当前基线验证：`409 passed, 1 skipped`。
+- 执行起点基线验证：`409 passed, 1 skipped`；因子/Provider/报告增量已经在后续阶段分别通过 focused tests。
 
 ## 三、从参考项目吸收的确定性设计
 
@@ -50,23 +50,23 @@ Qlib 和 RD-Agent 提供量化研究闭环与因子/模型迭代思想；Alphale
 
 ## 五、执行阶段与停止标准
 
-### Phase 1 — 因子挖掘核心
+### Phase 1 — 因子挖掘核心（已完成）
 
 实现受限 Factor DSL、候选生成、确定性评估、IC/ICIR、分位数收益、换手、衰减、成本和入库判定。
 
-### Phase 2 — 有界研究循环
+### Phase 2 — 有界研究循环（已完成）
 
 将因子候选接入 ResearchCharter、训练/验证循环、失败历史、显式 freeze/test 和现有多角色研究编排。
 
-### Phase 3 — Provider/API key 安全边界
+### Phase 3 — Provider/API key 安全边界（已完成）
 
 完善 provider 能力状态、用户配置引用、角色到模型映射和 Codex handoff；提供“已配置/未配置/能力不足”的只读状态，不保存或回显密钥。
 
-### Phase 4 — 产品联动与报告
+### Phase 4 — 产品联动与报告（已完成）
 
 让因子候选、评估证据、策略结果、风险状态和解释包进入同一个只读工作台与离线 HTML 报告。
 
-### Phase 5 — 发布审查
+### Phase 5 — 发布审查（执行中）
 
 运行全量 Python/前端测试、静态检查、密钥扫描、编译、离线报告检查、依赖/许可证检查、Git diff 审查和 CI；更新 README、项目状态、变更记录并推送 GitHub。
 
@@ -74,7 +74,16 @@ Qlib 和 RD-Agent 提供量化研究闭环与因子/模型迭代思想；Alphale
 
 ## 六、自审结论
 
-本报告与已确认的工作台设计、研究代理计划和 GitHub 参考目录一致，没有把实时交易、用户账户托管或模型任意执行加入范围。当前最重要的真实缺口是“候选因子挖掘与评估还没有成为 Finathink-native 的可复现垂直切片”，因此执行计划先实现这一缺口，再做 provider 状态与 UI/报告联动。
+本报告与已确认的工作台设计、研究代理计划和 GitHub 参考目录一致，没有把实时交易、用户账户托管或模型任意执行加入范围。因子挖掘、评估/衰减/准入、有界研究循环、Provider 状态、UI 和离线 HTML 联动已经实现；最后只剩全量验证、文档矩阵、Git 状态审查和远程 CI 证据。
+
+已落地的执行提交：
+
+- `22acf72` — execution report and delivery plan
+- `87f73cd` — safe factor expression and candidate mining
+- `44e090e` — auditable evaluation and admission evidence
+- `a636004` — bounded factor research loop
+- `f1bd6b9` — secret-free provider readiness status
+- `e3ef1cf` — factor evidence in payloads and reports
 
 执行计划见：
 

@@ -44,8 +44,8 @@
 
 - [x] Write the execution report and this plan with the product boundary, current baseline, reference projects, stages, risks, and stop conditions.
 - [x] Run `python3 -m pytest -q` and record the observed baseline.
-- [ ] Add documentation tests for the required boundary phrases, plan link, and explicit deferred provider/live-trading scope.
-- [ ] Run the focused documentation test and commit `docs: add autonomous delivery execution report`.
+- [x] Add documentation tests for the required boundary phrases, plan link, and explicit deferred provider/live-trading scope.
+- [x] Run the focused documentation test and commit `docs: add autonomous delivery execution report`.
 
 ### Task 1: Safe Factor DSL and candidate generator
 
@@ -60,11 +60,11 @@
 - Produces `FactorCandidate(candidate_id, expression, hypothesis, source, metadata)` and `generate_candidates(hypothesis, field_catalog, operator_catalog, limits) -> tuple[FactorCandidate, ...]`.
 - Produces `evaluate_expression(expression, frame, as_of, available_at) -> pandas.Series` using only registered operators: `return`, `lag`, `rolling_mean`, `rolling_std`, `zscore`, `rank`, `winsorize`, `combine`, and `negate`.
 
-- [ ] Write failing tests for valid nested expressions, stable canonical fingerprints, unknown fields/operators, malformed syntax, oversized windows, `eval`/Python injection, URL/path/callable input, and deterministic candidate ordering.
-- [ ] Run `python3 -m pytest -q tests/research/test_factor_dsl.py` and observe the missing-contract failure.
-- [ ] Implement a small parser using Python `ast` only for the declared expression grammar; reject every node outside the allow-list and never call Python `eval`.
-- [ ] Implement bounded candidate templates for momentum, mean reversion, volatility, volume anomaly, and residual-style hypotheses; each candidate must include its data fields, direction, and limitations.
-- [ ] Re-run the focused tests and commit `feat(factors): add safe factor expression and candidate mining`.
+- [x] Write failing tests for valid nested expressions, stable canonical fingerprints, unknown fields/operators, malformed syntax, oversized windows, `eval`/Python injection, URL/path/callable input, and deterministic candidate ordering.
+- [x] Run `python3 -m pytest -q tests/research/test_factor_dsl.py` and observe the missing-contract failure.
+- [x] Implement a small parser using Python `ast` only for the declared expression grammar; reject every node outside the allow-list and never call Python `eval`.
+- [x] Implement bounded candidate templates for momentum, mean reversion, volatility, volume anomaly, and residual-style hypotheses; each candidate must include its data fields, direction, and limitations.
+- [x] Re-run the focused tests and commit `feat(factors): add safe factor expression and candidate mining`.
 
 ### Task 2: Factor evaluation, decay, and admission evidence
 
@@ -80,11 +80,11 @@
 - Produces `evaluate_factor_candidate(candidate, frame, forward_return, spec) -> FactorEvaluation` and `build_factor_admission(evaluation, spec) -> FactorAdmissionDecision`.
 - Extends `FactorRegistry` with append-only candidate admission/rejection records without changing existing `FactorDefinition` or `evaluate_factor` behavior.
 
-- [ ] Write failing tests for T+1 alignment, point-in-time availability, constant/empty samples, quantile ordering, IC/ICIR, turnover/cost, multi-horizon decay, train/validation/OOS split, and rejection reasons.
-- [ ] Run the focused tests and observe missing evaluation behavior.
-- [ ] Implement deterministic statistics with explicit `INSUFFICIENT_DATA`, `LEAKAGE_BLOCKED`, `UNSTABLE`, `REJECTED`, and `ADMITTED` statuses; never select solely on in-sample return.
-- [ ] Preserve all candidate attempts and evidence references in registry history; do not overwrite old health or evaluation records.
-- [ ] Re-run focused tests plus `tests/quant` and commit `feat(factors): add auditable evaluation and admission evidence`.
+- [x] Write failing tests for T+1 alignment, point-in-time availability, constant/empty samples, quantile ordering, IC/ICIR, turnover/cost, multi-horizon decay, train/validation/OOS split, and rejection reasons.
+- [x] Run the focused tests and observe missing evaluation behavior.
+- [x] Implement deterministic statistics with explicit `INSUFFICIENT_DATA`, `LEAKAGE_BLOCKED`, `UNSTABLE`, `REJECTED`, and `ADMITTED` statuses; never select solely on in-sample return.
+- [x] Preserve all candidate attempts and evidence references in registry history; do not overwrite old health or evaluation records.
+- [x] Re-run focused tests plus `tests/quant` and commit `feat(factors): add auditable evaluation and admission evidence`.
 
 ### Task 3: Bounded factor research loop and multi-agent handoff
 
@@ -101,11 +101,11 @@
 - The loop has explicit states `CHARTER_FROZEN`, `CANDIDATE_GENERATED`, `TRAIN_EVALUATED`, `VALIDATION_EVALUATED`, `CANDIDATE_POOL`, `REJECTED`, `STRATEGY_FROZEN`, `TEST_EVALUATED`, and `RESEARCH_REVIEW`.
 - Adds a `factor`/`learning` analyst handoff that returns structured hypotheses and evidence refs; risk and portfolio managers remain deterministic gates around the paper decision.
 
-- [ ] Write failing tests for candidate ordering, budget exhaustion, rejected-attempt retention, freeze-before-test, once-only test evaluation, rollback to a frozen version, optional analyst failure, and core risk failure blocking paper decisions.
-- [ ] Run focused tests and observe missing loop behavior.
-- [ ] Implement the loop as a bounded pure coordinator over Task 1/2 outputs; no model call or arbitrary tool call can bypass the charter.
-- [ ] Extend the default analyst set without making external providers mandatory; offline runs remain deterministic and complete.
-- [ ] Re-run focused workflow tests and commit `feat(research): add bounded factor research loop`.
+- [x] Write failing tests for candidate ordering, budget exhaustion, rejected-attempt retention, freeze-before-test, once-only test evaluation, rollback to a frozen version, optional analyst failure, and core risk failure blocking paper decisions.
+- [x] Run focused tests and observe missing loop behavior.
+- [x] Implement the loop as a bounded pure coordinator over Task 1/2 outputs; no model call or arbitrary tool call can bypass the charter.
+- [x] Keep the existing typed analyst/orchestrator boundary unchanged; offline runs remain deterministic and complete while factor research is a native bounded coordinator.
+- [x] Re-run focused workflow tests and commit `feat(research): add bounded factor research loop`.
 
 ### Task 4: Provider readiness and API-key reference boundary
 
@@ -122,11 +122,11 @@
 - Produces `provider_status_payload(config, environment) -> dict` and read-only `GET /api/research/providers`.
 - The UI may show a local “configured/unconfigured” state and model/role mapping; it must not accept, echo, persist, or export raw keys.
 
-- [ ] Write failing tests for environment-variable presence without value exposure, missing key references, unsupported provider fields, role-model mapping, and POST/GET mutation rejection.
-- [ ] Run focused provider/UI tests and observe the missing status boundary.
-- [ ] Implement status-only resolution; preserve `OfflineDriver`, `CodexInteractiveDriver`, and explicit `UserApiDriver` semantics with no SDK installation.
-- [ ] Add a settings panel/link that explains how a future user can configure a local provider reference while retaining the offline fallback.
-- [ ] Re-run focused tests and commit `feat(research): expose secret-free provider readiness status`.
+- [x] Write failing tests for environment-variable presence without value exposure, missing key references, unsupported provider fields, role-model mapping, and POST/GET mutation rejection.
+- [x] Run focused provider/UI tests and observe the missing status boundary.
+- [x] Implement status-only resolution; preserve `OfflineDriver`, `CodexInteractiveDriver`, and explicit `UserApiDriver` semantics with no SDK installation.
+- [x] Add `/settings/providers` and `GET /api/research/providers`, explaining local credential references while retaining the offline fallback.
+- [x] Re-run focused tests and commit `feat(research): expose secret-free provider readiness status`.
 
 ### Task 5: Factor evidence in workbench payload and offline HTML
 
@@ -143,10 +143,10 @@
 - Adds a read-only factor research panel with a keyboard/table fallback; the browser renders server-owned values and never recomputes statistics.
 - HTML includes an evidence-led opening, candidate/admission table, limitations, provenance and paper-only boundary, with no CDN/network dependency.
 
-- [ ] Write failing tests for payload fingerprints, rejected candidates, decay rows, provider redaction, HTML escaping, offline asset checks, and keyboard selection.
-- [ ] Run focused backend/frontend tests and observe missing factor sections.
-- [ ] Implement payload/report/UI linkage using existing workbench styles and report writer; preserve all prior routes.
-- [ ] Re-run focused tests and commit `feat(research): surface factor mining evidence in workbench`.
+- [x] Write failing tests for payload fingerprints, rejected candidates, decay rows, provider redaction, HTML escaping, offline asset checks, and keyboard selection.
+- [x] Run focused backend/frontend tests and observe missing factor sections.
+- [x] Implement a normalized `factor_research` section (candidate/evaluation/decay/admission/round evidence) in the workbench payload, read-only UI, and offline report; preserve all prior routes.
+- [x] Re-run focused tests and commit `feat(research): publish factor evidence in payloads and reports`.
 
 ### Task 6: Full verification, documentation, and GitHub release evidence
 
@@ -178,4 +178,3 @@
 - Ruling: implement a native DSL/evaluator before any Qlib/RD-Agent adapter — the product needs a small auditable contract before optional integrations can be safe.
 - Ruling: expose provider readiness, not raw API-key entry — prevents secrets entering browser, artifacts, logs, or reports while leaving a future user-owned adapter path.
 - Ruling: offline deterministic execution remains the default — permits complete local research without user credentials or hosted model access.
-
