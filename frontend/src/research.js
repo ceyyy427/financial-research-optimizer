@@ -112,6 +112,7 @@ export function normalizePayload(payload) {
     features: Array.isArray(payload.features) ? payload.features.map((item) => ({ ...item })) : [],
     events: Array.isArray(payload.events) ? payload.events.map((item) => ({ ...item })) : [],
     sweep: payload.sweep && typeof payload.sweep === 'object' ? { ...payload.sweep } : null,
+    factor_research: payload.factor_research && typeof payload.factor_research === 'object' ? { ...payload.factor_research } : null,
     limitations: Array.isArray(payload.limitations) ? [...payload.limitations] : [],
   };
 }

@@ -16,6 +16,8 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
+import pandas as pd
+
 from finahinking.p8_2.contracts import DatasetSnapshot, MarketObservation
 
 
@@ -78,6 +80,64 @@ def _sweep_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
     payload["dataset_fingerprint"] = dataset.fingerprint
     payload["selection_policy"] = spec.selection_policy
     return payload
+
+
+def _factor_research_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
+    """Run the bounded, validation-only factor loop for the local report."""
+
+    from finahinking.factors.mining import generate_candidates
+    from finahinking.p6_6.workbench import ResearchCharter
+    from finahinking.research.factor_loop import run_factor_research
+
+    observations = sorted(dataset.observations, key=lambda item: (item.timestamp, item.instrument))
+    instrument = observations[0].instrument if observations else "DEMO"
+    rows = [item for item in observations if item.instrument == instrument]
+    index = pd.DatetimeIndex([item.timestamp for item in rows])
+    close = pd.Series([float(item.close) for item in rows], index=index, dtype=float)
+    frame = pd.DataFrame(
+        {
+            "close": close,
+            "volume": pd.Series([float(item.volume) for item in rows], index=index, dtype=float),
+            "return_1d": close.pct_change(),
+        },
+        index=index,
+    )
+    forward_return = close.pct_change().shift(-1).rename("forward_return")
+    charter = ResearchCharter(
+        charter_id="fixture-factor-charter-v1",
+        research_question="Which bounded factor template is worth a paper-only follow-up?",
+        hypothesis_scope="trend, mean reversion, volatility, and liquidity templates",
+        dataset_reference=dataset.fingerprint,
+        data_split={"train": 0.6, "validation": 0.2, "test": 0.2},
+        evaluation_metrics=("ic", "icir", "turnover", "decay"),
+        hard_constraints={
+            "shift_periods": 1,
+            "min_samples": 4,
+            "train_ratio": 0.6,
+            "validation_ratio": 0.2,
+            "decay_horizons": (1, 3),
+            "paper_only": True,
+        },
+        allowed_primitives=("input", "return", "rolling", "rank", "combine", "negate"),
+        max_experiments=6,
+        iteration_budget=6,
+    )
+    candidates = generate_candidates(
+        "discover bounded trend, mean reversion, volatility, and liquidity factors",
+        field_catalog=tuple(frame.columns),
+        max_candidates=charter.max_experiments,
+    )
+    run = run_factor_research(
+        charter,
+        candidates,
+        {"frame": frame, "forward_return": forward_return},
+        limits={"max_rounds": charter.iteration_budget},
+    )
+    result = run.to_dict()
+    result["dataset_fingerprint"] = dataset.fingerprint
+    result["instrument"] = instrument
+    result["boundary"] = "paper-only; validation evidence is visible, test/OOS remains hidden until a strategy is frozen"
+    return result
 
 
 def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str, Any]:
@@ -164,6 +224,7 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
         "features": feature_meta,
         "events": events,
         "sweep": _sweep_payload(dataset),
+        "factor_research": _factor_research_payload(dataset),
         "limitations": list(dataset.limitations)
         + [
             "Sample data only; no live market feed is connected.",
@@ -230,7 +291,9 @@ def _default_workbench_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
         formula_after="P_(t-1) / P_(t-41) - 1",
         code_trace=("momentum", "lag", "weights", "risk", "costs", "oos"),
     )
-    return build_workbench_payload(run, explanation)
+    workbench = build_workbench_payload(run, explanation)
+    workbench["factor_research"] = _factor_research_payload(dataset)
+    return workbench
 
 
 def build_workbench_payload(run: Any, explanation: Mapping[str, Any] | None = None) -> dict[str, Any]:

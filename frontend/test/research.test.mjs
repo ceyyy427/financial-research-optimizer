@@ -34,6 +34,12 @@ test('normalizePayload preserves provenance and rejects malformed chart records'
   assert.throws(() => normalizePayload({ ...payload, dataset: { id: 'fixture' } }), /fingerprint/i);
 });
 
+test('normalizePayload preserves bounded factor research evidence without recomputing it', () => {
+  const normalized = normalizePayload({ ...payload, factor_research: { state: 'CANDIDATE_POOL', rounds: [{ candidate: { expression: 'rank(close)' }, evaluation: { status: 'VALID' }, admission: { status: 'ADMITTED' } }] } });
+  assert.equal(normalized.factor_research.state, 'CANDIDATE_POOL');
+  assert.equal(normalized.factor_research.rounds[0].admission.status, 'ADMITTED');
+});
+
 test('normalizePayload rejects duplicate point identity or timestamps', () => {
   const duplicateId = { ...payload.points[0], time: '2026-01-02T00:00:00Z' };
   assert.throws(() => normalizePayload({ ...payload, points: [payload.points[0], duplicateId] }), /unique/i);

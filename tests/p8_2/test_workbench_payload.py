@@ -29,6 +29,7 @@ def test_research_payload_carries_workbench_layers_and_provenance() -> None:
         assert field in workbench
     assert workbench["provenance"]["dataset_fingerprint"] == payload["dataset"]["fingerprint"]
     assert workbench["paper_only"] is True
+    assert workbench["factor_research"]["dataset_fingerprint"] == payload["dataset"]["fingerprint"]
     assert payload["payload_fingerprint"]
 
 
