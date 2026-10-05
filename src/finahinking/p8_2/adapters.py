@@ -104,8 +104,10 @@ class VectorbtSweepAdapter:
             return {"train": {}, "validation": {}, "oos": {"score": average / window}}
 
         result = run_parameter_sweep(spec, evaluate)
-        available = not self.force_unavailable and self.available()
-        reason = None if available else "vectorbt is not admitted; Finathink sweep is the deterministic fallback"
+        # Import visibility is not an admission decision.  Until a concrete
+        # restricted vectorbt runner is supplied, this adapter intentionally
+        # reports the Finathink sweep as the actual engine.
+        reason = "vectorbt runner is not admitted; Finathink sweep is the deterministic fallback"
         return SweepResult(
             specification_fingerprint=result.specification_fingerprint,
             experiments=result.experiments,
@@ -114,8 +116,9 @@ class VectorbtSweepAdapter:
             robust_regions=result.robust_regions,
             unstable_regions=result.unstable_regions,
             oos_comparison=result.oos_comparison,
-            status="COMPLETE" if available else "FALLBACK",
-            fallback_used=not available,
+            engine="finathink-deterministic-sweep",
+            status="FALLBACK",
+            fallback_used=True,
             fallback_reason=reason,
         )
 

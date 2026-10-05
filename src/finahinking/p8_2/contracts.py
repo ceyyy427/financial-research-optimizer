@@ -608,6 +608,7 @@ class SweepResult:
     robust_regions: tuple[Mapping[str, Any], ...] = ()
     unstable_regions: tuple[Mapping[str, Any], ...] = ()
     oos_comparison: tuple[Mapping[str, Any], ...] = ()
+    engine: str = "finathink-deterministic-sweep"
     status: str = "COMPLETE"
     fallback_used: bool = False
     fallback_reason: str | None = None
@@ -623,6 +624,7 @@ class SweepResult:
         object.__setattr__(self, "robust_regions", tuple(_payload(item) for item in self.robust_regions))
         object.__setattr__(self, "unstable_regions", tuple(_payload(item) for item in self.unstable_regions))
         object.__setattr__(self, "oos_comparison", tuple(_payload(item) for item in self.oos_comparison))
+        object.__setattr__(self, "engine", _text(self.engine, "engine"))
         object.__setattr__(self, "status", _text(self.status, "status").upper())
         if not isinstance(self.fallback_used, bool):
             raise TypeError("fallback_used must be boolean")
@@ -652,6 +654,7 @@ class SweepResult:
             "robust_regions": [copy.deepcopy(dict(item)) for item in self.robust_regions],
             "unstable_regions": [copy.deepcopy(dict(item)) for item in self.unstable_regions],
             "oos_comparison": [copy.deepcopy(dict(item)) for item in self.oos_comparison],
+            "engine": self.engine,
             "status": self.status,
             "fallback_used": self.fallback_used,
             "fallback_reason": self.fallback_reason,

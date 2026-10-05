@@ -9,6 +9,10 @@ reason remains part of the result.
 
 from __future__ import annotations
 
+import builtins
+import multiprocessing
+import re
+import socket
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -30,6 +34,83 @@ class RegistryStatus:
     AVAILABLE: ClassVar[str] = "AVAILABLE"
     NOT_INSTALLED: ClassVar[str] = "NOT_INSTALLED"
     DEFERRED: ClassVar[str] = "DEFERRED"
+
+
+def _restricted_worker(adapter: Any, specification: Any, dataset: DatasetSnapshot, result_queue: Any) -> None:
+    """Run one adapter call in a deny-by-default worker process."""
+
+    class _NetworkDeniedSocket:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise PermissionError("network access is disabled in the research worker")
+
+    def _network_denied(*args: Any, **kwargs: Any) -> Any:
+        raise PermissionError("network access is disabled in the research worker")
+
+    def _write_denied_open(*args: Any, **kwargs: Any) -> Any:
+        mode = kwargs.get("mode", args[1] if len(args) > 1 else "r")
+        if any(flag in str(mode) for flag in ("w", "a", "x", "+")):
+            raise PermissionError("file writes are disabled in the research worker")
+        return _ORIGINAL_OPEN(*args, **kwargs)
+
+    try:
+        socket.socket = _NetworkDeniedSocket  # type: ignore[assignment]
+        socket.create_connection = _network_denied  # type: ignore[assignment]
+        builtins.open = _write_denied_open  # type: ignore[assignment]
+        result = adapter.run(specification, dataset)
+        result_queue.put(("ok", result))
+    except Exception as exc:  # noqa: BLE001 - worker reports only a typed error
+        result_queue.put(("error", type(exc).__name__[:80] or "AdapterError"))
+
+
+_ORIGINAL_OPEN = builtins.open
+
+
+@dataclass(frozen=True, slots=True)
+class RestrictedProcessRunner:
+    """Small process boundary used for optional adapters.
+
+    This is intentionally conservative: no network sockets or file writes are
+    available in the worker, and timeout termination prevents a stuck adapter
+    from blocking the research process.  It is not a general sandbox for
+    arbitrary untrusted code; callers must provide this runner explicitly.
+    """
+
+    timeout_seconds: float = 30.0
+    network_disabled: bool = True
+    file_write_disabled: bool = True
+
+    def __post_init__(self) -> None:
+        if self.timeout_seconds <= 0 or self.timeout_seconds > 300:
+            raise ValueError("runner timeout must be between 0 and 300 seconds")
+        if self.network_disabled is not True or self.file_write_disabled is not True:
+            raise ValueError("restricted runner must disable network and file writes")
+
+    def run(self, adapter: Any, specification: Any, dataset: DatasetSnapshot) -> Any:
+        context = multiprocessing.get_context("spawn")
+        result_queue = context.Queue(maxsize=1)
+        process = context.Process(target=_restricted_worker, args=(adapter, specification, dataset, result_queue))
+        try:
+            process.start()
+        except Exception as exc:
+            raise RuntimeError("adapter cannot start in the restricted worker") from exc
+        process.join(self.timeout_seconds)
+        if process.is_alive():
+            process.terminate()
+            process.join(1)
+            raise TimeoutError("research adapter exceeded the worker timeout")
+        try:
+            state, payload = result_queue.get_nowait()
+        except Exception as exc:
+            raise RuntimeError("research worker returned no result") from exc
+        if state == "error":
+            raise RuntimeError(f"restricted adapter failed ({payload})")
+        return payload
+
+
+_SENSITIVE_KEY = re.compile(r"(?:api[_-]?key|token|secret|password|prompt|raw[ _-]?provider|endpoint|url)", re.IGNORECASE)
+_EXECUTABLE_KEY = re.compile(r"(?:^__|eval|exec|shell|command|script|source[_-]?code|callable|globals|builtins)", re.IGNORECASE)
+_SENSITIVE_VALUE = re.compile(r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|https?://|ftp://)", re.IGNORECASE)
+_ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +154,8 @@ class EngineAdmission:
     normalized_fixture: bool = False
     raw_object_boundary: bool = False
     fallback: bool = False
+    controlled_runner: bool = False
+    runner: RestrictedProcessRunner | None = None
 
     _GATES: ClassVar[tuple[str, ...]] = (
         "software_version",
@@ -81,7 +164,12 @@ class EngineAdmission:
         "normalized_fixture",
         "raw_object_boundary",
         "fallback",
+        "controlled_runner",
     )
+
+    def __post_init__(self) -> None:
+        if self.controlled_runner != isinstance(self.runner, RestrictedProcessRunner):
+            raise ValueError("controlled_runner must be derived from RestrictedProcessRunner")
 
     @classmethod
     def from_value(cls, value: Mapping[str, Any] | EngineAdmission | None, *, installed_default: bool) -> EngineAdmission:
@@ -91,17 +179,28 @@ class EngineAdmission:
             return value
         if not isinstance(value, Mapping):
             raise TypeError("isolation must be a mapping or EngineAdmission")
-        allowed = {"installed", *cls._GATES}
+        allowed = {"installed", *cls._GATES, "runner"}
         unknown = set(value) - allowed
         if unknown:
             raise ValueError("unknown engine admission fields")
+        runner = value.get("runner")
+        if runner is not None and not isinstance(runner, RestrictedProcessRunner):
+            raise TypeError("runner must be a RestrictedProcessRunner")
         values: dict[str, bool] = {}
         for key in allowed:
+            if key == "runner":
+                continue
             raw = value.get(key, installed_default if key == "installed" else False)
             if not isinstance(raw, bool):
                 raise TypeError(f"engine admission field {key} must be boolean")
             values[key] = raw
-        return cls(**values)
+        # A caller cannot promote itself by setting a boolean.  The gate is
+        # derived from the concrete deny-by-default worker instance.
+        if values["controlled_runner"] and runner is None:
+            values["controlled_runner"] = False
+        if runner is not None:
+            values["controlled_runner"] = True
+        return cls(**values, runner=runner)
 
     @property
     def missing_gates(self) -> tuple[str, ...]:
@@ -166,12 +265,14 @@ class EngineRegistry:
             raise TypeError("request must be a FinathinkSpecification")
         entry = self._entries.get(name.casefold() if isinstance(name, str) else "")
         if entry is None:
-            return self._fallback(request, f"{name} is not installed in the approved isolated environment")
+            return self._fallback(request, "unknown optional engine is not installed in the approved isolated environment")
         if entry.capability != request.kind:
             raise TypeError(f"engine {entry.name} does not support {request.kind} research")
         if entry.status == RegistryStatus.AVAILABLE:
             try:
-                result = entry.adapter.run(request.specification, request.dataset)
+                if entry.admission.runner is None:
+                    raise RuntimeError("controlled worker is not configured")
+                result = entry.admission.runner.run(entry.adapter, request.specification, request.dataset)
                 self._validate_result(result, request)
                 return result
             except Exception as exc:  # noqa: BLE001 - adapter boundary fails closed
@@ -192,9 +293,32 @@ class EngineRegistry:
             raise ValueError("adapter result specification fingerprint mismatch")
         if result.dataset_fingerprint != request.dataset.fingerprint and request.kind == "ml":
             raise ValueError("adapter result dataset fingerprint mismatch")
-        # Force contract serialization at the boundary; this rejects raw
+        EngineRegistry._validate_safe_payload(result.to_dict())
+        # Force contract serialization at the boundary; this also rejects raw
         # third-party objects nested in predictions or artifacts.
         result.to_json()
+
+    @staticmethod
+    def _validate_safe_payload(value: Any, *, key: str = "") -> None:
+        if isinstance(value, Mapping):
+            for raw_key, item in value.items():
+                if not isinstance(raw_key, str):
+                    raise TypeError("adapter result keys must be strings")
+                if _EXECUTABLE_KEY.search(raw_key) or _SENSITIVE_KEY.search(raw_key):
+                    raise ValueError("adapter result contains a restricted field")
+                EngineRegistry._validate_safe_payload(item, key=raw_key)
+            return
+        if isinstance(value, (tuple, list)):
+            for item in value:
+                EngineRegistry._validate_safe_payload(item, key=key)
+            return
+        if isinstance(value, str):
+            if _SENSITIVE_VALUE.search(value) or _ABSOLUTE_PATH.match(value.strip()):
+                raise ValueError("adapter result contains a restricted value")
+            return
+        if value is None or isinstance(value, (bool, int, float)):
+            return
+        raise TypeError("adapter result contains a raw object")
 
     @staticmethod
     def _fallback(request: FinathinkSpecification, reason: str) -> MLResearchResult | SweepResult:
@@ -235,10 +359,17 @@ class EngineRegistry:
             robust_regions=result.robust_regions,
             unstable_regions=result.unstable_regions,
             oos_comparison=result.oos_comparison,
+            engine="finathink-deterministic-sweep",
             status=result.status,
             fallback_used=True,
             fallback_reason=reason,
         )
 
 
-__all__ = ["EngineAdmission", "EngineRegistry", "FinathinkSpecification", "RegistryStatus"]
+__all__ = [
+    "EngineAdmission",
+    "EngineRegistry",
+    "FinathinkSpecification",
+    "RegistryStatus",
+    "RestrictedProcessRunner",
+]
