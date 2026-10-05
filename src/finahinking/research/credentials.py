@@ -51,21 +51,29 @@ class EnvironmentCredentialStore:
         source = os.environ if environment is None else environment
         if not isinstance(source, Mapping):
             raise TypeError("environment must be a mapping")
-        self._environment = dict(source)
+        # Keep the mapping as a handle and perform one explicit lookup per
+        # reference.  Copying os.environ would retain every unrelated secret.
+        self._environment = source
 
     def __repr__(self) -> str:
         return "EnvironmentCredentialStore(<environment values redacted>)"
 
     __str__ = __repr__
 
+    def _lookup(self, ref: ProviderCredentialRef) -> Any:
+        try:
+            return self._environment[ref.env_var]
+        except KeyError:
+            return None
+
     def has(self, ref: ProviderCredentialRef) -> bool:
         ref = _validate_ref(ref)
-        value = self._environment.get(ref.env_var)
+        value = self._lookup(ref)
         return isinstance(value, str) and bool(value)
 
     def resolve(self, ref: ProviderCredentialRef) -> str:
         ref = _validate_ref(ref)
-        value = self._environment.get(ref.env_var)
+        value = self._lookup(ref)
         if not isinstance(value, str) or not value:
             raise ValueError("credential is not configured")
         return value
@@ -95,6 +103,12 @@ class InMemoryCredentialStore:
 
     __str__ = __repr__
 
+    def __reduce__(self) -> tuple[object, ...]:
+        raise TypeError("InMemoryCredentialStore cannot be serialized")
+
+    def __reduce_ex__(self, protocol: int) -> tuple[object, ...]:
+        raise TypeError("InMemoryCredentialStore cannot be serialized")
+
     def has(self, ref: ProviderCredentialRef) -> bool:
         if not isinstance(ref, ProviderCredentialRef):
             raise TypeError("credential reference must be a ProviderCredentialRef")
@@ -123,9 +137,12 @@ class ProviderRuntimeConfig:
             raise ValueError("model must be non-empty")
         if not isinstance(self.credential_ref, ProviderCredentialRef):
             raise TypeError("credential_ref must be a ProviderCredentialRef")
-        if isinstance(self.capabilities, (str, bytes)):
+        if not isinstance(self.capabilities, (tuple, list)):
             raise TypeError("capabilities must be a sequence of strings")
-        capabilities = tuple(str(value).strip() for value in self.capabilities)
+        capabilities = tuple(self.capabilities)
+        if any(not isinstance(value, str) for value in capabilities):
+            raise TypeError("capabilities must contain only strings")
+        capabilities = tuple(value.strip() for value in capabilities)
         if any(not value for value in capabilities):
             raise ValueError("capabilities must contain non-empty strings")
         if len(set(capabilities)) != len(capabilities):
@@ -158,6 +175,16 @@ def _credential_ref(provider: str, value: Any) -> ProviderCredentialRef:
     raise TypeError("credential_ref must be a mapping or ProviderCredentialRef")
 
 
+def normalize_provider_error(error: BaseException) -> str:
+    """Map adapter/store failures to a stable message without echoing details."""
+
+    if isinstance(error, TimeoutError):
+        return "provider timeout"
+    if isinstance(error, (TypeError, ValueError, KeyError)):
+        return "provider malformed response"
+    return "provider request failed"
+
+
 def build_provider_runtime(
     config: Mapping[str, Any], store: CredentialStore
 ) -> ProviderRuntimeConfig:
@@ -179,7 +206,13 @@ def build_provider_runtime(
         raise ValueError("model must be non-empty")
     provider = provider.strip()
     ref = _credential_ref(provider, config.get("credential_ref"))
-    if not store.has(ref):
+    try:
+        configured = store.has(ref)
+    except Exception as exc:  # noqa: BLE001 - normalize every backend detail
+        raise ValueError(normalize_provider_error(exc)) from None
+    if not isinstance(configured, bool):
+        raise TypeError("credential store returned an invalid readiness state")
+    if not configured:
         raise ValueError("credential is not configured")
     capabilities = config.get("capabilities", ())
-    return ProviderRuntimeConfig(provider, model, ref, tuple(capabilities))
+    return ProviderRuntimeConfig(provider, model, ref, capabilities)

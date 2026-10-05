@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import pickle
+from collections.abc import Iterator, Mapping
 
 import pytest
 
@@ -120,6 +122,79 @@ def test_in_memory_store_is_test_only_and_never_serializable() -> None:
     assert SECRET not in repr(store)
     with pytest.raises(TypeError, match="unsupported|serializ"):
         to_jsonable(store)
+
+    with pytest.raises((TypeError, RuntimeError)) as error:
+        pickle.dumps(store)
+    assert SECRET not in str(error.value)
+
+
+def test_environment_store_does_not_copy_or_iterate_the_environment() -> None:
+    from finahinking.research.credentials import EnvironmentCredentialStore
+
+    class ExplicitEnvironment(Mapping[str, str]):
+        def __getitem__(self, key: str) -> str:
+            if key == "FINAHINK_USER_API_KEY":
+                return SECRET
+            raise KeyError(key)
+
+        def __iter__(self) -> Iterator[str]:
+            raise AssertionError("the store must not enumerate environment values")
+
+        def __len__(self) -> int:
+            return 1
+
+    ref = ProviderCredentialRef("user-compatible", env_var="FINAHINK_USER_API_KEY")
+    store = EnvironmentCredentialStore(ExplicitEnvironment())
+    assert store.has(ref) is True
+
+
+def test_capabilities_reject_non_strings_without_stringifying_secrets() -> None:
+    from finahinking.research.credentials import (
+        EnvironmentCredentialStore,
+        build_provider_runtime,
+    )
+
+    class SecretCapability:
+        def __str__(self) -> str:
+            return SECRET
+
+    config = runtime_mapping()
+    config["capabilities"] = [SecretCapability()]
+    with pytest.raises(TypeError, match="capabilities") as error:
+        build_provider_runtime(config, EnvironmentCredentialStore({"FINAHINK_USER_API_KEY": SECRET}))
+    assert SECRET not in str(error.value)
+
+
+def test_credential_store_failures_are_normalized_without_secret_or_path() -> None:
+    from finahinking.research.credentials import build_provider_runtime
+
+    class FailingStore:
+        def has(self, ref: ProviderCredentialRef) -> bool:
+            raise RuntimeError(f"backend failed: {SECRET} /Users/private/provider-key")
+
+        def resolve(self, ref: ProviderCredentialRef) -> str:
+            raise AssertionError("resolve must not be called")
+
+    with pytest.raises(ValueError, match="credential|provider") as error:
+        build_provider_runtime(runtime_mapping(), FailingStore())
+    assert SECRET not in str(error.value)
+    assert "/Users/private/provider-key" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected"),
+    [
+        (TimeoutError(f"timed out with {SECRET} at /Users/private/provider"), "timeout"),
+        (TypeError(f"malformed response contains {SECRET} at /Users/private/provider"), "malformed"),
+    ],
+)
+def test_provider_error_normalization_is_secret_free(failure: BaseException, expected: str) -> None:
+    from finahinking.research.credentials import normalize_provider_error
+
+    message = normalize_provider_error(failure)
+    assert expected in message
+    assert SECRET not in message
+    assert "/Users/private/provider" not in message
 
 
 def test_runtime_configuration_does_not_call_network_or_normalize_provider_payloads() -> None:
