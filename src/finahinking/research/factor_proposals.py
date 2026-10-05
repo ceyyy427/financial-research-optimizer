@@ -45,6 +45,10 @@ class FactorHypothesis:
         fields = tuple(sorted({_norm(item, "inputs") for item in self.inputs}))
         if not fields or any(item not in _FIELDS for item in fields):
             raise ValueError("inputs contain a field outside the data whitelist")
+        if family == "liquidity" and "volume" not in fields:
+            raise ValueError("liquidity hypotheses require volume")
+        if family in {"momentum", "mean_reversion", "volatility"} and not ({"close", "return_1d"} & set(fields)):
+            raise ValueError(f"{family} hypotheses require close or return_1d")
         if _UNSAFE.search(self.text):
             raise ValueError("hypothesis contains unsafe or future-looking text")
         object.__setattr__(self, "inputs", fields)
@@ -94,7 +98,7 @@ class FactorProposalCatalog:
         proposals: list[FactorProposal] = []
         for expression in _templates(hypothesis):
             parsed = parse_factor_expression(expression, hypothesis.inputs)
-            payload = f"{hypothesis.hypothesis_id}|{parsed.expression}|{hypothesis.horizon}".encode()
+            payload = f"{hypothesis.hypothesis_id}|{parsed.expression}|{','.join(parsed.fields)}".encode()
             digest = hashlib.sha256(payload).hexdigest()[:12]
             proposals.append(FactorProposal(
                 proposal_id=f"factor-proposal-{digest}",
@@ -120,5 +124,10 @@ def validate_factor_proposal(proposal: FactorProposal) -> None:
     parsed = parse_factor_expression(proposal.expression, fields)
     if parsed.fields != tuple(sorted(set(fields))):
         raise ValueError("required_fields must match expression dependencies")
-    if dict(proposal.constraints).get("paper_only") is not True:
-        raise ValueError("proposal constraints must preserve paper-only mode")
+    constraints = dict(proposal.constraints)
+    if constraints != {"max_window": 252, "point_in_time": True, "paper_only": True}:
+        raise ValueError("proposal constraints are not the governed catalog constraints")
+    payload = f"{proposal.source_hypothesis}|{parsed.expression}|{','.join(parsed.fields)}".encode()
+    expected = f"factor-proposal-{hashlib.sha256(payload).hexdigest()[:12]}"
+    if proposal.proposal_id != expected:
+        raise ValueError("proposal provenance digest does not match its contents")

@@ -56,6 +56,15 @@ def test_limits_and_unsafe_fields_are_rejected() -> None:
         FactorProposalCatalog().propose(unsafe)
 
 
+@pytest.mark.parametrize(
+    "family,inputs",
+    [("momentum", ("volume",)), ("mean_reversion", ("volume",)), ("volatility", ("volume",)), ("liquidity", ("close",))],
+)
+def test_family_requires_its_signal_fields(family: str, inputs: tuple[str, ...]) -> None:
+    with pytest.raises(ValueError):
+        FactorHypothesis("h", "text", family, inputs, 5, "positive")
+
+
 @pytest.mark.parametrize("expression", ["eval(close)", "__import__('os')", "close('/tmp/a')", "rolling_mean(future_return,5)"])
 def test_validate_rejects_executable_future_or_unbounded_proposal(expression: str) -> None:
     from finahinking.research.factor_proposals import FactorProposal
@@ -63,3 +72,16 @@ def test_validate_rejects_executable_future_or_unbounded_proposal(expression: st
     proposal = FactorProposal("p", expression, "h", ("close",), {"paper_only": True})
     with pytest.raises(ValueError):
         validate_factor_proposal(proposal)
+
+
+def test_validate_rejects_tampered_catalog_provenance() -> None:
+    catalog = FactorProposalCatalog()
+    proposal = catalog.propose(FactorHypothesis("h", "momentum", "momentum", ("close",), 5, "positive"))[0]
+    from dataclasses import replace
+
+    with pytest.raises(ValueError):
+        validate_factor_proposal(replace(proposal, proposal_id="factor-proposal-deadbeef0000"))
+    with pytest.raises(ValueError):
+        validate_factor_proposal(replace(proposal, source_hypothesis="other"))
+    with pytest.raises(ValueError):
+        validate_factor_proposal(replace(proposal, constraints={"paper_only": True, "max_window": 1}))

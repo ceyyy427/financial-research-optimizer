@@ -38,3 +38,17 @@ zsh:1: command not found: ruff
 - Ruff linting remains unverified because the executable is not installed.
 - No integration changes were made to `FactorResearchRun`; callers can pass the
   resulting DSL proposals through their existing candidate/run path.
+
+## Focused review fixes
+
+- Family-specific signal requirements now reject proposals that cannot produce
+  a template (`close` or `return_1d` for price families; `volume` for liquidity).
+- Validation now requires the exact governed constraints and recomputes the
+  proposal digest from source hypothesis, expression, and required fields.
+
+Regression and existing factor tests after the fix:
+
+```text
+python3 -m pytest -q tests/research/test_factor_proposals.py tests/research/test_factor_loop.py tests/research/test_factor_dsl.py
+32 passed in 0.66s
+```
