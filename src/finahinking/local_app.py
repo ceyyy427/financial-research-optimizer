@@ -26,6 +26,16 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+from finahinking.data.connection_settings import (
+    DataConnectionSettingsStore,
+    new_local_credential_ref,
+)
+from finahinking.data.user_api import DataConnectorError, JsonApiConnector
+from finahinking.data.user_api_contracts import (
+    DataConnectionConfig,
+    DataRequest,
+    DataSourceCredentialRef,
+)
 from finahinking.p7 import (
     CommunityClaim,
     CommunityIntegrityService,
@@ -293,7 +303,7 @@ class LocalAppConfig:
 class LocalApplication:
     """Route local product journeys through one P7-backed persistence boundary."""
 
-    def __init__(self, config: LocalAppConfig | None = None, *, connection: sqlite3.Connection | None = None) -> None:
+    def __init__(self, config: LocalAppConfig | None = None, *, connection: sqlite3.Connection | None = None, data_transport: Any | None = None) -> None:
         self.config = config or LocalAppConfig.from_env()
         if self.config.db_path != ":memory:":
             Path(self.config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
@@ -309,6 +319,8 @@ class LocalApplication:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
         self._research_runs: dict[str, dict[str, Any]] = {}
+        self._data_connections = DataConnectionSettingsStore()
+        self._data_transport = data_transport
 
     def register_research_run(self, result: Any, manifest: Any) -> None:
         """Register a completed research result for read-only local inspection."""
@@ -896,12 +908,117 @@ class LocalApplication:
             f"{inspector_html}</div></body></html>"
         )
 
+    def _data_write_guard(self, body: Any) -> tuple[int, str, Any] | None:
+        if not isinstance(body, Mapping) or body.get("_csrf") != self.csrf_token:
+            return 403, "application/json", {"error": "csrf token is required"}
+        return None
+
+    def _data_connection_from_payload(self, values: Mapping[str, Any]) -> tuple[DataConnectionConfig, str | None]:
+        auth_mode = str(values.get("auth_mode", "no_auth"))
+        credential_ref = values.get("credential_ref")
+        api_key = values.get("api_key")
+        secret_value: str | None = None
+        if isinstance(api_key, str) and not api_key:
+            api_key = None
+        if api_key is not None:
+            if not isinstance(api_key, str) or not api_key:
+                raise ValueError("api_key must be a non-empty value")
+            if auth_mode == "no_auth":
+                raise ValueError("no_auth connections cannot accept an api_key")
+            credential_ref = new_local_credential_ref(str(values.get("connection_id", "connection")))
+            secret_value = api_key
+        elif credential_ref is not None:
+            if not isinstance(credential_ref, Mapping):
+                raise ValueError("credential_ref must be a data credential reference")
+            credential_ref = DataSourceCredentialRef(
+                env_var=credential_ref.get("env_var"),
+                keychain_label=credential_ref.get("keychain_label"),
+            )
+        field_mapping = values.get("field_mapping", {})
+        if isinstance(field_mapping, str):
+            try:
+                field_mapping = json.loads(field_mapping)
+            except json.JSONDecodeError as exc:
+                raise ValueError("field_mapping must be valid JSON") from exc
+        if not isinstance(field_mapping, Mapping):
+            raise TypeError("field_mapping must be an object")
+        if bool(values.get("allow_local", False)):
+            raise ValueError("local data bridge requires an independently configured target")
+        config = DataConnectionConfig(
+            connection_id=str(values.get("connection_id", "")),
+            display_name=str(values.get("display_name", "")),
+            base_url=str(values.get("base_url", "")),
+            credential_ref=credential_ref,
+            auth_mode=auth_mode,
+            field_mapping={str(key): str(value) for key, value in field_mapping.items()},
+            records_path=(str(values["records_path"]) if values.get("records_path") is not None else None),
+            auth_header=(str(values["auth_header"]) if values.get("auth_header") is not None else None),
+            source_declaration=str(values.get("source_declaration", "User-declared data source; Finathink has not independently verified it.")),
+        )
+        return config, secret_value
+
+    def _data_connections_page(self) -> str:
+        rows = self._data_connections.list()
+        cards = "".join(
+            f'<article class="card"><h2>{html.escape(str(item["display_name"]))}</h2><p><code>{html.escape(str(item["connection_id"]))}</code> · {html.escape(str(item["auth_mode"]))}</p><p class="meta">Credential: {"configured" if item["credential_configured"] else "not configured"} · Endpoint is kept out of this view.</p></article>'
+            for item in rows
+        ) or '<div class="empty-state"><p>No user data connections have been configured.</p></div>'
+        body = (
+            '<h1>User data connections</h1>'
+            '<p class="lede">Connect a data API selected and authorized by you. Finathink stores only the connection contract and a local credential reference.</p>'
+            '<section class="card"><form class="form-grid" method="post" action="/api/data/connections">'
+            f'<input type="hidden" name="_csrf" value="{html.escape(self.csrf_token)}">'
+            '<label>Connection ID<input name="connection_id" required maxlength="64"></label>'
+            '<label>Display name<input name="display_name" required maxlength="160"></label>'
+            '<label>API address<input name="base_url" type="url" required></label>'
+            '<label>Authentication<select name="auth_mode"><option value="no_auth">No authentication</option><option value="bearer">Bearer</option><option value="api_key_header">API key header</option></select></label>'
+            '<label>API key (never displayed)<input name="api_key" type="password" autocomplete="new-password"></label>'
+            '<label>API key header (for header mode)<input name="auth_header" value="X-API-Key" maxlength="64"></label>'
+            '<label>Records path<input name="records_path" placeholder="data" maxlength="128"></label>'
+            '<label>Field mapping (JSON)<textarea name="field_mapping">{"instrument":"ticker","timestamp":"time","close":"price"}</textarea></label>'
+            '<button type="submit">Save connection</button></form><p class="field-help">Saving does not download data. A connection test is a separate, explicit action.</p></section>'
+            f'<section class="section"><h2>Saved connections</h2><div class="grid">{cards}</div></section>'
+        )
+        return self.render_shell("/settings/data-connections", "User data connections", body, inspector=self._inspector("Data boundary", {"Mode": "USER-OWNED API", "Secrets": "REFERENCE ONLY", "Download": "EXPLICIT TEST ONLY"}, status="OFFLINE"))
+
     def route(self, method: str, path: str, *, query: Mapping[str, list[str]] | None = None, body: Any = None) -> tuple[int, str, Any]:
         """Return ``(status, content_type, payload)`` without requiring a socket."""
 
         parsed = urlsplit(path)
         query = parse_qs(parsed.query) if query is None else query
         clean = parsed.path.rstrip("/") or "/"
+        if clean == "/settings/data-connections" and method == "GET":
+            return 200, "text/html; charset=utf-8", self._data_connections_page()
+        if clean == "/api/data/connections" and method == "GET":
+            return 200, "application/json", {"connections": list(self._data_connections.list())}
+        if clean == "/api/data/connections" and method == "POST":
+            denied = self._data_write_guard(body)
+            if denied is not None:
+                return denied
+            try:
+                config, secret_value = self._data_connection_from_payload(body)
+                self._data_connections.save(config, credential_value=secret_value)
+            except (TypeError, ValueError) as exc:
+                return 400, "application/json", {"error": str(exc)}
+            return 201, "application/json", {**config.redacted(), "credential_configured": bool(config.credential_ref and self._data_connections.credentials.has(config.credential_ref))}
+        if clean.startswith("/api/data/connections/") and clean.endswith("/test") and method == "POST":
+            denied = self._data_write_guard(body)
+            if denied is not None:
+                return denied
+            connection_id = clean.removeprefix("/api/data/connections/").removesuffix("/test").strip("/")
+            try:
+                config = self._data_connections.get(connection_id)
+            except KeyError:
+                return 404, "application/json", {"error": "data connection not found"}
+            if self._data_transport is None:
+                return 200, "application/json", {"status": "NOT_RUN", "connection_id": connection_id, "reason": "an explicit local test transport is required"}
+            values = body if isinstance(body, Mapping) else {}
+            request = DataRequest(dataset_kind=str(values.get("dataset_kind", "prices")), instruments=tuple(values.get("instruments", ()) or ()), start=values.get("start"), end=values.get("end"), as_of=values.get("as_of"))
+            try:
+                batch = JsonApiConnector(config, self._data_connections.credentials, self._data_transport).fetch(request)
+            except (DataConnectorError, TypeError, ValueError) as exc:
+                return 502, "application/json", {"status": "FAILED", "connection_id": connection_id, "reason": getattr(exc, "code", "connection test failed")}
+            return 200, "application/json", {"status": "READY", "connection_id": connection_id, "record_count": len(batch.records), "quality_issue_count": len(batch.quality_issues), "pit_available": batch.pit_available}
         if clean == "/assets/finathink-splash-map.jpg" and method == "GET":
             return 200, "image/jpeg", self.splash_asset()
         if clean == "/assets/finathink-research-splash.jpg" and method == "GET":
