@@ -165,6 +165,21 @@ def test_capabilities_reject_non_strings_without_stringifying_secrets() -> None:
     assert SECRET not in str(error.value)
 
 
+@pytest.mark.parametrize("capability", ["SECRET", "api_key", "unknown_capability"])
+def test_capabilities_reject_unknown_names_without_echoing_secrets(capability: str) -> None:
+    from finahinking.research.credentials import (
+        EnvironmentCredentialStore,
+        build_provider_runtime,
+    )
+
+    config = runtime_mapping()
+    config["capabilities"] = [capability]
+    with pytest.raises(ValueError, match="capabilities") as error:
+        build_provider_runtime(config, EnvironmentCredentialStore({"FINAHINK_USER_API_KEY": SECRET}))
+    assert capability not in str(error.value)
+    assert SECRET not in repr(error.value)
+
+
 def test_credential_store_failures_are_normalized_without_secret_or_path() -> None:
     from finahinking.research.credentials import build_provider_runtime
 

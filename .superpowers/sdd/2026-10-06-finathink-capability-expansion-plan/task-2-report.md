@@ -8,7 +8,7 @@
   - Added test-only `InMemoryCredentialStore` with redacted representation and no contract serialization support.
   - Added immutable `ProviderRuntimeConfig` and `build_provider_runtime`; construction validates configuration and readiness only and never resolves a secret or performs network I/O.
 - `tests/research/test_credentials.py`
-  - Added 20 tests for configured/missing credentials, invalid references and fields, secret-free representations, `ProviderSelection` separation, test-store serialization, environment lookup isolation, normalized backend failures, and the no-network construction boundary.
+  - Added 23 tests for configured/missing credentials, invalid references and fields, secret-free representations, `ProviderSelection` separation, test-store serialization, environment lookup isolation, capability allowlisting, normalized backend failures, and the no-network construction boundary.
 
 ## Verification
 
@@ -18,26 +18,26 @@ After implementation:
 
 ```text
 $ python3 -m pytest -q tests/research/test_credentials.py
-....................                                                     [100%]
-20 passed in 0.42s
+.......................                                                  [100%]
+23 passed in 0.57s
 ```
 
 ```text
 $ python3 -m pytest -q tests/research/test_credentials.py tests/research/test_provider_config.py tests/research/test_provider_status.py
-..........................                                               [100%]
-26 passed in 0.44s
+.............................                                            [100%]
+29 passed in 0.65s
 ```
 
-The regression tests were first run before the fix and produced six failures: pickle serialized the in-memory store, the environment mapping was enumerated/copied, capability values were stringified, store exceptions leaked, and the error-normalization helper was absent.
+The first hardening regression run produced six failures: pickle serialized the in-memory store, the environment mapping was enumerated/copied, capability values were stringified, store exceptions leaked, and the error-normalization helper was absent. The capability allowlist regression then produced three failures for unknown names before the allowlist was added.
 
 The full research suite and full repository suite pass:
 
 ```text
 $ python3 -m pytest -q tests/research
-116 passed in 1.07s
+119 passed in 1.50s
 
 $ python3 -m pytest -q
-483 passed, 1 skipped in 29.35s
+486 passed, 1 skipped in 37.48s
 ```
 
 ```text

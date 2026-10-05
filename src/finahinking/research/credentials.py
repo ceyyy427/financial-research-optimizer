@@ -18,6 +18,17 @@ from .provider_status import ProviderCredentialRef
 
 _ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _ALLOWED_CONFIG_FIELDS = frozenset({"provider", "model", "credential_ref", "capabilities"})
+_ALLOWED_CAPABILITIES = frozenset(
+    {
+        "structured_output",
+        "tool_calling",
+        "parallel_roles",
+        "streaming",
+        "reasoning",
+        "offline",
+        "max_context",
+    }
+)
 
 
 class CredentialStore(Protocol):
@@ -140,11 +151,13 @@ class ProviderRuntimeConfig:
         if not isinstance(self.capabilities, (tuple, list)):
             raise TypeError("capabilities must be a sequence of strings")
         capabilities = tuple(self.capabilities)
-        if any(not isinstance(value, str) for value in capabilities):
+        if any(type(value) is not str for value in capabilities):
             raise TypeError("capabilities must contain only strings")
         capabilities = tuple(value.strip() for value in capabilities)
         if any(not value for value in capabilities):
             raise ValueError("capabilities must contain non-empty strings")
+        if any(value not in _ALLOWED_CAPABILITIES for value in capabilities):
+            raise ValueError("capabilities contain an unsupported name")
         if len(set(capabilities)) != len(capabilities):
             raise ValueError("capabilities must not contain duplicates")
         object.__setattr__(self, "provider", self.provider.strip())
