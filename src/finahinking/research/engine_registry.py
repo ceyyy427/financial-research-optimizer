@@ -9,17 +9,7 @@ reason remains part of the result.
 
 from __future__ import annotations
 
-import builtins
-import http.client
-import io
-import multiprocessing
-import os
-import pathlib
 import re
-import socket
-import subprocess
-import tempfile
-import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -43,58 +33,6 @@ class RegistryStatus:
     DEFERRED: ClassVar[str] = "DEFERRED"
 
 
-def _restricted_worker(adapter: Any, specification: Any, dataset: DatasetSnapshot, result_queue: Any) -> None:
-    """Run one adapter call in a deny-by-default worker process."""
-
-    class _NetworkDeniedSocket:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            raise PermissionError("network access is disabled in the research worker")
-
-    def _network_denied(*args: Any, **kwargs: Any) -> Any:
-        raise PermissionError("network access is disabled in the research worker")
-
-    def _write_denied_open(*args: Any, **kwargs: Any) -> Any:
-        mode = kwargs.get("mode", args[1] if len(args) > 1 else "r")
-        if any(flag in str(mode) for flag in ("w", "a", "x", "+")):
-            raise PermissionError("file writes are disabled in the research worker")
-        return _ORIGINAL_OPEN(*args, **kwargs)
-
-    def _file_write_denied(*args: Any, **kwargs: Any) -> Any:
-        raise PermissionError("file writes are disabled in the research worker")
-
-    def _process_denied(*args: Any, **kwargs: Any) -> Any:
-        raise PermissionError("process execution is disabled in the research worker")
-
-    try:
-        socket.socket = _NetworkDeniedSocket  # type: ignore[assignment]
-        socket.create_connection = _network_denied  # type: ignore[assignment]
-        socket.create_server = _network_denied  # type: ignore[assignment]
-        socket.socketpair = _network_denied  # type: ignore[assignment]
-        builtins.open = _write_denied_open  # type: ignore[assignment]
-        io.open = _write_denied_open  # type: ignore[assignment]
-        os.open = _file_write_denied  # type: ignore[assignment]
-        for name in ("system", "popen", "spawnv", "spawnve", "spawnvp", "spawnvpe"):
-            setattr(os, name, _process_denied)
-        for name in ("run", "Popen", "call", "check_call", "check_output"):
-            setattr(subprocess, name, _process_denied)
-        for name in ("open", "write_text", "write_bytes", "mkdir", "touch", "rename", "replace", "unlink", "rmdir"):
-            setattr(pathlib.Path, name, _file_write_denied)
-        for name in ("NamedTemporaryFile", "TemporaryFile", "mkstemp", "mkdtemp", "SpooledTemporaryFile"):
-            setattr(tempfile, name, _file_write_denied)
-        urllib.request.urlopen = _network_denied  # type: ignore[assignment]
-        urllib.request.build_opener = _network_denied  # type: ignore[assignment]
-        http.client.HTTPConnection = _network_denied  # type: ignore[assignment, misc]
-        http.client.HTTPSConnection = _network_denied  # type: ignore[assignment, misc]
-        result = adapter.run(specification, dataset)
-        result_queue.put(("ok", result))
-    except Exception as exc:  # noqa: BLE001 - worker reports only a typed error
-        result_queue.put(("error", type(exc).__name__[:80] or "AdapterError"))
-
-
-_ORIGINAL_OPEN = builtins.open
-
-
-@dataclass(frozen=True, slots=True)
 class TrustedSandboxRunner:
     """Marker base for a separately audited OS sandbox runner.
 
@@ -103,7 +41,7 @@ class TrustedSandboxRunner:
     sandbox policy; tests may use an explicit subclass as a contract double.
     """
 
-    trusted_sandbox: ClassVar[bool] = True
+    trusted_sandbox: ClassVar[bool] = False
     network_disabled: ClassVar[bool] = True
     file_write_disabled: ClassVar[bool] = True
 
@@ -115,10 +53,9 @@ class TrustedSandboxRunner:
 class RestrictedProcessRunner(TrustedSandboxRunner):
     """Small process boundary used for optional adapters.
 
-    This is intentionally conservative: no network sockets or file writes are
-    available in the worker, and timeout termination prevents a stuck adapter
-    from blocking the research process.  It is not a general sandbox for
-    arbitrary untrusted code; callers must provide this runner explicitly.
+    This class is intentionally disabled. Python-level monkeypatching cannot
+    prove OS isolation, so it is never accepted by the registry or executed.
+    Deployments must provide an audited external process/container runner.
     """
 
     trusted_sandbox: ClassVar[bool] = False
@@ -133,32 +70,19 @@ class RestrictedProcessRunner(TrustedSandboxRunner):
             raise ValueError("restricted runner must disable network and file writes")
 
     def run(self, adapter: Any, specification: Any, dataset: DatasetSnapshot) -> Any:
-        context = multiprocessing.get_context("spawn")
-        result_queue = context.Queue(maxsize=1)
-        process = context.Process(target=_restricted_worker, args=(adapter, specification, dataset, result_queue))
-        try:
-            process.start()
-        except Exception as exc:
-            raise RuntimeError("adapter cannot start in the restricted worker") from exc
-        process.join(self.timeout_seconds)
-        if process.is_alive():
-            process.terminate()
-            process.join(1)
-            raise TimeoutError("research adapter exceeded the worker timeout")
-        try:
-            state, payload = result_queue.get_nowait()
-        except Exception as exc:
-            raise RuntimeError("research worker returned no result") from exc
-        if state == "error":
-            raise RuntimeError(f"restricted adapter failed ({payload})")
-        return payload
+        raise RuntimeError("RestrictedProcessRunner is disabled; provide an external OS sandbox runner")
 
 
 _SENSITIVE_KEY = re.compile(r"(?:api[_-]?key|token|secret|password|prompt|raw[ _-]?provider|endpoint|url|path)", re.IGNORECASE)
-_EXECUTABLE_KEY = re.compile(r"(?:^__|eval|exec|shell|command|script|source[_-]?code|callable|globals|builtins)", re.IGNORECASE)
+_EXECUTABLE_KEY = re.compile(
+    r"(?:^__|callable|globals|builtins|(?:^|[_-])(?:code|eval|exec|shell|command|script|source)(?:$|[_-]))",
+    re.IGNORECASE,
+)
 _SENSITIVE_VALUE = re.compile(
-    r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|https?://|ftp://|"
-    r"\b(?:eval|exec|shell|command|script|source[_-]?code)\b|(?:^|[=: ])(?:\.\.?/|[A-Za-z]:[\\/]))",
+    r"(?:api[_-]?key|token|secret|password|raw[ _-]?provider[ _-]?response|"
+    r"\b(?:https?|ftp|file|ws|wss|data):|"
+    r"\b(?:eval|exec|shell|command|script|source[_-]?code|__import__|subprocess|os\.system)\b|"
+    r"(?:^|[=: ])(?:\.\.?/|[A-Za-z]:[\\/]|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,8}(?:$|[\s,]))",
     re.IGNORECASE,
 )
 _ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")

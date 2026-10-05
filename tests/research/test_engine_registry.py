@@ -40,6 +40,8 @@ class _AdmittedAdapter:
 
 
 class _FakeTrustedRunner(TrustedSandboxRunner):
+    trusted_sandbox = True
+
     def run(self, adapter, specification, dataset):
         return adapter.run(specification, dataset)
 
@@ -185,6 +187,18 @@ def test_monkeypatch_only_runner_is_rejected_as_untrusted() -> None:
             adapter=_NoopAdapter(),
             isolation={"installed": True, "runner": RestrictedProcessRunner()},
         )
+
+
+def test_disabled_restricted_runner_never_executes_or_pickles_adapter() -> None:
+    class ExplodingAdapter:
+        def __reduce__(self):
+            raise AssertionError("adapter must not be pickled")
+
+        def run(self, spec, dataset):
+            raise AssertionError("adapter must not execute")
+
+    with pytest.raises(RuntimeError, match="disabled"):
+        RestrictedProcessRunner().run(ExplodingAdapter(), _ml_request().ml, _ml_request().dataset)
 
 
 def test_sensitive_adapter_payload_is_rejected_and_falls_back() -> None:

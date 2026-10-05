@@ -8,10 +8,11 @@
 - **软件版本**：固定版本和运行时版本已记录；核心环境不因适配器而改变。
 - **许可证**：上游许可证、可选 extras 和发布/托管限制已记录；未审查不标记
   `AVAILABLE`。
-- **隔离环境**：适配器必须由 `RestrictedProcessRunner` 在受控进程中运行；该
-  worker 禁用网络和文件写入并有超时。仅设置 `isolated=true` 或
-  `controlled_runner=true` 不算通过，不提供 runner 时状态必须是 `DEFERRED`。
-  适配器不执行用户提供的 Python、Shell、SQL 或动态模块。
+- **隔离环境**：必须由部署方提供并审计一个外部 OS/container sandbox runner。
+  Python 进程内 monkeypatch（包括本地 `RestrictedProcessRunner`）不能证明隔离，
+  因此当前核心默认不提供 `AVAILABLE` 引擎。仅设置 `isolated=true` 或
+  `controlled_runner=true` 不算通过，不提供可验证 runner 时状态必须是
+  `DEFERRED`。适配器不执行用户提供的 Python、Shell、SQL 或动态模块。
 - **归一数据 fixture**：输入只能是 Finathink `DatasetSnapshot` 或同等已通过
   合同校验的离线 fixture；适配器不能发现、下载或替换行情数据。
 - **结果边界**：输出只能是 `MLResearchResult` 或 `SweepResult`；第三方数据集、
@@ -23,7 +24,7 @@
 
 | 状态 | 含义 |
 | --- | --- |
-| `AVAILABLE` | 已安装、提供受控 worker 且六项门禁全部通过，可以在隔离入口执行。 |
+| `AVAILABLE` | 仅在外部 OS/container sandbox runner 可验证、且六项门禁全部通过时允许；当前核心默认无此状态。 |
 | `NOT_INSTALLED` | 可选依赖不在批准的隔离环境中；使用 Finathink 回退。 |
 | `DEFERRED` | 已有环境或适配器，但至少一项门禁缺失；不得执行外部引擎。 |
 
