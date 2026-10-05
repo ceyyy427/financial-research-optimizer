@@ -58,3 +58,12 @@ def test_factor_research_budget_is_bounded_and_freeze_controls_test_access() -> 
     with pytest.raises(ValueError, match="once-only"):
         tested.evaluate_test(_dataset())
 
+
+def test_test_period_mutation_cannot_change_validation_evidence() -> None:
+    data = _dataset()
+    first = run_factor_research(_charter(), (_candidate("candidate-1", "return(close,1)"),), data)
+    modified = {"frame": data["frame"].copy(), "forward_return": data["forward_return"].copy()}
+    modified["frame"].iloc[19:, 0] = [400, 10, 700, 20, 800]
+    modified["forward_return"].iloc[19:] = [2, -3, 4, -5, 6]
+    second = run_factor_research(_charter(), (_candidate("candidate-1", "return(close,1)"),), modified)
+    assert first.rounds[0].evaluation.to_dict() == second.rounds[0].evaluation.to_dict()

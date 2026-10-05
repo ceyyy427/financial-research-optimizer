@@ -30,6 +30,8 @@ def test_research_payload_carries_workbench_layers_and_provenance() -> None:
     assert workbench["provenance"]["dataset_fingerprint"] == payload["dataset"]["fingerprint"]
     assert workbench["paper_only"] is True
     assert workbench["factor_research"]["dataset_fingerprint"] == payload["dataset"]["fingerprint"]
+    assert workbench["factor_candidates"]
+    assert workbench["provider_status"]["secret_policy"]
     assert payload["payload_fingerprint"]
 
 
@@ -52,6 +54,7 @@ def test_report_renderer_is_self_contained_publication_html(tmp_path) -> None:
     assert "Factor / strategy workbench" in html
     assert "PAPER-ONLY" in html
     assert "<svg" in html and "<table" in html
+    assert "Provider readiness" in html
     assert "http://" not in html and "https://" not in html
     assert "api_key" not in html.lower()
     assert 'aria-label="Research timeline"' in html

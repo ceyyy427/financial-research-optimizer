@@ -11,12 +11,12 @@ capabilities. It is the release gate for the autonomous delivery report.
 | --- | --- | --- |
 | Factor expression safety | Implemented and tested | `src/finahinking/factors/dsl.py`, `tests/research/test_factor_dsl.py`; AST allow-list, bounded windows, no arbitrary `eval` |
 | Candidate mining | Implemented and tested | `src/finahinking/factors/mining.py`; deterministic bounded templates and fingerprints |
-| Factor metrics | Implemented and tested | `src/finahinking/factors/evaluation.py`; IC/ICIR, quantiles, long-short, turnover/cost, decay, T+1 and PIT checks |
+| Factor metrics | Implemented and tested | `src/finahinking/factors/evaluation.py`; IC/ICIR, quantiles, long-short, turnover/cost, decay, T+1, PIT and phase-boundary purge checks |
 | Factor admission history | Implemented and tested | `src/finahinking/factors/registry.py`; append-only admission evidence |
 | Research loop | Implemented and tested | `src/finahinking/research/factor_loop.py`; charter, budget, rejected attempts, freeze-before-test, once-only test |
 | Provider/API-key boundary | Implemented and tested | `src/finahinking/research/provider_status.py`, `GET /api/research/providers`, `/settings/providers`; only credential references/status are exposed |
 | Multi-role research contracts | Implemented locally | `src/finahinking/research/contracts.py`, `workflow.py`, `drivers.py`; offline driver is deterministic, Codex handoff is explicit |
-| Workbench/UI/report evidence | Implemented and tested | `research_view.py`, `local_app.py`, `reports.py`, frontend contract tests; factor ledger appears in JSON/UI/offline HTML |
+| Workbench/UI/report evidence | Implemented and tested | `research_view.py`, `local_app.py`, `reports.py`, frontend contract tests; nested and top-level factor/provider evidence appears in JSON/UI/offline HTML |
 | Live market data | Deferred | User-owned data adapter and compliance review required |
 | Hosted model/provider invocation | Deferred | User-owned adapter and credential boundary required; no SDK is installed by this delivery |
 | Broker/account/order operations | Explicitly unavailable | Paper-only boundary; no broker credentials, order, cancel, account, or money movement contract |
@@ -47,14 +47,17 @@ text.
 
 - `python3 -m ruff check src tests` — passed.
 - `python3 -m compileall -q src tests` — passed.
-- `python3 -m pytest -q` — `432 passed, 1 skipped in 32.02s`.
+- `python3 -m pytest -q` — `435 passed, 1 skipped in 30.09s` after the
+  phase-boundary leakage regression checks were added (focused post-alias
+  checks: `23 passed`).
 - `cd frontend && npm test` — `11 passed`.
 - `cd frontend && npm run build` — passed; packaged research asset regenerated.
 - `python3 scripts/secret_scan.py` — `secret scan passed (no known credential patterns)`.
 - `python3 scripts/validate_governance.py .` — `PASS: governance validation passed`.
 - `git diff --check` — passed after generated-asset whitespace normalization.
 - Generated offline HTML — factor ledger present, `PAPER-ONLY` present, 0
-  external URL markers, 0 `api_key` markers; artifact size 17,598 bytes.
+  external URL markers, 0 `api_key` markers, provider readiness present;
+  artifact size 18,171 bytes.
 - GitHub PR #4 CI — passed for `test (3.11)`, `test (3.12)`, `test (3.13)`,
   `quant-and-migrations`, and `notebook`.
 

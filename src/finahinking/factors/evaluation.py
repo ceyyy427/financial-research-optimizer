@@ -34,6 +34,8 @@ def _digest(value: Any) -> str:
             return {str(key): normalize(item[key]) for key in sorted(item, key=str)}
         if isinstance(item, (tuple, list)):
             return [normalize(entry) for entry in item]
+        if isinstance(item, (pd.Timestamp,)):
+            return item.isoformat()
         return item
 
     encoded = json.dumps(normalize(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -161,12 +163,17 @@ def _empty_evaluation(candidate: FactorCandidate, status: FactorEvaluationStatus
     )
 
 
+def _label(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
 def _decay_profile(
     factor: pd.Series,
     frame: pd.DataFrame,
     forward_return: pd.Series,
     horizons: tuple[int, ...],
     shift_periods: int,
+    scoring_index: pd.Index,
 ) -> FactorDecayProfile:
     values: list[float | None] = []
     for horizon in horizons:
@@ -175,10 +182,13 @@ def _decay_profile(
         elif f"forward_return_{horizon}d" in frame:
             future = frame[f"forward_return_{horizon}d"]
         elif "close" in frame:
-            future = frame["close"].pct_change(horizon).shift(-horizon)
+            future = frame["close"].pct_change(horizon, fill_method=None).shift(-horizon)
         else:
             future = pd.Series(index=frame.index, dtype=float)
-        values.append(_correlation(factor.shift(shift_periods), future))
+        # Purge labels that extend beyond this phase's data boundary.
+        phase_end = frame.index.get_loc(scoring_index[-1])
+        allowed = frame.index[: phase_end + 1 - horizon].intersection(scoring_index)
+        values.append(_correlation(factor.shift(shift_periods).loc[allowed], future.loc[allowed]))
     return FactorDecayProfile(horizons, tuple(values))
 
 
@@ -203,12 +213,21 @@ def evaluate_factor_candidate(
     bounded_frame = frame.loc[factor.index]
     aligned = pd.concat(
         [factor.shift(shift_periods).rename("factor"), forward_return.loc[factor.index].rename("forward")], axis=1
-    ).dropna()
+    ).replace([float("inf"), float("-inf")], float("nan"))
+    label_horizon = int(spec.get("label_horizon", 1))
+    if not 1 <= label_horizon <= 252:
+        raise ValueError("label_horizon must be between 1 and 252")
+    if spec.get("evaluation_start") is not None and spec.get("evaluation_end") is not None:
+        start = pd.Timestamp(spec["evaluation_start"])
+        end = pd.Timestamp(spec["evaluation_end"])
+        aligned = aligned.loc[(aligned.index >= start) & (aligned.index <= end)]
+    scoring_index = aligned.index
+    aligned = aligned.dropna()
     coverage = len(aligned) / max(len(factor), 1)
     min_samples = int(spec.get("min_samples", 8))
     if len(aligned) < min_samples:
         result = _empty_evaluation(candidate, FactorEvaluationStatus.INSUFFICIENT_DATA, "sample size is below the minimum")
-        return replace(result, coverage=float(coverage), provenance={"source": candidate.source, "as_of": as_of})
+        return replace(result, coverage=float(coverage), provenance={"source": candidate.source, "as_of": _label(as_of)})
 
     ic = _correlation(aligned["factor"], aligned["forward"])
     chunk_size = max(3, len(aligned) // 4)
@@ -235,9 +254,9 @@ def evaluate_factor_candidate(
     if not 0 < train_ratio < 1 or not 0 < validation_ratio < 1 or train_ratio + validation_ratio >= 1:
         raise ValueError("train_ratio and validation_ratio must leave a test period")
     test_start = int(len(aligned) * (train_ratio + validation_ratio))
-    oos = aligned.iloc[test_start:]
+    oos = aligned if spec.get("evaluation_start") is not None else aligned.iloc[test_start:]
     phase = str(spec.get("phase", "test"))
-    oos_status = "HIDDEN" if phase != "test" else ("BLOCKED" if spec.get("oos") is not True else ("PASS" if len(oos) >= 2 else "INSUFFICIENT_DATA"))
+    oos_status = "HIDDEN" if phase != "test" else ("BLOCKED" if spec.get("oos") is not True else ("PASS" if len(oos) >= 2 and _correlation(oos["factor"], oos["forward"]) is not None else "INSUFFICIENT_DATA"))
     oos_ic = _correlation(oos["factor"], oos["forward"]) if oos_status == "PASS" else None
     warnings: list[str] = []
     if ic is None:
@@ -265,12 +284,20 @@ def evaluate_factor_candidate(
         long_short_return=_finite(long_short),
         turnover=turnover,
         transaction_cost=_finite(transaction_cost),
-        decay=_decay_profile(factor, bounded_frame, forward_return.loc[factor.index], decay_horizons, shift_periods),
+        decay=_decay_profile(factor, bounded_frame, forward_return.loc[factor.index], decay_horizons, shift_periods, scoring_index),
         oos_status=oos_status,
         oos_information_coefficient=oos_ic,
         warnings=tuple(warnings),
         evidence_refs=evidence,
-        provenance={"source": candidate.source, "as_of": as_of, "shift_periods": shift_periods},
+        provenance={
+            "source": candidate.source,
+            "as_of": str(as_of) if as_of is not None else None,
+            "shift_periods": shift_periods,
+            "phase": phase,
+            "evaluation_start": str(spec.get("evaluation_start")),
+            "evaluation_end": str(spec.get("evaluation_end")),
+            "method": "single-instrument time-series Pearson IC; block ICIR; ex-post quantile and rank-turnover diagnostics, not portfolio P&L",
+        },
     )
 
 

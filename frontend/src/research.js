@@ -113,6 +113,12 @@ export function normalizePayload(payload) {
     events: Array.isArray(payload.events) ? payload.events.map((item) => ({ ...item })) : [],
     sweep: payload.sweep && typeof payload.sweep === 'object' ? { ...payload.sweep } : null,
     factor_research: payload.factor_research && typeof payload.factor_research === 'object' ? { ...payload.factor_research } : null,
+    factor_candidates: Array.isArray(payload.factor_candidates) ? payload.factor_candidates.map((item) => ({ ...item })) : [],
+    factor_evaluations: Array.isArray(payload.factor_evaluations) ? payload.factor_evaluations.map((item) => ({ ...item })) : [],
+    factor_decay: Array.isArray(payload.factor_decay) ? payload.factor_decay.map((item) => ({ ...item })) : [],
+    factor_admission: Array.isArray(payload.factor_admission) ? payload.factor_admission.map((item) => ({ ...item })) : [],
+    research_rounds: Array.isArray(payload.research_rounds) ? payload.research_rounds.map((item) => ({ ...item })) : [],
+    provider_status: payload.provider_status && typeof payload.provider_status === 'object' ? { ...payload.provider_status } : null,
     limitations: Array.isArray(payload.limitations) ? [...payload.limitations] : [],
   };
 }

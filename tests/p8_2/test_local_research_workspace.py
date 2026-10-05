@@ -22,6 +22,9 @@ def test_research_payload_is_server_normalized_and_provenance_bound() -> None:
     assert payload["factor_research"]["boundary"].startswith("paper-only")
     assert payload["factor_research"]["rounds"]
     assert all("candidate" in item and "evaluation" in item and "admission" in item for item in payload["factor_research"]["rounds"])
+    for field in ("factor_candidates", "factor_evaluations", "factor_decay", "factor_admission", "research_rounds"):
+        assert len(payload[field]) == len(payload["factor_research"]["rounds"])
+    assert {item["provider"] for item in payload["provider_status"]["providers"]} == {"offline", "user-compatible"}
     app.close()
 
 

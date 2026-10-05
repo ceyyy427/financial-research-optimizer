@@ -141,7 +141,7 @@ def _evaluate_node(node: ast.AST, frame: pd.DataFrame) -> pd.Series | float:
     if operator == "return":
         if len(args) != 2 or not isinstance(args[0], pd.Series):
             raise ValueError("return(series, window) is required")
-        return args[0].pct_change(periods=_window(args[1]))
+        return args[0].pct_change(periods=_window(args[1]), fill_method=None)
     if operator == "lag":
         if len(args) != 2 or not isinstance(args[0], pd.Series):
             raise ValueError("lag(series, periods) is required")
@@ -161,18 +161,21 @@ def _evaluate_node(node: ast.AST, frame: pd.DataFrame) -> pd.Series | float:
     if operator == "rank":
         if len(args) != 1 or not isinstance(args[0], pd.Series):
             raise ValueError("rank(series) is required")
-        return args[0].rank(method="average", pct=True)
+        # Single-instrument DSL: rank the current observation against only
+        # its historical prefix, never against future observations.
+        return args[0].expanding(min_periods=1).rank(method="average", pct=True)
     if operator == "winsorize":
         if len(args) != 3 or not isinstance(args[0], pd.Series):
             raise ValueError("winsorize(series, lower, upper) is required")
         lower, upper = float(args[1]), float(args[2])
         if not 0 <= lower < upper <= 1:
             raise ValueError("winsorize bounds must satisfy 0 <= lower < upper <= 1")
-        return args[0].clip(args[0].quantile(lower), args[0].quantile(upper))
+        history = args[0].expanding(min_periods=1)
+        return args[0].clip(history.quantile(lower), history.quantile(upper))
     if operator == "combine":
         if len(args) < 2 or not all(isinstance(item, pd.Series) for item in args):
             raise ValueError("combine requires at least two series")
-        return pd.concat(args, axis=1).mean(axis=1)
+        return pd.concat(args, axis=1).mean(axis=1, skipna=False)
     if operator == "negate":
         if len(args) != 1 or not isinstance(args[0], pd.Series):
             raise ValueError("negate(series) is required")

@@ -38,6 +38,8 @@ test('normalizePayload preserves bounded factor research evidence without recomp
   const normalized = normalizePayload({ ...payload, factor_research: { state: 'CANDIDATE_POOL', rounds: [{ candidate: { expression: 'rank(close)' }, evaluation: { status: 'VALID' }, admission: { status: 'ADMITTED' } }] } });
   assert.equal(normalized.factor_research.state, 'CANDIDATE_POOL');
   assert.equal(normalized.factor_research.rounds[0].admission.status, 'ADMITTED');
+  assert.deepEqual(normalized.factor_candidates, []);
+  assert.equal(normalized.provider_status, null);
 });
 
 test('normalizePayload rejects duplicate point identity or timestamps', () => {

@@ -57,3 +57,10 @@ def test_candidate_generation_is_bounded_and_sorted() -> None:
     assert [item.fingerprint for item in first] == [item.fingerprint for item in second]
     assert all("eval" not in item.expression for item in first)
 
+
+@pytest.mark.parametrize("expression", ["rank(close)", "winsorize(close,0.2,0.8)"])
+def test_historical_factor_values_cannot_change_when_future_rows_are_appended(expression: str) -> None:
+    frame = _frame()
+    prefix = evaluate_expression(expression, frame.iloc[:5])
+    full = evaluate_expression(expression, frame)
+    pd.testing.assert_series_equal(prefix, full.iloc[:5])

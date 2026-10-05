@@ -37,6 +37,7 @@ class FactorResearchRound:
     candidate: FactorCandidate
     evaluation: FactorEvaluation
     admission: FactorAdmissionDecision
+    train_evaluation: FactorEvaluation | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -44,6 +45,7 @@ class FactorResearchRound:
             "candidate": self.candidate.to_dict(),
             "evaluation": self.evaluation.to_dict(),
             "admission": self.admission.to_dict(),
+            "train_evaluation": None if self.train_evaluation is None else self.train_evaluation.to_dict(),
         }
 
 
@@ -57,17 +59,18 @@ class FactorResearchRun:
 
     @property
     def fingerprint(self) -> str:
-        return _digest(self.to_dict())
+        return self.to_dict()["fingerprint"]
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "charter": self.charter.to_dict(),
             "state": self.state.value,
             "rounds": [item.to_dict() for item in self.rounds],
             "selected_candidate": self.selected_candidate,
             "test_evaluation": None if self.test_evaluation is None else self.test_evaluation.to_dict(),
-            "fingerprint": _digest({"charter": self.charter.to_dict(), "state": self.state.value, "rounds": [item.to_dict() for item in self.rounds], "selected_candidate": self.selected_candidate}),
         }
+        payload["fingerprint"] = _digest(payload)
+        return payload
 
     def freeze(self, candidate_id: str) -> FactorResearchRun:
         if self.state is not FactorResearchState.CANDIDATE_POOL:
@@ -87,7 +90,7 @@ class FactorResearchRun:
             candidate,
             _frame(dataset),
             _forward(dataset),
-            {**dict(self.charter.hard_constraints), "phase": "test", "oos": True},
+            _phase_spec(self.charter, _frame(dataset), "test"),
         )
         return replace(self, state=FactorResearchState.TEST_EVALUATED, test_evaluation=result)
 
@@ -106,6 +109,37 @@ def _forward(dataset: Mapping[str, Any]) -> pd.Series:
     return forward
 
 
+def _phase_spec(charter: ResearchCharter, frame: pd.DataFrame, phase: str) -> dict[str, Any]:
+    if frame.empty:
+        raise ValueError("factor research requires a non-empty dataset")
+    train_ratio = float(charter.data_split.get("train", 0.6))
+    validation_ratio = float(charter.data_split.get("validation", 0.2))
+    test_ratio = float(charter.data_split.get("test", 0.2))
+    if not all(0 < value < 1 for value in (train_ratio, validation_ratio, test_ratio)) or abs(train_ratio + validation_ratio + test_ratio - 1) > 1e-9:
+        raise ValueError("charter data_split must contain positive train/validation/test ratios summing to one")
+    train_end = int(len(frame) * train_ratio)
+    validation_end = int(len(frame) * (train_ratio + validation_ratio))
+    starts = {"train": 0, "validation": train_end, "test": validation_end}
+    ends = {"train": train_end, "validation": validation_end, "test": len(frame)}
+    start, end = starts[phase], ends[phase]
+    # A forward label at the final feature row crosses the phase boundary, so
+    # the last row is purged. This keeps the first OOS row out of validation.
+    score_end = max(start, end - 2)
+    cutoff = frame.index[score_end]
+    phase_samples = max(0, score_end - start + 1)
+    return {
+        **dict(charter.hard_constraints),
+        "phase": phase,
+        "oos": phase == "test",
+        "train_ratio": train_ratio,
+        "validation_ratio": validation_ratio,
+        "evaluation_start": frame.index[min(start, len(frame) - 1)],
+        "evaluation_end": cutoff,
+        "as_of": cutoff,
+        "min_samples": int(dict(charter.hard_constraints).get("min_samples", min(8, max(2, phase_samples)))),
+    }
+
+
 def run_factor_research(
     charter: ResearchCharter,
     candidates: Sequence[FactorCandidate],
@@ -121,12 +155,13 @@ def run_factor_research(
     if budget < 1:
         raise ValueError("factor research budget must be positive")
     ordered = sorted(candidates, key=lambda item: item.candidate_id)[:budget]
-    spec = {**dict(charter.hard_constraints), "phase": "validation", "oos": False}
+    frame = _frame(dataset)
+    spec = _phase_spec(charter, frame, "validation")
     rounds: list[FactorResearchRound] = []
     for index, candidate in enumerate(ordered, start=1):
         evaluation = evaluate_factor_candidate(candidate, _frame(dataset), _forward(dataset), spec)
         admission = build_factor_admission(evaluation, {**dict(charter.hard_constraints), "phase": "validation"})
-        rounds.append(FactorResearchRound(index, candidate, evaluation, admission))
+        training = evaluate_factor_candidate(candidate, frame, _forward(dataset), _phase_spec(charter, frame, "train"))
+        rounds.append(FactorResearchRound(index, candidate, evaluation, admission, training))
     state = FactorResearchState.CANDIDATE_POOL if any(item.admission.status == "ADMITTED" for item in rounds) else FactorResearchState.REJECTED
     return FactorResearchRun(charter=charter, state=state, rounds=tuple(rounds))
-

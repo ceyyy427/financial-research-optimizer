@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -108,7 +109,7 @@ def _factor_research_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
         research_question="Which bounded factor template is worth a paper-only follow-up?",
         hypothesis_scope="trend, mean reversion, volatility, and liquidity templates",
         dataset_reference=dataset.fingerprint,
-        data_split={"train": 0.6, "validation": 0.2, "test": 0.2},
+        data_split={"train": 0.4, "validation": 0.4, "test": 0.2},
         evaluation_metrics=("ic", "icir", "turnover", "decay"),
         hard_constraints={
             "shift_periods": 1,
@@ -138,6 +139,36 @@ def _factor_research_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
     result["instrument"] = instrument
     result["boundary"] = "paper-only; validation evidence is visible, test/OOS remains hidden until a strategy is frozen"
     return result
+
+
+def _provider_status_payload() -> dict[str, Any]:
+    from finahinking.research.provider_status import provider_status_payload
+
+    config = {
+        "defaults": {
+            "provider": os.environ.get("FINAHINKING_PROVIDER", "offline"),
+            "model": os.environ.get("FINAHINKING_MODEL", "fixture-v1"),
+            "role_models": {},
+        },
+        "providers": [
+            {
+                "name": "offline",
+                "model": "fixture-v1",
+                "capabilities": ["structured_output", "offline"],
+                "enabled": True,
+                "offline": True,
+            },
+            {
+                "name": "user-compatible",
+                "model": os.environ.get("FINAHINKING_MODEL", "user-model"),
+                "capabilities": ["structured_output", "tool_calling"],
+                "enabled": True,
+                "offline": False,
+                "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"},
+            },
+        ],
+    }
+    return provider_status_payload(config, os.environ)
 
 
 def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str, Any]:
@@ -207,6 +238,8 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
             "source": dataset.provenance.get("source", "finathink.fixture"),
         }
     ]
+    factor_research = _factor_research_payload(dataset)
+    rounds = factor_research["rounds"]
     payload: dict[str, Any] = {
         "schema_version": 1,
         "view": "research-series",
@@ -224,7 +257,16 @@ def build_research_payload(snapshot: DatasetSnapshot | None = None) -> dict[str,
         "features": feature_meta,
         "events": events,
         "sweep": _sweep_payload(dataset),
-        "factor_research": _factor_research_payload(dataset),
+        "factor_research": factor_research,
+        "factor_candidates": [item["candidate"] for item in rounds],
+        "factor_evaluations": [item["evaluation"] for item in rounds],
+        "factor_decay": [
+            {"candidate_id": item["candidate"]["candidate_id"], **item["evaluation"]["decay"]}
+            for item in rounds
+        ],
+        "factor_admission": [item["admission"] for item in rounds],
+        "research_rounds": rounds,
+        "provider_status": _provider_status_payload(),
         "limitations": list(dataset.limitations)
         + [
             "Sample data only; no live market feed is connected.",
@@ -292,7 +334,18 @@ def _default_workbench_payload(dataset: DatasetSnapshot) -> dict[str, Any]:
         code_trace=("momentum", "lag", "weights", "risk", "costs", "oos"),
     )
     workbench = build_workbench_payload(run, explanation)
-    workbench["factor_research"] = _factor_research_payload(dataset)
+    factor_research = _factor_research_payload(dataset)
+    workbench["factor_research"] = factor_research
+    rounds = factor_research["rounds"]
+    workbench["factor_candidates"] = [item["candidate"] for item in rounds]
+    workbench["factor_evaluations"] = [item["evaluation"] for item in rounds]
+    workbench["factor_decay"] = [
+        {"candidate_id": item["candidate"]["candidate_id"], **item["evaluation"]["decay"]}
+        for item in rounds
+    ]
+    workbench["factor_admission"] = [item["admission"] for item in rounds]
+    workbench["research_rounds"] = rounds
+    workbench["provider_status"] = _provider_status_payload()
     return workbench
 
 
