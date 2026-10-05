@@ -12,6 +12,8 @@ from finahinking.research.contracts import (
 from finahinking.research.reports import (
     ReportBundleWriter,
     compare_report_manifests,
+    render_section_html,
+    render_workbench_report_html,
     verify_report_bundle,
 )
 from finahinking.research.ui import render_status_wall_html, research_view_model
@@ -183,4 +185,13 @@ def test_public_ui_and_html_recursively_remove_sensitive_text_and_paths() -> Non
     direct = render_status_wall_html({"run_id": "wall", "state": "CANCELLED", "checkpoint_status": {"note": unsafe}})
     for output in (str(model), rendered, direct):
         for forbidden in ("/tmp/private", "/var/private", "raw provider response", "SECRET", "prompt=hidden"):
+            assert forbidden not in output
+
+
+def test_all_report_renderers_use_recursive_public_redaction() -> None:
+    unsafe = "/tmp/private/x raw provider response api_key=SECRET prompt=hidden"
+    section = render_section_html("prompt hidden", {"note": unsafe})
+    workbench = render_workbench_report_html({"run_id": "wall", "limitations": [unsafe], "metrics": {"note": unsafe}})
+    for output in (section, workbench):
+        for forbidden in ("/tmp/private", "raw provider response", "SECRET", "prompt=hidden"):
             assert forbidden not in output

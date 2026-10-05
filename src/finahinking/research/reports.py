@@ -26,21 +26,9 @@ _REQUIRED_SECTIONS = ("2_evidence", "3_research", "4_quant", "5_risk", "6_paper_
 
 
 def _scrub(value: Any) -> Any:
-    if isinstance(value, str):
-        value = _SECRET_TEXT.sub("[REDACTED]", value)
-        value = _ABSOLUTE_PATH.sub("[PATH_REDACTED]", value)
-        return _HTML_HANDLER.sub("[ATTR_REDACTED]=", value)
     if is_dataclass(value):
-        return _scrub(to_jsonable(value))
-    if isinstance(value, Mapping):
-        return {
-            str(key): _scrub(item)
-            for key, item in value.items()
-            if not _PUBLIC_SENSITIVE_KEY.search(str(key))
-        }
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [_scrub(item) for item in value]
-    return value
+        value = to_jsonable(value)
+    return redact_public_payload(value)
 
 
 def render_section_html(
@@ -417,12 +405,14 @@ _PUBLIC_ABSOLUTE_PATH = re.compile(r"(?:/(?:Users|home|tmp|var|private|etc|opt|r
 def redact_public_payload(value: Any) -> Any:
     """Recursively redact public UI/HTML values with comparison safety rules."""
 
+    if is_dataclass(value):
+        value = _plain(value)
     if value is None or isinstance(value, (int, float, bool)):
         return value
     if isinstance(value, str):
         if _PUBLIC_UNSAFE_TEXT.search(value) or _PUBLIC_ABSOLUTE_PATH.search(value):
             return "[REDACTED]"
-        return value
+        return _HTML_HANDLER.sub("[ATTR_REDACTED]=", value)
     if isinstance(value, Mapping):
         return {
             key: redact_public_payload(item)
