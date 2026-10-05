@@ -4,6 +4,8 @@ The Factor Strategy Workbench is Finathink's offline, paper-only surface for
 turning a factor idea into an inspectable strategy replay. It is designed for
 research and learning, not for live trading or investment advice.
 
+![因子策略工作台：数据、因子、信号、仓位、风控与台账](diagrams/factor-workbench.svg)
+
 ## What is implemented
 
 The current path has six explicit layers:
@@ -38,6 +40,8 @@ question → charter → factor graph → train/validation attempts
 → keep/reject history → explicit freeze → one test evaluation
 → explanation package → paper report
 ```
+
+![策略与风控：从策略想法到纸面决策卡](diagrams/strategy-risk.svg)
 
 `ResearchCharter` fixes the question, data split, evaluation metrics, hard
 constraints, allowed primitives, and experiment budget. `ResearchSession`

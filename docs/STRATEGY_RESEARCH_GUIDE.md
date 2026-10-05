@@ -4,7 +4,11 @@ The Strategy Lab preserves the same `StrategySpec` in Guided and Advanced
 views. Guided mode explains each field; Advanced mode exposes the same typed
 contract. A strategy is a research hypothesis, not a trade instruction.
 
+![Finathink 研究总流程](diagrams/finathink-overview.svg)
+
 ## Tutorial 1: understand a real financial event
+
+![事件到证据：从捕获事件进入知识语境](diagrams/event-evidence.svg)
 
 ```text
 BLS CPI (CAPTURED) → claim/evidence → Inflation concept
@@ -17,6 +21,8 @@ value.
 
 ## Tutorial 2: learn quant from data
 
+![量化研究：从问题和数据审计进入实验与验证](diagrams/quant-research.svg)
+
 ```text
 returns → variance/volatility → covariance/correlation
 → regression/beta → Sharpe and drawdown
@@ -27,6 +33,8 @@ Record the sample window, annualization convention, missing-value handling,
 and assumptions before interpreting a result.
 
 ## Tutorial 3: build a strategy
+
+![策略与风控：从策略想法进入回测、OOS 和决策卡](diagrams/strategy-risk.svg)
 
 ```text
 idea → FeatureDefinition → math/code → backtest → OOS

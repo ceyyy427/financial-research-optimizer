@@ -28,6 +28,35 @@ Finathink 适合个人研究、量化学习、策略复盘和多代理协作。�
 
 ![Finathink 研究地图](site/assets/finathink-splash-map.jpg)
 
+## Finathink 研究架构图
+
+![Finathink 从事件到报告的总流程图](docs/diagrams/finathink-overview.svg)
+
+这张总图把每个模块的职责、颜色和工件串起来：蓝色是事件，青色是证据，紫色是知识，绿色是数据，金色是量化，橙色是因子，红色是风控，深灰色是报告与学习。
+
+<details>
+<summary>展开查看模块小流程图</summary>
+
+<table>
+  <tr>
+    <td><img src="docs/diagrams/event-evidence.svg" width="520" alt="事件到证据模块流程图"></td>
+    <td><img src="docs/diagrams/knowledge-path.svg" width="520" alt="知识学习路径模块流程图"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/diagrams/quant-research.svg" width="520" alt="量化研究模块流程图"></td>
+    <td><img src="docs/diagrams/factor-workbench.svg" width="520" alt="因子策略工作台模块流程图"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/diagrams/strategy-risk.svg" width="520" alt="策略与风控模块流程图"></td>
+    <td><img src="docs/diagrams/research-agents.svg" width="520" alt="多代理研究模块流程图"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/diagrams/report-learning.svg" width="720" alt="报告与学习闭环模块流程图"></td>
+  </tr>
+</table>
+
+</details>
+
 ## Finathink 可以做什么
 
 ### 1. 从金融事件开始学习和研究
@@ -223,6 +252,7 @@ site/                   静态产品入口与前端构建资源
 
 - [快速开始](docs/QUICKSTART.md)
 - [安装说明](docs/INSTALLATION.md)
+- [流程图与视觉规范](docs/FINATHINK_DIAGRAM_SYSTEM.md)
 - [Factor Strategy Workbench 指南](docs/FACTOR_STRATEGY_WORKBENCH_GUIDE.md)
 - [Factor Strategy Workbench 验证记录](docs/FACTOR_STRATEGY_WORKBENCH_VALIDATION.md)
 - [研究代理指南](docs/RESEARCH_AGENT_GUIDE.md)
