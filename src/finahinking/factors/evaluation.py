@@ -236,16 +236,17 @@ def evaluate_factor_candidate(
         raise ValueError("train_ratio and validation_ratio must leave a test period")
     test_start = int(len(aligned) * (train_ratio + validation_ratio))
     oos = aligned.iloc[test_start:]
-    oos_status = "BLOCKED" if spec.get("oos") is not True else ("PASS" if len(oos) >= 2 else "INSUFFICIENT_DATA")
+    phase = str(spec.get("phase", "test"))
+    oos_status = "HIDDEN" if phase != "test" else ("BLOCKED" if spec.get("oos") is not True else ("PASS" if len(oos) >= 2 else "INSUFFICIENT_DATA"))
     oos_ic = _correlation(oos["factor"], oos["forward"]) if oos_status == "PASS" else None
     warnings: list[str] = []
     if ic is None:
         warnings.append("information coefficient is undefined")
     if icir is None:
         warnings.append("information ratio is not stable across blocks")
-    if oos_status != "PASS":
+    if oos_status not in {"PASS", "HIDDEN"}:
         warnings.append("out-of-sample evaluation is unavailable")
-    status = FactorEvaluationStatus.VALID if ic is not None and oos_status == "PASS" else FactorEvaluationStatus.UNSTABLE
+    status = FactorEvaluationStatus.VALID if ic is not None and oos_status in {"PASS", "HIDDEN"} else FactorEvaluationStatus.UNSTABLE
     decay_horizons = tuple(int(item) for item in spec.get("decay_horizons", (1, 5, 20)))
     evidence = (
         f"factor:{candidate.candidate_id}:compute",
@@ -283,7 +284,7 @@ def build_factor_admission(evaluation: FactorEvaluation, spec: Mapping[str, Any]
         reasons.append("information ratio is below the threshold")
     if evaluation.turnover is not None and evaluation.turnover > float(spec.get("max_turnover", float("inf"))):
         reasons.append("turnover exceeds the threshold")
-    if evaluation.oos_status != "PASS":
+    if spec.get("phase", "test") == "test" and evaluation.oos_status != "PASS":
         reasons.append("out-of-sample evaluation did not pass")
     status = "ADMITTED" if not reasons else "REJECTED"
     return FactorAdmissionDecision(

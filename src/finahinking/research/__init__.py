@@ -26,6 +26,12 @@ from .contracts import (
     validate_transition,
 )
 from .drivers import CodexInteractiveDriver, CompatibleApiDriver, OfflineDriver, UserApiDriver
+from .factor_loop import (
+    FactorResearchRound,
+    FactorResearchRun,
+    FactorResearchState,
+    run_factor_research,
+)
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
 from .reports import (
     BundleVerification,
@@ -54,6 +60,9 @@ __all__ = [
     "FactorHealthStatus",
     "FactorMetadata",
     "FactorRegistry",
+    "FactorResearchRound",
+    "FactorResearchRun",
+    "FactorResearchState",
     "FailureKind",
     "LearningEntry",
     "LearningStore",
@@ -78,6 +87,7 @@ __all__ = [
     "WorkflowLimits",
     "reconcile_learning",
     "render_section_html",
+    "run_factor_research",
     "stable_digest",
     "to_jsonable",
     "validate_learning_entry",
