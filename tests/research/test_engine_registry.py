@@ -205,6 +205,9 @@ def test_result_validator_rejects_all_uri_schemes_code_and_relative_paths_but_ke
     for value in (
         "mailto:secret@example.test",
         "custom://provider",
+        "custom:",
+        "file:",
+        "mailto:",
         "see custom://provider",
         "file:/tmp/result.json",
         "def alpha(x): return x",
@@ -219,7 +222,8 @@ def test_result_validator_rejects_all_uri_schemes_code_and_relative_paths_but_ke
         {
             "description": (
                 "Source availability remains unknown; train/validation windows are explicit. "
-                "Expected return is stable. From this sample, import growth is descriptive."
+                "Expected return is stable. From this sample, import growth is descriptive. "
+                "The phase status: is documented."
             )
         }
     )

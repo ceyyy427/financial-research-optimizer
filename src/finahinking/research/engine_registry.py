@@ -84,6 +84,10 @@ _SENSITIVE_VALUE = re.compile(
     re.IGNORECASE,
 )
 _URI_SCHEME = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z][A-Za-z0-9+.-]*:\/{0,2}(?=\S)")
+_EMPTY_URI_SCHEME = re.compile(
+    r"(?<![A-Za-z0-9_])(?:https?|ftp|file|ws|wss|data|mailto|custom|ssh|tcp|udp|tel|urn|blob|javascript|git):$",
+    re.IGNORECASE,
+)
 _RELATIVE_PATH = re.compile(r"^[A-Za-z0-9_.-]+(?:[/\\][A-Za-z0-9_.-]+)+$")
 _TRAILING_PATH = re.compile(r"^[A-Za-z0-9_.-]+[/\\]$")
 _PATH_FIELD = re.compile(r"(?:path|file|location|code|source|command|script|endpoint|url)", re.IGNORECASE)
@@ -93,7 +97,7 @@ _CODE_LINE = re.compile(
     r"import\s+[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*$|"
     r"from\s+[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s+import\s+[A-Za-z_]\w*|"
     r"return\s+[A-Za-z_]\w*(?:[.\[\]()][A-Za-z0-9_.'\"\[\]() -]*)*)",
-    re.IGNORECASE | re.MULTILINE,
+    re.MULTILINE,
 )
 _CODE_HINT = re.compile(r"(?:\bpython\b|\bbash\b|\bshell\b|\bsql\b|\bjavascript\b|^#!)", re.IGNORECASE)
 _ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
@@ -306,6 +310,7 @@ class EngineRegistry:
             text = value.strip()
             if (
                 _URI_SCHEME.search(text)
+                or _EMPTY_URI_SCHEME.search(text)
                 or _SENSITIVE_VALUE.search(text)
                 or _ABSOLUTE_PATH.match(text)
                 or _RELATIVE_PATH.fullmatch(text)
