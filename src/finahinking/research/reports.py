@@ -414,6 +414,27 @@ _PUBLIC_UNSAFE_TEXT = re.compile(
 _PUBLIC_ABSOLUTE_PATH = re.compile(r"(?:/(?:Users|home|tmp|var|private|etc|opt|root|Volumes|Applications|Library)(?:/[^\s<>\"']*)+|[A-Za-z]:[\\/][^\s<>\"']+)")
 
 
+def redact_public_payload(value: Any) -> Any:
+    """Recursively redact public UI/HTML values with comparison safety rules."""
+
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        if _PUBLIC_UNSAFE_TEXT.search(value) or _PUBLIC_ABSOLUTE_PATH.search(value):
+            return "[REDACTED]"
+        return value
+    if isinstance(value, Mapping):
+        return {
+            key: redact_public_payload(item)
+            for key, item in value.items()
+            if isinstance(key, str) and not _PUBLIC_SENSITIVE_KEY.search(key)
+            and not _PUBLIC_UNSAFE_TEXT.search(key) and not _PUBLIC_ABSOLUTE_PATH.search(key)
+        }
+    if isinstance(value, (list, tuple)):
+        return [redact_public_payload(item) for item in value]
+    raise TypeError("unsupported public payload value")
+
+
 def _sanitize_public(value: Any, path: str = "manifest") -> Any:
     if value is None or isinstance(value, (int, float, bool)):
         return value

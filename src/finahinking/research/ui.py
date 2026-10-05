@@ -12,26 +12,14 @@ from enum import Enum
 from typing import Any
 
 from .contracts import ReportManifest, ResearchRunState
+from .reports import redact_public_payload
 
 _ANALYST_ROLES = ("fundamentals", "technical", "sentiment", "news", "learning")
 _SECTIONS = frozenset(("complete", "2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision"))
-_SECRET = re.compile(r"(?i)(?:api[_-]?key|token|secret|password|endpoint)\s*[=:]\s*[^\s<]+")
-_PATH = re.compile(r"(?:/Users/[^\s<]+|/home/[^\s<]+|[A-Za-z]:[\\/][^\s<]+)")
-_SENSITIVE_KEY = re.compile(r"(?i)(?:api[_-]?key|token|secret|password|credential(?![_-]?ref)|authorization|prompt|raw[_-]?(?:provider[_-]?)?response|endpoint|absolute[_-]?path|file[_-]?path)")
 
 
 def _scrub(value: Any) -> Any:
-    if isinstance(value, str):
-        return _PATH.sub("[PATH_REDACTED]", _SECRET.sub("[REDACTED]", value))
-    if isinstance(value, Mapping):
-        return {
-            str(key): _scrub(item)
-            for key, item in value.items()
-            if not _SENSITIVE_KEY.search(str(key))
-        }
-    if isinstance(value, (list, tuple)):
-        return [_scrub(item) for item in value]
-    return value
+    return redact_public_payload(value)
 
 
 def research_report_url(run_id: str, section: str) -> str:

@@ -170,3 +170,17 @@ def test_verifier_reports_malformed_files_without_raising(tmp_path) -> None:
     verification = verify_report_bundle(manifest)
     assert verification.ok is False
     assert any("files" in error for error in verification.errors)
+
+
+def test_public_ui_and_html_recursively_remove_sensitive_text_and_paths() -> None:
+    unsafe = "/tmp/private/checkpoint.json raw provider response api_key=SECRET prompt=hidden"
+    model = research_view_model(
+        _state(),
+        _manifest(checkpoint_status={"path": "/var/private/checkpoint.json", "note": unsafe},
+                  factor_proposals=[{"proposal_id": "p1", "nested": [unsafe]}]),
+    )
+    rendered = render_status_wall_html(model)
+    direct = render_status_wall_html({"run_id": "wall", "state": "CANCELLED", "checkpoint_status": {"note": unsafe}})
+    for output in (str(model), rendered, direct):
+        for forbidden in ("/tmp/private", "/var/private", "raw provider response", "SECRET", "prompt=hidden"):
+            assert forbidden not in output
