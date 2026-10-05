@@ -31,7 +31,8 @@ zsh:1: command not found: ruff
 
 ## Commit
 
-`53e8d2e feat(factors): add governed factor proposal catalog`
+Initial implementation was committed as `dea93e0`; the focused review fix is
+included in the current shared worktree commit `137121d`.
 
 ## Unverified / concerns
 
