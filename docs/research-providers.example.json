@@ -18,7 +18,8 @@
       "model": "YOUR_MODEL_ALIAS",
       "capabilities": ["structured_output"],
       "enabled": false,
-      "offline": false
+      "offline": false,
+      "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"}
     }
   ]
 }

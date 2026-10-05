@@ -110,13 +110,26 @@ def load_provider_config_from_mapping(payload: Mapping[str, Any]) -> dict[str, A
     providers = payload.get("providers")
     if not isinstance(providers, list):
         raise TypeError("provider config requires a providers list")
-    allowed_provider_keys = {"name", "model", "capabilities", "enabled", "offline"}
+    allowed_provider_keys = {
+        "name",
+        "model",
+        "capabilities",
+        "enabled",
+        "offline",
+        "credential_ref",
+    }
     normalized: list[dict[str, Any]] = []
     for item in providers:
         if not isinstance(item, Mapping) or not str(item.get("name", "")).strip():
             raise ValueError("each provider requires a name")
         if set(item) - allowed_provider_keys:
             raise ValueError("provider config contains unsupported or secret fields")
+        if item.get("credential_ref") is not None:
+            credential_ref = item["credential_ref"]
+            if not isinstance(credential_ref, Mapping):
+                raise ValueError("credential_ref must be a mapping")
+            if set(credential_ref) - {"env_var", "keychain_label"}:
+                raise ValueError("credential_ref contains unsupported or secret fields")
         normalized.append({key: item[key] for key in sorted(item)})
     defaults = dict(payload["defaults"])
     if set(defaults) - {"provider", "model", "role_models", "capabilities"}:

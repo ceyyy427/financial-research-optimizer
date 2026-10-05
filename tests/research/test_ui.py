@@ -92,6 +92,25 @@ def test_local_app_exposes_server_owned_workbench_payload_read_only() -> None:
     assert "error" in rejected_payload
 
 
+def test_local_app_exposes_secret_free_provider_status_and_settings_page(monkeypatch) -> None:
+    secret = "should-never-be-rendered"
+    monkeypatch.setenv("FINAHINK_USER_API_KEY", secret)
+    app = LocalApplication(LocalAppConfig(db_path=":memory:", offline=True), connection=sqlite3.connect(":memory:"))
+    status, content_type, payload = app.route("GET", "/api/research/providers")
+    assert (status, content_type) == (200, "application/json")
+    encoded = str(payload)
+    assert secret not in encoded
+    user = next(item for item in payload["providers"] if item["provider"] == "user-compatible")
+    assert user["configured"] is True
+    rejected, _, error = app.route("POST", "/api/research/providers", body={})
+    assert rejected == 405
+    assert "read-only" in error["error"]
+    page_status, page_type, page = app.route("GET", "/settings/providers")
+    assert page_status == 200 and page_type.startswith("text/html")
+    assert "Provider access" in page
+    assert secret not in page
+
+
 def test_local_app_renders_first_class_workbench_page() -> None:
     app = LocalApplication(LocalAppConfig(db_path=":memory:", offline=True), connection=sqlite3.connect(":memory:"))
     status, content_type, page = app.route("GET", "/workbench")

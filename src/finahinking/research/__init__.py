@@ -33,6 +33,7 @@ from .factor_loop import (
     run_factor_research,
 )
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
+from .provider_status import ProviderCredentialRef, ProviderStatus, provider_status_payload
 from .reports import (
     BundleVerification,
     ReportBundleWriter,
@@ -67,7 +68,9 @@ __all__ = [
     "LearningEntry",
     "LearningStore",
     "OfflineDriver",
+    "ProviderCredentialRef",
     "ProviderSelection",
+    "ProviderStatus",
     "ReportBundleWriter",
     "ReportManifest",
     "ResearchOrchestrator",
@@ -85,6 +88,7 @@ __all__ = [
     "RunEvent",
     "UserApiDriver",
     "WorkflowLimits",
+    "provider_status_payload",
     "reconcile_learning",
     "render_section_html",
     "run_factor_research",

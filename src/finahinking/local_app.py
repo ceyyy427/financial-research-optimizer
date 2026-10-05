@@ -741,6 +741,7 @@ class LocalApplication:
             "/workspace": "Workspace",
             "/community": "Community",
             "/settings/engines": "Engine Settings",
+            "/settings/providers": "Provider Access",
             "/settings/data-sources": "Data Sources",
             "/diagnostics": "Diagnostics",
         }
@@ -771,6 +772,35 @@ class LocalApplication:
         return LocalApplication.asset_bytes("finathink-research.js")
 
     @staticmethod
+    def _provider_config() -> dict[str, Any]:
+        """Return the local provider registry without accepting secret values."""
+
+        return {
+            "defaults": {
+                "provider": os.environ.get("FINAHINKING_PROVIDER", "offline"),
+                "model": os.environ.get("FINAHINKING_MODEL", "fixture-v1"),
+                "role_models": {},
+            },
+            "providers": [
+                {
+                    "name": "offline",
+                    "model": "fixture-v1",
+                    "capabilities": ["structured_output", "offline"],
+                    "enabled": True,
+                    "offline": True,
+                },
+                {
+                    "name": "user-compatible",
+                    "model": os.environ.get("FINAHINKING_MODEL", "user-model"),
+                    "capabilities": ["structured_output", "tool_calling"],
+                    "enabled": True,
+                    "offline": False,
+                    "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"},
+                },
+            ],
+        }
+
+    @staticmethod
     def katex_asset(asset_name: str, *, font: bool = False) -> bytes:
         """Read one vendored KaTeX stylesheet/font without allowing path traversal."""
 
@@ -788,7 +818,7 @@ class LocalApplication:
     def _nav(self, page: str) -> str:
         names = self._page_names()
         primary = ("/", "/events", "/explore", "/knowledge", "/quant", "/research", "/workbench", "/ml", "/parameter", "/strategy", "/workspace")
-        secondary = ("/community", "/settings/engines", "/settings/data-sources", "/diagnostics")
+        secondary = ("/community", "/settings/engines", "/settings/providers", "/settings/data-sources", "/diagnostics")
 
         # Keep the conditional attribute construction explicit so the rendered
         # HTML remains easy to inspect in a browser and in snapshot tests.
@@ -988,6 +1018,12 @@ class LocalApplication:
             except (TypeError, ValueError, PermissionError) as exc:
                 return 400, "application/json", {"error": str(exc), "action": "choose a supported reviewed strategy template"}
             return 200, "application/json", {**result, "strategy_spec": result.get("strategy"), "real_money": False, "execution": "paper-only", "backtest": {**dict(result.get("backtest") or {}), "metrics": result.get("numeric_results", {})}, "oos": {**dict(result.get("oos") or {}), "metrics": result.get("numeric_results", {})}, "paper": {**dict(result.get("paper") or {}), "status": "PAPER_ONLY"}}
+        if clean == "/api/research/providers":
+            if method != "GET":
+                return 405, "application/json", {"error": "provider status is read-only"}
+            from finahinking.research.provider_status import provider_status_payload
+
+            return 200, "application/json", provider_status_payload(self._provider_config(), os.environ)
         if clean == "/api/research/series" and method == "GET":
             from finahinking.p8_2.research_view import build_research_payload
 
@@ -1092,7 +1128,7 @@ class LocalApplication:
                     links=(("/knowledge", "Browse Knowledge"), ("/explore", "Open Explore")),
                 )
             return 200, "text/html; charset=utf-8", self.render_concept_page(concept)
-        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/research", "/workbench", "/ml", "/parameter", "/strategy", "/personal", "/workspace", "/community", "/settings/engines", "/settings/data-sources", "/diagnostics"}:
+        if clean in {"/", "/events", "/explore", "/knowledge", "/quant", "/research", "/workbench", "/ml", "/parameter", "/strategy", "/personal", "/workspace", "/community", "/settings/engines", "/settings/providers", "/settings/data-sources", "/diagnostics"}:
             return 200, "text/html; charset=utf-8", self.render_page(clean, query=query)
         if not clean.startswith("/api/"):
             return 404, "text/html; charset=utf-8", self.render_error_page(
@@ -1272,7 +1308,7 @@ class LocalApplication:
             return self._inspector("ML boundary", {"Engine": "Typed adapter", "Fallback": "Finathink baseline", "External objects": "Never exposed"}, status="FALLBACK")
         if page == "/parameter":
             return self._inspector("Sweep boundary", {"OOS": "Visible", "Multiple testing": "Reported", "Winner label": "Not emitted"}, status="REVIEW")
-        if page in {"/settings/engines", "/settings/data-sources"}:
+        if page in {"/settings/engines", "/settings/providers", "/settings/data-sources"}:
             return self._inspector("Capability boundary", {"Core": "Finathink-owned", "Optional": "Isolated", "QMT": "Read-only bridge"}, status="GOVERNED")
         return self._inspector("Local context", {"Mode": "SAMPLE / OFFLINE" if self.config.offline else "NETWORK ENABLED", "Storage": "SQLite local store", "Real money": "Unavailable"}, status="OFFLINE" if self.config.offline else "READY")
 
@@ -1411,6 +1447,13 @@ class LocalApplication:
                 for name, item in capabilities.items() if isinstance(item, Mapping)
             )
             return f'<h1>Engine settings</h1><p class="lede">Core numerical code stays in the Finathink environment. Optional engines are detected without importing them and remain isolated until their gates pass.</p><section class="settings-grid">{cards}</section><section class="section card card--quiet"><h2>QMT bridge</h2><p>State: <strong>{html.escape(str(qmt.get("state", "NOT_CONFIGURED")))}</strong> · Read-only: <strong>{html.escape(str(qmt.get("read_only", True)))}</strong></p><p>{html.escape(str(qmt.get("message", "market-data-only bridge")))}</p><p class="meta">Denied by design: order, cancel, account, credentials.</p></section>'
+        if page == "/settings/providers":
+            payload = self.route("GET", "/api/research/providers")[2]
+            cards = "".join(
+                f'<article class="card"><div class="status-row">{self._status("READY" if item.get("configured") else "NOT CONFIGURED", "ready" if item.get("configured") else "sample")}{self._status("OFFLINE" if item.get("offline") else "USER KEY", "offline" if item.get("offline") else "quant")}</div><h2>{html.escape(str(item.get("provider")))}</h2><p>Model: <code>{html.escape(str(item.get("model")))}</code></p><p>{html.escape(str(item.get("reason")))}</p><p class="meta">Credential reference: <code>{html.escape(json.dumps(item.get("credential_ref", {}), sort_keys=True))}</code></p></article>'
+                for item in payload.get("providers", []) if isinstance(item, Mapping)
+            )
+            return f'<h1>Provider access</h1><p class="lede">Connect a user-owned model through a reference to an environment variable or keychain entry. Finathink never stores, echoes, or exports the secret value.</p><section class="settings-grid">{cards}</section><section class="section card card--quiet"><h2>Local setup</h2><p>Set <code>FINAHINK_USER_API_KEY</code> in the user environment before starting the local app. The readiness endpoint reports only configured/not configured status.</p><p class="meta">No browser form submits a secret. No provider SDK is required for the offline fixture.</p></section>'
         if page == "/settings/data-sources":
             from finahinking.p8_2.research_view import build_research_payload, qmt_payload
 
@@ -1425,7 +1468,7 @@ class LocalApplication:
         return ""
 
     def _page_body(self, page: str, *, query: Mapping[str, list[str]] | None = None) -> str:
-        if page in {"/research", "/workbench", "/ml", "/parameter", "/settings/engines", "/settings/data-sources"}:
+        if page in {"/research", "/workbench", "/ml", "/parameter", "/settings/engines", "/settings/providers", "/settings/data-sources"}:
             return self._p8_2_page_body(page)
         if page == "/":
             return (
