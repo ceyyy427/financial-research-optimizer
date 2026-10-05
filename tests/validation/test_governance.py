@@ -41,7 +41,7 @@ def _write_complete_repository(root: Path) -> None:
     """Create the smallest repository that should satisfy the P0 contract."""
 
     text_by_path = {
-        "README.md": "# Finahinking\nPersonal financial research laboratory.\nNo investment advice.\n",
+        "README.md": "# Finahinking\n金融研究与量化学习工作台。\n",
         "CONTRIBUTING.md": "# Contributing\nRun the validation checks before proposing a change.\n",
         "CODE_OF_CONDUCT.md": "# Code of Conduct\nBe respectful and constructive.\n",
         "LICENSE": "MIT License\n",

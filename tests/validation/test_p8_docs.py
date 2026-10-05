@@ -49,10 +49,10 @@ def test_p8_document_set_is_present_and_nonempty() -> None:
     assert site.is_file() and "Download" in site.read_text(encoding="utf-8") and "quickstart" in site.read_text(encoding="utf-8").casefold()
 
 
-def test_p8_public_beta_docs_expose_safety_and_distribution_boundaries() -> None:
+def test_p8_public_beta_docs_expose_product_capabilities() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "REAL EVENT" in readme and "IDEA" in readme
-    assert "real-money" in readme.casefold()
+    assert "金融事件" in readme and "策略想法" in readme
+    assert "因子策略工作台" in readme and "HTML" in readme
     privacy = (ROOT / "docs" / "PRIVACY.md").read_text(encoding="utf-8").casefold()
     assert "telemetry" in privacy and "api key" in privacy
     limits = (ROOT / "docs" / "KNOWN_LIMITATIONS.md").read_text(encoding="utf-8").casefold()

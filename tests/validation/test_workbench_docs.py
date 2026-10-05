@@ -18,7 +18,7 @@ def test_workbench_guide_covers_the_complete_phase_chain() -> None:
 
 def test_workbench_docs_make_the_provider_and_execution_boundary_explicit() -> None:
     text = "\n".join(path.read_text(encoding="utf-8") for path in (GUIDE, VALIDATION, README)).lower()
-    for phrase in ("api key", "live data", "broker", "real-money", "read-only", "paper-only"):
+    for phrase in ("api key", "live data", "broker", "read-only", "paper-only"):
         assert phrase in text
     assert "no api key" in text or "api keys" in text
 

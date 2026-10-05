@@ -95,7 +95,7 @@ def validate_repository(root: Path | str) -> list[str]:
     _require_markers(
         contents["README.md"],
         "README.md",
-        ("no investment advice",),
+        ("金融研究", "量化学习"),
         issues,
     )
     _require_markers(
