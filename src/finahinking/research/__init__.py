@@ -37,6 +37,7 @@ from .provider_status import ProviderCredentialRef, ProviderStatus, provider_sta
 from .reports import (
     BundleVerification,
     ReportBundleWriter,
+    compare_report_manifests,
     render_section_html,
     verify_report_bundle,
 )
@@ -78,6 +79,7 @@ __all__ = [
     "CodexInteractiveDriver",
     "CompatibleApiDriver",
     "CompletedRunError",
+    "compare_report_manifests",
     "CorruptCheckpointError",
     "DecisionCard",
     "FactorHealth",

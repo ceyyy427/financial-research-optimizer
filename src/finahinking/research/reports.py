@@ -7,8 +7,9 @@ import html
 import json
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,9 @@ from .contracts import ReportManifest, ResearchRunResult, RunEvent, stable_diges
 _SECRET_TEXT = re.compile(r"(?i)(?:api[_-]?key|token|secret|password|endpoint)\s*[=:]\s*[^\s<]+")
 _ABSOLUTE_PATH = re.compile(r"(?:/Users/[^\s<]+|/home/[^\s<]+|[A-Za-z]:[\\/][^\s<]+)")
 _HTML_HANDLER = re.compile(r"(?i)\bon[a-z]+\s*=")
+_PUBLIC_SENSITIVE_KEY = re.compile(
+    r"(?i)(?:api[_-]?key|token|secret|password|credential(?![_-]?ref)|authorization|prompt|raw[_-]?(?:provider[_-]?)?response|endpoint|absolute[_-]?path|file[_-]?path)"
+)
 _REQUIRED_ANALYSTS = ("fundamentals", "technical", "sentiment", "news", "learning")
 _REQUIRED_SECTIONS = ("2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision")
 
@@ -29,7 +33,11 @@ def _scrub(value: Any) -> Any:
     if is_dataclass(value):
         return _scrub(to_jsonable(value))
     if isinstance(value, Mapping):
-        return {str(key): _scrub(item) for key, item in value.items()}
+        return {
+            str(key): _scrub(item)
+            for key, item in value.items()
+            if not _PUBLIC_SENSITIVE_KEY.search(str(key))
+        }
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return [_scrub(item) for item in value]
     return value
@@ -240,14 +248,22 @@ class ReportBundleWriter:
             workbench_path.parent.mkdir(parents=True, exist_ok=True)
             workbench_path.write_text(render_workbench_report_html(workbench_payload, explanation_package), encoding="utf-8")
 
+        # The complete report starts with the same server-owned status facts as
+        # the local UI.  It remains useful without JavaScript and never performs
+        # client-side metric calculations.
+        from .ui import render_status_wall_html, research_view_model
+
+        status_snapshot = _status_snapshot(result)
+        status_manifest = {
+            "run_id": result.state.run_id,
+            "schema_version": "research-report.v1",
+            "files": {},
+            "source_snapshot": status_snapshot,
+        }
+        status_model = research_view_model(result.state, status_manifest)
         complete_path = bundle / "complete_report.html"
         complete_path.write_text(
-            render_section_html(
-                "Finathink research report",
-                {"run_id": result.state.run_id, "state": result.state.current_state, "decision": result.decision, "reports": result.state.analyst_reports},
-                result.decision.evidence_refs if result.decision else (),
-                result.decision.limitations if result.decision else (),
-            ),
+            render_status_wall_html(status_model, title="Finathink research report"),
             encoding="utf-8",
         )
         activity_path = bundle / "activity.jsonl"
@@ -264,7 +280,12 @@ class ReportBundleWriter:
             run_id=result.state.run_id,
             schema_version="research-report.v1",
             files=files,
-            source_snapshot={"as_of": result.state.as_of, "state_digest": stable_digest(result.state), "decision_digest": stable_digest(result.decision) if result.decision else None},
+            source_snapshot={
+                "as_of": result.state.as_of,
+                "state_digest": stable_digest(result.state),
+                "decision_digest": stable_digest(result.decision) if result.decision else None,
+                **status_snapshot,
+            },
             created_at=datetime.now(UTC),
         )
         write_manifest(manifest, bundle / "manifest.json")
@@ -299,3 +320,156 @@ def verify_report_bundle(manifest_path: str | Path) -> BundleVerification:
     except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
         errors.append(f"manifest unreadable: {exc}")
     return BundleVerification(ok=not errors, errors=tuple(errors))
+
+
+def _status_snapshot(result: ResearchRunResult) -> dict[str, Any]:
+    """Derive report status facts from persisted state/events only."""
+
+    reports = {report.role: report for report in result.state.analyst_reports}
+    role_status = {
+        role: (reports[role].status if role in reports else "UNAVAILABLE")
+        for role in _REQUIRED_ANALYSTS
+    }
+    missing_evidence = [
+        f"{role}:evidence"
+        for role, report in sorted(reports.items())
+        if not report.evidence_refs
+    ]
+    stage_states = (
+        ("analysts", "ANALYSTS_READY"),
+        ("evidence", "EVIDENCE_REVIEW"),
+        ("research", "RESEARCH_PLAN_READY"),
+        ("quant", "QUANT_VALIDATION"),
+        ("risk", "RISK_REVIEW"),
+        ("paper_decision", "PAPER_DECISION_READY"),
+        ("publication", "REPORT_PUBLISHED"),
+        ("learning", "LEARNING_RECORDED"),
+    )
+    history = {item.value for item in result.state.state_history}
+    stage_status: dict[str, str] = {}
+    for name, state_name in stage_states:
+        if state_name in history:
+            stage_status[name] = "COMPLETE"
+        elif result.state.current_state.value == state_name:
+            stage_status[name] = "CURRENT"
+        elif result.state.current_state.value in {"CANCELLED", "FAILED", "VALIDATION_FAILED", "PROVIDER_NOT_CONFIGURED"}:
+            stage_status[name] = "CANCELLED" if result.state.current_state.value == "CANCELLED" else "BLOCKED"
+        else:
+            stage_status[name] = "PENDING"
+    metadata = [event.metadata for event in result.events if isinstance(event.metadata, Mapping)]
+    checkpoint_state = next(
+        (item.get("checkpoint_status") or item.get("checkpoint_state") for item in reversed(metadata) if item.get("checkpoint_status") or item.get("checkpoint_state")),
+        None,
+    )
+    factor_proposals = next((item.get("factor_proposals") for item in reversed(metadata) if item.get("factor_proposals") is not None), [])
+    provider_readiness = next((item.get("provider_readiness") for item in reversed(metadata) if item.get("provider_readiness") is not None), {"status": "UNKNOWN"})
+    return _scrub({
+        "role_status": role_status,
+        "stage_status": stage_status,
+        "missing_evidence": sorted(missing_evidence),
+        "checkpoint_status": checkpoint_state if isinstance(checkpoint_state, Mapping) else {"state": checkpoint_state or "NOT_ATTACHED"},
+        "factor_proposals": factor_proposals if isinstance(factor_proposals, Sequence) and not isinstance(factor_proposals, (str, bytes, bytearray)) else [],
+        "provider_readiness": provider_readiness if isinstance(provider_readiness, Mapping) else {"status": "UNKNOWN"},
+    })
+
+
+def _manifest_payload(value: ReportManifest | Mapping[str, Any]) -> dict[str, Any]:
+    if isinstance(value, ReportManifest):
+        return {
+            "run_id": value.run_id,
+            "schema_version": value.schema_version,
+            "files": dict(value.files),
+            "source_snapshot": _plain(value.source_snapshot),
+            "created_at": _plain(value.created_at),
+        }
+    if not isinstance(value, Mapping):
+        raise TypeError("manifest must be ReportManifest or mapping")
+    return dict(value)
+
+
+def _plain(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime,)):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if is_dataclass(value):
+        return {item.name: _plain(getattr(value, item.name)) for item in fields(value)}
+    if isinstance(value, Mapping):
+        return {str(key): _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    return str(value)
+
+
+def _assert_public_comparison_payload(value: Any, path: str = "manifest") -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if _PUBLIC_SENSITIVE_KEY.search(str(key)):
+                raise ValueError(f"sensitive field is not allowed in {path}: {key}")
+            _assert_public_comparison_payload(item, f"{path}.{key}")
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _assert_public_comparison_payload(item, f"{path}[{index}]")
+
+
+def _comparison_view(value: ReportManifest | Mapping[str, Any]) -> dict[str, Any]:
+    payload = _manifest_payload(value)
+    _assert_public_comparison_payload(payload)
+    run_id = payload.get("run_id")
+    schema_version = payload.get("schema_version")
+    files = payload.get("files", {})
+    if not isinstance(run_id, str) or not run_id.strip() or not isinstance(files, Mapping):
+        raise ValueError("manifest identity or files are invalid")
+    safe_files: dict[str, str] = {}
+    for path, digest in files.items():
+        relative = Path(str(path))
+        if relative.is_absolute() or ".." in relative.parts or not isinstance(digest, str):
+            raise ValueError("manifest contains an unsafe file entry")
+        safe_files[str(path)] = digest
+    snapshot = payload.get("source_snapshot", {})
+    if not isinstance(snapshot, Mapping):
+        raise TypeError("manifest source snapshot is invalid")
+    metrics = payload.get("metrics", snapshot.get("metrics", {}))
+    limitations = payload.get("limitations", snapshot.get("limitations", []))
+    if not isinstance(metrics, Mapping) or not isinstance(limitations, (list, tuple)):
+        raise TypeError("manifest metrics or limitations are invalid")
+    return {
+        "run_id": run_id,
+        "schema_version": schema_version,
+        "manifest_digest": stable_digest({"run_id": run_id, "schema_version": schema_version, "files": safe_files, "source_snapshot": snapshot}),
+        "files": dict(sorted(safe_files.items())),
+        "metrics": _scrub(dict(metrics)),
+        "limitations": sorted(str(item) for item in limitations),
+        "source_digests": {key: value for key, value in snapshot.items() if key.endswith("_digest") and isinstance(value, str)},
+    }
+
+
+def compare_report_manifests(left: ReportManifest | Mapping[str, Any], right: ReportManifest | Mapping[str, Any]) -> dict[str, Any]:
+    """Compare two reports without ranking strategies or recomputing metrics."""
+
+    left_view = _comparison_view(left)
+    right_view = _comparison_view(right)
+    changed_files = {
+        path: {"left": left_view["files"].get(path), "right": right_view["files"].get(path)}
+        for path in sorted(set(left_view["files"]) | set(right_view["files"]))
+        if left_view["files"].get(path) != right_view["files"].get(path)
+    }
+    return {
+        "left": left_view,
+        "right": right_view,
+        "differences": {
+            "files": changed_files,
+            "source_digests": {
+                key: {"left": left_view["source_digests"].get(key), "right": right_view["source_digests"].get(key)}
+                for key in sorted(set(left_view["source_digests"]) | set(right_view["source_digests"]))
+                if left_view["source_digests"].get(key) != right_view["source_digests"].get(key)
+            },
+            "metrics": {"left": left_view["metrics"], "right": right_view["metrics"]},
+            "limitations": {
+                "added": sorted(set(right_view["limitations"]) - set(left_view["limitations"])),
+                "removed": sorted(set(left_view["limitations"]) - set(right_view["limitations"])),
+            },
+        },
+    }

@@ -10,6 +10,8 @@ import {
   selectPoint,
   selectWorkbenchPoint,
   previewWorkbenchParameter,
+  normalizeResearchStatusWall,
+  renderResearchStatusWall,
 } from '../src/research.js';
 
 const payload = {
@@ -89,6 +91,46 @@ test('research run status covers loading, success, partial, blocked, and error',
 test('research run payload rejects non-offline or non-paper boundaries', () => {
   assert.throws(() => normalizeResearchRun({ ...runPayload, paper_only: false }), /boundary/i);
   assert.throws(() => normalizeResearchRun({ ...runPayload, state: 'UNKNOWN' }), /state/i);
+});
+
+test('normalizeResearchStatusWall preserves server-owned status facts and does not calculate metrics', () => {
+  const wall = normalizeResearchStatusWall({
+    schema_version: 1,
+    run_id: 'wall-ui',
+    state: 'ANALYSTS_RUNNING',
+    role_status: { technical: 'READY', fundamentals: 'PARTIAL' },
+    stage_status: { analysts: 'PARTIAL', evidence: 'BLOCKED' },
+    missing_evidence: ['technical:price'],
+    checkpoint_status: { state: 'SAVED' },
+    factor_proposals: [{ proposal_id: 'p-1', status: 'VALIDATED', digest: 'd' }],
+    provider_readiness: { status: 'CONFIGURED', credential_ref: 'USER_KEY' },
+  });
+  assert.deepEqual(Object.keys(wall.role_status), ['fundamentals', 'technical']);
+  assert.equal(wall.stage_status.evidence, 'BLOCKED');
+  assert.deepEqual(wall.missing_evidence, ['technical:price']);
+  assert.equal(wall.factor_proposals[0].digest, 'd');
+  assert.equal(wall.provider_readiness.status, 'CONFIGURED');
+  assert.equal(Object.hasOwn(wall, 'metrics'), false);
+});
+
+test('renderResearchStatusWall is read-only and supports no-JS fallback', () => {
+  const root = {
+    dataset: {},
+    querySelector: () => ({ textContent: '' }),
+  };
+  const normalized = renderResearchStatusWall(root, {
+    schema_version: 1,
+    run_id: 'wall-ui',
+    state: 'CANCELLED',
+    role_status: { technical: 'READY' },
+    stage_status: { cancel: 'CANCELLED' },
+    missing_evidence: [],
+    checkpoint_status: { state: 'CANCELLED' },
+    factor_proposals: [],
+    provider_readiness: { status: 'NOT_CONFIGURED' },
+  });
+  assert.equal(root.dataset.statusWall, 'READY');
+  assert.equal(normalized.state, 'CANCELLED');
 });
 
 const workbench = {

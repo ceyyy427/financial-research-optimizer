@@ -56,6 +56,66 @@ export function researchRunStatus(payload, error = null) {
   return 'READY';
 }
 
+const STATUS_WALL_FORBIDDEN = /(?:api[_-]?key|token|secret|password|credential(?![_-]?ref)|authorization|prompt|raw[_-]?(?:provider[_-]?)?response|endpoint|absolute[_-]?path|file[_-]?path)/i;
+
+function normalizePublicMap(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`${field} is invalid`);
+  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, status]) => {
+    if (STATUS_WALL_FORBIDDEN.test(key) || typeof status !== 'string') throw new TypeError(`${field} contains unsafe data`);
+    return [key, status];
+  }));
+}
+
+export function normalizeResearchStatusWall(payload) {
+  if (!payload || payload.schema_version !== 1 || typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research status wall schema is invalid');
+  if (!RESEARCH_RUN_STATES.has(payload.state)) throw new TypeError('research status wall state is invalid');
+  const role_status = normalizePublicMap(payload.role_status ?? {}, 'role_status');
+  const stage_status = normalizePublicMap(payload.stage_status ?? {}, 'stage_status');
+  const checkpoint_status = normalizePublicMap(payload.checkpoint_status ?? {}, 'checkpoint_status');
+  const provider_readiness = normalizePublicMap(payload.provider_readiness ?? {}, 'provider_readiness');
+  const missing_evidence = Array.isArray(payload.missing_evidence) ? payload.missing_evidence.map((item) => {
+    if (typeof item !== 'string' || STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError('missing evidence contains unsafe data');
+    return item;
+  }) : [];
+  const factor_proposals = Array.isArray(payload.factor_proposals) ? payload.factor_proposals.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError('factor proposals are invalid');
+    const summary = {};
+    for (const key of ['proposal_id', 'status', 'digest', 'family']) {
+      if (Object.hasOwn(item, key)) {
+        if (STATUS_WALL_FORBIDDEN.test(key) || typeof item[key] !== 'string') throw new TypeError('factor proposal contains unsafe data');
+        summary[key] = item[key];
+      }
+    }
+    return summary;
+  }) : [];
+  return {
+    schema_version: 1,
+    run_id: payload.run_id,
+    state: payload.state,
+    role_status,
+    stage_status,
+    missing_evidence,
+    checkpoint_status,
+    factor_proposals,
+    provider_readiness,
+  };
+}
+
+export function renderResearchStatusWall(root, payload) {
+  const normalized = normalizeResearchStatusWall(payload);
+  if (root?.dataset) {
+    root.dataset.statusWall = 'READY';
+    root.dataset.status = normalized.state;
+  }
+  const status = root?.querySelector?.('[data-research-status-wall-state]');
+  if (status) status.textContent = `${normalized.state} · READ-ONLY · PAPER-ONLY`;
+  const roles = root?.querySelector?.('[data-research-status-wall-roles]');
+  if (roles) roles.textContent = Object.entries(normalized.role_status).map(([role, value]) => `${role}: ${value}`).join(' · ');
+  const stages = root?.querySelector?.('[data-research-status-wall-stages]');
+  if (stages) stages.textContent = Object.entries(normalized.stage_status).map(([stage, value]) => `${stage}: ${value}`).join(' · ');
+  return normalized;
+}
+
 export function renderResearchRun(root, payload) {
   const normalized = normalizeResearchRun(payload);
   root.dataset.state = normalized.state;
@@ -64,6 +124,10 @@ export function renderResearchRun(root, payload) {
   if (status) status.textContent = `${researchRunStatus(normalized)} · ${normalized.state} · ${normalized.mode} · PAPER-ONLY`;
   const summary = root.querySelector('[data-research-run-summary]');
   if (summary) summary.textContent = `As-of ${normalized.as_of ?? 'not attached'} · ${normalized.analysts.length} analyst report(s) · ${normalized.decision_eligible ? 'decision eligible' : 'decision blocked'}`;
+  if (normalized.role_status || normalized.stage_status) {
+    const wall = root.querySelector('[data-research-status-wall]');
+    if (wall) renderResearchStatusWall(wall, normalized);
+  }
   return normalized;
 }
 
