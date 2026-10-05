@@ -94,6 +94,33 @@ def test_pool_marks_duplicate_roles_without_proposing_twice() -> None:
     assert len(driver.calls) == 0
 
 
+def test_pool_normalizes_roles_before_duplicate_detection() -> None:
+    duplicate_specs = (AnalystSpec("News"), AnalystSpec(" news "))
+    driver = DelayedDriver()
+
+    outcomes = AnalystPool().run(duplicate_specs, make_request(("news",)), driver, {}, max_workers=2)
+
+    assert [outcome.role for outcome in outcomes] == ["news", "news"]
+    assert all(outcome.status == "DUPLICATE_ROLE" for outcome in outcomes)
+    assert not driver.calls
+
+
+def test_pool_recursively_removes_nested_tool_values_and_callables() -> None:
+    driver = DelayedDriver()
+    nested = {
+        "safe": {"label": "fixture", "tool_gateway": object(), "deep": {"executor": object(), "keep": 1}},
+        "callable": lambda: None,
+        "items": [{"tool": object(), "keep": "ok"}],
+    }
+
+    AnalystPool().run((AnalystSpec("news"),), make_request(("news",)), driver, nested, max_workers=1)
+
+    passed = driver.calls[0][1]
+    assert passed["safe"] == {"label": "fixture", "deep": {"keep": 1}}
+    assert passed["items"] == [{"keep": "ok"}]
+    assert "callable" not in passed
+
+
 def test_pool_marks_timeouts_and_driver_exceptions_as_typed_failures() -> None:
     timeout_spec = AnalystSpec("news", timeout_seconds=0.01)
 
@@ -133,3 +160,13 @@ def test_manager_synthesizes_evidence_refs_without_copying_claims() -> None:
 def test_manager_requires_evidence_refs() -> None:
     with pytest.raises(ValueError, match="evidence"):
         ResearchManager().synthesize((AgentReport(role="news", status="READY"),), make_request(("news",)))
+
+
+def test_manager_blocks_when_any_usable_report_lacks_evidence_refs() -> None:
+    reports = (
+        AgentReport(role="news", status="READY", claims=("fact",), evidence_refs=("artifact:news",)),
+        AgentReport(role="fundamentals", status="READY", claims=("fact without evidence",)),
+    )
+
+    with pytest.raises(ValueError, match="evidence.*fundamentals"):
+        ResearchManager().synthesize(reports, make_request(("fundamentals", "news")))

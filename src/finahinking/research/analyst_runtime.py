@@ -80,18 +80,46 @@ def _safe_context(context: Mapping[str, Any], role: str) -> dict[str, Any]:
     """
 
     blocked = {
+        "allowed_tools",
+        "callable",
+        "code",
+        "execute",
+        "executor",
+        "function",
+        "network",
+        "python",
+        "shell",
         "tools",
         "tool",
         "tool_gateway",
-        "executor",
-        "execute",
-        "shell",
-        "python",
-        "network",
+        "tool_names",
         "url",
         "endpoint",
     }
-    safe = {str(key): value for key, value in context.items() if str(key).casefold() not in blocked}
+
+    drop = object()
+
+    def sanitize(value: Any) -> Any:
+        if callable(value):
+            return drop
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        if isinstance(value, Mapping):
+            result: dict[str, Any] = {}
+            for key, item in value.items():
+                if not isinstance(key, str) or key.casefold() in blocked:
+                    continue
+                cleaned = sanitize(item)
+                if cleaned is not drop:
+                    result[key] = cleaned
+            return result
+        if isinstance(value, (list, tuple)):
+            cleaned_items = [item for item in (sanitize(item) for item in value) if item is not drop]
+            return tuple(cleaned_items) if isinstance(value, tuple) else cleaned_items
+        return drop
+
+    cleaned_context = sanitize(context)
+    safe = cleaned_context if isinstance(cleaned_context, dict) else {}
     safe.update({"analyst_role": role, "paper_only": True, "allowed_tools": (), "tool_names": ()})
     return safe
 
@@ -121,10 +149,13 @@ class AnalystPool:
         context: Mapping[str, Any],
         max_workers: int = 5,
     ) -> tuple[AnalystOutcome, ...]:
-        supplied_specs = tuple(specs)
+        supplied_specs = tuple(
+            AnalystSpec(role=spec.role.strip().casefold(), required=spec.required, max_rounds=spec.max_rounds, timeout_seconds=spec.timeout_seconds)
+            for spec in specs
+        )
         if not supplied_specs:
             roles = request.analyst_roles or DEFAULT_ROLES
-            supplied_specs = tuple(AnalystSpec(role=role, required=role != "learning") for role in roles)
+            supplied_specs = tuple(AnalystSpec(role=role.strip().casefold(), required=role.strip().casefold() != "learning") for role in roles)
         if max_workers < 1:
             raise ValueError("max_workers must be positive")
 
@@ -260,6 +291,9 @@ class ResearchManager:
 
     def synthesize(self, reports: Sequence[AgentReport], request: ResearchRequest) -> ResearchPlan:
         usable = tuple(report for report in reports if report.status.casefold() != "failed")
+        incomplete = tuple(report.role for report in usable if not report.evidence_refs)
+        if incomplete:
+            raise ValueError(f"usable reports missing evidence: {', '.join(sorted(incomplete))}")
         evidence_refs = tuple(sorted({ref for report in usable for ref in report.evidence_refs}))
         if not evidence_refs:
             raise ValueError("evidence refs are required for research synthesis")
