@@ -41,12 +41,24 @@ class InMemoryDataCredentialStore:
         self._values[ref] = value
 
     def has(self, ref: DataSourceCredentialRef) -> bool:
-        return isinstance(ref, DataSourceCredentialRef) and ref in self._values
+        if not isinstance(ref, DataSourceCredentialRef):
+            return False
+        aliases = [ref]
+        if ref.env_var is not None:
+            aliases.append(ref.env_var)
+        if ref.keychain_label is not None:
+            aliases.append(ref.keychain_label)
+        return any(alias in self._values for alias in aliases)
 
     def resolve(self, ref: DataSourceCredentialRef) -> str:
         if not self.has(ref):
             raise ValueError("data credential is not configured")
-        return self._values[ref]
+        if ref in self._values:
+            return self._values[ref]
+        alias = ref.env_var or ref.keychain_label
+        if alias is not None and alias in self._values:
+            return self._values[alias]
+        raise ValueError("data credential is not configured")
 
 
 class EnvironmentDataCredentialStore:
