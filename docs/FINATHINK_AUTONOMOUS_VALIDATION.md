@@ -55,6 +55,8 @@ text.
 - `git diff --check` — passed after generated-asset whitespace normalization.
 - Generated offline HTML — factor ledger present, `PAPER-ONLY` present, 0
   external URL markers, 0 `api_key` markers; artifact size 17,598 bytes.
+- GitHub PR #4 CI — passed for `test (3.11)`, `test (3.12)`, `test (3.13)`,
+  `quant-and-migrations`, and `notebook`.
 
 ## Release gate
 

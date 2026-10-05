@@ -163,14 +163,14 @@
 - Produces an explicit completion matrix separating implemented, tested, isolated, deferred, and unverified capabilities.
 - Produces reproducible commands and output references for Python, frontend, report, secret, dependency, and Git checks.
 
-- [ ] Write failing documentation tests for factor DSL, factor evidence, provider status, API-key exclusion, multi-agent roles, HTML reports, and paper-only limits.
-- [ ] Run `python3 -m ruff check src tests`.
-- [ ] Run `python3 -m compileall -q src tests`.
-- [ ] Run `python3 -m pytest -q`.
-- [ ] Run `npm test` and `npm run build` in `frontend`.
-- [ ] Run `python3 scripts/secret_scan.py`, `python3 scripts/validate_governance.py`, and `git diff --check`.
-- [ ] Inspect a generated offline HTML report and verify no external network asset or secret is present.
-- [ ] Commit `docs: record autonomous delivery validation` and push the branch; monitor CI and repair failures with fresh evidence.
+- [x] Write failing documentation tests for factor DSL, factor evidence, provider status, API-key exclusion, multi-agent roles, HTML reports, and paper-only limits.
+- [x] Run `python3 -m ruff check src tests`.
+- [x] Run `python3 -m compileall -q src tests`.
+- [x] Run `python3 -m pytest -q`.
+- [x] Run `npm test` and `npm run build` in `frontend`.
+- [x] Run `python3 scripts/secret_scan.py`, `python3 scripts/validate_governance.py`, and `git diff --check`.
+- [x] Inspect a generated offline HTML report and verify no external network asset or secret is present.
+- [x] Commit `docs: record autonomous delivery validation` and push the branch; monitor CI and repair failures with fresh evidence. PR #4 CI passed on Python 3.11/3.12/3.13, quant-and-migrations, and notebook.
 
 ## Execution ledger
 
