@@ -310,3 +310,24 @@ def test_workflow_cancellation_during_risk_or_decision_cannot_reach_learning(hoo
     assert result.state.current_state is ResearchState.CANCELLED
     assert result.decision is None
     assert ResearchState.LEARNING_RECORDED not in result.state.state_history
+
+
+@pytest.mark.parametrize("cancel_state", (ResearchState.REPORT_PUBLISHED, ResearchState.LEARNING_RECORDED))
+def test_workflow_cancellation_during_publication_or_learning_is_not_reported_complete(cancel_state: ResearchState) -> None:
+    control = RunControl()
+
+    class CancellingOrchestrator(ResearchOrchestrator):
+        @staticmethod
+        def _event(run_id, state, actor, payload, *, metadata=None):
+            event = ResearchOrchestrator._event(run_id, state, actor, payload, metadata=metadata)
+            if state is cancel_state:
+                control.cancel(run_id)
+            return event
+
+    result = CancellingOrchestrator().run(
+        _workflow_request("run-publication-cancel"), OfflineDriver(), _quant_tools(), run_control=control
+    )
+
+    assert result.state.current_state is ResearchState.CANCELLED
+    assert result.decision is None
+    assert ResearchState.LEARNING_RECORDED not in result.state.state_history

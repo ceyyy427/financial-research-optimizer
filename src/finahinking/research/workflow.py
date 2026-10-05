@@ -316,6 +316,12 @@ class ResearchOrchestrator:
         if cancelled():
             return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled before learning record")
         transition(ResearchState.LEARNING_RECORDED, {"learning": "pending-store"})
+        if cancelled():
+            # A cancellation hook may fire while the learning event is built.
+            # Remove that provisional terminal event before emitting CANCELLED.
+            state_history.pop()
+            events.pop()
+            return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled during learning record")
         state = ResearchRunState(
             run_id=request.run_id,
             current_state=ResearchState.LEARNING_RECORDED,

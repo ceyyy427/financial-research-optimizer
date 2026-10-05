@@ -80,7 +80,7 @@ _TRANSITIONS: dict[ResearchState, frozenset[ResearchState]] = {
     ResearchState.QUANT_VALIDATION: frozenset({ResearchState.RISK_REVIEW, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.RISK_REVIEW: frozenset({ResearchState.PAPER_DECISION_READY, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.PAPER_DECISION_READY: frozenset({ResearchState.REPORT_PUBLISHED, ResearchState.CANCELLED, ResearchState.FAILED}),
-    ResearchState.REPORT_PUBLISHED: frozenset({ResearchState.LEARNING_RECORDED, ResearchState.FAILED}),
+    ResearchState.REPORT_PUBLISHED: frozenset({ResearchState.LEARNING_RECORDED, ResearchState.CANCELLED, ResearchState.FAILED}),
 }
 
 _SECRET_KEY = re.compile(r"(?:api[-_]?key|secret|token|password|credential|authorization)", re.IGNORECASE)
