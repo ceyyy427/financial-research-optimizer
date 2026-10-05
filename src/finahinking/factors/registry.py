@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any
 
 from .core import FactorDefinition
+from .evaluation import FactorAdmissionDecision
 
 
 class FactorHealthStatus(str, Enum):
@@ -104,6 +105,7 @@ class FactorLifecycleResult:
 class FactorRegistry:
     def __init__(self) -> None:
         self._factors: dict[str, RegisteredFactor] = {}
+        self._admissions: dict[str, list[FactorAdmissionDecision]] = {}
 
     def register(self, factor: FactorDefinition, metadata: FactorMetadata, health: FactorHealth) -> RegisteredFactor:
         if metadata.factor_id in self._factors:
@@ -142,6 +144,18 @@ class FactorRegistry:
                 continue
             eligible.append(factor)
         return tuple(eligible)
+
+    def record_admission(self, decision: FactorAdmissionDecision) -> FactorAdmissionDecision:
+        history = self._admissions.setdefault(decision.candidate_id, [])
+        if history and history[-1].evaluation_fingerprint == decision.evaluation_fingerprint:
+            raise ValueError("duplicate factor admission evaluation")
+        history.append(decision)
+        return decision
+
+    def admission_history(self, candidate_id: str | None = None) -> tuple[FactorAdmissionDecision, ...]:
+        if candidate_id is not None:
+            return tuple(self._admissions.get(candidate_id, ()))
+        return tuple(item for key in sorted(self._admissions) for item in self._admissions[key])
 
 
 _LIFECYCLE_STEPS = (

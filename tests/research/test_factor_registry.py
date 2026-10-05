@@ -6,6 +6,7 @@ from datetime import date
 import pytest
 
 from finahinking.factors.core import momentum_factor
+from finahinking.factors.evaluation import FactorAdmissionDecision
 from finahinking.factors.registry import (
     FactorHealth,
     FactorHealthStatus,
@@ -97,3 +98,15 @@ def test_lifecycle_result_is_deterministic() -> None:
     assert first.accepted is True
     assert stable_digest(first) == stable_digest(second)
     assert len(first.evidence_refs) == 8
+
+
+def test_registry_retains_factor_admission_history() -> None:
+    registry = FactorRegistry()
+    first = FactorAdmissionDecision("candidate-1", "REJECTED", "eval-1", ("unstable",), ("ref-1",))
+    second = FactorAdmissionDecision("candidate-1", "ADMITTED", "eval-2", (), ("ref-2",))
+
+    registry.record_admission(first)
+    registry.record_admission(second)
+
+    assert registry.admission_history("candidate-1") == (first, second)
+    assert registry.admission_history() == (first, second)
