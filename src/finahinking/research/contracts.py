@@ -88,6 +88,10 @@ _TRANSITIONS: dict[ResearchState, frozenset[ResearchState]] = {
 
 _SECRET_KEY = re.compile(r"(?:api[-_]?key|secret|token|password|credential|authorization)", re.IGNORECASE)
 _SENSITIVE_KEY = re.compile(r"(?:endpoint|absolute[-_]?path|file[-_]?path|private[-_]?key)", re.IGNORECASE)
+_RUNTIME_SECRET_VALUE = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]", re.IGNORECASE)
+_RUNTIME_URI_VALUE = re.compile(r"^(?:https?|ftp|file)://|^(?:/Users/|/private/|/tmp/)", re.IGNORECASE)
+_RUNTIME_PUBLIC_REF = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]|\b(?:https?|ftp|file)://|(?:^|/)(?:Users|private|tmp)/", re.IGNORECASE)
+_PAPER_ONLY_STATUS = re.compile(r"(?:order|live|broker|account|cancel|executed|filled|placed|bought|sold)", re.IGNORECASE)
 
 
 def _nonempty(value: str, field_name: str) -> str:
@@ -131,6 +135,29 @@ def _text_tuple(values: Sequence[str], field_name: str, *, unique: bool = False)
     if unique and len(result) != len(set(result)):
         raise ValueError(f"{field_name} must not contain duplicates")
     return result
+
+
+def _validate_runtime_value(value: Any, field_name: str = "value") -> Any:
+    """Validate task payloads before they cross the runtime boundary."""
+
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        if _RUNTIME_SECRET_VALUE.search(value) or _RUNTIME_URI_VALUE.search(value):
+            raise ValueError(f"{field_name} contains secret or endpoint material")
+        return value
+    if isinstance(value, Mapping):
+        clean: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"{field_name} mapping keys must be strings")
+            if _SECRET_KEY.search(key) or _SENSITIVE_KEY.search(key):
+                raise ValueError(f"{field_name} contains a sensitive key")
+            clean[key] = _validate_runtime_value(item, f"{field_name}.{key}")
+        return clean
+    if isinstance(value, (list, tuple)):
+        return tuple(_validate_runtime_value(item, field_name) for item in value)
+    raise TypeError(f"{field_name} contains unsupported value type: {type(value).__name__}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,11 +298,15 @@ class AgentTask:
         object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
         object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
         object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
+        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or any(_RUNTIME_PUBLIC_REF.search(item) for item in self.capabilities):
+            raise ValueError("task identity and capabilities must remain secret-free")
         if not isinstance(self.required, bool):
             raise TypeError("required must be a bool")
         if not isinstance(self.timeout_seconds, (int, float)) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
-        object.__setattr__(self, "inputs", dict(self.inputs))
+        if not isinstance(self.inputs, Mapping):
+            raise TypeError("inputs must be a mapping")
+        object.__setattr__(self, "inputs", _validate_runtime_value(self.inputs, "inputs"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,7 +330,11 @@ class AgentOutcome:
         object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
         object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
         object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
+        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or any(_RUNTIME_PUBLIC_REF.search(item) for item in self.capabilities):
+            raise ValueError("outcome identity and capabilities must remain secret-free")
         object.__setattr__(self, "status", _nonempty(self.status, "status").upper())
+        if _PAPER_ONLY_STATUS.search(self.status):
+            raise ValueError("paper-only outcome status cannot describe live or order activity")
         if self.failure_kind is not None and not isinstance(self.failure_kind, FailureKind):
             try:
                 object.__setattr__(self, "failure_kind", FailureKind(self.failure_kind))
@@ -307,6 +342,8 @@ class AgentOutcome:
                 object.__setattr__(self, "failure_kind", str(self.failure_kind).strip().upper())
         if self.message_digest:
             object.__setattr__(self, "message_digest", _nonempty(self.message_digest, "message_digest"))
+            if _RUNTIME_PUBLIC_REF.search(self.message_digest):
+                raise ValueError("message_digest must remain secret-free")
         else:
             object.__setattr__(
                 self,
@@ -314,12 +351,18 @@ class AgentOutcome:
                 stable_digest({"role": role, "task_id": self.task_id, "status": self.status, "failure_kind": self.failure_kind}),
             )
         object.__setattr__(self, "evidence_refs", _text_tuple(self.evidence_refs, "evidence_refs", unique=True))
+        if any(_RUNTIME_PUBLIC_REF.search(item) for item in self.evidence_refs):
+            raise ValueError("evidence references must remain secret-free")
         if self.output_digest:
             object.__setattr__(self, "output_digest", _nonempty(self.output_digest, "output_digest"))
+            if _RUNTIME_PUBLIC_REF.search(self.output_digest):
+                raise ValueError("output_digest must remain secret-free")
         else:
             object.__setattr__(self, "output_digest", stable_digest(self.evidence_refs))
         if not isinstance(self.paper_only, bool):
             raise TypeError("paper_only must be a bool")
+        if not self.paper_only:
+            raise ValueError("agent outcomes must be paper-only")
 
 
 @dataclass(frozen=True, slots=True)

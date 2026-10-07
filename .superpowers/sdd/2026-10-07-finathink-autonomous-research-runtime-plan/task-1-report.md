@@ -19,12 +19,18 @@ package exports the new contracts and runtime through `finahinking.research`.
 
 `21a960f` — `feat(research): add full agent role runtime`
 
+Hardening follow-up: `fix pending` (the review fixes are staged in the next
+commit as `fix(research): harden agent role boundaries`).
+
 ## Verification
 
-- `PYTHONPATH=src python3 -m pytest -q tests/research/test_agent_roles.py tests/research/test_analyst_runtime.py` — 17 passed.
+- `PYTHONPATH=src python3 -m pytest -q tests/research/test_agent_roles.py tests/research/test_analyst_runtime.py` — 20 passed.
 - `python3 -m ruff check src/finahinking/research/agent_roles.py src/finahinking/research/contracts.py src/finahinking/research/__init__.py tests/research/test_agent_roles.py` — passed.
 - `PYTHONPATH=src python3 -m compileall -q src/finahinking/research/agent_roles.py src/finahinking/research/contracts.py` — passed.
 - Initial TDD RED was observed: focused collection failed with `ModuleNotFoundError` for the not-yet-created `agent_roles` module.
+- Review regression RED was observed for live/order statuses, non-paper direct
+  outcomes, secret/arbitrary task payloads, undeclared gateways, and optional
+  task failures; the focused suite is green after the hardening patch.
 
 ## Risks and unfinished items
 

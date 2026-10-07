@@ -91,12 +91,43 @@ def test_policy_rejects_capability_escalation_and_live_execution() -> None:
 
 def test_policy_exposes_deterministic_gateway_only_to_risk_and_paper_roles() -> None:
     policy = RoleCapabilityPolicy.default()
-    risk = policy.context_for("risk_manager", {"risk_gateway": object(), "network": object(), "dataset": "fixture"})
-    analyst = policy.context_for("technical", {"risk_gateway": object(), "dataset": "fixture"})
+    gateway = object()
+    risk = policy.context_for("risk_manager", {"risk_gateway": gateway, "network": object(), "dataset": "fixture"}, capabilities=("risk_gateway",))
+    analyst = policy.context_for("technical", {"risk_gateway": gateway, "dataset": "fixture"})
 
-    assert "risk_gateway" in risk
+    assert risk["risk_gateway"] is gateway
     assert "risk_gateway" not in analyst
     assert risk["paper_only"] is True
+
+
+def test_runtime_blocks_live_statuses_and_direct_non_paper_outcomes() -> None:
+    live = AgentRuntime().run(
+        (task("paper_trader", "p1", capabilities=("paper_gateway",)),),
+        lambda _task, _context: {"status": "ORDER_SENT"},
+        {},
+    )[0]
+    assert live.failure_kind is FailureKind.PAPER_ONLY_VIOLATION
+    with pytest.raises(ValueError, match="paper-only"):
+        from finahinking.research.contracts import AgentOutcome
+
+        AgentOutcome(role="paper_trader", task_id="p2", input_digest="d", paper_only=False)
+
+
+def test_contracts_reject_secrets_and_arbitrary_task_inputs() -> None:
+    with pytest.raises((TypeError, ValueError)):
+        AgentTask(role="news", task_id="n1", input_digest="d", inputs={"api_key": "secret"})
+    with pytest.raises((TypeError, ValueError)):
+        AgentTask(role="news", task_id="n2", input_digest="d", inputs={"value": object()})
+
+
+def test_optional_task_failures_are_not_marked_required() -> None:
+    outcome = AgentRuntime().run(
+        (task("news", "n1", required=False),),
+        lambda _task, _context: (_ for _ in ()).throw(RuntimeError("failure")),
+        {},
+    )[0]
+    assert outcome.status == "OPTIONAL_FAILED"
+    assert outcome.failure_kind is FailureKind.INTERNAL_ERROR
 
 
 def test_agent_role_enum_covers_runtime_roles() -> None:

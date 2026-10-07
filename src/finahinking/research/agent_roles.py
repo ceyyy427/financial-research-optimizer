@@ -47,6 +47,9 @@ class _RoleRule:
 
 _PAPER_DENY = re.compile(r"(?:broker|order|cancel|account|live|credential|secret|network)", re.IGNORECASE)
 _SENSITIVE = re.compile(r"(?:api[-_]?key|secret|token|password|authorization|endpoint|absolute[-_]?path|file[-_]?path)", re.IGNORECASE)
+_SECRET_VALUE = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]", re.IGNORECASE)
+_URI_VALUE = re.compile(r"(?:https?|ftp|file)://|(?:^|/)(?:Users|private|tmp)/", re.IGNORECASE)
+_LIVE_STATUS = re.compile(r"(?:order|live|broker|account|cancel|executed|filled|placed|bought|sold)", re.IGNORECASE)
 
 
 class RoleCapabilityPolicy:
@@ -113,8 +116,15 @@ class RoleCapabilityPolicy:
         if denied:
             raise ValueError(f"capability denied for {task.role}: {', '.join(sorted(denied))}")
 
-    def context_for(self, role: AgentRole | str, context: Mapping[str, Any]) -> dict[str, Any]:
+    def context_for(
+        self,
+        role: AgentRole | str,
+        context: Mapping[str, Any],
+        *,
+        capabilities: Sequence[str] = (),
+    ) -> dict[str, Any]:
         rule = self.rule_for(role)
+        declared = {str(item).strip().casefold() for item in capabilities}
         drop = object()
 
         def scrub(key: str, value: Any) -> Any:
@@ -123,6 +133,8 @@ class RoleCapabilityPolicy:
             if callable(value):
                 return drop
             if value is None or isinstance(value, (bool, int, float, str)):
+                if isinstance(value, str) and (_SECRET_VALUE.search(value) or _URI_VALUE.search(value)):
+                    return drop
                 return value
             if isinstance(value, Mapping):
                 return {
@@ -137,8 +149,10 @@ class RoleCapabilityPolicy:
                 items = [item for item in (scrub(key, child) for child in value) if item is not drop]
                 return tuple(items) if isinstance(value, tuple) else items
             # Deterministic gateways are opaque objects; their names are
-            # allowlisted and they never enter a digest or serialized contract.
-            return value if key in rule.input_names else drop
+            # allowlisted and they are retained only when the task declares
+            # the matching capability. Arbitrary objects are discarded.
+            gateway_capability = key.casefold()
+            return value if key in rule.input_names and gateway_capability in declared else drop
 
         safe: dict[str, Any] = {}
         for key, value in context.items():
@@ -180,6 +194,10 @@ def _failure_outcome(task: AgentTask, status: str, kind: FailureKind, *, evidenc
         evidence_refs=tuple(evidence_refs),
         paper_only=True,
     )
+
+
+def _failed_status(task: AgentTask, default: str = AgentStatus.FAILED.value) -> str:
+    return AgentStatus.OPTIONAL_FAILED.value if not task.required else default
 
 
 class AgentRuntime:
@@ -243,14 +261,14 @@ class AgentRuntime:
                         try:
                             outcomes.append(future.result())
                         except Exception:  # noqa: BLE001 - normalize driver boundary failures
-                            outcomes.append(_failure_outcome(task, AgentStatus.FAILED.value, FailureKind.INTERNAL_ERROR))
+                            outcomes.append(_failure_outcome(task, _failed_status(task), FailureKind.INTERNAL_ERROR))
                     now = time.monotonic()
                     for future in tuple(pending):
                         task, started = submitted[future]
                         if now - started >= task.timeout_seconds:
                             pending.remove(future)
                             future.cancel()
-                            outcomes.append(_failure_outcome(task, AgentStatus.TIMEOUT.value, FailureKind.ANALYST_TIMEOUT))
+                            outcomes.append(_failure_outcome(task, _failed_status(task, AgentStatus.TIMEOUT.value), FailureKind.ANALYST_TIMEOUT))
             finally:
                 executor.shutdown(wait=False, cancel_futures=True)
 
@@ -259,7 +277,7 @@ class AgentRuntime:
     def _invoke(self, task: AgentTask, driver: Any, context: Mapping[str, Any]) -> AgentOutcome:
         merged = dict(context)
         merged.update(task.inputs)
-        safe_context = self.policy.context_for(task.role, merged)
+        safe_context = self.policy.context_for(task.role, merged, capabilities=task.capabilities)
         result = self._call_driver(driver, task, safe_context)
         return self._normalize_result(task, result)
 
@@ -303,10 +321,10 @@ class AgentRuntime:
                 kind = result.failure_kind or FailureKind.PROVIDER_NOT_CONFIGURED
                 if not isinstance(kind, FailureKind):
                     kind = FailureKind.INTERNAL_ERROR
-                return _failure_outcome(task, AgentStatus.FAILED.value, kind)
+                return _failure_outcome(task, _failed_status(task), kind)
             reports = tuple(item for item in result.reports if item.role.casefold() == task.role)
             if len(reports) != 1:
-                return _failure_outcome(task, AgentStatus.FAILED.value, FailureKind.VALIDATION_FAILED)
+                return _failure_outcome(task, _failed_status(task), FailureKind.VALIDATION_FAILED)
             report = reports[0]
         elif isinstance(result, AgentReport):
             report = result
@@ -314,7 +332,7 @@ class AgentRuntime:
         if report is not None:
             status = report.status.upper()
             if status == "FAILED":
-                return _failure_outcome(task, AgentStatus.FAILED.value, FailureKind.INTERNAL_ERROR, evidence_refs=report.evidence_refs)
+                return _failure_outcome(task, _failed_status(task), FailureKind.INTERNAL_ERROR, evidence_refs=report.evidence_refs)
             return AgentOutcome(
                 role=task.role,
                 task_id=task.task_id,
@@ -329,6 +347,8 @@ class AgentRuntime:
             if result.get("paper_only") is False or result.get("live") is True:
                 return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.PAPER_ONLY_VIOLATION)
             status = str(result.get("status", AgentStatus.READY.value)).upper()
+            if _LIVE_STATUS.search(status):
+                return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.PAPER_ONLY_VIOLATION)
             kind = result.get("failure_kind")
             if kind is not None:
                 try:
@@ -336,12 +356,14 @@ class AgentRuntime:
                 except ValueError:
                     kind = FailureKind.INTERNAL_ERROR
             refs = tuple(str(item) for item in result.get("evidence_refs", ()))
+            if kind is not None and status in {"READY", "OFFLINE"}:
+                status = _failed_status(task)
             return AgentOutcome(
                 role=task.role,
                 task_id=task.task_id,
                 input_digest=task.input_digest,
                 capabilities=task.capabilities,
-                status=status,
+                status=_failed_status(task, status) if status in {"FAILED", "ERROR"} else status,
                 failure_kind=kind,
                 evidence_refs=refs,
                 output_digest=stable_digest({"status": status, "evidence_refs": refs}),
