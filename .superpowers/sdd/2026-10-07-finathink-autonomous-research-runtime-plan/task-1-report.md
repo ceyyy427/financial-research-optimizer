@@ -21,9 +21,7 @@ package exports the new contracts and runtime through `finahinking.research`.
 
 Hardening follow-up: `8fe8bf7` — `fix(research): harden agent role boundaries`.
 
-Residual boundary follow-up: `fix pending` (the final boolean, capability
-intersection, optional-failure, and strict JSON-safe field fixes are staged in
-the next commit as `fix(research): close residual agent boundary gaps`).
+Residual boundary follow-up: `08b6c14` — `fix(research): close residual agent boundary gaps`.
 
 ## Verification
 
