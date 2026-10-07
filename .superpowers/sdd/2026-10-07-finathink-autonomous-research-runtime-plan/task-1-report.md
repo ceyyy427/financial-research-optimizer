@@ -17,7 +17,7 @@ package exports the new contracts and runtime through `finahinking.research`.
 
 ## Commit
 
-`<commit>` — `feat(research): add full agent role runtime`
+`21a960f` — `feat(research): add full agent role runtime`
 
 ## Verification
 
