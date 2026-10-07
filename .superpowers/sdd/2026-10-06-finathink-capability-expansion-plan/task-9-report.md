@@ -1,6 +1,6 @@
 # Task 9 实施报告：离线能力闭环与发布门禁
 
-日期：2026-10-07  
+日期：2026-10-07
 工作树：`codex/research-capability-roadmap`  运行目录：`/Users/mac/.codex/worktrees/research-agent-runtime/Finahinking Autonomous Builder`
 
 ## 结果
@@ -12,11 +12,12 @@ Task 9 在前八项实现之上补齐了一个可重复的离线端到端验收�
 - `tests/research/test_capability_vertical_slice.py`
   - 通过 `DataConnectionConfig`、显式字段映射和 `JsonApiConnector` 取得统一 `DataBatch`。
   - 将同一数据 fingerprint 注入研究工具上下文，再运行 fundamentals、technical、sentiment、news、learning 五类分析师并行池。
-  - 由 `ResearchManager` 生成 evidence-indexed plan；因子假设只通过固定 DSL 模板产生并验证 proposal digest。
-  - 量化 fixture 显式返回 deterministic engine 与 `oos=True`；风险 fixture 失败时断言 `decision is None`、`decision_eligible is False`。
+  - 由 `ResearchManager` 生成 evidence-indexed plan；因子假设通过固定 DSL 模板产生后，真实调用 `run_factor_research`，覆盖 train/validation 的 hidden OOS、冻结策略、test once-only 和 run fingerprint。
+  - 因子运行直接消费字段映射后的完整 normalized records；其 run fingerprint 绑定到 quant request 的 `factor_ids`，quant spy 同时断言完整统一字段和值已进入研究上下文。
+  - 量化 fixture 显式返回 deterministic engine 与 `oos=True`；data unavailable/no-data、quant、risk、provider-not-configured 和 required-analyst failure 矩阵均断言 `decision is None`、`decision_eligible is False` 且不进入 `PAPER_DECISION_READY`。
   - 生成 paper-only `DecisionCard`、多阶段 HTML/manifest/activity、as-of `LearningStore` 记录，并保存/加载带 identity、dataset、workflow 和 capability digest 的 checkpoint。
   - 对同一输入比较两次非时间性报告文件 digest，排除只含运行时间的 `activity.jsonl`。
-  - 扫描所有报告文件，确认 endpoint、API key、绝对路径、prompt 和 raw provider response 不进入 Artifact。
+  - 递归扫描 `reports/<run_id>`（含 manifest/activity/HTML）、`learning.jsonl` 和 `checkpoints/*.json`，确认 API key/token/secret/password/endpoint/prompt/raw provider response、绝对路径和 raw object 均不进入公开产物。
 - `docs/PROJECT_STATE.md`
   - 更新 P8 capability-expansion 状态和发布边界矩阵。
 - `docs/RESEARCH_AGENT_GUIDE.md`
@@ -28,18 +29,18 @@ Task 9 在前八项实现之上补齐了一个可重复的离线端到端验收�
 
 ## TDD 与验证证据
 
-先创建端到端测试并运行针对性测试；首轮失败暴露了 manifest `source_snapshot` 使用 `date` 直接 JSON 编码的问题，随后将断言改为安全的结构化字段检查。修复后的针对性测试：
+先创建端到端测试并运行针对性测试；首轮失败暴露了 manifest `source_snapshot` 使用 `date` 直接 JSON 编码的问题，随后将断言改为安全的结构化字段检查。增量 hardening 后的针对性测试：
 
 ```text
 python3 -m pytest -q tests/research/test_capability_vertical_slice.py
-2 passed
+3 passed
 ```
 
 最终门禁：
 
 ```text
 python3 -m pytest -q
-556 passed, 1 skipped in 37.10s
+557 passed, 1 skipped in 43.21s
 
 python3 -m compileall -q src tests
 passed
@@ -86,4 +87,4 @@ src/finahinking/research/factor_proposals.py:20 FURB167 re.I alias (可机械修
 
 ## Commit
 
-本报告与 Task 9 测试和文档将由主 agent 以 scoped release commit 提交。Task 9 本身没有接通外部服务或改变真实数据来源。
+原始 Task 9 提交：`59790ba`。本 hardening 由增量 commit 记录。Task 9 本身没有接通外部服务或改变真实数据来源。
