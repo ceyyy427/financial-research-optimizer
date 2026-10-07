@@ -13,6 +13,7 @@ from .contracts import (
     ResearchRequest,
     stable_digest,
 )
+from .provider_adapters import ProviderAdapterError, ProviderFailureKind
 from .providers import ModelEnvelope, ProviderAdapter
 
 
@@ -108,6 +109,20 @@ class UserApiDriver:
         )
         try:
             response = self.adapter.invoke(envelope)
+        except ProviderAdapterError as error:
+            failure_kind = {
+                ProviderFailureKind.NOT_CONFIGURED: FailureKind.PROVIDER_NOT_CONFIGURED,
+                ProviderFailureKind.SCHEMA_ERROR: FailureKind.VALIDATION_FAILED,
+                ProviderFailureKind.CAPABILITY_REJECTED: FailureKind.TOOL_REJECTED,
+            }.get(error.kind, FailureKind.INTERNAL_ERROR)
+            return DriverResult(
+                failure_kind=failure_kind,
+                failure_message={
+                    ProviderFailureKind.NOT_CONFIGURED: "provider is not configured",
+                    ProviderFailureKind.SCHEMA_ERROR: "provider response schema invalid",
+                    ProviderFailureKind.CAPABILITY_REJECTED: "provider capability rejected",
+                }.get(error.kind, "provider request failed"),
+            )
         except Exception:  # noqa: BLE001 - provider failures must stay secret-free
             return DriverResult(
                 failure_kind=FailureKind.INTERNAL_ERROR,

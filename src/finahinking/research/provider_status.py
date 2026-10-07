@@ -14,6 +14,7 @@ from typing import Any
 _ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _KEYCHAIN_LABEL = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _SECRET_LIKE_LABEL = re.compile(r"(?:api[-_]?key|secret|token|password|credential)", re.IGNORECASE)
+_SAFE_CAPABILITY = re.compile(r"^[a-z][a-z0-9_:-]{0,63}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +89,25 @@ class ProviderStatus:
         return result
 
 
+def _safe_capabilities(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)):
+        raise TypeError("provider capabilities must be a sequence of strings")
+    try:
+        values = tuple(value)
+    except TypeError as exc:
+        raise TypeError("provider capabilities must be a sequence of strings") from exc
+    if any(type(item) is not str for item in values):
+        raise TypeError("provider capabilities must contain only strings")
+    normalized = tuple(item.strip() for item in values)
+    if any(not item or not _SAFE_CAPABILITY.fullmatch(item) or _SECRET_LIKE_LABEL.search(item) for item in normalized):
+        raise ValueError("provider capabilities contain an unsafe name")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("provider capabilities must not contain duplicates")
+    return tuple(sorted(normalized))
+
+
 def provider_status_payload(
     config: Mapping[str, Any], environment: Mapping[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -134,6 +154,7 @@ def provider_status_payload(
         else:
             configured = False
             reason = "credential is not configured"
+        capabilities = _safe_capabilities(item.get("capabilities", ()))
         statuses.append(
             ProviderStatus(
                 provider=name,
@@ -141,7 +162,7 @@ def provider_status_payload(
                 enabled=enabled,
                 configured=configured,
                 offline=offline,
-                capabilities=tuple(sorted(str(value) for value in item.get("capabilities", ()))),
+                capabilities=capabilities,
                 credential_ref=credential_ref,
                 reason=reason,
             )

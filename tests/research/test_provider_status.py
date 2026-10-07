@@ -51,3 +51,20 @@ def test_provider_config_rejects_raw_secret_fields_and_invalid_env_names() -> No
 def test_provider_keychain_label_is_a_safe_reference(label: str) -> None:
     with pytest.raises(ValueError, match="keychain label"):
         ProviderCredentialRef("user-compatible", keychain_label=label)
+
+
+def test_status_rejects_non_string_or_secret_like_capabilities_without_stringifying() -> None:
+    class SecretCapability:
+        def __str__(self) -> str:
+            return "api_key=raw-secret"
+
+    config = _config()
+    config["providers"] = [{"name": "bad", "capabilities": [SecretCapability()]}]
+    with pytest.raises(TypeError, match="capabilities") as error:
+        provider_status_payload(config, {})
+    assert "raw-secret" not in str(error.value)
+
+    config["providers"] = [{"name": "bad", "capabilities": ["api_key"]}]
+    with pytest.raises(ValueError, match="capabilities") as error:
+        provider_status_payload(config, {})
+    assert "api_key" not in str(error.value)
