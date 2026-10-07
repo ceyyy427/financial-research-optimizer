@@ -50,7 +50,19 @@ pytest 结果替代这些门禁。
 
 ## 运行证据
 
-主验收测试：`tests/research/test_capability_vertical_slice.py`。
+主验收测试：`tests/research/test_capability_vertical_slice.py` 和
+`tests/research/test_autonomous_runtime_vertical_slice.py`。
 测试使用 `example.test` 的注入 transport 和固定价格记录；它不发起网络
 请求。完整测试数量、Ruff、依赖、前端和结构化文档检查的实际结果以
 Task 9 report 为准。
+
+## Task 9 全链路组合
+
+- [x] 连接配置重启后可恢复，显式 mock transport 取得标准化数据批次。
+- [x] 五类分析师并行运行，ResearchManager 生成证据引用和研究计划。
+- [x] 因子 pipeline 完成受控提案、OOS 状态、指标和研究指纹。
+- [x] 确定性量化、风险、组合和 paper ledger 可以独立重放。
+- [x] SettlementEvent 和 LearningManager 生成 as-of 更新提案。
+- [x] HTML bundle、manifest、activity 和 checkpoint 可验证。
+- [x] provider mock、Codex handoff、离线 fallback 和队列 retry/cancel/recovery 可重复验收。
+- [x] 数据、provider、因子、quant、risk、portfolio 和 worker 失败均保持 `decision is None` 或纸面状态。
