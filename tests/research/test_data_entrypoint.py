@@ -75,7 +75,7 @@ def test_research_entrypoint_missing_connection_is_typed_and_does_not_download(t
 
 @pytest.mark.parametrize(
     "payload",
-    [None, [], "text", {"connections": [None]}, {"schema_version": 2, "connections": []}],
+    [None, [], "text", {"connections": [None]}, {"schema_version": 2, "connections": []}, {"schema_version": True, "connections": []}],
 )
 def test_persistent_store_rejects_malformed_or_unsupported_documents(tmp_path, payload) -> None:
     path = tmp_path / "connections.json"
@@ -110,3 +110,33 @@ def test_persistent_store_flush_failure_keeps_memory_and_disk_consistent(tmp_pat
     assert store.get("feed") == original
     assert "Original" in path.read_text()
     assert "Replacement" not in path.read_text()
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"allow_local": "false"},
+        {"records_path": 7},
+        {"field_mapping": ["instrument", "ticker"]},
+        {"base_url": 7},
+        {"credential_ref": {"keychain_label": 9}},
+    ],
+)
+def test_persistent_store_rejects_type_coercion_in_schema_v1(tmp_path, changes) -> None:
+    path = tmp_path / "connections.json"
+    row = {
+        "connection_id": "feed",
+        "display_name": "Feed",
+        "base_url": "https://example.test/api",
+        "credential_ref": None,
+        "auth_mode": "no_auth",
+        "field_mapping": {},
+        "records_path": None,
+        "auth_header": None,
+        "source_declaration": "user declared",
+        "allow_local": False,
+    }
+    row.update(changes)
+    path.write_text(json.dumps({"schema_version": 1, "connections": [row]}), encoding="utf-8")
+    with pytest.raises(DataConnectionPersistenceError, match="invalid"):
+        PersistentDataConnectionStore(path, credential_store=InMemoryDataCredentialStore())

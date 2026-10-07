@@ -290,29 +290,52 @@ class PersistentDataConnectionStore(DataConnectionSettingsStore):
 
     @staticmethod
     def _deserialize(payload: Mapping[str, object]) -> DataConnectionConfig:
+        expected = {
+            "connection_id", "display_name", "base_url", "credential_ref", "auth_mode",
+            "field_mapping", "records_path", "auth_header", "source_declaration", "allow_local",
+        }
+        if set(payload) != expected:
+            raise ValueError("persisted connection fields are invalid")
+        required_text = ("connection_id", "display_name", "base_url", "auth_mode", "source_declaration")
+        if any(not isinstance(payload.get(key), str) for key in required_text):
+            raise TypeError("persisted connection text fields are invalid")
+        if not isinstance(payload.get("allow_local"), bool):
+            raise TypeError("persisted allow_local must be a bool")
         raw_ref = payload.get("credential_ref")
         ref: DataSourceCredentialRef | None = None
         if raw_ref is not None:
             if not isinstance(raw_ref, Mapping):
                 raise ValueError("persisted credential reference is invalid")
+            if set(raw_ref) not in ({"env_var"}, {"keychain_label"}):
+                raise ValueError("persisted credential reference is invalid")
+            if any(not isinstance(value, str) for value in raw_ref.values()):
+                raise TypeError("persisted credential reference is invalid")
             ref = DataSourceCredentialRef(
-                env_var=raw_ref.get("env_var") if isinstance(raw_ref.get("env_var"), str) else None,
-                keychain_label=raw_ref.get("keychain_label") if isinstance(raw_ref.get("keychain_label"), str) else None,
+                env_var=raw_ref.get("env_var") if "env_var" in raw_ref else None,
+                keychain_label=raw_ref.get("keychain_label") if "keychain_label" in raw_ref else None,
             )
         mapping = payload.get("field_mapping", {})
         if not isinstance(mapping, Mapping):
             raise TypeError("persisted field mapping is invalid")
+        if any(not isinstance(key, str) or not isinstance(value, str) for key, value in mapping.items()):
+            raise TypeError("persisted field mapping is invalid")
+        records_path = payload.get("records_path")
+        auth_header = payload.get("auth_header")
+        if records_path is not None and not isinstance(records_path, str):
+            raise TypeError("persisted records_path is invalid")
+        if auth_header is not None and not isinstance(auth_header, str):
+            raise TypeError("persisted auth_header is invalid")
         return DataConnectionConfig(
-            connection_id=str(payload.get("connection_id", "")),
-            display_name=str(payload.get("display_name", "")),
-            base_url=str(payload.get("base_url", "")),
+            connection_id=payload["connection_id"],  # type: ignore[arg-type]
+            display_name=payload["display_name"],  # type: ignore[arg-type]
+            base_url=payload["base_url"],  # type: ignore[arg-type]
             credential_ref=ref,
-            auth_mode=str(payload.get("auth_mode", "no_auth")),
-            field_mapping={str(key): str(value) for key, value in mapping.items()},
-            records_path=payload.get("records_path") if isinstance(payload.get("records_path"), str) else None,
-            auth_header=payload.get("auth_header") if isinstance(payload.get("auth_header"), str) else None,
-            source_declaration=str(payload.get("source_declaration", "User-declared data source; Finathink has not independently verified it.")),
-            allow_local=bool(payload.get("allow_local", False)),
+            auth_mode=payload["auth_mode"],  # type: ignore[arg-type]
+            field_mapping=dict(mapping),
+            records_path=records_path,
+            auth_header=auth_header,
+            source_declaration=payload["source_declaration"],  # type: ignore[arg-type]
+            allow_local=payload["allow_local"],  # type: ignore[arg-type]
         )
 
     def _load(self) -> None:
@@ -326,7 +349,7 @@ class PersistentDataConnectionStore(DataConnectionSettingsStore):
             return
         try:
             payload = json.loads(raw)
-            if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
+            if not isinstance(payload, Mapping) or type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
                 raise TypeError("persisted connections are invalid")
             rows = payload.get("connections")
             if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
