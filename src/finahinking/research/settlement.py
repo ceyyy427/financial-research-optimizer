@@ -125,6 +125,10 @@ class SettlementEvent:
             raise ValueError("paper ledger snapshot digest is required")
         if self.ledger.snapshot_digest != self.dataset_digest:
             raise ValueError("dataset digest does not match paper ledger snapshot")
+        # PaperLedger predates this boundary and accepts an execution-policy
+        # mapping.  Re-validate that nested mapping here so provider/raw
+        # payloads cannot survive into ``to_dict`` or the event fingerprint.
+        _safe(self.ledger.execution_policy, "ledger.execution_policy")
         for item in self.ledger.entries:
             entry_date = _ledger_date(item.timestamp)
             if entry_date is not None and entry_date > event_as_of:

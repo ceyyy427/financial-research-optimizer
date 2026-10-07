@@ -96,3 +96,13 @@ def test_settlement_fingerprint_is_stable_and_redacts_no_sensitive_payload() -> 
 def test_settlement_rejects_nested_provider_and_raw_payload_keys(field: str) -> None:
     with pytest.raises(ValueError, match="sensitive"):
         event(realized_outcomes={"nested": {field: {"value": 1}}})
+
+
+def test_settlement_rejects_provider_payload_hidden_in_ledger_policy() -> None:
+    unsafe_ledger = PaperLedger(
+        entries=ledger().entries,
+        snapshot_digest="dataset-v1",
+        execution_policy={"rawProviderResponse": {"payload": "blocked"}},
+    )
+    with pytest.raises(ValueError, match="sensitive"):
+        event(ledger=unsafe_ledger)
