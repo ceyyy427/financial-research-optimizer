@@ -1,4 +1,5 @@
 from .connection_settings import (
+    DataConnectionPersistenceError,
     DataConnectionSettingsStore,
     EnvironmentDataCredentialStore,
     InMemoryDataCredentialStore,
@@ -23,6 +24,7 @@ __all__ = [
     "BoundedTransportError",
     "DataBatch",
     "DataConnectionConfig",
+    "DataConnectionPersistenceError",
     "DataConnectionSettingsStore",
     "DataConnectorError",
     "DataRequest",

@@ -67,3 +67,11 @@ def test_transport_returns_typed_response_and_never_follows_redirect(monkeypatch
     assert isinstance(response, TransportResponse)
     assert response.status_code == 200
     assert response.body == b'{"data": []}'
+
+
+@pytest.mark.parametrize("query_key", ["api_key", "token", "password", "authorization", "X-Api-Key"])
+def test_transport_rejects_sensitive_query_parameters(monkeypatch: pytest.MonkeyPatch, query_key: str) -> None:
+    transport = BoundedHttpTransport()
+    monkeypatch.setattr(transport, "_resolve", lambda host, port: ("93.184.216.34",))
+    with pytest.raises(BoundedTransportError, match="query"):
+        transport.request(f"https://example.test/data?{query_key}=value", headers={})

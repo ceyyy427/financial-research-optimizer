@@ -17,6 +17,7 @@ class DataCredentialStore(Protocol):
     def has(self, ref: DataSourceCredentialRef) -> bool: ...
     def resolve(self, ref: DataSourceCredentialRef) -> str: ...
     def put(self, ref: DataSourceCredentialRef, value: str) -> None: ...
+    def remove(self, ref: DataSourceCredentialRef) -> None: ...
 
 
 class KeychainBackend(Protocol):
@@ -28,6 +29,10 @@ class KeychainBackend(Protocol):
 
 class KeychainError(RuntimeError):
     """A generic, secret-free keychain operation failure."""
+
+
+class DataConnectionPersistenceError(ValueError):
+    """A sanitized, fail-closed connection persistence failure."""
 
 
 class MacOSKeychainBackend:
@@ -79,6 +84,11 @@ class MacOSKeychainBackend:
         if result.returncode != 0:
             raise KeychainError("system credential storage rejected the value")
 
+    def remove(self, label: str) -> None:
+        result = self._run(["delete-generic-password", "-a", self._account, "-s", label])
+        if result.returncode not in {0, 44}:
+            raise KeychainError("system credential storage rejected the removal")
+
 
 class KeychainDataCredentialStore:
     """Data credential store backed by the OS keychain.
@@ -118,6 +128,14 @@ class KeychainDataCredentialStore:
             raise ValueError("data credential must be non-empty")
         try:
             self._backend.put(ref.keychain_label, value)
+        except KeychainError:
+            raise ValueError("system credential storage is unavailable") from None
+
+    def remove(self, ref: DataSourceCredentialRef) -> None:
+        if not isinstance(ref, DataSourceCredentialRef) or ref.keychain_label is None:
+            return
+        try:
+            self._backend.remove(ref.keychain_label)
         except KeychainError:
             raise ValueError("system credential storage is unavailable") from None
 
@@ -167,6 +185,15 @@ class InMemoryDataCredentialStore:
             return self._values[alias]
         raise ValueError("data credential is not configured")
 
+    def remove(self, ref: DataSourceCredentialRef) -> None:
+        if not isinstance(ref, DataSourceCredentialRef):
+            return
+        self._values.pop(ref, None)
+        if ref.env_var is not None:
+            self._values.pop(ref.env_var, None)
+        if ref.keychain_label is not None:
+            self._values.pop(ref.keychain_label, None)
+
 
 class EnvironmentDataCredentialStore:
     """Read only the explicit data environment variable named by a reference."""
@@ -187,6 +214,10 @@ class EnvironmentDataCredentialStore:
 
     def put(self, ref: DataSourceCredentialRef, value: str) -> None:
         del ref, value
+        raise ValueError("environment credentials are read-only")
+
+    def remove(self, ref: DataSourceCredentialRef) -> None:
+        del ref
         raise ValueError("environment credentials are read-only")
 
 
@@ -233,7 +264,10 @@ class PersistentDataConnectionStore(DataConnectionSettingsStore):
     def __init__(self, path: str | os.PathLike[str], *, credential_store: DataCredentialStore | None = None) -> None:
         super().__init__(credential_store=credential_store)
         self.path = Path(path).expanduser()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            raise DataConnectionPersistenceError("data connection persistence is unavailable") from None
         self._load()
 
     @staticmethod
@@ -286,43 +320,87 @@ class PersistentDataConnectionStore(DataConnectionSettingsStore):
             raw = self.path.read_text(encoding="utf-8")
         except FileNotFoundError:
             return
+        except OSError:
+            raise DataConnectionPersistenceError("data connection persistence is unavailable") from None
         if not raw.strip():
             return
         try:
             payload = json.loads(raw)
-            rows = payload.get("connections", []) if isinstance(payload, Mapping) else []
-            if not isinstance(rows, list):
+            if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
+                raise TypeError("persisted connections are invalid")
+            rows = payload.get("connections")
+            if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
                 raise TypeError("persisted connections are invalid")
             for row in rows:
-                if isinstance(row, Mapping):
-                    config = self._deserialize(row)
-                    self._configs[config.connection_id] = config
-        except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise ValueError("persisted data connections are invalid") from exc
+                config = self._deserialize(row)
+                if config.connection_id in self._configs:
+                    raise ValueError("duplicate persisted connection")
+                self._configs[config.connection_id] = config
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise DataConnectionPersistenceError("persisted data connections are invalid") from None
 
-    def _flush(self) -> None:
+    def _flush(self, configs: Mapping[str, DataConnectionConfig] | None = None) -> None:
+        configs = self._configs if configs is None else configs
         payload = {
             "schema_version": 1,
-            "connections": [self._serialize(config) for config in sorted(self._configs.values(), key=lambda item: item.connection_id)],
+            "connections": [self._serialize(config) for config in sorted(configs.values(), key=lambda item: item.connection_id)],
         }
         encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         temporary = self.path.with_name(f".{self.path.name}.{secrets.token_hex(8)}.tmp")
         try:
             temporary.write_text(encoded, encoding="utf-8")
             os.replace(temporary, self.path)
+        except (OSError, TypeError, ValueError):
+            raise DataConnectionPersistenceError("data connection persistence failed") from None
         finally:
             try:
                 temporary.unlink()
-            except FileNotFoundError:
+            except OSError:
                 pass
 
     def save(self, config: DataConnectionConfig, *, credential_value: str | None = None) -> None:
-        super().save(config, credential_value=credential_value)
-        self._flush()
+        if not isinstance(config, DataConnectionConfig):
+            raise TypeError("config must be a DataConnectionConfig")
+        if credential_value is not None and (config.credential_ref is None or not isinstance(credential_value, str) or not credential_value):
+            raise ValueError("invalid data credential")
+        previous = dict(self._configs)
+        candidate = dict(previous)
+        candidate[config.connection_id] = config
+        old_config = previous.get(config.connection_id)
+        old_ref = old_config.credential_ref if old_config is not None else None
+        old_secret: str | None = None
+        if old_ref is not None:
+            try:
+                if self.credentials.has(old_ref):
+                    old_secret = self.credentials.resolve(old_ref)
+            except Exception:  # noqa: BLE001 - secret store failures are sanitized below
+                old_secret = None
+        try:
+            self._flush(candidate)
+            if credential_value is not None:
+                self.credentials.put(config.credential_ref, credential_value)  # type: ignore[arg-type]
+        except Exception as exc:
+            try:
+                self._flush(previous)
+                if old_ref is not None and old_secret is not None:
+                    self.credentials.put(old_ref, old_secret)
+                elif config.credential_ref is not None and hasattr(self.credentials, "remove"):
+                    self.credentials.remove(config.credential_ref)
+            except Exception:  # noqa: BLE001 - preserve a sanitized failure
+                self._configs = previous
+                raise DataConnectionPersistenceError("data connection persistence failed") from None
+            self._configs = previous
+            if isinstance(exc, DataConnectionPersistenceError):
+                raise
+            raise DataConnectionPersistenceError("data connection persistence failed") from None
+        self._configs = candidate
 
     def remove(self, connection_id: str) -> None:
-        super().remove(connection_id)
-        self._flush()
+        previous = dict(self._configs)
+        candidate = dict(previous)
+        candidate.pop(connection_id, None)
+        self._flush(candidate)
+        self._configs = candidate
 
 
 def new_local_credential_ref(connection_id: str) -> DataSourceCredentialRef:
@@ -333,6 +411,7 @@ def new_local_credential_ref(connection_id: str) -> DataSourceCredentialRef:
 
 
 __all__ = [
+    "DataConnectionPersistenceError",
     "DataConnectionSettingsStore",
     "DataCredentialStore",
     "EnvironmentDataCredentialStore",

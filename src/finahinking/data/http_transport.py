@@ -8,11 +8,13 @@ unsafe headers fail closed with secret-free error codes.
 
 from __future__ import annotations
 
+import re
 import socket
 from collections.abc import Mapping
 from ipaddress import ip_address
+from itertools import pairwise
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .user_api import TransportResponse
@@ -22,6 +24,16 @@ class BoundedTransportError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         self.code = code
         super().__init__(message)
+
+
+def _sensitive_query_key(key: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", "_", key.casefold()).strip("_")
+    if normalized in {"api_key", "apikey", "api_token", "access_token", "authorization", "password", "secret", "token", "key"}:
+        return True
+    tokens = normalized.split("_")
+    return any(left == "api" and right == "key" for left, right in pairwise(tokens)) or any(
+        token in {"authorization", "password", "secret", "token", "credential"} for token in tokens
+    )
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -99,6 +111,8 @@ class BoundedHttpTransport:
             raise BoundedTransportError("target", "data source target is not allowed") from None
         if parsed.scheme not in {"http", "https"} or not host or parsed.username or parsed.password or parsed.fragment:
             raise BoundedTransportError("target", "data source target is not allowed")
+        if any(_sensitive_query_key(key) for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
+            raise BoundedTransportError("query", "credential query parameters are not allowed")
         host = host.rstrip(".").lower()
         if host in {"localhost", "localhost.localdomain", "metadata.google.internal"} and not self.allow_local:
             raise BoundedTransportError("target", "data source target is not allowed")
