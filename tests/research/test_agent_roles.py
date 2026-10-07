@@ -193,6 +193,22 @@ def test_outcome_failure_and_evidence_fields_are_strict_and_secret_free() -> Non
         AgentOutcome(role="news", task_id="n1", input_digest="d", evidence_refs=("src/private/report.json",))
 
 
+def test_all_public_identifiers_reject_paths_uris_and_secret_markers() -> None:
+    from finahinking.research.contracts import AgentOutcome
+
+    bad_values = ("api_key=secret", "/Users/mac/private", "ssh://host/x", "s3://bucket/key", "~/private/key", r"foo\\bar")
+    for value in bad_values:
+        with pytest.raises((TypeError, ValueError)):
+            AgentTask(role="news", task_id=value, input_digest="d")
+        with pytest.raises((TypeError, ValueError)):
+            AgentOutcome(role="news", task_id="n1", input_digest="d", evidence_refs=(value,))
+        with pytest.raises((TypeError, ValueError)):
+            AgentOutcome(role="news", task_id="n1", input_digest="d", message_digest=value)
+
+    with pytest.raises((TypeError, ValueError)):
+        AgentOutcome(role="news", task_id="n1", input_digest="d", output_digest="s3://bucket/key")
+
+
 def test_agent_role_enum_covers_runtime_roles() -> None:
     assert {role.value for role in AgentRole} >= {
         "fundamentals",

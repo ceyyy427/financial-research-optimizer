@@ -22,5 +22,9 @@ in the shared worktree, so only the focused suite was used for that round.
 The residual review round additionally verifies exact boolean paper flags,
 capability intersection in `allowed_tools`, optional handling for all invalid
 driver result shapes, finite numeric inputs, path/URI rejection, and strict
-secret-free public outcome fields. Final verification is 25 focused tests and
-259 research tests passed, with ruff and compileall clean.
+secret-free public outcome fields. Final verification is 26 focused tests and
+260 research tests passed, with ruff and compileall clean.
+
+The identifier review also rejects URI schemes including `ssh://` and `s3://`,
+tilde and backslash paths, and secret/path material in all public IDs,
+failure/evidence references, and digest fields through one shared grammar.

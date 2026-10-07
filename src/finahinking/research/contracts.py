@@ -90,9 +90,10 @@ _TRANSITIONS: dict[ResearchState, frozenset[ResearchState]] = {
 _SECRET_KEY = re.compile(r"(?:api[-_]?key|secret|token|password|credential|authorization)", re.IGNORECASE)
 _SENSITIVE_KEY = re.compile(r"(?:endpoint|absolute[-_]?path|file[-_]?path|private[-_]?key)", re.IGNORECASE)
 _RUNTIME_SECRET_VALUE = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]", re.IGNORECASE)
-_RUNTIME_URI_VALUE = re.compile(r"^(?:https?|ftp|file)://|^(?:/Users/|/private/|/tmp/)", re.IGNORECASE)
+_RUNTIME_URI_VALUE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://", re.IGNORECASE)
 _RUNTIME_PUBLIC_REF = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]|\b(?:https?|ftp|file)://|(?:^|/)(?:Users|private|tmp)/", re.IGNORECASE)
-_RUNTIME_PATH_VALUE = re.compile(r"^(?:[A-Za-z]:[\\/]|/|\.{1,2}[\\/]|[A-Za-z0-9_.-]+/[^\s]+$)")
+_RUNTIME_PATH_VALUE = re.compile(r"^(?:[A-Za-z]:[\\/]|/|~[\\/]|\.{1,2}[\\/]|[A-Za-z0-9_.-]+/[^\s]+$)|\\", re.IGNORECASE)
+_PUBLIC_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _PAPER_ONLY_STATUS = re.compile(r"(?:order|live|broker|account|cancel|executed|filled|placed|bought|sold)", re.IGNORECASE)
 
 
@@ -157,13 +158,24 @@ def _validate_runtime_value(value: Any, field_name: str = "value") -> Any:
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError(f"{field_name} mapping keys must be strings")
-            if _SECRET_KEY.search(key) or _SENSITIVE_KEY.search(key):
+            if not _PUBLIC_IDENTIFIER.fullmatch(key) or _SECRET_KEY.search(key) or _SENSITIVE_KEY.search(key):
                 raise ValueError(f"{field_name} contains a sensitive key")
             clean[key] = _validate_runtime_value(item, f"{field_name}.{key}")
         return clean
     if isinstance(value, (list, tuple)):
         return tuple(_validate_runtime_value(item, field_name) for item in value)
     raise TypeError(f"{field_name} contains unsupported value type: {type(value).__name__}")
+
+
+def _public_identifier(value: str, field_name: str) -> str:
+    normalized = _nonempty(value, field_name)
+    if not _PUBLIC_IDENTIFIER.fullmatch(normalized):
+        raise ValueError(f"{field_name} must be a stable public identifier")
+    return normalized
+
+
+def _unsafe_public_text(value: str) -> bool:
+    return bool(_RUNTIME_PUBLIC_REF.search(value) or _RUNTIME_URI_VALUE.search(value) or _RUNTIME_PATH_VALUE.search(value))
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,13 +312,12 @@ class AgentTask:
         role = self.role.value if isinstance(self.role, AgentRole) else str(self.role).strip().casefold()
         if not role:
             raise ValueError("role must be non-empty")
-        object.__setattr__(self, "role", role)
-        object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
-        object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
-        object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
-        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or _RUNTIME_PATH_VALUE.search(self.input_digest) or any(
-            _RUNTIME_PUBLIC_REF.search(item) or _RUNTIME_PATH_VALUE.search(item) for item in self.capabilities
-        ):
+        object.__setattr__(self, "role", _public_identifier(role, "role"))
+        object.__setattr__(self, "task_id", _public_identifier(self.task_id, "task_id"))
+        object.__setattr__(self, "input_digest", _public_identifier(self.input_digest, "input_digest"))
+        capabilities = tuple(_public_identifier(item, "capabilities") for item in _text_tuple(self.capabilities, "capabilities", unique=True))
+        object.__setattr__(self, "capabilities", capabilities)
+        if _unsafe_public_text(self.input_digest) or any(_unsafe_public_text(item) for item in self.capabilities):
             raise ValueError("task identity and capabilities must remain secret-free")
         if not isinstance(self.required, bool):
             raise TypeError("required must be a bool")
@@ -334,15 +345,14 @@ class AgentOutcome:
 
     def __post_init__(self) -> None:
         role = self.role.value if isinstance(self.role, AgentRole) else str(self.role).strip().casefold()
-        object.__setattr__(self, "role", _nonempty(role, "role"))
-        object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
-        object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
-        object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
-        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or _RUNTIME_PATH_VALUE.search(self.input_digest) or any(
-            _RUNTIME_PUBLIC_REF.search(item) or _RUNTIME_PATH_VALUE.search(item) for item in self.capabilities
-        ):
+        object.__setattr__(self, "role", _public_identifier(role, "role"))
+        object.__setattr__(self, "task_id", _public_identifier(self.task_id, "task_id"))
+        object.__setattr__(self, "input_digest", _public_identifier(self.input_digest, "input_digest"))
+        capabilities = tuple(_public_identifier(item, "capabilities") for item in _text_tuple(self.capabilities, "capabilities", unique=True))
+        object.__setattr__(self, "capabilities", capabilities)
+        if _unsafe_public_text(self.input_digest) or any(_unsafe_public_text(item) for item in self.capabilities):
             raise ValueError("outcome identity and capabilities must remain secret-free")
-        object.__setattr__(self, "status", _nonempty(self.status, "status").upper())
+        object.__setattr__(self, "status", _public_identifier(self.status, "status").upper())
         if _PAPER_ONLY_STATUS.search(self.status):
             raise ValueError("paper-only outcome status cannot describe live or order activity")
         if self.failure_kind is not None and not isinstance(self.failure_kind, FailureKind):
@@ -351,13 +361,13 @@ class AgentOutcome:
             try:
                 object.__setattr__(self, "failure_kind", FailureKind(self.failure_kind))
             except ValueError:
-                normalized_failure = _nonempty(self.failure_kind, "failure_kind").upper()
-                if _RUNTIME_PUBLIC_REF.search(normalized_failure) or _RUNTIME_PATH_VALUE.search(normalized_failure):
+                normalized_failure = _public_identifier(self.failure_kind, "failure_kind").upper()
+                if _unsafe_public_text(normalized_failure):
                     raise ValueError("failure_kind must remain secret-free")
                 object.__setattr__(self, "failure_kind", normalized_failure)
         if self.message_digest:
-            object.__setattr__(self, "message_digest", _nonempty(self.message_digest, "message_digest"))
-            if _RUNTIME_PUBLIC_REF.search(self.message_digest) or _RUNTIME_PATH_VALUE.search(self.message_digest):
+            object.__setattr__(self, "message_digest", _public_identifier(self.message_digest, "message_digest"))
+            if _unsafe_public_text(self.message_digest):
                 raise ValueError("message_digest must remain secret-free")
         else:
             object.__setattr__(
@@ -366,11 +376,11 @@ class AgentOutcome:
                 stable_digest({"role": role, "task_id": self.task_id, "status": self.status, "failure_kind": self.failure_kind}),
             )
         object.__setattr__(self, "evidence_refs", _text_tuple(self.evidence_refs, "evidence_refs", unique=True))
-        if any(_RUNTIME_PUBLIC_REF.search(item) or _RUNTIME_PATH_VALUE.search(item) for item in self.evidence_refs):
+        if any(_unsafe_public_text(item) for item in self.evidence_refs):
             raise ValueError("evidence references must remain secret-free")
         if self.output_digest:
-            object.__setattr__(self, "output_digest", _nonempty(self.output_digest, "output_digest"))
-            if _RUNTIME_PUBLIC_REF.search(self.output_digest) or _RUNTIME_PATH_VALUE.search(self.output_digest):
+            object.__setattr__(self, "output_digest", _public_identifier(self.output_digest, "output_digest"))
+            if _unsafe_public_text(self.output_digest):
                 raise ValueError("output_digest must remain secret-free")
         else:
             object.__setattr__(self, "output_digest", stable_digest(self.evidence_refs))
