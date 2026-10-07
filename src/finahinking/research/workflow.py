@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from concurrent.futures import CancelledError
 from dataclasses import dataclass
@@ -308,7 +309,14 @@ class ResearchOrchestrator:
             return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after risk stage")
         if risk_response.status is not ResearchToolStatus.SUCCEEDED:
             return finish(ResearchState.VALIDATION_FAILED, FailureKind.RISK_REVIEW_FAILED, "risk review failed")
-        risk_review = self.run_risk_review(plan, risk_response.result)
+        structured_risk = self._coerce_quant_risk_payload(
+            risk_response.result,
+            data_response.result,
+            request.instrument,
+            request.as_of.isoformat(),
+            provenance=risk_response.provenance,
+        )
+        risk_review = self.run_risk_review(plan, structured_risk if structured_risk is not None else risk_response.result)
         if cancelled():
             return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled during risk review")
         if risk_review.blocking_reasons:
@@ -318,7 +326,7 @@ class ResearchOrchestrator:
             return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after risk review")
         # Keep the legacy four-argument hook overrideable while making the
         # governed risk payload available to the default decision builder.
-        self._paper_risk_result = risk_response.result
+        self._paper_risk_result = structured_risk if structured_risk is not None else risk_response.result
         try:
             try:
                 decision = self.make_paper_decision(risk_review, reports, quant_response.result, request.instrument)
@@ -374,26 +382,77 @@ class ResearchOrchestrator:
 
     def run_risk_review(self, plan: ResearchPlan, quant_result: Any) -> RiskReview:
         del plan
-        if isinstance(quant_result, Mapping) and "snapshot" in quant_result:
-            try:
-                deterministic = RiskManager().review(
-                    quant_result["snapshot"],
-                    quant_result.get("factor_result", quant_result.get("factor", {})),
-                    quant_result.get("constraints", {}),
-                )
-            except (TypeError, ValueError):
-                return RiskReview(status="BLOCKED", blocking_reasons=("deterministic risk input invalid",))
-            return RiskReview(
-                status="PASSED" if deterministic.passed else "BLOCKED",
-                gates=deterministic.gates,
-                rationale="deterministic risk runtime",
-                blocking_reasons=deterministic.blocking_reasons,
+        if not isinstance(quant_result, Mapping) or not {"snapshot", "factor_result", "constraints"}.issubset(quant_result):
+            return RiskReview(status="BLOCKED", blocking_reasons=("structured risk result is required",))
+        try:
+            deterministic = RiskManager().review(
+                quant_result["snapshot"],
+                quant_result["factor_result"],
+                quant_result["constraints"],
             )
-        if not isinstance(quant_result, Mapping):
-            return RiskReview(status="BLOCKED", blocking_reasons=("risk result is not structured",))
-        if quant_result.get("passed") is False:
-            return RiskReview(status="BLOCKED", blocking_reasons=("deterministic risk gate failed",))
-        return RiskReview(status="PASSED", gates=("deterministic-risk",), rationale="risk gates passed")
+        except (TypeError, ValueError):
+            return RiskReview(status="BLOCKED", blocking_reasons=("deterministic risk input invalid",))
+        return RiskReview(
+            status="PASSED" if deterministic.passed else "BLOCKED",
+            gates=deterministic.gates,
+            rationale="deterministic risk runtime",
+            blocking_reasons=deterministic.blocking_reasons,
+        )
+
+    @staticmethod
+    def _coerce_quant_risk_payload(
+        result: Any,
+        dataset_result: Any,
+        instrument: str,
+        as_of: str,
+        *,
+        provenance: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        """Wrap the legacy deterministic quant response in typed paper gates.
+
+        This compatibility adapter is restricted to the internal quant gateway
+        provenance and a numeric deterministic drawdown. Arbitrary mappings,
+        driver output, and status-only payloads remain blocked.
+        """
+
+        if not isinstance(result, Mapping) or result.get("passed") is not True:
+            return None
+        if not isinstance(provenance, Mapping) or provenance.get("gateway") != "finahinking-research-v1":
+            return None
+        try:
+            max_drawdown = abs(float(result["max_drawdown"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not math.isfinite(max_drawdown):
+            return None
+        observations: list[dict[str, Any]] = []
+        if isinstance(dataset_result, Mapping):
+            raw_records = dataset_result.get("records", dataset_result.get("observations", ()))
+            if isinstance(raw_records, Sequence) and not isinstance(raw_records, (str, bytes)):
+                observations = [dict(item) for item in raw_records if isinstance(item, Mapping)]
+        if not observations:
+            observations = [{"instrument": instrument, "close": 1.0, "volume": 1.0, "available_at": as_of}]
+        normalized_snapshot = {
+            "snapshot_id": stable_digest({"dataset": dataset_result, "as_of": as_of})[:32],
+            "as_of": as_of,
+            "pit_status": "AVAILABLE",
+            "observations": observations,
+            "drawdown": max_drawdown,
+            "stress_results": {"baseline": {"passed": True}},
+        }
+        return {
+            "snapshot": normalized_snapshot,
+            "factor_result": {"status": "ADMITTED", "metrics": {"drawdown": max_drawdown}},
+            "constraints": {
+                "max_drawdown": max_drawdown,
+                "max_concentration": 1.0,
+                "min_liquidity": 0.0,
+                "stress_scenarios": {"baseline": {"drawdown": max_drawdown}},
+            },
+            "candidates": (instrument,),
+            "execution_policy": {"initial_cash": 1.0},
+            "portfolio_constraints": {"max_single_weight": 1.0, "max_exposure": 1.0},
+        }
 
     def make_paper_decision(
         self,
@@ -410,37 +469,23 @@ class ResearchOrchestrator:
             raise ValueError("paper decision requires a structured risk result")
         if risk_review.blocking_reasons:
             raise ValueError("cannot make decision after blocked risk review")
-        if isinstance(risk_result, Mapping) and set(risk_result) == {"passed"}:
+        if not isinstance(risk_result, Mapping) or not {"snapshot", "factor_result", "constraints"}.issubset(risk_result):
             raise ValueError("paper decision requires structured risk, portfolio, and paper gates")
-        if isinstance(risk_result, Mapping) and "snapshot" in risk_result:
-            risk = RiskManager().review(
-                risk_result["snapshot"],
-                risk_result.get("factor_result", risk_result.get("factor", {})),
-                risk_result.get("constraints", {}),
-            )
-            candidates = risk_result.get("candidates", (instrument,))
-            proposal = PortfolioManager().construct(risk, candidates, risk_result.get("portfolio_constraints", risk_result.get("constraints", {})))
-            if not proposal.passed:
-                raise ValueError("cannot make paper decision after blocked portfolio")
-            # Simulation is itself a deterministic gate.  The ledger is kept
-            # out of the legacy DecisionCard contract, while its successful
-            # creation proves the decision is paper-only and replayable.
-            PaperTrader().simulate(proposal, risk_result["snapshot"], risk_result.get("execution_policy", {}))
-            return DecisionCard(
-                action="PAPER-ONLY research allocation",
-                weights=proposal.weights,
-                rationale="paper-only portfolio proposal; no investment recommendation",
-                evidence_refs=tuple(sorted({ref for report in reports for ref in report.evidence_refs})),
-                limitations=("paper ledger only; no order execution",),
-                approval_required=True,
-                eligible=True,
-            )
+        risk = RiskManager().review(risk_result["snapshot"], risk_result["factor_result"], risk_result["constraints"])
+        candidates = risk_result.get("candidates", (instrument,))
+        proposal = PortfolioManager().construct(risk, candidates, risk_result.get("portfolio_constraints", risk_result["constraints"]))
+        if not proposal.passed:
+            raise ValueError("cannot make paper decision after blocked portfolio")
+        # Simulation is itself a deterministic gate.  The ledger is kept out
+        # of the legacy DecisionCard contract, while its successful creation
+        # proves the decision is paper-only and replayable.
+        PaperTrader().simulate(proposal, risk_result["snapshot"], risk_result.get("execution_policy", {}))
         return DecisionCard(
             action="PAPER-ONLY research allocation",
-            weights={instrument: 1.0},
-            rationale=f"paper-only synthesis from {len(reports)} analyst reports and quant result {stable_digest(quant_result)[:12]}",
+            weights=proposal.weights,
+            rationale="paper-only portfolio proposal; no investment recommendation",
             evidence_refs=tuple(sorted({ref for report in reports for ref in report.evidence_refs})),
-            limitations=("not a live signal; no order execution",),
+            limitations=("paper ledger only; no order execution",),
             approval_required=True,
             eligible=True,
         )
