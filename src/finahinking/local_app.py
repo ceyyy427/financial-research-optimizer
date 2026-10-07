@@ -29,8 +29,10 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from finahinking.data.connection_settings import (
     DataConnectionSettingsStore,
     DataCredentialStore,
+    PersistentDataConnectionStore,
     new_local_credential_ref,
 )
+from finahinking.data.http_transport import BoundedHttpTransport
 from finahinking.data.user_api import DataConnectorError, JsonApiConnector
 from finahinking.data.user_api_contracts import (
     DataConnectionConfig,
@@ -320,8 +322,14 @@ class LocalApplication:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
         self._research_runs: dict[str, dict[str, Any]] = {}
-        self._data_connections = DataConnectionSettingsStore(data_credential_store)
-        self._data_transport = data_transport
+        if self.config.db_path == ":memory:":
+            self._data_connections = DataConnectionSettingsStore(data_credential_store)
+        else:
+            connection_path = Path(self.config.db_path).expanduser().with_suffix(".data-connections.json")
+            self._data_connections = PersistentDataConnectionStore(connection_path, credential_store=data_credential_store)
+        # The transport is inert until the user explicitly invokes a test or
+        # research entrypoint. Saving a connection never performs I/O.
+        self._data_transport = data_transport if data_transport is not None else BoundedHttpTransport()
 
     def register_research_run(self, result: Any, manifest: Any) -> None:
         """Register a completed research result for read-only local inspection."""

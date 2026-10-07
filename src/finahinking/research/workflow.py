@@ -89,6 +89,102 @@ def _sanitize_report(report: AgentReport) -> AgentReport:
 
 
 class ResearchOrchestrator:
+    def __init__(self, *, connection_store: Any | None = None, data_transport: Any | None = None, driver: ModelDriver | None = None, tools: ResearchToolGateway | None = None) -> None:
+        self.connection_store = connection_store
+        self.data_transport = data_transport
+        self.default_driver = driver
+        self.default_tools = tools
+
+    def run_from_connection(
+        self,
+        connection_id: str,
+        request: ResearchRequest,
+        *,
+        driver: ModelDriver | None = None,
+        tools: ResearchToolGateway | None = None,
+        **run_kwargs: Any,
+    ) -> ResearchRunResult:
+        """Explicitly fetch one saved user connection, then run the workflow.
+
+        Saving a connection never invokes this method. The method resolves the
+        credential only at fetch time and exposes a normalized ``DataBatch`` to
+        the existing research tool gateway. Endpoint and credential values are
+        kept out of events and result artifacts.
+        """
+        if not isinstance(connection_id, str) or not connection_id.strip() or not isinstance(request, ResearchRequest):
+            return self._connection_failure(request, FailureKind.DATA_UNAVAILABLE, "data connection is not configured")
+        if self.connection_store is None or self.data_transport is None:
+            return self._connection_failure(request, FailureKind.DATA_UNAVAILABLE, "data connection transport is not configured")
+        try:
+            config = self.connection_store.get(connection_id.strip())
+        except (KeyError, TypeError, ValueError):
+            return self._connection_failure(request, FailureKind.DATA_UNAVAILABLE, "data connection is not configured")
+        try:
+            from finahinking.data.user_api import JsonApiConnector
+            from finahinking.data.user_api_contracts import DataRequest
+
+            data_request = DataRequest(
+                dataset_kind="prices",
+                instruments=(request.instrument,),
+                as_of=request.as_of.isoformat(),
+            )
+            batch = JsonApiConnector(config, self.connection_store.credentials, self.data_transport).fetch(data_request)
+        except Exception as exc:  # noqa: BLE001 - convert every connector failure to a typed terminal state
+            code = getattr(exc, "code", "transport")
+            kind = FailureKind.NO_DATA_AVAILABLE if code in {"no_data", "empty"} else FailureKind.DATA_INVALID if code in {"schema", "invalid_json", "record_limit"} else FailureKind.DATA_UNAVAILABLE
+            return self._connection_failure(request, kind, f"data connection failed: {kind.value}")
+        if not batch.records:
+            return self._connection_failure(request, FailureKind.NO_DATA_AVAILABLE, "data connection returned no records")
+
+        base_tools = tools or self.default_tools or ResearchToolGateway()
+        data_response = {
+            "records": [dict(item) for item in batch.records],
+            "connection_id": batch.connection_id,
+            "retrieved_at": batch.retrieved_at.isoformat(),
+            "source_declaration": batch.source_declaration,
+            "data_fingerprint": batch.data_fingerprint,
+            "quality_issues": list(batch.quality_issues),
+            "pit_available": batch.pit_available,
+        }
+        from .tools import ResearchToolResponse, ResearchToolStatus
+
+        class _ConnectionTools:
+            def execute(self, tool_request: ResearchToolRequest) -> ResearchToolResponse:
+                if tool_request.name == "research.inspect_dataset":
+                    return ResearchToolResponse(
+                        request_id=tool_request.run_id,
+                        name=tool_request.name,
+                        status=ResearchToolStatus.SUCCEEDED,
+                        result=data_response,
+                        provenance={"gateway": "finahinking-user-data-v1", "data_fingerprint": batch.data_fingerprint},
+                        request_digest=tool_request.request_digest,
+                    )
+                return base_tools.execute(tool_request)
+
+        return self.run(request, driver or self.default_driver or OfflineDriver(), _ConnectionTools(), **run_kwargs)
+
+    @staticmethod
+    def _connection_failure(request: Any, kind: FailureKind, message: str) -> ResearchRunResult:
+        run_id = request.run_id if isinstance(request, ResearchRequest) else "connection-run"
+        as_of = request.as_of if isinstance(request, ResearchRequest) else None
+        state_history = (ResearchState.RECEIVED, ResearchState.IDENTIFIED, ResearchState.DATA_CHECKED, ResearchState.NO_DATA_AVAILABLE if kind is FailureKind.NO_DATA_AVAILABLE else ResearchState.DATA_UNAVAILABLE)
+        events = tuple(
+            ResearchOrchestrator._event(run_id, state, "data_connection", {"status": state.value, "failure_kind": kind.value})
+            for state in state_history
+        )
+        return ResearchRunResult(
+            state=ResearchRunState(
+                run_id=run_id,
+                current_state=state_history[-1],
+                as_of=as_of,
+                state_history=state_history,
+                failure_kind=kind,
+                failure_message=message,
+                decision_eligible=False,
+            ),
+            events=events,
+        )
+
     def run(
         self,
         request: ResearchRequest,

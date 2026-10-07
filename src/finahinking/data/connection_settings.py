@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import subprocess
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Protocol
 
 from .user_api_contracts import DataConnectionConfig, DataSourceCredentialRef
@@ -218,6 +220,111 @@ class DataConnectionSettingsStore:
         self._configs.pop(connection_id, None)
 
 
+class PersistentDataConnectionStore(DataConnectionSettingsStore):
+    """A local connection registry that persists only non-secret settings.
+
+    The JSON file contains the connection contract and an opaque credential
+    reference. Credential values are always delegated to ``credential_store``
+    and never enter the file, repr, logs, or serialized status payloads.
+    Loading this store is side-effect free: it does not resolve credentials or
+    contact a remote endpoint.
+    """
+
+    def __init__(self, path: str | os.PathLike[str], *, credential_store: DataCredentialStore | None = None) -> None:
+        super().__init__(credential_store=credential_store)
+        self.path = Path(path).expanduser()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._load()
+
+    @staticmethod
+    def _serialize(config: DataConnectionConfig) -> dict[str, object]:
+        ref = config.credential_ref.to_dict() if config.credential_ref is not None else None
+        # The endpoint is part of the user-owned connection contract, but the
+        # redacted view used by reports/UI intentionally omits it.
+        return {
+            "connection_id": config.connection_id,
+            "display_name": config.display_name,
+            "base_url": config.base_url,
+            "credential_ref": ref,
+            "auth_mode": config.auth_mode,
+            "field_mapping": dict(config.field_mapping),
+            "records_path": config.records_path,
+            "auth_header": config.auth_header,
+            "source_declaration": config.source_declaration,
+            "allow_local": config.allow_local,
+        }
+
+    @staticmethod
+    def _deserialize(payload: Mapping[str, object]) -> DataConnectionConfig:
+        raw_ref = payload.get("credential_ref")
+        ref: DataSourceCredentialRef | None = None
+        if raw_ref is not None:
+            if not isinstance(raw_ref, Mapping):
+                raise ValueError("persisted credential reference is invalid")
+            ref = DataSourceCredentialRef(
+                env_var=raw_ref.get("env_var") if isinstance(raw_ref.get("env_var"), str) else None,
+                keychain_label=raw_ref.get("keychain_label") if isinstance(raw_ref.get("keychain_label"), str) else None,
+            )
+        mapping = payload.get("field_mapping", {})
+        if not isinstance(mapping, Mapping):
+            raise TypeError("persisted field mapping is invalid")
+        return DataConnectionConfig(
+            connection_id=str(payload.get("connection_id", "")),
+            display_name=str(payload.get("display_name", "")),
+            base_url=str(payload.get("base_url", "")),
+            credential_ref=ref,
+            auth_mode=str(payload.get("auth_mode", "no_auth")),
+            field_mapping={str(key): str(value) for key, value in mapping.items()},
+            records_path=payload.get("records_path") if isinstance(payload.get("records_path"), str) else None,
+            auth_header=payload.get("auth_header") if isinstance(payload.get("auth_header"), str) else None,
+            source_declaration=str(payload.get("source_declaration", "User-declared data source; Finathink has not independently verified it.")),
+            allow_local=bool(payload.get("allow_local", False)),
+        )
+
+    def _load(self) -> None:
+        try:
+            raw = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return
+        if not raw.strip():
+            return
+        try:
+            payload = json.loads(raw)
+            rows = payload.get("connections", []) if isinstance(payload, Mapping) else []
+            if not isinstance(rows, list):
+                raise TypeError("persisted connections are invalid")
+            for row in rows:
+                if isinstance(row, Mapping):
+                    config = self._deserialize(row)
+                    self._configs[config.connection_id] = config
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError("persisted data connections are invalid") from exc
+
+    def _flush(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "connections": [self._serialize(config) for config in sorted(self._configs.values(), key=lambda item: item.connection_id)],
+        }
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        temporary = self.path.with_name(f".{self.path.name}.{secrets.token_hex(8)}.tmp")
+        try:
+            temporary.write_text(encoded, encoding="utf-8")
+            os.replace(temporary, self.path)
+        finally:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+
+    def save(self, config: DataConnectionConfig, *, credential_value: str | None = None) -> None:
+        super().save(config, credential_value=credential_value)
+        self._flush()
+
+    def remove(self, connection_id: str) -> None:
+        super().remove(connection_id)
+        self._flush()
+
+
 def new_local_credential_ref(connection_id: str) -> DataSourceCredentialRef:
     """Create an opaque keychain reference without embedding user identifiers."""
 
@@ -226,7 +333,14 @@ def new_local_credential_ref(connection_id: str) -> DataSourceCredentialRef:
 
 
 __all__ = [
-    "DataConnectionSettingsStore", "DataCredentialStore", "EnvironmentDataCredentialStore",
-    "InMemoryDataCredentialStore", "KeychainBackend", "KeychainDataCredentialStore",
-    "KeychainError", "MacOSKeychainBackend", "new_local_credential_ref",
+    "DataConnectionSettingsStore",
+    "DataCredentialStore",
+    "EnvironmentDataCredentialStore",
+    "InMemoryDataCredentialStore",
+    "KeychainBackend",
+    "KeychainDataCredentialStore",
+    "KeychainError",
+    "MacOSKeychainBackend",
+    "PersistentDataConnectionStore",
+    "new_local_credential_ref",
 ]
