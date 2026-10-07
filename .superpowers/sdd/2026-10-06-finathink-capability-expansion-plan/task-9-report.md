@@ -88,3 +88,27 @@ src/finahinking/research/factor_proposals.py:20 FURB167 re.I alias (可机械修
 ## Commit
 
 原始 Task 9 提交：`59790ba`。本 hardening 由增量 commit 记录。Task 9 本身没有接通外部服务或改变真实数据来源。
+
+## Final security hardening
+
+在最终审查后补充了一个 consolidated hardening wave：研究编排器、并行分析师池和用户模型驱动的异常边界统一返回 typed failure 与稳定通用消息，原始异常、API key、endpoint、绝对路径、prompt 和 provider response 不进入运行状态、checkpoint、UI 或 API。Provider/Data credential 的 keychain label 现在使用受限字符集、长度和 secret-like 内容校验；数据连接 URL 拒绝敏感查询参数。
+
+本地数据配置的默认凭证存储改为 macOS OS Keychain 适配器，调用 `/usr/bin/security` 时使用参数数组、无 shell，并在失败时返回通用错误。测试通过注入的 fake backend 或显式 `InMemoryDataCredentialStore` 完成，没有写入真实用户钥匙串。数据字段映射和连接器将 `DataRequest.as_of` 传入 PIT 校验，未来 `available_at` 标记为 `UNAVAILABLE` 并记录质量问题。
+
+回归证据：
+
+```text
+python3 -m pytest -q
+582 passed, 1 skipped
+python3 -m compileall -q src tests
+python3 scripts/validate_governance.py .
+PASS: governance validation passed
+python3 scripts/secret_scan.py
+secret scan passed (no known credential patterns)
+python3 -m pip check
+No broken requirements found.
+cd frontend && npm test
+13 passed
+git diff --check
+passed
+```
