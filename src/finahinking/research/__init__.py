@@ -37,6 +37,7 @@ from .factor_loop import (
     FactorResearchState,
     run_factor_research,
 )
+from .job_queue import JobQueue, JobRecord, JobStatus
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
 from .paper_trader import PaperLedger, PaperLedgerEntry, PaperTrader
 from .portfolio_runtime import PaperPortfolioProposal, PortfolioManager
@@ -77,6 +78,7 @@ from .tools import (
     ResearchToolResponse,
     ResearchToolStatus,
 )
+from .worker import ResearchWorker, WorkerResult, WorkerStatus
 from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
 __all__ = [
@@ -112,6 +114,9 @@ __all__ = [
     "FactorResearchRun",
     "FactorResearchState",
     "FailureKind",
+    "JobQueue",
+    "JobRecord",
+    "JobStatus",
     "LearningEntry",
     "LearningStore",
     "OfflineDriver",
@@ -140,6 +145,7 @@ __all__ = [
     "ResearchToolRequest",
     "ResearchToolResponse",
     "ResearchToolStatus",
+    "ResearchWorker",
     "RetryPolicy",
     "RiskManager",
     "RiskReview",
@@ -149,6 +155,8 @@ __all__ = [
     "RunEvent",
     "RunStoreError",
     "UserApiDriver",
+    "WorkerResult",
+    "WorkerStatus",
     "WorkflowLimits",
     "compare_report_manifests",
     "provider_status_payload",

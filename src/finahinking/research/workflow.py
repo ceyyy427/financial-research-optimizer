@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import CancelledError
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -100,6 +100,7 @@ class ResearchOrchestrator:
         analyst_pool: AnalystPool | None = None,
         manager: ResearchManager | None = None,
         run_control: Any | None = None,
+        checkpoint_writer: Callable[[ResearchRunState], None] | None = None,
     ) -> ResearchRunResult:
         del provider_registry  # Provider checks happen at the driver boundary.
         limits = limits or WorkflowLimits()
@@ -113,6 +114,32 @@ class ResearchOrchestrator:
             validate_transition(state_history[-1], next_state)
             state_history.append(next_state)
             events.append(self._event(request.run_id, next_state, owner, payload, metadata=metadata))
+            # Persist only resumable typed state. Terminal report/learning
+            # states are publication records and are intentionally not written
+            # as temporary checkpoints by ResearchRunStore.
+            if checkpoint_writer is not None and next_state in {
+                ResearchState.RECEIVED,
+                ResearchState.IDENTIFIED,
+                ResearchState.DATA_CHECKED,
+                ResearchState.ANALYSTS_RUNNING,
+                ResearchState.ANALYSTS_READY,
+                ResearchState.EVIDENCE_REVIEW,
+                ResearchState.RESEARCH_PLAN_READY,
+                ResearchState.QUANT_VALIDATION,
+                ResearchState.RISK_REVIEW,
+                ResearchState.PAPER_DECISION_READY,
+            }:
+                checkpoint_writer(
+                    ResearchRunState(
+                        run_id=request.run_id,
+                        current_state=next_state,
+                        as_of=request.as_of,
+                        state_history=tuple(state_history),
+                        analyst_reports=reports,
+                        failure_kind=None,
+                        decision_eligible=False,
+                    )
+                )
 
         def finish(next_state: ResearchState, kind: FailureKind, message: str, *, owner: str = "workflow", metadata: Mapping[str, Any] | None = None) -> ResearchRunResult:
             transition(next_state, {"failure_kind": kind.value, "message_digest": stable_digest(message)}, owner=owner, metadata=metadata)

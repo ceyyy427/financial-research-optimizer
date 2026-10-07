@@ -89,6 +89,16 @@ def test_checkpoint_round_trip_and_identity_validation(tmp_path) -> None:
         store.load_checkpoint("run-001", identity=identity(roles=("news",)))
 
 
+def test_checkpoint_reference_is_public_and_path_free(tmp_path) -> None:
+    store = ResearchRunStore(tmp_path)
+    reference = store.checkpoint_reference("run-001")
+    assert reference == "checkpoint:run-001"
+    assert store.run_id_from_reference(reference) == "run-001"
+    assert store.has_checkpoint("run-001") is False
+    with pytest.raises(ValueError):
+        store.run_id_from_reference("checkpoint:/tmp/secret")
+
+
 def test_cancellation_is_legal_from_every_resumable_intermediate_state() -> None:
     for current in (
         ResearchState.RECEIVED,

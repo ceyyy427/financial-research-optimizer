@@ -69,6 +69,7 @@ class CheckpointRecord:
 
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_CHECKPOINT_REF = re.compile(r"^checkpoint:[A-Za-z0-9_-]{1,128}$")
 _CHECKPOINT_SCHEMA = "research-checkpoint.v1"
 _COMPLETED_STATES = frozenset({ResearchState.REPORT_PUBLISHED, ResearchState.LEARNING_RECORDED})
 _FORBIDDEN_KEYS = re.compile(
@@ -288,6 +289,20 @@ class ResearchRunStore:
 
     def _path(self, run_id: str) -> Path:
         return self.root / f"{_run_id(run_id)}.json"
+
+    @staticmethod
+    def checkpoint_reference(run_id: str) -> str:
+        """Return the public queue reference for a checkpoint, never its path."""
+        return f"checkpoint:{_run_id(run_id)}"
+
+    @staticmethod
+    def run_id_from_reference(reference: str) -> str:
+        if not isinstance(reference, str) or not _CHECKPOINT_REF.fullmatch(reference):
+            raise ValueError("checkpoint reference is invalid")
+        return _run_id(reference.split(":", 1)[1])
+
+    def has_checkpoint(self, run_id: str) -> bool:
+        return self._path(run_id).is_file()
 
     @property
     def events_path(self) -> Path:
