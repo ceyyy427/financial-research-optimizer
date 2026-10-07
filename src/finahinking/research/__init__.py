@@ -38,6 +38,8 @@ from .factor_loop import (
     run_factor_research,
 )
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
+from .paper_trader import PaperLedger, PaperLedgerEntry, PaperTrader
+from .portfolio_runtime import PaperPortfolioProposal, PortfolioManager
 from .provider_adapters import (
     DeepSeekCompatibleAdapter,
     OpenAICompatibleAdapter,
@@ -53,6 +55,7 @@ from .reports import (
     render_section_html,
     verify_report_bundle,
 )
+from .risk_runtime import RiskManager, RiskReviewResult
 from .run_store import (
     CheckpointCorruptError,
     CheckpointIdentityMismatch,
@@ -113,6 +116,11 @@ __all__ = [
     "LearningStore",
     "OfflineDriver",
     "OpenAICompatibleAdapter",
+    "PaperLedger",
+    "PaperLedgerEntry",
+    "PaperPortfolioProposal",
+    "PaperTrader",
+    "PortfolioManager",
     "ProviderAdapterError",
     "ProviderCredentialRef",
     "ProviderFailureKind",
@@ -133,7 +141,9 @@ __all__ = [
     "ResearchToolResponse",
     "ResearchToolStatus",
     "RetryPolicy",
+    "RiskManager",
     "RiskReview",
+    "RiskReviewResult",
     "RoleCapabilityPolicy",
     "RunControl",
     "RunEvent",

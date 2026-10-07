@@ -417,4 +417,16 @@ def run_paper(*args: Any, **kwargs: Any) -> PaperRun:
     return PaperSimulator().run(*args, **kwargs)
 
 
-__all__ = ["PaperRun", "PaperSignal", "PaperSimulator", "VirtualFill", "VirtualOrder", "VirtualPortfolio", "run_paper"]
+def run_paper_proposal(proposal: Any, snapshot: Any, execution_policy: Any) -> Any:
+    """Bridge a governed portfolio proposal into the paper-only ledger runtime.
+
+    The import remains lazy so the historical replay API stays independent of
+    research orchestration and cannot acquire a broker or live-data surface.
+    """
+
+    from finahinking.research.paper_trader import PaperTrader
+
+    return PaperTrader().simulate(proposal, snapshot, execution_policy)
+
+
+__all__ = ["PaperRun", "PaperSignal", "PaperSimulator", "VirtualFill", "VirtualOrder", "VirtualPortfolio", "run_paper", "run_paper_proposal"]
