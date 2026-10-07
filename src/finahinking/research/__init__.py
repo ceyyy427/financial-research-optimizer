@@ -8,6 +8,7 @@ from finahinking.factors.registry import (
 )
 
 from .agent_roles import AgentRuntime, AgentStatus, RoleCapabilityPolicy
+from .codex_bridge import CodexBridge, CodexTaskEnvelope
 from .contracts import (
     AgentOutcome,
     AgentReport,
@@ -37,6 +38,13 @@ from .factor_loop import (
     run_factor_research,
 )
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
+from .provider_adapters import (
+    DeepSeekCompatibleAdapter,
+    OpenAICompatibleAdapter,
+    ProviderAdapterError,
+    ProviderFailureKind,
+    RetryPolicy,
+)
 from .provider_status import ProviderCredentialRef, ProviderStatus, provider_status_payload
 from .reports import (
     BundleVerification,
@@ -85,11 +93,14 @@ __all__ = [
     "CheckpointRestoreError",
     "CheckpointSchemaError",
     "CheckpointValidationError",
+    "CodexBridge",
     "CodexInteractiveDriver",
+    "CodexTaskEnvelope",
     "CompatibleApiDriver",
     "CompletedRunError",
     "CorruptCheckpointError",
     "DecisionCard",
+    "DeepSeekCompatibleAdapter",
     "FactorHealth",
     "FactorHealthStatus",
     "FactorMetadata",
@@ -101,7 +112,10 @@ __all__ = [
     "LearningEntry",
     "LearningStore",
     "OfflineDriver",
+    "OpenAICompatibleAdapter",
+    "ProviderAdapterError",
     "ProviderCredentialRef",
+    "ProviderFailureKind",
     "ProviderSelection",
     "ProviderStatus",
     "ReportBundleWriter",
@@ -118,6 +132,7 @@ __all__ = [
     "ResearchToolRequest",
     "ResearchToolResponse",
     "ResearchToolStatus",
+    "RetryPolicy",
     "RiskReview",
     "RoleCapabilityPolicy",
     "RunControl",
