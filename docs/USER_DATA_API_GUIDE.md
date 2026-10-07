@@ -10,6 +10,8 @@ Finathink 提供一个供应商无关的数据接入合同。用户自行选择�
 4. 保存配置只保存连接合同和凭证引用，不自动下载数据。正常本地应用将 API Key 写入操作系统密钥链；测试可注入进程内 `InMemoryDataCredentialStore`，不会写入用户密钥链。页面、日志、报告、checkpoint、模型上下文和状态响应都不会回显 API Key。
 5. 使用独立的“试连”操作，并提供有界的研究请求；试连响应只返回状态、记录数、质量问题数和时间可用性状态。
 
+密钥链引用使用固定前缀加随机不透明标识，不包含用户连接 ID。macOS 写入密钥链时通过子进程标准输入传递密钥值，不把密钥放进 `security` 命令参数。接口地址的查询参数会按大小写和分隔符规范化检查，拒绝 `api_key`、`access_token`、`client_secret`、`credential_ref`、`authorization`、`password`、`secret`、`token`、`key` 等凭证字段及其边界变体；普通字段（例如 `monkey`）仍可使用。
+
 字段映射是一个明确的 JSON 对象，例如：
 
 ```json

@@ -2,11 +2,15 @@ import threading
 from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener
 
+import pytest
+
+from finahinking.data import connection_settings
 from finahinking.data.connection_settings import (
     InMemoryDataCredentialStore,
     KeychainDataCredentialStore,
     KeychainError,
     MacOSKeychainBackend,
+    new_local_credential_ref,
 )
 from finahinking.data.user_api_contracts import DataSourceCredentialRef
 from finahinking.local_app import LocalAppConfig, LocalApplication, create_server
@@ -52,6 +56,30 @@ def test_macos_backend_does_not_leak_command_output_on_failure():
         assert "security" not in str(exc)
     else:
         raise AssertionError("missing keychain executable unexpectedly succeeded")
+
+
+@pytest.mark.parametrize("connection_id", ["token-feed", "secret-data", "apikey", "credential-feed"])
+def test_local_credential_ref_is_opaque_for_secret_like_connection_ids(connection_id):
+    ref = new_local_credential_ref(connection_id)
+    assert ref.keychain_label is not None
+    assert ref.keychain_label.startswith("finathink-data-")
+    assert connection_id not in ref.keychain_label
+
+
+def test_macos_backend_does_not_place_secret_in_security_argv(monkeypatch):
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(connection_settings.subprocess, "run", fake_run)
+    MacOSKeychainBackend(executable="security").put("finathink-data-label", "super-secret")
+    argv, kwargs = calls[0]
+    assert "super-secret" not in argv
+    assert argv[-1] == "-w"
+    assert kwargs["input"] == "super-secret"
+    assert kwargs["shell"] is False
 
 
 def test_connection_does_not_require_vendor_admission():

@@ -53,7 +53,14 @@ def test_missing_available_at_remains_unknown():
     assert batch.to_dict()["pit_available"] == "UNKNOWN"
 
 
-@pytest.mark.parametrize("query_key", ["api_key", "token", "secret", "password", "credential", "API-KEY"])
+@pytest.mark.parametrize(
+    "query_key",
+    [
+        "api_key", "apikey", "api-token", "access_token", "auth_token", "client_secret",
+        "credential", "credential_ref", "authorization", "password", "secret", "token", "key",
+        "API-KEY", "X-Api-Key", "access-token",
+    ],
+)
 def test_connection_url_rejects_sensitive_query_parameters_even_when_empty(query_key: str) -> None:
     with pytest.raises(ValueError, match="credential query"):
         DataConnectionConfig(
@@ -64,6 +71,19 @@ def test_connection_url_rejects_sensitive_query_parameters_even_when_empty(query
             "no_auth",
             {},
         )
+
+
+@pytest.mark.parametrize("query_key", ["monkey", "tokenizer", "secretary", "keynote", "credentials_count", "client_id", "access_mode"])
+def test_connection_url_allows_non_sensitive_query_parameter_names(query_key: str) -> None:
+    config = DataConnectionConfig(
+        "query-feed",
+        "Query feed",
+        f"https://example.test/data?{query_key}=value",
+        None,
+        "no_auth",
+        {},
+    )
+    assert config.base_url.endswith(f"{query_key}=value")
 
 
 @pytest.mark.parametrize("label", ["/Users/me/key", "https://example.test/key", "api_key=raw-secret", "token-value"])

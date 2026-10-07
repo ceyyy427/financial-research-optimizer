@@ -43,7 +43,7 @@ class MacOSKeychainBackend:
         self._account = account
         self._timeout = timeout
 
-    def _run(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+    def _run(self, args: list[str], *, input_data: str | None = None) -> subprocess.CompletedProcess[str]:
         try:
             return subprocess.run(
                 [self._executable, *args],
@@ -52,6 +52,7 @@ class MacOSKeychainBackend:
                 text=True,
                 shell=False,
                 timeout=self._timeout,
+                input=input_data,
             )
         except (OSError, subprocess.SubprocessError):
             raise KeychainError("system credential storage is unavailable") from None
@@ -70,10 +71,9 @@ class MacOSKeychainBackend:
             self._account,
             "-s",
             label,
-            "-w",
-            value,
             "-U",
-        ])
+            "-w",
+        ], input_data=value)
         if result.returncode != 0:
             raise KeychainError("system credential storage rejected the value")
 
@@ -219,10 +219,10 @@ class DataConnectionSettingsStore:
 
 
 def new_local_credential_ref(connection_id: str) -> DataSourceCredentialRef:
-    """Create an opaque process-local key reference without storing its value."""
+    """Create an opaque keychain reference without embedding user identifiers."""
 
-    safe = "".join(char if char.isalnum() else "-" for char in connection_id).strip("-")[:48] or "connection"
-    return DataSourceCredentialRef(keychain_label=f"finathink-data-{safe}-{secrets.token_hex(8)}")
+    del connection_id
+    return DataSourceCredentialRef(keychain_label=f"finathink-data-{secrets.token_hex(24)}")
 
 
 __all__ = [
