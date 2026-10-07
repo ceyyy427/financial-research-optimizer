@@ -13,7 +13,7 @@ Task 9 在前八项实现之上补齐了一个可重复的离线端到端验收�
   - 通过 `DataConnectionConfig`、显式字段映射和 `JsonApiConnector` 取得统一 `DataBatch`。
   - 将同一数据 fingerprint 注入研究工具上下文，再运行 fundamentals、technical、sentiment、news、learning 五类分析师并行池。
   - 由 `ResearchManager` 生成 evidence-indexed plan；因子假设通过固定 DSL 模板产生后，真实调用 `run_factor_research`，覆盖 train/validation 的 hidden OOS、冻结策略、test once-only 和 run fingerprint。
-  - 因子/OOS 运行直接消费字段映射后的完整 normalized records；其 run fingerprint 与由全部统一字段和值推导的 `normalized_input_digest` 一起绑定到 quant request 的 `factor_ids`。quant spy 只接收并校验这两个 digest，不接收原始记录。
+  - 因子/OOS 路径本身要求并消费每条 normalized record 的 instrument、timestamp、available_at、close、volume，校验 PIT 可用性和数值边界，并在该路径内由全部字段和值生成并返回 `normalized_input_digest`。该返回值与 FactorResearchRun fingerprint 一起绑定到 quant request 的 `factor_ids`；quant spy 只接收并校验两个 digest，不接收原始记录。字段变更会改变 digest，字段缺失会阻断因子/OOS 输入。
   - 量化 fixture 显式返回 deterministic engine 与 `oos=True`；data unavailable/no-data、quant、risk、provider-not-configured 和 required-analyst failure 矩阵均断言 `decision is None`、`decision_eligible is False` 且不进入 `PAPER_DECISION_READY`。
   - 生成 paper-only `DecisionCard`、多阶段 HTML/manifest/activity、as-of `LearningStore` 记录，并保存/加载带 identity、dataset、workflow 和 capability digest 的 checkpoint。
   - 对同一输入比较两次非时间性报告文件 digest，排除只含运行时间的 `activity.jsonl`。

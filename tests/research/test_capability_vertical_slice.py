@@ -13,6 +13,7 @@ from dataclasses import replace
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 
@@ -191,16 +192,29 @@ def _fetch_batch():
 
 
 def _factor_run(batch, proposal):
+    required_fields = {"instrument", "timestamp", "available_at", "close", "volume"}
+    normalized_records = tuple(dict(record) for record in batch.records)
+    if not normalized_records or any(set(record) != required_fields for record in normalized_records):
+        raise AssertionError("factor/OOS input must contain every normalized field")
+    for record in normalized_records:
+        if record["instrument"] != "AAA":
+            raise AssertionError("factor/OOS fixture instrument is invalid")
+        if record["available_at"] > record["timestamp"]:
+            raise AssertionError("factor/OOS input is not point-in-time available")
+        if not isinstance(record["volume"], (int, float)) or record["volume"] <= 0:
+            raise AssertionError("factor/OOS input volume is invalid")
+    input_digest = stable_digest(normalized_records)
     index = pd.DatetimeIndex([record["timestamp"] for record in batch.records])
     close = pd.Series([record["close"] for record in batch.records], index=index, dtype=float)
-    frame = pd.DataFrame({"close": close}, index=index)
+    volume = pd.Series([record["volume"] for record in batch.records], index=index, dtype=float)
+    frame = pd.DataFrame({"close": close, "volume": volume}, index=index)
     assert frame["close"].tolist() == [100 + ((day * 7) % 11) for day in range(1, 30)]
     dataset = {"frame": frame, "forward_return": close.pct_change().shift(-1)}
     charter = ResearchCharter(
         charter_id="capability-factor-charter",
         research_question="Does fixture price strength survive costs?",
         hypothesis_scope="bounded momentum",
-        dataset_reference=batch.data_fingerprint,
+        dataset_reference=f"{batch.data_fingerprint}:{input_digest}",
         data_split={"train": 0.6, "validation": 0.2, "test": 0.2},
         evaluation_metrics=("ic", "icir", "turnover"),
         hard_constraints={"shift_periods": 1, "paper_only": True},
@@ -233,7 +247,7 @@ def _factor_run(batch, proposal):
     else:
         raise AssertionError("test evaluation was not once-only")
     assert tested.fingerprint
-    return tested
+    return tested, input_digest
 
 
 def _assert_artifact_boundary(*roots: Path) -> None:
@@ -284,10 +298,22 @@ def test_offline_capability_vertical_slice_is_reproducible_and_recoverable(tmp_p
     assert proposals
     validate_factor_proposal(proposals[0])
     assert parse_factor_expression(proposals[0].expression, proposals[0].required_fields).fields
-    factor_run = _factor_run(first_batch, proposals[0])
-    assert factor_run.fingerprint == _factor_run(second_batch, proposals[0]).fingerprint
-    normalized_input_digest = stable_digest(tuple(dict(record) for record in first_batch.records))
-    assert normalized_input_digest == stable_digest(tuple(dict(record) for record in second_batch.records))
+    factor_run, normalized_input_digest = _factor_run(first_batch, proposals[0])
+    second_factor_run, second_input_digest = _factor_run(second_batch, proposals[0])
+    assert factor_run.fingerprint == second_factor_run.fingerprint
+    assert normalized_input_digest == second_input_digest
+    mutated_records = [dict(record) for record in first_batch.records]
+    mutated_records[0]["volume"] = mutated_records[0]["volume"] + 1
+    _, mutated_input_digest = _factor_run(SimpleNamespace(records=mutated_records, data_fingerprint=first_batch.data_fingerprint), proposals[0])
+    assert mutated_input_digest != normalized_input_digest
+    missing_records = [dict(record) for record in first_batch.records]
+    missing_records[0].pop("available_at")
+    try:
+        _factor_run(SimpleNamespace(records=missing_records, data_fingerprint=first_batch.data_fingerprint), proposals[0])
+    except AssertionError as exc:
+        assert "every normalized field" in str(exc)
+    else:
+        raise AssertionError("missing normalized field was accepted by factor/OOS path")
 
     request = _request()
     request = replace(request, research_plan=replace(request.research_plan, factor_ids=(factor_run.fingerprint, normalized_input_digest)))
