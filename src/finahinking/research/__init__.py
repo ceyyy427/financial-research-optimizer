@@ -7,8 +7,12 @@ from finahinking.factors.registry import (
     FactorRegistry,
 )
 
+from .agent_roles import AgentRuntime, AgentStatus, RoleCapabilityPolicy
 from .contracts import (
+    AgentOutcome,
     AgentReport,
+    AgentRole,
+    AgentTask,
     CheckpointIdentity,
     DecisionCard,
     FailureKind,
@@ -65,7 +69,12 @@ from .tools import (
 from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
 __all__ = [
+    "AgentOutcome",
     "AgentReport",
+    "AgentRole",
+    "AgentRuntime",
+    "AgentStatus",
+    "AgentTask",
     "AnalystSpec",
     "BundleVerification",
     "CheckpointCorruptError",
@@ -110,6 +119,7 @@ __all__ = [
     "ResearchToolResponse",
     "ResearchToolStatus",
     "RiskReview",
+    "RoleCapabilityPolicy",
     "RunControl",
     "RunEvent",
     "RunStoreError",

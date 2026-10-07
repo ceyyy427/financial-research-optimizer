@@ -54,6 +54,9 @@ class FailureKind(str, Enum):
     QUANT_VALIDATION_FAILED = "QUANT_VALIDATION_FAILED"
     RISK_REVIEW_FAILED = "RISK_REVIEW_FAILED"
     CANCELLED = "CANCELLED"
+    CAPABILITY_DENIED = "CAPABILITY_DENIED"
+    DUPLICATE_ROLE = "DUPLICATE_ROLE"
+    PAPER_ONLY_VIOLATION = "PAPER_ONLY_VIOLATION"
 
 
 _TERMINAL_STATES = frozenset(
@@ -227,6 +230,96 @@ class AgentReport:
         object.__setattr__(self, "limitations", _text_tuple(self.limitations, "limitations"))
         object.__setattr__(self, "model_ref", _nonempty(self.model_ref, "model_ref"))
         object.__setattr__(self, "finished_at", _as_datetime(self.finished_at, "finished_at"))
+
+
+class AgentRole(str, Enum):
+    """Roles admitted by the autonomous research runtime.
+
+    The enum is deliberately provider-neutral.  Values are stable identifiers
+    used in task digests, checkpoint records, and report manifests.
+    """
+
+    FUNDAMENTALS = "fundamentals"
+    TECHNICAL = "technical"
+    SENTIMENT = "sentiment"
+    NEWS = "news"
+    LEARNING = "learning"
+    RESEARCH_MANAGER = "research_manager"
+    RISK_MANAGER = "risk_manager"
+    PORTFOLIO_MANAGER = "portfolio_manager"
+    PAPER_TRADER = "paper_trader"
+    LEARNING_MANAGER = "learning_manager"
+
+
+@dataclass(frozen=True, slots=True)
+class AgentTask:
+    """A bounded, digest-addressed request for one research role."""
+
+    role: AgentRole | str
+    task_id: str
+    input_digest: str
+    capabilities: tuple[str, ...] = ()
+    required: bool = True
+    timeout_seconds: float = 30.0
+    inputs: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        role = self.role.value if isinstance(self.role, AgentRole) else str(self.role).strip().casefold()
+        if not role:
+            raise ValueError("role must be non-empty")
+        object.__setattr__(self, "role", role)
+        object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
+        object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
+        object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
+        if not isinstance(self.required, bool):
+            raise TypeError("required must be a bool")
+        if not isinstance(self.timeout_seconds, (int, float)) or self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        object.__setattr__(self, "inputs", dict(self.inputs))
+
+
+@dataclass(frozen=True, slots=True)
+class AgentOutcome:
+    """Secret-free result envelope returned by every role invocation."""
+
+    role: AgentRole | str
+    task_id: str
+    input_digest: str
+    capabilities: tuple[str, ...] = ()
+    status: str = "READY"
+    failure_kind: FailureKind | str | None = None
+    message_digest: str = ""
+    evidence_refs: tuple[str, ...] = ()
+    output_digest: str = ""
+    paper_only: bool = True
+
+    def __post_init__(self) -> None:
+        role = self.role.value if isinstance(self.role, AgentRole) else str(self.role).strip().casefold()
+        object.__setattr__(self, "role", _nonempty(role, "role"))
+        object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
+        object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
+        object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
+        object.__setattr__(self, "status", _nonempty(self.status, "status").upper())
+        if self.failure_kind is not None and not isinstance(self.failure_kind, FailureKind):
+            try:
+                object.__setattr__(self, "failure_kind", FailureKind(self.failure_kind))
+            except ValueError:
+                object.__setattr__(self, "failure_kind", str(self.failure_kind).strip().upper())
+        if self.message_digest:
+            object.__setattr__(self, "message_digest", _nonempty(self.message_digest, "message_digest"))
+        else:
+            object.__setattr__(
+                self,
+                "message_digest",
+                stable_digest({"role": role, "task_id": self.task_id, "status": self.status, "failure_kind": self.failure_kind}),
+            )
+        object.__setattr__(self, "evidence_refs", _text_tuple(self.evidence_refs, "evidence_refs", unique=True))
+        if self.output_digest:
+            object.__setattr__(self, "output_digest", _nonempty(self.output_digest, "output_digest"))
+        else:
+            object.__setattr__(self, "output_digest", stable_digest(self.evidence_refs))
+        if not isinstance(self.paper_only, bool):
+            raise TypeError("paper_only must be a bool")
 
 
 @dataclass(frozen=True, slots=True)
