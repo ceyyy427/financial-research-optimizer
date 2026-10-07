@@ -32,6 +32,21 @@ _URI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
 _PATH = re.compile(r"(?:^|[\s:=])(?:~[\\/]|[\\/]|\.\.?[\\/]|[A-Za-z]:[\\/])")
 
 
+def _sensitive_key(value: str) -> bool:
+    """Reject provider/raw response variants across naming conventions."""
+
+    compact = re.sub(r"[^a-z0-9]", "", value.casefold())
+    if _SENSITIVE.search(value):
+        return True
+    if "provider" in compact:
+        return True
+    if compact.startswith("raw") and any(
+        marker in compact for marker in ("response", "object", "payload", "result", "output")
+    ):
+        return True
+    return compact in {"rawresponse", "rawobject", "rawpayload", "rawresult", "rawoutput"}
+
+
 def _as_date(value: date | str, name: str = "as_of") -> date:
     if isinstance(value, datetime):
         value = value.date()
@@ -61,7 +76,7 @@ def _safe(value: Any, path: str = "value") -> Any:
     if isinstance(value, Mapping):
         clean: dict[str, Any] = {}
         for key, child in value.items():
-            if not isinstance(key, str) or not key.strip() or _SENSITIVE.search(key):
+            if not isinstance(key, str) or not key.strip() or _sensitive_key(key):
                 raise ValueError(f"{path} contains sensitive field")
             clean[key.strip()] = _safe(child, f"{path}.{key}")
         return clean

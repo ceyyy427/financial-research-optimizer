@@ -80,3 +80,19 @@ def test_settlement_fingerprint_is_stable_and_redacts_no_sensitive_payload() -> 
         event(realized_outcomes={"prompt": "do this"})
     with pytest.raises((ValueError, TypeError)):
         event(realized_outcomes={"raw_provider_object": object()})
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "provider_response",
+        "providerResponse",
+        "raw_provider_object",
+        "rawProviderObject",
+        "provider_payload",
+        "rawProviderOutput",
+    ),
+)
+def test_settlement_rejects_nested_provider_and_raw_payload_keys(field: str) -> None:
+    with pytest.raises(ValueError, match="sensitive"):
+        event(realized_outcomes={"nested": {field: {"value": 1}}})
