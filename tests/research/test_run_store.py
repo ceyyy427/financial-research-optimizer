@@ -89,6 +89,14 @@ def test_checkpoint_round_trip_and_identity_validation(tmp_path) -> None:
         store.load_checkpoint("run-001", identity=identity(roles=("news",)))
 
 
+def test_checkpoint_can_reference_learning_artifact_without_serializing_payload(tmp_path) -> None:
+    store = ResearchRunStore(tmp_path)
+    expected = identity()
+    store.save_checkpoint(state(), expected, learning_ref="learning:run-001")
+    record = store.load_record("run-001")
+    assert record.learning_ref == "learning:run-001"
+
+
 def test_checkpoint_reference_is_public_and_path_free(tmp_path) -> None:
     store = ResearchRunStore(tmp_path)
     reference = store.checkpoint_reference("run-001")

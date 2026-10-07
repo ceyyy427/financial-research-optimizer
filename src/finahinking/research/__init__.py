@@ -39,6 +39,14 @@ from .factor_loop import (
 )
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
+from .learning_manager import (
+    AdmissionDecision,
+    AdmittedUpdate,
+    LearningAdmissionRecord,
+    LearningManager,
+    LearningUpdateProposal,
+    LearningUpdateStatus,
+)
 from .paper_trader import PaperLedger, PaperLedgerEntry, PaperTrader
 from .portfolio_runtime import PaperPortfolioProposal, PortfolioManager
 from .provider_adapters import (
@@ -71,6 +79,7 @@ from .run_store import (
     RunControl,
     RunStoreError,
 )
+from .settlement import SettlementEvent
 from .tools import (
     ResearchToolGateway,
     ResearchToolName,
@@ -82,6 +91,8 @@ from .worker import ResearchWorker, WorkerResult, WorkerStatus
 from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
 __all__ = [
+    "AdmissionDecision",
+    "AdmittedUpdate",
     "AgentOutcome",
     "AgentReport",
     "AgentRole",
@@ -117,8 +128,12 @@ __all__ = [
     "JobQueue",
     "JobRecord",
     "JobStatus",
+    "LearningAdmissionRecord",
     "LearningEntry",
+    "LearningManager",
     "LearningStore",
+    "LearningUpdateProposal",
+    "LearningUpdateStatus",
     "OfflineDriver",
     "OpenAICompatibleAdapter",
     "PaperLedger",
@@ -154,6 +169,7 @@ __all__ = [
     "RunControl",
     "RunEvent",
     "RunStoreError",
+    "SettlementEvent",
     "StaleLeaseError",
     "UserApiDriver",
     "WorkerResult",

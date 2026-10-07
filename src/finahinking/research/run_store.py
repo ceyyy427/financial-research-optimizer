@@ -66,10 +66,12 @@ class CheckpointRecord:
     identity: CheckpointIdentity
     identity_digest: str
     provider_capability_digest: str
+    learning_ref: str | None = None
 
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _CHECKPOINT_REF = re.compile(r"^checkpoint:[A-Za-z0-9_-]{1,128}$")
+_LEARNING_REF = re.compile(r"^learning:[A-Za-z0-9_-]{1,128}$")
 _CHECKPOINT_SCHEMA = "research-checkpoint.v1"
 _COMPLETED_STATES = frozenset({ResearchState.REPORT_PUBLISHED, ResearchState.LEARNING_RECORDED})
 _FORBIDDEN_KEYS = re.compile(
@@ -96,6 +98,7 @@ _CHECKPOINT_FIELDS = frozenset(
         "provider_capability_digest",
         "dataset_snapshot_digest",
         "analyst_set_digest",
+        "learning_ref",
         "identity",
         "state",
     }
@@ -301,6 +304,17 @@ class ResearchRunStore:
             raise ValueError("checkpoint reference is invalid")
         return _run_id(reference.split(":", 1)[1])
 
+    @staticmethod
+    def learning_reference(run_id: str) -> str:
+        """Return a public learning artifact reference, never a local path."""
+        return f"learning:{_run_id(run_id)}"
+
+    @staticmethod
+    def run_id_from_learning_reference(reference: str) -> str:
+        if not isinstance(reference, str) or not _LEARNING_REF.fullmatch(reference):
+            raise ValueError("learning reference is invalid")
+        return _run_id(reference.split(":", 1)[1])
+
     def has_checkpoint(self, run_id: str) -> bool:
         return self._path(run_id).is_file()
 
@@ -308,7 +322,7 @@ class ResearchRunStore:
     def events_path(self) -> Path:
         return self.root / "events.jsonl"
 
-    def save_checkpoint(self, state: ResearchRunState, identity: CheckpointIdentity) -> Path:
+    def save_checkpoint(self, state: ResearchRunState, identity: CheckpointIdentity, *, learning_ref: str | None = None) -> Path:
         if not isinstance(state, ResearchRunState):
             raise TypeError("state must be ResearchRunState")
         if not isinstance(identity, CheckpointIdentity):
@@ -317,6 +331,8 @@ class ResearchRunStore:
             raise CompletedRunError("completed run cannot be checkpointed")
         if self.workflow_version is not None and identity.workflow_version != self.workflow_version:
             raise CheckpointIncompatibleError("workflow version is incompatible")
+        if learning_ref is not None and not _LEARNING_REF.fullmatch(learning_ref):
+            raise ValueError("learning_ref is invalid")
         try:
             state_payload = to_jsonable(state)
             identity_payload = to_jsonable(identity)
@@ -335,6 +351,8 @@ class ResearchRunStore:
             "identity": identity_payload,
             "state": state_payload,
         }
+        if learning_ref is not None:
+            envelope["learning_ref"] = learning_ref
         _assert_safe_keys(envelope)
         path = self._path(state.run_id)
         _atomic_write(path, _encode(envelope))
@@ -429,7 +447,91 @@ class ResearchRunStore:
             raise CheckpointIncompatibleError("checkpoint provider capability digest is missing")
         if state.current_state in _COMPLETED_STATES:
             raise CompletedRunError("completed run cannot be resumed")
-        return CheckpointRecord(state, identity, identity.digest(), cap_digest)
+        learning_ref = payload.get("learning_ref")
+        if learning_ref is not None and not isinstance(learning_ref, str):
+            raise CheckpointIncompatibleError("checkpoint learning reference is invalid")
+        if learning_ref is not None and not _LEARNING_REF.fullmatch(learning_ref):
+            raise CheckpointIncompatibleError("checkpoint learning reference is invalid")
+        return CheckpointRecord(state, identity, identity.digest(), cap_digest, learning_ref)
+
+    def _learning_path(self, run_id: str) -> Path:
+        return self.root / f"{_run_id(run_id)}.learning.json"
+
+    def save_learning_proposal(self, run_id: str, proposal: Any) -> Path:
+        """Persist one redacted learning proposal idempotently.
+
+        The import is local so the checkpoint store remains usable by older
+        callers without importing the learning layer.  Only the typed
+        proposal contract crosses this boundary; production state is never
+        modified here.
+        """
+
+        from .learning_manager import LearningUpdateProposal
+
+        if not isinstance(proposal, LearningUpdateProposal):
+            raise TypeError("proposal must be LearningUpdateProposal")
+        payload = {
+            "schema_version": "learning-proposal.v1",
+            "run_id": _run_id(run_id),
+            "proposal": {
+                "status": proposal.status.value,
+                "settlement_digest": proposal.settlement_digest,
+                "as_of": proposal.as_of,
+                "factor_weight_updates": dict(proposal.factor_weight_updates),
+                "risk_rule_updates": dict(proposal.risk_rule_updates),
+                "registry_updates": dict(proposal.registry_updates),
+                "evidence_refs": proposal.evidence_refs,
+                "proposal_digest": proposal.proposal_digest,
+                "admitted": proposal.admitted,
+            },
+        }
+        _assert_safe_keys(payload)
+        path = self._learning_path(run_id)
+        encoded = _encode(payload)
+        if path.exists():
+            if path.read_text(encoding="utf-8").strip() != encoded:
+                raise CheckpointValidationError("learning proposal already exists with another digest")
+            return path
+        _atomic_write(path, encoded)
+        return path
+
+    # Short aliases make the learning artifact usable by queue/report callers
+    # without exposing local paths in their public references.
+    save_learning = save_learning_proposal
+
+    def load_learning_proposal(self, run_id: str) -> Any:
+        from .learning_manager import LearningUpdateProposal
+
+        path = self._learning_path(run_id)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"learning proposal not found: {_run_id(run_id)}") from exc
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise CheckpointCorruptError("learning proposal JSON is corrupt") from exc
+        if not isinstance(payload, Mapping) or payload.get("schema_version") != "learning-proposal.v1" or payload.get("run_id") != _run_id(run_id):
+            raise CheckpointCorruptError("learning proposal envelope is invalid")
+        _assert_safe_keys(payload)
+        proposal_payload = payload.get("proposal")
+        if not isinstance(proposal_payload, Mapping):
+            raise CheckpointCorruptError("learning proposal payload is invalid")
+        try:
+            proposal = LearningUpdateProposal(
+                status=proposal_payload["status"],
+                settlement_digest=proposal_payload.get("settlement_digest"),
+                as_of=proposal_payload.get("as_of"),
+                factor_weight_updates=proposal_payload.get("factor_weight_updates", {}),
+                risk_rule_updates=proposal_payload.get("risk_rule_updates", {}),
+                registry_updates=proposal_payload.get("registry_updates", {}),
+                evidence_refs=tuple(proposal_payload.get("evidence_refs", ())),
+                proposal_digest=proposal_payload["proposal_digest"],
+                admitted=proposal_payload.get("admitted", False),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise CheckpointCorruptError("learning proposal payload is invalid") from exc
+        return proposal
+
+    load_learning = load_learning_proposal
 
     def clear_checkpoint(self, run_id: str) -> None:
         path = self._path(run_id)
