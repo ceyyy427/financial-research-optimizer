@@ -23,9 +23,7 @@ Hardening follow-up: `8fe8bf7` — `fix(research): harden agent role boundaries`
 
 Residual boundary follow-up: `08b6c14` — `fix(research): close residual agent boundary gaps`.
 
-Identifier boundary follow-up: `fix pending` (the final public identifier,
-URI/path, and strict grammar fixes are staged in the next commit as
-`fix(research): seal residual identifier boundaries`).
+Identifier boundary follow-up: `eaa43ad` — `fix(research): seal residual identifier boundaries`.
 
 ## Verification
 
