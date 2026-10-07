@@ -19,7 +19,7 @@ from finahinking.factors.evaluation import (
 from finahinking.factors.mining import FactorCandidate
 from finahinking.p6_6.workbench import ResearchCharter, _digest
 
-_FUTURE_LOOKAHEAD = re.compile(r"(?:future|lookahead|target|label|forward_return)", re.IGNORECASE)
+_FUTURE_LOOKAHEAD = re.compile(r"(?:future|lookahead|target|label|forward|next|tomorrow)", re.IGNORECASE)
 
 
 class FactorResearchState(str, Enum):

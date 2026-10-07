@@ -20,7 +20,7 @@ from finahinking.factors.evaluation import FactorEvaluation
 from finahinking.factors.mining import FactorCandidate
 from finahinking.p6_6.workbench import ResearchCharter
 
-from .factor_catalog import FactorCatalogEntry, audit_factor_catalog_entry
+from .factor_catalog import FactorCatalogEntry, HumanAdmissionRecord, audit_factor_catalog_entry
 from .factor_loop import FactorResearchRound, FactorResearchRun, run_factor_research
 from .factor_proposals import (
     FactorHypothesis,
@@ -29,7 +29,7 @@ from .factor_proposals import (
     validate_factor_proposal,
 )
 
-_SUSPICIOUS_FIELD = re.compile(r"(?:future|lookahead|target|label)", re.IGNORECASE)
+_SUSPICIOUS_FIELD = re.compile(r"(?:future|lookahead|target|label|forward|next|tomorrow)", re.IGNORECASE)
 
 
 def _jsonable(value: Any) -> Any:
@@ -130,6 +130,7 @@ class FactorAdmissionProposal:
     evaluation_fingerprint: str
     reasons: tuple[str, ...]
     evidence_refs: tuple[str, ...]
+    research_fingerprint: str = ""
     requires_human_admission: bool = True
     production_write: bool = False
 
@@ -145,6 +146,7 @@ class FactorAdmissionProposal:
             "evaluation_fingerprint": self.evaluation_fingerprint,
             "reasons": list(self.reasons),
             "evidence_refs": list(self.evidence_refs),
+            "research_fingerprint": self.research_fingerprint,
             "requires_human_admission": self.requires_human_admission,
             "production_write": self.production_write,
         }
@@ -207,13 +209,15 @@ class FactorResearchResult:
     def evaluate_test(self, dataset: Mapping[str, Any]) -> FactorResearchResult:
         return replace(self, research_run=self.research_run.evaluate_test(dataset))
 
-    def admit(self, proposal_id: str, admission_record: Mapping[str, Any] | None = None) -> FactorAdmissionProposal:
-        if admission_record is None or admission_record.get("approved") is not True:
-            raise ValueError("human admission record is required")
+    def admit(self, proposal_id: str, admission_record: HumanAdmissionRecord | None = None) -> FactorAdmissionProposal:
+        if not isinstance(admission_record, HumanAdmissionRecord):
+            raise TypeError("HumanAdmissionRecord is required")
         for proposal in self.admission_proposals:
             if proposal.proposal_id == proposal_id:
                 if proposal.reasons:
                     raise ValueError("candidate has not passed deterministic admission")
+                if admission_record.proposal_id != proposal.proposal_id or admission_record.evaluation_fingerprint != proposal.evaluation_fingerprint or admission_record.research_fingerprint != proposal.research_fingerprint:
+                    raise ValueError("admission record does not bind proposal, evaluation and research fingerprints")
                 return replace(proposal, status="HUMAN_ADMITTED", requires_human_admission=False)
         raise KeyError(proposal_id)
 
@@ -275,10 +279,10 @@ class FactorResearchPipeline:
         suspicious = next((str(column) for column in frame.columns if _SUSPICIOUS_FIELD.search(str(column))), None)
         if suspicious is not None:
             raise ValueError(f"future-looking field is not allowed: {suspicious}")
-        raw_source_ids = _config_value(config, "source_ids", "sources", default=dataset.get("source_ids", ("offline-fixture",)))
-        source_ids = (raw_source_ids,) if isinstance(raw_source_ids, str) else tuple(raw_source_ids)
-        license_status = _config_value(config, "license_status", "license", default=dataset.get("license_status", "FIXTURE"))
-        pit_semantics = _config_value(config, "pit_semantics", "pit", default=dataset.get("pit_semantics", "T+1 point-in-time"))
+        raw_source_ids = _config_value(config, "source_ids", "sources", default=dataset.get("source_ids"))
+        source_ids = () if raw_source_ids is None else ((raw_source_ids,) if isinstance(raw_source_ids, str) else tuple(raw_source_ids))
+        license_status = _config_value(config, "license_status", "license", default=dataset.get("license_status"))
+        pit_semantics = _config_value(config, "pit_semantics", "pit", default=dataset.get("pit_semantics"))
         raw_version = _config_value(config, "version", "factor_version", default="1.0.0")
         if not isinstance(raw_version, str) or not raw_version.strip():
             raise ValueError("version must be non-empty")
@@ -314,17 +318,29 @@ class FactorResearchPipeline:
         research_run = run_factor_research(charter, candidates, dataset, {"max_rounds": max_rounds})
         ranks = rank_factor_proposals(research_run.rounds)
         config_digest = _digest(config)
+        research_lineage = _digest({
+            "dataset_fingerprint": data_fingerprint,
+            "config_digest": config_digest,
+            "research_run_fingerprint": research_run.fingerprint,
+            "provenance": {
+                "source_ids": list(source_ids),
+                "license_status": license_status,
+                "pit_semantics": pit_semantics,
+                "version": version,
+            },
+        })
         catalog_entries: list[FactorCatalogEntry] = []
         admissions: list[FactorAdmissionProposal] = []
         for item in research_run.rounds:
-            catalog_entry = FactorCatalogEntry(item.candidate.candidate_id, version, source_ids, license_status, pit_semantics, item.candidate.metadata["required_fields"], item.evaluation.fingerprint, "PROPOSED")
+            candidate_lineage = _digest({"research_lineage": research_lineage, "proposal_id": item.candidate.candidate_id, "evaluation_fingerprint": item.evaluation.fingerprint})
+            catalog_entry = FactorCatalogEntry(item.candidate.candidate_id, version, source_ids, license_status, pit_semantics, item.candidate.metadata["required_fields"], candidate_lineage, "PROPOSED")
             audit_factor_catalog_entry(catalog_entry)
             catalog_entries.append(catalog_entry)
-            admissions.append(FactorAdmissionProposal(item.candidate.candidate_id, item.candidate.candidate_id, "PENDING_HUMAN_ADMISSION", item.evaluation.fingerprint, item.admission.reasons, item.admission.evidence_refs))
+            admissions.append(FactorAdmissionProposal(item.candidate.candidate_id, item.candidate.candidate_id, "PENDING_HUMAN_ADMISSION", item.evaluation.fingerprint, item.admission.reasons, item.admission.evidence_refs, candidate_lineage))
         return FactorResearchResult(normalized_hypothesis, proposals, research_run, ranks, tuple(admissions), tuple(catalog_entries), data_fingerprint, config_digest)
 
 
-def admit_factor_proposal(result: FactorResearchResult, proposal_id: str, admission_record: Mapping[str, Any]) -> FactorAdmissionProposal:
+def admit_factor_proposal(result: FactorResearchResult, proposal_id: str, admission_record: HumanAdmissionRecord) -> FactorAdmissionProposal:
     """Apply an explicit human admission record to a research proposal only."""
 
     return result.admit(proposal_id, admission_record)
@@ -335,6 +351,7 @@ __all__ = [
     "FactorRank",
     "FactorResearchPipeline",
     "FactorResearchResult",
+    "HumanAdmissionRecord",
     "admit_factor_proposal",
     "rank_factor_proposals",
 ]

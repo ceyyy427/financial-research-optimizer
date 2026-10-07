@@ -5,6 +5,7 @@ import pytest
 
 from finahinking.research.factor_pipeline import (
     FactorResearchPipeline,
+    HumanAdmissionRecord,
     rank_factor_proposals,
 )
 from finahinking.research.factor_proposals import FactorHypothesis
@@ -86,15 +87,25 @@ def test_pipeline_blocks_missing_license_and_future_or_lookahead_inputs() -> Non
     with pytest.raises(ValueError, match="license"):
         FactorResearchPipeline().run(_hypothesis(), _dataset(), _config(license_status="UNKNOWN"))
 
-    future = _dataset()
-    frame = future["frame"]
-    assert isinstance(frame, pd.DataFrame)
-    future["frame"] = frame.assign(future_return=frame["close"].pct_change().shift(-1))
-    with pytest.raises(ValueError, match="future"):
-        FactorResearchPipeline().run(_hypothesis(), future, _config())
+    for alias in ("future_return", "forward_return_5d", "forward", "next_return", "tomorrow_return", "target", "label"):
+        future = _dataset()
+        frame = future["frame"]
+        assert isinstance(frame, pd.DataFrame)
+        future["frame"] = frame.assign(**{alias: frame["close"].pct_change().shift(-1)})
+        with pytest.raises(ValueError, match="future"):
+            FactorResearchPipeline().run(_hypothesis(), future, _config())
 
     with pytest.raises(ValueError, match="version"):
         FactorResearchPipeline().run(_hypothesis(), _dataset(), _config(version=""))
+
+    with pytest.raises(ValueError, match="license"):
+        FactorResearchPipeline().run(_hypothesis(), _dataset(), {"source_ids": ("fixture-source",), "pit_semantics": "T+1 point-in-time"})
+
+    with pytest.raises(ValueError, match="license"):
+        FactorResearchPipeline().run(_hypothesis(), _dataset(), _config(license_status="PROPRIETARY_UNREVIEWED"))
+
+    with pytest.raises(ValueError, match="PIT"):
+        FactorResearchPipeline().run(_hypothesis(), _dataset(), _config(pit_semantics="available_at <= as_of"))
 
 
 def test_pipeline_does_not_mutate_registry_or_accept_unreviewed_admission() -> None:
@@ -102,5 +113,25 @@ def test_pipeline_does_not_mutate_registry_or_accept_unreviewed_admission() -> N
     proposal = result.admission_proposals[0]
 
     assert proposal.production_write is False
-    with pytest.raises(ValueError, match="human"):
-        result.admit(proposal.proposal_id)
+    with pytest.raises(TypeError, match="HumanAdmissionRecord"):
+        result.admit(proposal.proposal_id, {"approved": True})
+
+
+def test_catalog_lineage_fingerprint_binds_dataset_config_run_and_admission() -> None:
+    pipeline = FactorResearchPipeline()
+    result = pipeline.run(_hypothesis(), _dataset(), _config(max_proposals=1, max_rounds=1))
+    entry = result.catalog_entries[0]
+    evaluation = result.research_run.rounds[0].evaluation
+    admission = result.admission_proposals[0]
+    assert entry.research_fingerprint != evaluation.fingerprint
+    changed = pipeline.run(_hypothesis(), _dataset(), _config(max_proposals=1, max_rounds=1, cost_per_turnover=0.01))
+    assert changed.catalog_entries[0].research_fingerprint != entry.research_fingerprint
+
+    with pytest.raises(ValueError, match="bind"):
+        result.admit(admission.proposal_id, HumanAdmissionRecord(admission.proposal_id, evaluation.fingerprint, "0" * 64, "reviewer-1"))
+    approved = result.admit(
+        admission.proposal_id,
+        HumanAdmissionRecord(admission.proposal_id, evaluation.fingerprint, entry.research_fingerprint, "reviewer-1"),
+    )
+    assert approved.status == "HUMAN_ADMITTED"
+    assert approved.production_write is False

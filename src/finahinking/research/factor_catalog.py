@@ -14,9 +14,13 @@ from dataclasses import dataclass
 from typing import Any
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
-_UNSAFE_FIELD = re.compile(r"(?:future|lookahead|target|label|forward_return)", re.IGNORECASE)
-_MISSING_LICENSES = frozenset({"", "UNKNOWN", "MISSING", "UNVERIFIED", "PENDING", "NOT_REVIEWED"})
-_KNOWN_STATUSES = frozenset({"PROPOSED", "BLOCKED", "REVIEW", "ADMITTED", "RETIRED"})
+_UNSAFE_FIELD = re.compile(r"(?:future|lookahead|target|label|forward|next|tomorrow)", re.IGNORECASE)
+_LICENSE_ALLOWLIST = frozenset({
+    "APPROVED", "VERIFIED", "PUBLIC_DOMAIN", "INTERNAL", "FIXTURE", "MIT",
+    "APACHE_2_0", "BSD_2_CLAUSE", "BSD_3_CLAUSE", "CC_BY_4_0", "CC0_1_0",
+})
+_PIT_ALLOWLIST = frozenset({"PIT", "POINT_IN_TIME", "T+1", "T+1_POINT_IN_TIME", "T_PLUS_1", "T_PLUS_1_POINT_IN_TIME"})
+_KNOWN_STATUSES = frozenset({"PROPOSED", "BLOCKED", "REVIEW", "RETIRED"})
 
 
 def _digest(value: Any) -> str:
@@ -35,6 +39,35 @@ class FactorCatalogAudit:
 
 
 @dataclass(frozen=True, slots=True)
+class HumanAdmissionRecord:
+    """Immutable, independently recorded approval evidence."""
+
+    proposal_id: str
+    evaluation_fingerprint: str
+    research_fingerprint: str
+    reviewer_id: str
+    decision: str = "APPROVE"
+
+    def __post_init__(self) -> None:
+        for name in ("proposal_id", "evaluation_fingerprint", "research_fingerprint", "reviewer_id"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be non-empty")
+            object.__setattr__(self, name, value.strip())
+        if not _HEX64.fullmatch(self.evaluation_fingerprint) or not _HEX64.fullmatch(self.research_fingerprint):
+            raise ValueError("admission fingerprints must be SHA-256 hex digests")
+        if self.decision != "APPROVE":
+            raise ValueError("only explicit APPROVE admission records are accepted")
+
+    @property
+    def fingerprint(self) -> str:
+        return _digest({"proposal_id": self.proposal_id, "evaluation_fingerprint": self.evaluation_fingerprint, "research_fingerprint": self.research_fingerprint, "reviewer_id": self.reviewer_id, "decision": self.decision})
+
+    def to_dict(self) -> dict[str, str]:
+        return {"proposal_id": self.proposal_id, "evaluation_fingerprint": self.evaluation_fingerprint, "research_fingerprint": self.research_fingerprint, "reviewer_id": self.reviewer_id, "decision": self.decision, "fingerprint": self.fingerprint}
+
+
+@dataclass(frozen=True, slots=True)
 class FactorCatalogEntry:
     factor_id: str
     version: str
@@ -46,11 +79,14 @@ class FactorCatalogEntry:
     status: str = "PROPOSED"
 
     def __post_init__(self) -> None:
-        for name in ("factor_id", "version", "pit_semantics", "research_fingerprint", "status"):
+        for name in ("factor_id", "version", "research_fingerprint", "status"):
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be non-empty")
             object.__setattr__(self, name, value.strip())
+        if not isinstance(self.pit_semantics, str) or not self.pit_semantics.strip():
+            raise ValueError("PIT semantics must be non-empty")
+        object.__setattr__(self, "pit_semantics", self.pit_semantics.strip())
         source_ids = tuple(item.strip() for item in self.source_ids if isinstance(item, str) and item.strip())
         fields = tuple(item.strip() for item in self.required_fields if isinstance(item, str) and item.strip())
         object.__setattr__(self, "source_ids", source_ids)
@@ -92,11 +128,11 @@ def audit_factor_catalog_entry(entry: FactorCatalogEntry) -> FactorCatalogAudit:
         raise TypeError("entry must be a FactorCatalogEntry")
     if not entry.source_ids:
         raise ValueError("source metadata is required")
-    license_status = entry.license_status.upper().replace("-", "_").replace(" ", "_")
-    if license_status in _MISSING_LICENSES:
+    license_status = re.sub(r"[^A-Z0-9]+", "_", entry.license_status.upper()).strip("_")
+    if license_status not in _LICENSE_ALLOWLIST:
         raise ValueError("source license is missing or not approved")
-    pit = entry.pit_semantics.casefold()
-    if "unknown" in pit or "unavailable" in pit or not any(token in pit for token in ("pit", "point-in-time", "point_in_time", "t+1", "available_at")):
+    pit = re.sub(r"[\s-]+", "_", entry.pit_semantics.strip().upper())
+    if pit not in _PIT_ALLOWLIST:
         raise ValueError("PIT semantics are missing or unknown")
     if not entry.required_fields:
         raise ValueError("required source fields are missing")
@@ -134,6 +170,7 @@ __all__ = [
     "FactorCatalog",
     "FactorCatalogAudit",
     "FactorCatalogEntry",
+    "HumanAdmissionRecord",
     "audit_factor_catalog_entry",
     "validate_factor_catalog_entry",
 ]
