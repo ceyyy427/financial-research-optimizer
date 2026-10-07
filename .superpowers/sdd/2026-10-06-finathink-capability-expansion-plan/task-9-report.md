@@ -112,3 +112,34 @@ cd frontend && npm test
 git diff --check
 passed
 ```
+
+## 专门安全修复（commit `0dab6ce`）
+
+最终复审后补充三项凭证边界修复，并按 TDD 留下回归证据：
+
+- **Opaque keychain label**：`new_local_credential_ref` 不再把用户的 connection ID 拼进密钥链标签，改为固定安全前缀加随机不透明标识；`token-feed`、`secret-data`、`apikey`、`credential-feed` 等合法连接 ID 均可生成引用。
+- **Query variant denylist**：URL 查询参数使用大小写和分隔符规范化，并按 token 边界拒绝 `api_key`、`apikey`、`api-token`、`access_token`、`auth_token`、`client_secret`、`credential_ref`、`authorization`、`password`、`secret`、`token`、`key` 及边界变体；`monkey`、`tokenizer`、`secretary`、`keynote`、`credentials_count`、`client_id`、`access_mode` 等普通字段保持可用。
+- **Keychain argv protection**：`MacOSKeychainBackend.put` 将 `-w` 放在 `security` 参数数组末尾，并通过子进程 stdin 传递密钥值；fake subprocess 回归测试确认密钥不出现在 argv，仍保持 `shell=False` 和通用错误。
+
+TDD 证据：先运行新增 focused 回归测试，旧实现为 `14 failed, 24 passed`；完成修复后 focused 测试为 `40 passed`，相关 Ruff 检查通过。
+
+最终验证记录：
+
+```text
+python3 -m pytest -q
+604 passed, 1 skipped
+python3 -m compileall -q src tests
+passed
+python3 scripts/validate_governance.py .
+PASS: governance validation passed
+python3 scripts/secret_scan.py
+secret scan passed (no known credential patterns)
+python3 -m pip check
+No broken requirements found.
+cd frontend && npm test
+13 passed
+git diff --check
+passed
+```
+
+全量 Ruff 仍保留两个 Task 3 的既有问题（`factor_proposals.py` 的 `F401` 和 `FURB167`），本修复未改动无关实现。
