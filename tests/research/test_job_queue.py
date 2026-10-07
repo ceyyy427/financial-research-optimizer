@@ -72,10 +72,13 @@ def test_queue_reopens_and_preserves_only_references(tmp_path) -> None:
 
 def test_persisted_task_id_collision_is_rejected_after_restart(tmp_path) -> None:
     path = tmp_path / "jobs.sqlite"
-    JobQueue(path).enqueue(task(), "idem-1")
+    original = task()
+    JobQueue(path).enqueue(original, "idem-1")
     reopened = JobQueue(path)
     with pytest.raises(ValueError, match="persisted task digest"):
         reopened.enqueue(AgentTask(role="technical", task_id="task-1", input_digest="different-input"), "idem-2")
+    accepted = reopened.enqueue(original, "idem-1")
+    assert accepted.task_digest == reopened._task_digest(reopened.resolve_task("task-1"))
 
 
 def test_stale_worker_cannot_complete_or_update_checkpoint(tmp_path) -> None:

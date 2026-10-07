@@ -187,7 +187,6 @@ class JobQueue:
         previous = self._tasks.get(task.task_id)
         if previous is not None and self._task_digest(previous) != task_digest:
             raise ValueError("task_id is already bound to another task digest")
-        self._tasks[task.task_id] = task
         job_id = self._job_id(task_digest, idempotency_key)
         now = float(self._clock())
         with self._connect() as db:
@@ -195,24 +194,29 @@ class JobQueue:
             if existing is not None:
                 if existing["task_digest"] != task_digest:
                     raise ValueError("idempotency key is already bound to another task")
-                return self._row(existing)
-            collision = db.execute(
-                "SELECT 1 FROM jobs WHERE task_ref = ? AND task_digest <> ? LIMIT 1",
-                (task.task_id, task_digest),
-            ).fetchone()
-            if collision is not None:
-                raise ValueError("task_id is already bound to another persisted task digest")
-            db.execute(
-                """INSERT INTO jobs
-                (job_id, task_ref, task_digest, idempotency_key, status, attempts,
-                 max_attempts, available_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)""",
-                (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now),
-            )
-            self._event(db, job_id, JobStatus.QUEUED.value, now)
-            row = db.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
-            assert row is not None
-            return self._row(row)
+                result = self._row(existing)
+            else:
+                collision = db.execute(
+                    "SELECT 1 FROM jobs WHERE task_ref = ? AND task_digest <> ? LIMIT 1",
+                    (task.task_id, task_digest),
+                ).fetchone()
+                if collision is not None:
+                    raise ValueError("task_id is already bound to another persisted task digest")
+                db.execute(
+                    """INSERT INTO jobs
+                    (job_id, task_ref, task_digest, idempotency_key, status, attempts,
+                     max_attempts, available_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)""",
+                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now),
+                )
+                self._event(db, job_id, JobStatus.QUEUED.value, now)
+                row = db.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+                assert row is not None
+                result = self._row(row)
+        # Register only after all durable identity checks and the transaction
+        # succeed; rejected collisions must not overwrite the resolver.
+        self._tasks[task.task_id] = task
+        return result
 
     def resolve_task(self, task_ref: str) -> AgentTask:
         """Resolve an ephemeral task; reopened queues need an explicit resolver."""
