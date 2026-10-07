@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, is_dataclass
@@ -91,6 +92,7 @@ _SENSITIVE_KEY = re.compile(r"(?:endpoint|absolute[-_]?path|file[-_]?path|privat
 _RUNTIME_SECRET_VALUE = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]", re.IGNORECASE)
 _RUNTIME_URI_VALUE = re.compile(r"^(?:https?|ftp|file)://|^(?:/Users/|/private/|/tmp/)", re.IGNORECASE)
 _RUNTIME_PUBLIC_REF = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]|\b(?:https?|ftp|file)://|(?:^|/)(?:Users|private|tmp)/", re.IGNORECASE)
+_RUNTIME_PATH_VALUE = re.compile(r"^(?:[A-Za-z]:[\\/]|/|\.{1,2}[\\/]|[A-Za-z0-9_.-]+/[^\s]+$)")
 _PAPER_ONLY_STATUS = re.compile(r"(?:order|live|broker|account|cancel|executed|filled|placed|bought|sold)", re.IGNORECASE)
 
 
@@ -140,10 +142,14 @@ def _text_tuple(values: Sequence[str], field_name: str, *, unique: bool = False)
 def _validate_runtime_value(value: Any, field_name: str = "value") -> Any:
     """Validate task payloads before they cross the runtime boundary."""
 
-    if value is None or isinstance(value, (bool, int, float)):
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{field_name} must be finite")
         return value
     if isinstance(value, str):
-        if _RUNTIME_SECRET_VALUE.search(value) or _RUNTIME_URI_VALUE.search(value):
+        if _RUNTIME_SECRET_VALUE.search(value) or _RUNTIME_URI_VALUE.search(value) or _RUNTIME_PATH_VALUE.search(value):
             raise ValueError(f"{field_name} contains secret or endpoint material")
         return value
     if isinstance(value, Mapping):
@@ -298,7 +304,9 @@ class AgentTask:
         object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
         object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
         object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
-        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or any(_RUNTIME_PUBLIC_REF.search(item) for item in self.capabilities):
+        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or _RUNTIME_PATH_VALUE.search(self.input_digest) or any(
+            _RUNTIME_PUBLIC_REF.search(item) or _RUNTIME_PATH_VALUE.search(item) for item in self.capabilities
+        ):
             raise ValueError("task identity and capabilities must remain secret-free")
         if not isinstance(self.required, bool):
             raise TypeError("required must be a bool")
@@ -330,19 +338,26 @@ class AgentOutcome:
         object.__setattr__(self, "task_id", _nonempty(self.task_id, "task_id"))
         object.__setattr__(self, "input_digest", _nonempty(self.input_digest, "input_digest"))
         object.__setattr__(self, "capabilities", _text_tuple(self.capabilities, "capabilities", unique=True))
-        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or any(_RUNTIME_PUBLIC_REF.search(item) for item in self.capabilities):
+        if _RUNTIME_PUBLIC_REF.search(self.input_digest) or _RUNTIME_PATH_VALUE.search(self.input_digest) or any(
+            _RUNTIME_PUBLIC_REF.search(item) or _RUNTIME_PATH_VALUE.search(item) for item in self.capabilities
+        ):
             raise ValueError("outcome identity and capabilities must remain secret-free")
         object.__setattr__(self, "status", _nonempty(self.status, "status").upper())
         if _PAPER_ONLY_STATUS.search(self.status):
             raise ValueError("paper-only outcome status cannot describe live or order activity")
         if self.failure_kind is not None and not isinstance(self.failure_kind, FailureKind):
+            if not isinstance(self.failure_kind, str):
+                raise TypeError("failure_kind must be a string or FailureKind")
             try:
                 object.__setattr__(self, "failure_kind", FailureKind(self.failure_kind))
             except ValueError:
-                object.__setattr__(self, "failure_kind", str(self.failure_kind).strip().upper())
+                normalized_failure = _nonempty(self.failure_kind, "failure_kind").upper()
+                if _RUNTIME_PUBLIC_REF.search(normalized_failure) or _RUNTIME_PATH_VALUE.search(normalized_failure):
+                    raise ValueError("failure_kind must remain secret-free")
+                object.__setattr__(self, "failure_kind", normalized_failure)
         if self.message_digest:
             object.__setattr__(self, "message_digest", _nonempty(self.message_digest, "message_digest"))
-            if _RUNTIME_PUBLIC_REF.search(self.message_digest):
+            if _RUNTIME_PUBLIC_REF.search(self.message_digest) or _RUNTIME_PATH_VALUE.search(self.message_digest):
                 raise ValueError("message_digest must remain secret-free")
         else:
             object.__setattr__(
@@ -351,11 +366,11 @@ class AgentOutcome:
                 stable_digest({"role": role, "task_id": self.task_id, "status": self.status, "failure_kind": self.failure_kind}),
             )
         object.__setattr__(self, "evidence_refs", _text_tuple(self.evidence_refs, "evidence_refs", unique=True))
-        if any(_RUNTIME_PUBLIC_REF.search(item) for item in self.evidence_refs):
+        if any(_RUNTIME_PUBLIC_REF.search(item) or _RUNTIME_PATH_VALUE.search(item) for item in self.evidence_refs):
             raise ValueError("evidence references must remain secret-free")
         if self.output_digest:
             object.__setattr__(self, "output_digest", _nonempty(self.output_digest, "output_digest"))
-            if _RUNTIME_PUBLIC_REF.search(self.output_digest):
+            if _RUNTIME_PUBLIC_REF.search(self.output_digest) or _RUNTIME_PATH_VALUE.search(self.output_digest):
                 raise ValueError("output_digest must remain secret-free")
         else:
             object.__setattr__(self, "output_digest", stable_digest(self.evidence_refs))

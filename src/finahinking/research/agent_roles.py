@@ -165,7 +165,7 @@ class RoleCapabilityPolicy:
             {
                 "agent_role": str(role),
                 "paper_only": True,
-                "allowed_tools": tuple(sorted(item for item in rule.capabilities if item != "paper_only")),
+                "allowed_tools": tuple(sorted(declared.intersection(rule.capabilities) - {"paper_only"})),
             }
         )
         return safe
@@ -307,12 +307,23 @@ class AgentRuntime:
 
     def _normalize_result(self, task: AgentTask, result: Any) -> AgentOutcome:
         if isinstance(result, AgentOutcome):
-            if result.role != task.role or result.input_digest != task.input_digest:
+            if result.role != task.role or result.task_id != task.task_id or result.input_digest != task.input_digest:
                 return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.VALIDATION_FAILED)
             if not result.paper_only:
                 return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.PAPER_ONLY_VIOLATION)
             if not set(result.capabilities).issubset(task.capabilities):
                 return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.CAPABILITY_DENIED)
+            if result.failure_kind is not None or result.status in {"FAILED", "ERROR"}:
+                return AgentOutcome(
+                    role=task.role,
+                    task_id=task.task_id,
+                    input_digest=task.input_digest,
+                    capabilities=task.capabilities,
+                    status=_failed_status(task, result.status),
+                    failure_kind=result.failure_kind or FailureKind.INTERNAL_ERROR,
+                    evidence_refs=result.evidence_refs,
+                    paper_only=True,
+                )
             return result
 
         report: AgentReport | None = None
@@ -344,6 +355,10 @@ class AgentRuntime:
             )
 
         if isinstance(result, Mapping):
+            if "paper_only" in result and type(result["paper_only"]) is not bool:
+                return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.PAPER_ONLY_VIOLATION)
+            if "live" in result and type(result["live"]) is not bool:
+                return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.PAPER_ONLY_VIOLATION)
             if result.get("paper_only") is False or result.get("live") is True:
                 return _failure_outcome(task, AgentStatus.REJECTED.value, FailureKind.PAPER_ONLY_VIOLATION)
             status = str(result.get("status", AgentStatus.READY.value)).upper()
@@ -368,7 +383,7 @@ class AgentRuntime:
                 evidence_refs=refs,
                 output_digest=stable_digest({"status": status, "evidence_refs": refs}),
             )
-        return _failure_outcome(task, AgentStatus.FAILED.value, FailureKind.VALIDATION_FAILED)
+        return _failure_outcome(task, _failed_status(task), FailureKind.VALIDATION_FAILED)
 
 
 __all__ = [

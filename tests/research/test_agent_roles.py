@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 
 import pytest
@@ -128,6 +129,68 @@ def test_optional_task_failures_are_not_marked_required() -> None:
     )[0]
     assert outcome.status == "OPTIONAL_FAILED"
     assert outcome.failure_kind is FailureKind.INTERNAL_ERROR
+
+
+def test_runtime_requires_real_booleans_for_mapping_paper_flags() -> None:
+    for key, value in (("paper_only", 0), ("live", 1)):
+        outcome = AgentRuntime().run(
+            (task("paper_trader", "p1", capabilities=("paper_gateway",)),),
+            lambda _task, _context, key=key, value=value: {key: value},
+            {},
+        )[0]
+        assert outcome.failure_kind is FailureKind.PAPER_ONLY_VIOLATION
+
+
+def test_allowed_tools_are_the_declared_role_capability_intersection() -> None:
+    policy = RoleCapabilityPolicy.default()
+    context = policy.context_for(
+        "risk_manager",
+        {"risk_gateway": object(), "dataset": "fixture"},
+        capabilities=("risk_gateway", "deterministic_risk_gateway"),
+    )
+    assert context["allowed_tools"] == ("deterministic_risk_gateway", "risk_gateway")
+
+
+def test_optional_none_invalid_and_typed_failures_are_optional_failed() -> None:
+    from finahinking.research.contracts import AgentOutcome
+
+    results = (
+        lambda _task, _context: None,
+        lambda _task, _context: object(),
+        lambda task_value, _context: AgentOutcome(
+            role=task_value.role,
+            task_id=task_value.task_id,
+            input_digest=task_value.input_digest,
+            status="FAILED",
+            failure_kind=FailureKind.INTERNAL_ERROR,
+        ),
+    )
+    for driver in results:
+        outcome = AgentRuntime().run((task("news", "n1", required=False),), driver, {})[0]
+        assert outcome.status == "OPTIONAL_FAILED"
+
+    mismatch = AgentRuntime().run(
+        (task("news", "n1", required=False),),
+        lambda task_value, _context: AgentOutcome(role=task_value.role, task_id="other", input_digest=task_value.input_digest),
+        {},
+    )[0]
+    assert mismatch.failure_kind is FailureKind.VALIDATION_FAILED
+    assert mismatch.status == "REJECTED"
+
+
+def test_task_inputs_reject_nonfinite_numbers_and_nested_paths() -> None:
+    for value in (math.nan, math.inf, "src/foo.py", "./relative.txt", "https://private.test/data"):
+        with pytest.raises((TypeError, ValueError)):
+            AgentTask(role="news", task_id="n1", input_digest="d", inputs={"nested": {"value": value}})
+
+
+def test_outcome_failure_and_evidence_fields_are_strict_and_secret_free() -> None:
+    from finahinking.research.contracts import AgentOutcome
+
+    with pytest.raises((TypeError, ValueError)):
+        AgentOutcome(role="news", task_id="n1", input_digest="d", failure_kind=object())
+    with pytest.raises((TypeError, ValueError)):
+        AgentOutcome(role="news", task_id="n1", input_digest="d", evidence_refs=("src/private/report.json",))
 
 
 def test_agent_role_enum_covers_runtime_roles() -> None:

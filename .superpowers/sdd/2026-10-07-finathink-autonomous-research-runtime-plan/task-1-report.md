@@ -21,15 +21,24 @@ package exports the new contracts and runtime through `finahinking.research`.
 
 Hardening follow-up: `8fe8bf7` — `fix(research): harden agent role boundaries`.
 
+Residual boundary follow-up: `fix pending` (the final boolean, capability
+intersection, optional-failure, and strict JSON-safe field fixes are staged in
+the next commit as `fix(research): close residual agent boundary gaps`).
+
 ## Verification
 
-- `PYTHONPATH=src python3 -m pytest -q tests/research/test_agent_roles.py tests/research/test_analyst_runtime.py` — 20 passed.
+- `PYTHONPATH=src python3 -m pytest -q tests/research/test_agent_roles.py tests/research/test_analyst_runtime.py` — 25 passed.
+- `PYTHONPATH=src python3 -m pytest -q tests/research` — 259 passed.
 - `python3 -m ruff check src/finahinking/research/agent_roles.py src/finahinking/research/contracts.py src/finahinking/research/__init__.py tests/research/test_agent_roles.py` — passed.
 - `PYTHONPATH=src python3 -m compileall -q src/finahinking/research/agent_roles.py src/finahinking/research/contracts.py` — passed.
 - Initial TDD RED was observed: focused collection failed with `ModuleNotFoundError` for the not-yet-created `agent_roles` module.
 - Review regression RED was observed for live/order statuses, non-paper direct
   outcomes, secret/arbitrary task payloads, undeclared gateways, and optional
   task failures; the focused suite is green after the hardening patch.
+- Residual-review RED was observed for integer paper flags, over-advertised
+  tools, optional `None`/invalid/typed outcomes, non-finite numbers, nested
+  paths, and unsafe failure/evidence fields; the full research suite is green
+  after the final boundary patch.
 
 ## Risks and unfinished items
 
