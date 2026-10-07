@@ -144,7 +144,21 @@ export function normalizeResearchRuntime(payload) {
     if (typeof item !== 'string' || STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError('runtime limitation is unsafe');
     return item;
   }) : [];
-  return { ...payload, schema_version: 2, stage_status, role_status, checkpoint, learning_proposal, retries, tool_summaries, limitations };
+  return {
+    schema_version: 2,
+    run_id: payload.run_id,
+    state: payload.state,
+    mode: payload.mode,
+    paper_only: true,
+    stage_status,
+    role_status,
+    checkpoint,
+    learning_proposal,
+    retries,
+    manifest_digest: payload.manifest_digest,
+    tool_summaries,
+    limitations,
+  };
 }
 
 export function renderResearchRuntime(root, payload) {
