@@ -101,6 +101,24 @@ class CancelledPool:
         raise CancelledError()
 
 
+class ExplodingDriver:
+    def propose(self, request, context):
+        raise RuntimeError("api_key=super-secret https://evil.test /Users/private prompt=hidden raw provider response")
+
+
+class ExplodingPool:
+    def run(self, specs, request, driver, context, max_workers=5):
+        raise RuntimeError("api_key=super-secret https://evil.test /Users/private prompt=hidden raw provider response")
+
+
+class FailedDriver:
+    def propose(self, request, context):
+        return DriverResult(
+            failure_kind=FailureKind.INTERNAL_ERROR,
+            failure_message="api_key=super-secret https://evil.test /Users/private prompt=hidden raw provider response",
+        )
+
+
 def test_parallel_pool_completes_before_manager_and_preserves_stage_order() -> None:
     driver = ParallelDriver()
     manager = RecordingManager(driver)
@@ -231,3 +249,37 @@ def test_parallel_cancellation_is_typed_and_cannot_publish_a_decision() -> None:
     assert result.state.current_state is ResearchState.CANCELLED
     assert result.state.failure_kind is FailureKind.CANCELLED
     assert result.decision is None
+
+
+def test_parallel_exception_is_generic_and_blocks_decision() -> None:
+    result = ResearchOrchestrator().run(
+        make_request(),
+        OfflineDriver(),
+        quant_tools(),
+        analyst_pool=ExplodingPool(),
+        manager=ResearchManager(),
+    )
+    assert result.state.current_state is ResearchState.FAILED
+    assert result.state.failure_kind is FailureKind.INTERNAL_ERROR
+    assert result.state.failure_message == "analyst pool failed"
+    assert result.decision is None
+    encoded = repr(result)
+    assert all(value not in encoded for value in ("super-secret", "evil.test", "/Users/private", "prompt=hidden", "raw provider response"))
+
+
+def test_non_parallel_driver_exception_is_generic_and_blocks_decision() -> None:
+    result = ResearchOrchestrator().run(make_request(("fundamentals",)), ExplodingDriver(), quant_tools())
+    assert result.state.current_state is ResearchState.FAILED
+    assert result.state.failure_kind is FailureKind.INTERNAL_ERROR
+    assert result.state.failure_message == "driver failed"
+    assert result.decision is None
+    encoded = repr(result)
+    assert all(value not in encoded for value in ("super-secret", "evil.test", "/Users/private", "prompt=hidden", "raw provider response"))
+
+
+def test_non_parallel_driver_failure_message_is_not_published() -> None:
+    result = ResearchOrchestrator().run(make_request(("fundamentals",)), FailedDriver(), quant_tools())
+    assert result.state.failure_message == "driver failed"
+    assert result.decision is None
+    encoded = repr(result)
+    assert all(value not in encoded for value in ("super-secret", "evil.test", "/Users/private", "prompt=hidden", "raw provider response"))

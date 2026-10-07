@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from typing import Any
 
 _ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
+_KEYCHAIN_LABEL = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+_SECRET_LIKE_LABEL = re.compile(r"(?:api[-_]?key|secret|token|password|credential)", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,8 +31,11 @@ class ProviderCredentialRef:
             raise ValueError("credential reference requires environment or keychain reference")
         if self.env_var is not None and not _ENV_NAME.fullmatch(self.env_var):
             raise ValueError("credential environment variable name is invalid")
-        if self.keychain_label is not None and not self.keychain_label.strip():
-            raise ValueError("credential keychain label must be non-empty")
+        if self.keychain_label is not None and (
+            not _KEYCHAIN_LABEL.fullmatch(self.keychain_label)
+            or _SECRET_LIKE_LABEL.search(self.keychain_label) is not None
+        ):
+            raise ValueError("credential keychain label is invalid")
 
     @classmethod
     def from_mapping(cls, provider: str, value: Mapping[str, Any]) -> ProviderCredentialRef:

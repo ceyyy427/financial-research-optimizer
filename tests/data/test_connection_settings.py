@@ -2,11 +2,56 @@ import threading
 from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener
 
+from finahinking.data.connection_settings import (
+    InMemoryDataCredentialStore,
+    KeychainDataCredentialStore,
+    KeychainError,
+    MacOSKeychainBackend,
+)
+from finahinking.data.user_api_contracts import DataSourceCredentialRef
 from finahinking.local_app import LocalAppConfig, LocalApplication, create_server
 
 
 def make_app():
-    return LocalApplication(LocalAppConfig(db_path=":memory:"))
+    return LocalApplication(LocalAppConfig(db_path=":memory:"), data_credential_store=InMemoryDataCredentialStore())
+
+
+class FakeKeychain:
+    def __init__(self):
+        self.values = {}
+
+    def get(self, label):
+        return self.values.get(label)
+
+    def put(self, label, value):
+        self.values[label] = value
+
+
+def test_keychain_store_uses_injected_backend_without_serializing_secret():
+    backend = FakeKeychain()
+    store = KeychainDataCredentialStore(backend)
+    ref = DataSourceCredentialRef(keychain_label="finathink-data-test")
+    store.put(ref, "super-secret")
+    assert store.has(ref)
+    assert store.resolve(ref) == "super-secret"
+    assert "super-secret" not in repr(store)
+
+
+def test_default_settings_store_uses_keychain_boundary():
+    from finahinking.data.connection_settings import DataConnectionSettingsStore
+
+    assert isinstance(DataConnectionSettingsStore().credentials, KeychainDataCredentialStore)
+
+
+def test_macos_backend_does_not_leak_command_output_on_failure():
+    backend = MacOSKeychainBackend(executable="/definitely/missing/security")
+    try:
+        backend.get("finathink-data-test")
+    except KeychainError as exc:
+        assert "missing" not in str(exc)
+        assert "security" not in str(exc)
+    else:
+        raise AssertionError("missing keychain executable unexpectedly succeeded")
 
 
 def test_connection_does_not_require_vendor_admission():

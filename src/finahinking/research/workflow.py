@@ -22,7 +22,7 @@ from .contracts import (
     stable_digest,
     validate_transition,
 )
-from .drivers import ModelDriver, OfflineDriver
+from .drivers import DriverResult, ModelDriver, OfflineDriver
 from .tools import ResearchToolGateway, ResearchToolRequest, ResearchToolStatus
 
 if TYPE_CHECKING:
@@ -166,8 +166,8 @@ class ResearchOrchestrator:
                 outcomes = tuple(pool.run(specs, request, driver, context, max_workers=limits.max_analyst_workers))
             except CancelledError:
                 return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "analyst pool was cancelled")
-            except Exception as exc:  # noqa: BLE001 - normalize pool boundary failures
-                return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, f"analyst pool failed: {exc}")
+            except Exception:  # noqa: BLE001 - normalize pool boundary failures
+                return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, "analyst pool failed")
 
             if cancelled():
                 return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after analyst stage")
@@ -241,19 +241,27 @@ class ResearchOrchestrator:
             )
             try:
                 plan = research_manager.synthesize(reports, request)
-            except ValueError as exc:
-                return finish(ResearchState.VALIDATION_FAILED, FailureKind.VALIDATION_FAILED, str(exc), owner="research_manager", metadata={"stage_owner": "research_manager", "role_statuses": tuple(sorted(role_statuses.items()))})
+            except Exception:  # noqa: BLE001 - manager boundary must remain secret-free
+                return finish(ResearchState.VALIDATION_FAILED, FailureKind.VALIDATION_FAILED, "research plan validation failed", owner="research_manager", metadata={"stage_owner": "research_manager", "role_statuses": tuple(sorted(role_statuses.items()))})
             transition(ResearchState.RESEARCH_PLAN_READY, {"plan_digest": stable_digest(plan)}, owner="research_manager", metadata={"stage_owner": "research_manager"})
         else:
             transition(ResearchState.ANALYSTS_RUNNING, {"roles": tuple(sorted(spec.role for spec in specs))})
 
         if not parallel:
-            driver_result = driver.propose(request, {"dataset": data_response.result, "max_rounds": limits.max_analyst_rounds})
+            try:
+                driver_result = driver.propose(request, {"dataset": data_response.result, "max_rounds": limits.max_analyst_rounds})
+            except CancelledError:
+                return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "driver was cancelled")
+            except Exception:  # noqa: BLE001 - normalize driver boundary failures
+                return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, "driver failed")
             if cancelled():
                 return finish(ResearchState.CANCELLED, FailureKind.CANCELLED, "run was cancelled after analyst stage")
+            if not isinstance(driver_result, DriverResult):
+                return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, "driver failed")
             if driver_result.failure_kind is not None:
                 target = ResearchState.PROVIDER_NOT_CONFIGURED if driver_result.failure_kind is FailureKind.PROVIDER_NOT_CONFIGURED else ResearchState.FAILED
-                return finish(target, driver_result.failure_kind, driver_result.failure_message or "driver failed")
+                message = "provider is not configured" if driver_result.failure_kind is FailureKind.PROVIDER_NOT_CONFIGURED else "driver failed"
+                return finish(target, driver_result.failure_kind, message)
             if driver_result.requires_external_turn:
                 return finish(ResearchState.PROVIDER_NOT_CONFIGURED, FailureKind.PROVIDER_NOT_CONFIGURED, "Codex handoff requires an explicit external turn")
 
@@ -262,8 +270,7 @@ class ResearchOrchestrator:
             missing_required = [spec.role for spec in specs if spec.required and spec.role not in report_by_role]
             failed_required = [spec.role for spec in specs if spec.required and report_by_role.get(spec.role, AgentReport(spec.role, "MISSING")).status == "FAILED"]
             if missing_required or failed_required:
-                details = f"required analyst failure: missing={missing_required}, failed={failed_required}"
-                return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, details)
+                return finish(ResearchState.FAILED, FailureKind.INTERNAL_ERROR, "required analyst failure")
             partial = [spec.role for spec in specs if not spec.required and spec.role not in report_by_role]
             if partial:
                 failure_message = f"partial_analysis: optional roles unavailable: {', '.join(sorted(partial))}"

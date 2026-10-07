@@ -144,6 +144,25 @@ def test_pool_message_digest_is_stable_for_same_input() -> None:
     assert first[0].message_digest == second[0].message_digest
 
 
+def test_pool_does_not_retain_driver_exception_or_failure_message() -> None:
+    class ExplodingDriver(DelayedDriver):
+        def propose(self, request, context):
+            raise RuntimeError("api_key=super-secret https://evil.test /Users/private prompt=hidden")
+
+    class FailedDriver(DelayedDriver):
+        def propose(self, request, context):
+            return DriverResult(
+                failure_kind=FailureKind.INTERNAL_ERROR,
+                failure_message="raw provider response token=super-secret",
+            )
+
+    exploded = AnalystPool().run((AnalystSpec("news"),), make_request(("news",)), ExplodingDriver(), {})[0]
+    failed = AnalystPool().run((AnalystSpec("news"),), make_request(("news",)), FailedDriver(), {})[0]
+    for outcome in (exploded, failed):
+        assert outcome.failure_kind is FailureKind.INTERNAL_ERROR
+        assert all(value not in repr(outcome) for value in ("super-secret", "evil.test", "/Users/private", "prompt=hidden", "raw provider response"))
+
+
 def test_manager_synthesizes_evidence_refs_without_copying_claims() -> None:
     reports = (
         AgentReport(role="news", status="READY", claims=("unsupported fact",), evidence_refs=("artifact:news",)),

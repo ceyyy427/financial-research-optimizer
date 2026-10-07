@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import subprocess
 from collections.abc import Mapping
 from typing import Protocol
 
@@ -13,6 +14,110 @@ from .user_api_contracts import DataConnectionConfig, DataSourceCredentialRef
 class DataCredentialStore(Protocol):
     def has(self, ref: DataSourceCredentialRef) -> bool: ...
     def resolve(self, ref: DataSourceCredentialRef) -> str: ...
+    def put(self, ref: DataSourceCredentialRef, value: str) -> None: ...
+
+
+class KeychainBackend(Protocol):
+    """Minimal backend used by the credential store and its tests."""
+
+    def get(self, label: str) -> str | None: ...
+    def put(self, label: str, value: str) -> None: ...
+
+
+class KeychainError(RuntimeError):
+    """A generic, secret-free keychain operation failure."""
+
+
+class MacOSKeychainBackend:
+    """Use the macOS keychain through the argument-array ``security`` CLI.
+
+    The command never uses a shell and command output is intentionally not
+    included in exceptions.  Tests inject a ``KeychainBackend`` instead of
+    touching a user's keychain.
+    """
+
+    __slots__ = ("_account", "_executable", "_timeout")
+
+    def __init__(self, *, executable: str = "/usr/bin/security", account: str = "finathink-data", timeout: float = 5.0) -> None:
+        self._executable = executable
+        self._account = account
+        self._timeout = timeout
+
+    def _run(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        try:
+            return subprocess.run(
+                [self._executable, *args],
+                check=False,
+                capture_output=True,
+                text=True,
+                shell=False,
+                timeout=self._timeout,
+            )
+        except (OSError, subprocess.SubprocessError):
+            raise KeychainError("system credential storage is unavailable") from None
+
+    def get(self, label: str) -> str | None:
+        result = self._run(["find-generic-password", "-a", self._account, "-s", label, "-w"])
+        if result.returncode != 0:
+            return None
+        value = result.stdout.strip()
+        return value or None
+
+    def put(self, label: str, value: str) -> None:
+        result = self._run([
+            "add-generic-password",
+            "-a",
+            self._account,
+            "-s",
+            label,
+            "-w",
+            value,
+            "-U",
+        ])
+        if result.returncode != 0:
+            raise KeychainError("system credential storage rejected the value")
+
+
+class KeychainDataCredentialStore:
+    """Data credential store backed by the OS keychain.
+
+    Only credential references cross the settings boundary.  ``backend`` is
+    injectable so tests can prove the boundary without writing a real key.
+    """
+
+    __slots__ = ("_backend",)
+
+    def __init__(self, backend: KeychainBackend | None = None) -> None:
+        self._backend = backend or MacOSKeychainBackend()
+
+    def has(self, ref: DataSourceCredentialRef) -> bool:
+        if not isinstance(ref, DataSourceCredentialRef) or ref.keychain_label is None:
+            return False
+        try:
+            return self._backend.get(ref.keychain_label) is not None
+        except KeychainError:
+            return False
+
+    def resolve(self, ref: DataSourceCredentialRef) -> str:
+        if not isinstance(ref, DataSourceCredentialRef) or ref.keychain_label is None:
+            raise ValueError("data credential is not configured")
+        try:
+            value = self._backend.get(ref.keychain_label)
+        except KeychainError:
+            raise ValueError("data credential is not configured") from None
+        if not value:
+            raise ValueError("data credential is not configured")
+        return value
+
+    def put(self, ref: DataSourceCredentialRef, value: str) -> None:
+        if not isinstance(ref, DataSourceCredentialRef) or ref.keychain_label is None:
+            raise ValueError("keychain credential reference is required")
+        if not isinstance(value, str) or not value:
+            raise ValueError("data credential must be non-empty")
+        try:
+            self._backend.put(ref.keychain_label, value)
+        except KeychainError:
+            raise ValueError("system credential storage is unavailable") from None
 
 
 class InMemoryDataCredentialStore:
@@ -78,12 +183,16 @@ class EnvironmentDataCredentialStore:
         assert ref.env_var is not None
         return str(self._environment[ref.env_var])
 
+    def put(self, ref: DataSourceCredentialRef, value: str) -> None:
+        del ref, value
+        raise ValueError("environment credentials are read-only")
+
 
 class DataConnectionSettingsStore:
-    """Keep redacted connection config in process memory; secrets stay separate."""
+    """Keep redacted connection config in process memory; secrets use keychain."""
 
-    def __init__(self, credential_store: InMemoryDataCredentialStore | None = None) -> None:
-        self.credentials = credential_store or InMemoryDataCredentialStore()
+    def __init__(self, credential_store: DataCredentialStore | None = None) -> None:
+        self.credentials = credential_store or KeychainDataCredentialStore()
         self._configs: dict[str, DataConnectionConfig] = {}
 
     def save(self, config: DataConnectionConfig, *, credential_value: str | None = None) -> None:
@@ -118,5 +227,6 @@ def new_local_credential_ref(connection_id: str) -> DataSourceCredentialRef:
 
 __all__ = [
     "DataConnectionSettingsStore", "DataCredentialStore", "EnvironmentDataCredentialStore",
-    "InMemoryDataCredentialStore", "new_local_credential_ref",
+    "InMemoryDataCredentialStore", "KeychainBackend", "KeychainDataCredentialStore",
+    "KeychainError", "MacOSKeychainBackend", "new_local_credential_ref",
 ]

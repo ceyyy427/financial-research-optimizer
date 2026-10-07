@@ -45,6 +45,7 @@ def normalize_records(
     connection_id: str = "user-data",
     source_declaration: str = "User-declared data source; Finathink has not independently verified it.",
     retrieved_at: datetime | None = None,
+    as_of: str | datetime | None = None,
 ) -> DataBatch:
     """Map user fields into the stable Finathink record vocabulary.
 
@@ -62,6 +63,7 @@ def normalize_records(
     quality: list[str] = []
     normalized: list[dict[str, object]] = []
     seen: set[tuple[str, str]] = set()
+    as_of_value = _timestamp(as_of) if as_of is not None else None
     for index, raw in enumerate(records):
         if not isinstance(raw, Mapping):
             quality.append(f"record {index}: record is not an object")
@@ -101,7 +103,14 @@ def normalize_records(
             seen.add(key)
         normalized.append(item)
     available_values = [item.get("available_at") for item in normalized]
-    if available_values and all(isinstance(value, str) for value in available_values) and len(available_values) == len(normalized):
+    future_available = bool(
+        as_of_value is not None
+        and any(isinstance(value, str) and value > as_of_value for value in available_values)
+    )
+    if future_available:
+        quality.append("available_at is later than request as_of; PIT is unavailable")
+        pit = "UNAVAILABLE"
+    elif available_values and all(isinstance(value, str) for value in available_values) and len(available_values) == len(normalized):
         pit = "AVAILABLE"
     else:
         pit = "UNKNOWN"

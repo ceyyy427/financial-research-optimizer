@@ -28,6 +28,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 from finahinking.data.connection_settings import (
     DataConnectionSettingsStore,
+    DataCredentialStore,
     new_local_credential_ref,
 )
 from finahinking.data.user_api import DataConnectorError, JsonApiConnector
@@ -303,7 +304,7 @@ class LocalAppConfig:
 class LocalApplication:
     """Route local product journeys through one P7-backed persistence boundary."""
 
-    def __init__(self, config: LocalAppConfig | None = None, *, connection: sqlite3.Connection | None = None, data_transport: Any | None = None) -> None:
+    def __init__(self, config: LocalAppConfig | None = None, *, connection: sqlite3.Connection | None = None, data_transport: Any | None = None, data_credential_store: DataCredentialStore | None = None) -> None:
         self.config = config or LocalAppConfig.from_env()
         if self.config.db_path != ":memory:":
             Path(self.config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
@@ -319,7 +320,7 @@ class LocalApplication:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
         self._research_runs: dict[str, dict[str, Any]] = {}
-        self._data_connections = DataConnectionSettingsStore()
+        self._data_connections = DataConnectionSettingsStore(data_credential_store)
         self._data_transport = data_transport
 
     def register_research_run(self, result: Any, manifest: Any) -> None:

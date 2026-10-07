@@ -240,13 +240,18 @@ class AnalystPool:
         duration_ms = round((time.monotonic() - started) * 1000)
         try:
             result = future.result()
-        except Exception as exc:  # noqa: BLE001 - normalize every driver exception
-            return self._outcome(role, "FAILED" if spec.required else "OPTIONAL_FAILED", FailureKind.INTERNAL_ERROR, str(exc), duration_ms=duration_ms)
+        except Exception:  # noqa: BLE001 - normalize every driver exception
+            return self._outcome(role, "FAILED" if spec.required else "OPTIONAL_FAILED", FailureKind.INTERNAL_ERROR, "driver failed", duration_ms=duration_ms)
         if not isinstance(result, DriverResult):
             return self._outcome(role, "FAILED" if spec.required else "OPTIONAL_FAILED", AnalystFailureKind.INVALID_REPORT, "driver returned an invalid result", duration_ms=duration_ms)
         if result.failure_kind is not None or result.requires_external_turn:
             failure = result.failure_kind or FailureKind.PROVIDER_NOT_CONFIGURED
-            message = result.failure_message or "driver requires an external turn"
+            if failure is FailureKind.PROVIDER_NOT_CONFIGURED:
+                message = "provider is not configured"
+            elif result.requires_external_turn:
+                message = "driver requires an external turn"
+            else:
+                message = "driver failed"
             status = "FAILED" if spec.required else "OPTIONAL_FAILED"
             return self._outcome(role, status, failure, message, duration_ms=duration_ms)
 

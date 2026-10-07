@@ -106,7 +106,13 @@ class UserApiDriver:
             input_digest=stable_digest(request),
             context_digest=stable_digest(context),
         )
-        response = self.adapter.invoke(envelope)
+        try:
+            response = self.adapter.invoke(envelope)
+        except Exception:  # noqa: BLE001 - provider failures must stay secret-free
+            return DriverResult(
+                failure_kind=FailureKind.INTERNAL_ERROR,
+                failure_message="provider request failed",
+            )
         try:
             report = AgentReport(
                 role=role,
@@ -116,10 +122,10 @@ class UserApiDriver:
                 limitations=tuple(str(item) for item in response.content.get("limitations", ())),
                 model_ref=f"{response.provider}/{response.model}",
             )
-        except (TypeError, ValueError) as exc:
+        except Exception:  # noqa: BLE001 - provider schema errors must stay secret-free
             return DriverResult(
                 failure_kind=FailureKind.VALIDATION_FAILED,
-                failure_message=f"provider response schema invalid: {exc}",
+                failure_message="provider response schema invalid",
             )
         plan = request.research_plan if isinstance(request.research_plan, ResearchPlan) else None
         return DriverResult(reports=(report,), research_plan=plan)

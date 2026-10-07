@@ -270,6 +270,7 @@ class JsonApiConnector:
             connection_id=self.config.connection_id,
             source_declaration=self.config.source_declaration,
             retrieved_at=datetime.now(UTC),
+            as_of=request.as_of,
         )
 
 

@@ -14,13 +14,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from ipaddress import ip_address
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 _CONNECTION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _FIELD_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
 _INSTRUMENT = re.compile(r"^[A-Za-z0-9._:/-]{1,64}$")
 _AUTH_MODES = frozenset({"no_auth", "bearer", "api_key_header"})
 _PIT_STATES = frozenset({"UNKNOWN", "AVAILABLE", "UNAVAILABLE"})
+_SENSITIVE_QUERY_KEYS = frozenset({"api_key", "apikey", "token", "secret", "password", "credential"})
+_SECRET_LIKE_LABEL = re.compile(r"(?:api[-_]?key|secret|token|password|credential)", re.IGNORECASE)
 MAX_INSTRUMENTS = 100
 MAX_FIELD_MAPPING = 32
 
@@ -37,7 +39,10 @@ class DataSourceCredentialRef:
             raise ValueError("data credential reference needs exactly one source")
         if self.env_var is not None and not re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", self.env_var):
             raise ValueError("data credential environment name is invalid")
-        if self.keychain_label is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", self.keychain_label):
+        if self.keychain_label is not None and (
+            not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", self.keychain_label)
+            or _SECRET_LIKE_LABEL.search(self.keychain_label) is not None
+        ):
             raise ValueError("data credential keychain label is invalid")
 
     def to_dict(self) -> dict[str, str]:
@@ -54,6 +59,8 @@ def _validate_url(value: str, *, allow_local: bool = False) -> str:
         raise ValueError("base_url must use http or https")
     if parsed.username or parsed.password or parsed.fragment:
         raise ValueError("base_url cannot contain credentials or fragments")
+    if any(key.casefold().replace("-", "_") in _SENSITIVE_QUERY_KEYS for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
+        raise ValueError("base_url cannot contain credential query parameters")
     host = parsed.hostname.rstrip(".").lower()
     if not allow_local:
         blocked_names = {"localhost", "localhost.localdomain", "metadata.google.internal"}

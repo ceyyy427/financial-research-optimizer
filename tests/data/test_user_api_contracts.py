@@ -51,3 +51,22 @@ def test_missing_available_at_remains_unknown():
     )
     assert batch.pit_available == "UNKNOWN"
     assert batch.to_dict()["pit_available"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("query_key", ["api_key", "token", "secret", "password", "credential", "API-KEY"])
+def test_connection_url_rejects_sensitive_query_parameters_even_when_empty(query_key: str) -> None:
+    with pytest.raises(ValueError, match="credential query"):
+        DataConnectionConfig(
+            "query-feed",
+            "Query feed",
+            f"https://example.test/data?{query_key}=",
+            None,
+            "no_auth",
+            {},
+        )
+
+
+@pytest.mark.parametrize("label", ["/Users/me/key", "https://example.test/key", "api_key=raw-secret", "token-value"])
+def test_data_credential_keychain_label_rejects_paths_urls_and_secret_like_values(label: str) -> None:
+    with pytest.raises(ValueError, match="keychain label"):
+        DataSourceCredentialRef(keychain_label=label)

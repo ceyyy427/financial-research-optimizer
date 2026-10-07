@@ -55,6 +55,17 @@ def test_json_api_normalizes_user_field_mapping():
     assert transport.calls[0][3] is False
 
 
+def test_connector_applies_request_as_of_to_point_in_time_quality():
+    mapped = DataConnectionConfig(
+        "custom-feed", "Custom feed", "https://example.test/api", None, "no_auth",
+        {"instrument": "ticker", "timestamp": "time", "available_at": "available", "close": "price"}, "data"
+    )
+    transport = FakeTransport([response({"data": [{"ticker": "AAA", "time": "2026-01-02", "available": "2026-01-03", "price": 10}]})])
+    batch = JsonApiConnector(mapped, InMemoryDataCredentialStore(), transport, resolver=PUBLIC_RESOLVER).fetch(DataRequest("prices", ("AAA",), as_of="2026-01-02T00:00:00Z"))
+    assert batch.pit_available == "UNAVAILABLE"
+    assert any("as_of" in issue for issue in batch.quality_issues)
+
+
 def test_bounded_transport_failures_are_secret_free():
     ref = DataSourceCredentialRef(env_var="FINAHINK_DATA_KEY")
     store = InMemoryDataCredentialStore({"FINAHINK_DATA_KEY": "super-secret"})

@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from finahinking.data.field_mapping import normalize_records
 
 
@@ -25,3 +27,24 @@ def test_normalize_records_preserves_unknown_pit_when_available_at_is_missing():
         "prices",
     )
     assert batch.pit_available == "UNKNOWN"
+
+
+def test_normalize_records_marks_future_available_at_unavailable_for_as_of():
+    batch = normalize_records(
+        [{"ticker": "AAA", "time": "2026-01-02", "available": "2026-01-03", "price": 10}],
+        {"instrument": "ticker", "timestamp": "time", "available_at": "available", "close": "price"},
+        "prices",
+        as_of="2026-01-02T00:00:00Z",
+    )
+    assert batch.pit_available == "UNAVAILABLE"
+    assert any("as_of" in issue for issue in batch.quality_issues)
+
+
+def test_normalize_records_marks_available_at_at_or_before_as_of_available():
+    batch = normalize_records(
+        [{"ticker": "AAA", "time": "2026-01-02", "available": "2026-01-02", "price": 10}],
+        {"instrument": "ticker", "timestamp": "time", "available_at": "available", "close": "price"},
+        "prices",
+        as_of=datetime(2026, 1, 2, tzinfo=UTC),
+    )
+    assert batch.pit_available == "AVAILABLE"
