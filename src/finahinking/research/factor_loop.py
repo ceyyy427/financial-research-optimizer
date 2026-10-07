@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
@@ -17,6 +18,8 @@ from finahinking.factors.evaluation import (
 )
 from finahinking.factors.mining import FactorCandidate
 from finahinking.p6_6.workbench import ResearchCharter, _digest
+
+_FUTURE_LOOKAHEAD = re.compile(r"(?:future|lookahead|target|label|forward_return)", re.IGNORECASE)
 
 
 class FactorResearchState(str, Enum):
@@ -155,6 +158,9 @@ def run_factor_research(
     if budget < 1:
         raise ValueError("factor research budget must be positive")
     ordered = sorted(candidates, key=lambda item: item.candidate_id)[:budget]
+    for candidate in ordered:
+        if _FUTURE_LOOKAHEAD.search(candidate.expression):
+            raise ValueError("future-looking factor expression is not allowed")
     frame = _frame(dataset)
     spec = _phase_spec(charter, frame, "validation")
     rounds: list[FactorResearchRound] = []

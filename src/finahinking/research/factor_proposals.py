@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,7 +17,7 @@ from finahinking.factors.dsl import parse_factor_expression
 _FIELDS = frozenset({"close", "volume", "return_1d"})
 _FAMILIES = frozenset({"mean_reversion", "momentum", "volatility", "liquidity"})
 _DIRECTIONS = frozenset({"positive", "negative", "neutral"})
-_UNSAFE = re.compile(r"(?:eval|exec|__import__|shell|subprocess|https?://|file://|/|\\|future|lookahead)", re.I)
+_UNSAFE = re.compile(r"(?:eval|exec|__import__|shell|subprocess|https?://|file://|/|\\|future|lookahead)", re.IGNORECASE)
 
 
 def _norm(value: str, name: str) -> str:
