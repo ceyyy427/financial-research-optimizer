@@ -19,12 +19,12 @@ Phase changes require the corresponding gate design and an independent review.
 - P6.6 gate: PASS
 - P7 gate: PASS
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
-- Next action: optional human review of the merged product; P8.2B has merged to remote `main` via PR #2 (`aa515e8`)
+- Next action: complete the offline P8 capability-expansion release gates, retain the explicit external-provider boundary, and await optional human review
 - P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; the renamed remote retains its original `main` history and the release branch uses a reviewable history bridge
 - P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
 - P8.2B status: REMOTE VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are merged; browser/vendor/provider gates remain conditional
-- Autonomous delivery status: IMPLEMENTED LOCALLY — safe factor DSL/candidate mining, auditable factor evaluation and decay, bounded freeze/test research loop, secret-free provider readiness API/UI, and factor evidence in workbench/offline HTML are implemented on `codex/factor-strategy-workbench`; full release verification and remote CI are the remaining gates.
-- Last reviewed: 2026-10-05
+- Autonomous delivery status: IMPLEMENTED LOCALLY — the governed analyst pool, research manager, user-configured data API contract, deterministic factor proposal catalog, resumable checkpoints, report status wall, optional engine registry, and the offline vertical slice are implemented on the capability-expansion branch. The release checklist records which gates are fixture-backed, isolated, unconnected, or unverified.
+- Last reviewed: 2026-10-07
 
 ## Historical later-stage records
 
@@ -50,6 +50,24 @@ Personal timeline, misconception continuity, guidance and room projection bounda
 P8.1: local product polish is complete for this checkout; remote integration, release, and finathink.cloud publication remain conditional pending a deliberate history strategy
 P8.2: local capability expansion is complete to a conditional stop point
 P8.2B: knowledge/pedagogy capability is complete and merged to the requested remote `main` through PR #2; browser/vendor/provider gates remain explicitly deferred
+
+## P8 capability-expansion release boundary
+
+The Task 9 offline vertical slice is the release evidence for composition of
+the research capabilities. It uses a mock user data API, deterministic
+normalization, the five analyst roles, an evidence-only research manager,
+allow-listed factor proposals, deterministic backtest/OOS and risk gates,
+paper-only decision cards, the multi-stage HTML bundle, as-of learning, and
+checkpoint save/load. Its acceptance test is
+`tests/research/test_capability_vertical_slice.py`.
+
+| Boundary | Status | Meaning |
+| --- | --- | --- |
+| Implemented | OFFLINE PASS | Contracts, mock connector, field mapping, analyst/manager workflow, factor DSL catalog, deterministic quant/risk gates, report bundle, learning store, and checkpoint store are present and tested with fixtures. |
+| Isolated validation | PASS / DEFERRED | Optional Qlib/vectorbt adapters are governed by `EngineRegistry`; only normalized Finathink data and an independently trusted sandbox can make an adapter available. The default path remains deterministic and local. |
+| Not connected | EXPLICIT | No specific data vendor, model SDK, brokerage, account, order, or live-trading service is connected by this release. |
+| Not verified | EXPLICIT | Real provider credentials, external network behavior, vendor authorization, browser E2E, and production deployment are not established by offline fixtures. |
+| Prohibited | PERMANENT BOUNDARY | Secrets in artifacts, arbitrary code/URL execution, broker/order/live-trading behavior, and investment advice are outside the product contract. |
 
 ## Completed gates
 

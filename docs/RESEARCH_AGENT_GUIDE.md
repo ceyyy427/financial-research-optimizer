@@ -20,6 +20,38 @@ Finathink 的研究代理默认运行在离线、纸面研究模式。Codex 可�
 
 每个 run 生成 `reports/<run_id>/`，其中 `complete_report.html` 是阅读层，`manifest.json`、Artifact、DatasetSnapshot 和 `activity.jsonl` 是可审计事实。报告包含五类分析师、evidence、research、quant、risk 和 paper decision 区块；HTML 由受控 renderer 转义模型和新闻文本。
 
+## Offline capability expansion release path
+
+Task 9 的可重复验收使用用户自备数据接口的 mock transport。流程为：
+
+```text
+DataConnectionConfig / DataRequest
+  → mock JSON response / explicit field mapping
+  → normalized DataBatch + data fingerprint + PIT availability
+  → user research question
+  → fundamentals · technical · sentiment · news · learning (parallel)
+  → ResearchManager evidence-indexed plan
+  → governed factor proposal (DSL allow-list)
+  → deterministic backtest / OOS result
+  → deterministic risk review
+  → paper-only DecisionCard
+  → 1_analysts … 6_paper_decision + complete_report.html
+  → as-of LearningStore
+  → ResearchRunStore checkpoint save/load
+```
+
+The release fixture proves stable fact and report digests for identical input,
+and proves that quant or risk failure leaves `decision=None` and
+`decision_eligible=False`. Public artifacts contain only redacted, typed
+metadata: credential values, endpoint values, absolute paths, full prompts,
+and raw provider objects are rejected or omitted before persistence.
+
+The mock path is not provider admission. A user may configure an external
+adapter separately, but the connector must preserve the same field mapping,
+bounded transport, credential-reference, redirect, response-size, and
+point-in-time rules. Missing `available_at` remains `UNKNOWN`; the system does
+not infer PIT availability from a timestamp alone.
+
 因子研究区块另外保留候选表达式、假设、字段依赖、样本覆盖、IC/ICIR、分位数/多空收益、换手/成本、衰减、OOS 可见性、证据引用和准入理由。验证阶段的 OOS 标记为 `HIDDEN`；只有明确冻结候选后才允许一次 test 评估。
 
 ## Failure classes

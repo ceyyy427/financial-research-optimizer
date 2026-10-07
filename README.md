@@ -106,6 +106,20 @@ Finathink 提供面向金融研究的角色化代理框架。一个研究任务�
 
 研究编排器把角色输出汇总为结构化研究计划，再依次执行数据检查、证据审查、量化验证、风险审查、纸面决策、HTML 报告和学习记录。每一轮都有明确的角色、状态、证据引用、模型标识和运行事件，便于复盘和追踪。
 
+#### 离线能力扩展闭环
+
+能力扩展的发布验收使用用户自备数据 API 的 mock transport，串起以下最小路径：
+
+```text
+连接配置 → 字段映射 → 统一 DataBatch
+→ 五类分析师并行 → ResearchManager
+→ 受控因子提案 → 确定性回测/OOS → 风险审查
+→ paper-only DecisionCard → 多阶段 HTML
+→ as-of 学习记录 → checkpoint save/load
+```
+
+相同输入事实会得到相同 fingerprint 和报告文件摘要；量化或风险阶段失败时不会生成可执行决策。API Key、endpoint、绝对路径、完整 prompt 和外部原始对象不会进入 Artifact。对应验收测试为 [`tests/research/test_capability_vertical_slice.py`](tests/research/test_capability_vertical_slice.py)，发布边界与未连接能力见 [`docs/RESEARCH_CAPABILITY_RELEASE_CHECKLIST.md`](docs/RESEARCH_CAPABILITY_RELEASE_CHECKLIST.md)。
+
 ### 7. 接入用户自己的模型 API
 
 用户可以把自己的模型 provider 和模型配置接入研究流程，并为不同角色设置不同的模型：
