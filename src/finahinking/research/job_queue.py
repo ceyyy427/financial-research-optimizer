@@ -35,6 +35,10 @@ _SENSITIVE_REF = re.compile(r"(?:api[-_]?key|secret|token|password|credential|au
 _TERMINAL = frozenset({JobStatus.FAILED.value, JobStatus.CANCELLED.value, JobStatus.COMPLETED.value})
 
 
+class StaleLeaseError(ValueError):
+    """A worker attempted to mutate a job after losing its lease."""
+
+
 def _ref(value: str, name: str) -> str:
     if not isinstance(value, str) or not _PUBLIC_REF.fullmatch(value) or _SENSITIVE_REF.search(value):
         raise ValueError(f"{name} must be a stable public reference")
@@ -59,6 +63,7 @@ class JobRecord:
     updated_at: float
     worker_id: str | None = None
     lease_until: float | None = None
+    lease_token: str | None = None
     last_error_digest: str | None = None
     checkpoint_ref: str | None = None
     result_ref: str | None = None
@@ -120,6 +125,7 @@ class JobQueue:
                     updated_at REAL NOT NULL,
                     worker_id TEXT,
                     lease_until REAL,
+                    lease_token TEXT,
                     last_error_digest TEXT,
                     checkpoint_ref TEXT,
                     result_ref TEXT,
@@ -139,6 +145,9 @@ class JobQueue:
                 );
                 """
             )
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
+            if "lease_token" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
 
     @staticmethod
     def _task_digest(task: AgentTask) -> str:
@@ -168,6 +177,9 @@ class JobQueue:
         idempotency_key = _ref(idempotency_key, "idempotency_key")
         task_digest = self._task_digest(task)
         _ref(task.task_id, "task_ref")
+        previous = self._tasks.get(task.task_id)
+        if previous is not None and self._task_digest(previous) != task_digest:
+            raise ValueError("task_id is already bound to another task digest")
         self._tasks[task.task_id] = task
         job_id = self._job_id(task_digest, idempotency_key)
         now = float(self._clock())
@@ -210,9 +222,10 @@ class JobQueue:
                 return None
             attempts = int(row["attempts"]) + 1
             lease_until = now + self.lease_seconds
+            lease_token = stable_digest({"job_id": row["job_id"], "worker_id": worker_id, "attempt": attempts, "lease_until": lease_until})[:32]
             db.execute(
-                "UPDATE jobs SET status=?, attempts=?, worker_id=?, lease_until=?, updated_at=? WHERE job_id=?",
-                (JobStatus.RUNNING.value, attempts, worker_id, lease_until, now, row["job_id"]),
+                "UPDATE jobs SET status=?, attempts=?, worker_id=?, lease_until=?, lease_token=?, updated_at=? WHERE job_id=?",
+                (JobStatus.RUNNING.value, attempts, worker_id, lease_until, lease_token, now, row["job_id"]),
             )
             self._event(db, row["job_id"], JobStatus.RUNNING.value, now, worker_id=worker_id)
             claimed = db.execute("SELECT * FROM jobs WHERE job_id = ?", (row["job_id"],)).fetchone()
@@ -220,7 +233,16 @@ class JobQueue:
             db.commit()
             return self._row(claimed)
 
-    def retry(self, job_id: str, reason: str) -> JobRecord:
+    def retry(
+        self,
+        job_id: str,
+        reason: str,
+        *,
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_until: float | None = None,
+        lease_token: str | None = None,
+    ) -> JobRecord:
         job_id = _ref(job_id, "job_id")
         reason_digest = stable_digest(str(reason))
         now = float(self._clock())
@@ -230,6 +252,13 @@ class JobQueue:
             status = JobStatus(row["status"])
             if status in {JobStatus.CANCELLED, JobStatus.COMPLETED, JobStatus.FAILED}:
                 raise ValueError("terminal job cannot be retried")
+            self._assert_fence(row, worker_id=worker_id, attempt=attempt, lease_until=lease_until, lease_token=lease_token, now=now)
+            if row["cancel_requested"]:
+                db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? WHERE job_id=?", (JobStatus.CANCELLED.value, now, job_id))
+                self._event(db, job_id, JobStatus.CANCELLED.value, now, reason_digest=reason_digest)
+                result = self._must_row(db, job_id)
+                db.commit()
+                return self._row(result)
             attempts = int(row["attempts"])
             if attempts >= int(row["max_attempts"]):
                 next_status = JobStatus.FAILED
@@ -240,7 +269,7 @@ class JobQueue:
                 available_at = now + delay
             db.execute(
                 """UPDATE jobs SET status=?, available_at=?, updated_at=?, worker_id=NULL,
-                   lease_until=NULL, last_error_digest=?, cancel_requested=0 WHERE job_id=?""",
+                   lease_until=NULL, lease_token=NULL, last_error_digest=? WHERE job_id=?""",
                 (next_status.value, available_at, now, reason_digest, job_id),
             )
             self._event(db, job_id, next_status.value, now, reason_digest=reason_digest)
@@ -271,14 +300,28 @@ class JobQueue:
             db.commit()
             return self._row(result)
 
-    def update_checkpoint(self, job_id: str, checkpoint_ref: str | None) -> JobRecord:
+    def update_checkpoint(
+        self,
+        job_id: str,
+        checkpoint_ref: str | None,
+        *,
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_until: float | None = None,
+        lease_token: str | None = None,
+    ) -> JobRecord:
         job_id = _ref(job_id, "job_id")
         if checkpoint_ref is not None:
             checkpoint_ref = _ref(checkpoint_ref, "checkpoint_ref")
         now = float(self._clock())
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._must_row(db, job_id)
+            self._assert_fence(row, worker_id=worker_id, attempt=attempt, lease_until=lease_until, lease_token=lease_token, now=now)
             db.execute("UPDATE jobs SET checkpoint_ref=?, updated_at=? WHERE job_id=?", (checkpoint_ref, now, job_id))
+            self._event(db, job_id, "checkpoint_updated", now, worker_id=worker_id)
             result = self._must_row(db, job_id)
+            db.commit()
             return self._row(result)
 
     def complete(
@@ -290,6 +333,10 @@ class JobQueue:
         report_ref: str | None = None,
         learning_ref: str | None = None,
         ledger_ref: str | None = None,
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_until: float | None = None,
+        lease_token: str | None = None,
     ) -> JobRecord:
         job_id = _ref(job_id, "job_id")
         result_ref = _ref(result_ref, "result_ref")
@@ -305,13 +352,14 @@ class JobQueue:
                 return self._row(row)
             if status is not JobStatus.RUNNING:
                 raise ValueError("only running jobs can complete")
+            self._assert_fence(row, worker_id=worker_id, attempt=attempt, lease_until=lease_until, lease_token=lease_token, now=now)
             if row["cancel_requested"]:
-                db.execute("UPDATE jobs SET status=?, updated_at=? WHERE job_id=?", (JobStatus.CANCELLED.value, now, job_id))
+                db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? WHERE job_id=?", (JobStatus.CANCELLED.value, now, job_id))
                 self._event(db, job_id, JobStatus.CANCELLED.value, now)
             else:
                 db.execute(
                     """UPDATE jobs SET status=?, updated_at=?, worker_id=NULL, lease_until=NULL,
-                       result_ref=?, checkpoint_ref=?, report_ref=?, learning_ref=?, ledger_ref=? WHERE job_id=?""",
+                       lease_token=NULL, result_ref=?, checkpoint_ref=?, report_ref=?, learning_ref=?, ledger_ref=? WHERE job_id=?""",
                     (JobStatus.COMPLETED.value, now, result_ref, clean_refs[0], clean_refs[1], clean_refs[2], clean_refs[3], job_id),
                 )
                 self._event(db, job_id, JobStatus.COMPLETED.value, now)
@@ -319,7 +367,16 @@ class JobQueue:
             db.commit()
             return self._row(result)
 
-    def fail(self, job_id: str, reason: str) -> JobRecord:
+    def fail(
+        self,
+        job_id: str,
+        reason: str,
+        *,
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_until: float | None = None,
+        lease_token: str | None = None,
+    ) -> JobRecord:
         """Mark a job permanently failed without persisting the reason text."""
         job_id = _ref(job_id, "job_id")
         now = float(self._clock())
@@ -333,8 +390,9 @@ class JobQueue:
                 return self._row(row)
             if status in {JobStatus.COMPLETED, JobStatus.CANCELLED}:
                 raise ValueError("terminal job cannot be failed")
+            self._assert_fence(row, worker_id=worker_id, attempt=attempt, lease_until=lease_until, lease_token=lease_token, now=now)
             db.execute(
-                "UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, updated_at=?, last_error_digest=? WHERE job_id=?",
+                "UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=?, last_error_digest=? WHERE job_id=?",
                 (JobStatus.FAILED.value, now, reason_digest, job_id),
             )
             self._event(db, job_id, JobStatus.FAILED.value, now, reason_digest=reason_digest)
@@ -342,7 +400,15 @@ class JobQueue:
             db.commit()
             return self._row(result)
 
-    def mark_cancelled(self, job_id: str) -> JobRecord:
+    def mark_cancelled(
+        self,
+        job_id: str,
+        *,
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_until: float | None = None,
+        lease_token: str | None = None,
+    ) -> JobRecord:
         job_id = _ref(job_id, "job_id")
         now = float(self._clock())
         with self._connect() as db:
@@ -353,7 +419,8 @@ class JobQueue:
                 return self._row(row)
             if row["status"] in _TERMINAL:
                 raise ValueError("terminal job cannot be cancelled")
-            db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, updated_at=? WHERE job_id=?", (JobStatus.CANCELLED.value, now, job_id))
+            self._assert_fence(row, worker_id=worker_id, attempt=attempt, lease_until=lease_until, lease_token=lease_token, now=now)
+            db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? WHERE job_id=?", (JobStatus.CANCELLED.value, now, job_id))
             self._event(db, job_id, JobStatus.CANCELLED.value, now)
             result = self._must_row(db, job_id)
             db.commit()
@@ -376,7 +443,7 @@ class JobQueue:
                 status = JobStatus.FAILED
             else:
                 status = JobStatus.RETRYABLE
-            db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, available_at=?, updated_at=? WHERE job_id=?", (status.value, now, now, row["job_id"]))
+            db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, available_at=?, updated_at=? WHERE job_id=?", (status.value, now, now, row["job_id"]))
             self._event(db, row["job_id"], status.value, now)
 
     @staticmethod
@@ -391,15 +458,38 @@ class JobQueue:
         return row
 
     @staticmethod
+    def _assert_fence(
+        row: sqlite3.Row,
+        *,
+        worker_id: str | None,
+        attempt: int | None,
+        lease_until: float | None,
+        lease_token: str | None,
+        now: float,
+    ) -> None:
+        if row["status"] != JobStatus.RUNNING.value:
+            raise StaleLeaseError("job is not running")
+        if worker_id is None or attempt is None or (lease_token is None and lease_until is None):
+            raise StaleLeaseError("worker lease fence is required")
+        if row["worker_id"] != _ref(worker_id, "worker_id") or int(row["attempts"]) != int(attempt):
+            raise StaleLeaseError("worker lease owner or attempt does not match")
+        if lease_token is not None and row["lease_token"] != _ref(lease_token, "lease_token"):
+            raise StaleLeaseError("worker lease token does not match")
+        if lease_until is not None and (row["lease_until"] is None or float(row["lease_until"]) != float(lease_until)):
+            raise StaleLeaseError("worker lease timestamp does not match")
+        if row["lease_until"] is None or float(row["lease_until"]) <= now:
+            raise StaleLeaseError("worker lease has expired")
+
+    @staticmethod
     def _row(row: sqlite3.Row) -> JobRecord:
         return JobRecord(
             job_id=row["job_id"], task_ref=row["task_ref"], task_digest=row["task_digest"], idempotency_key=row["idempotency_key"],
             status=JobStatus(row["status"]), attempts=int(row["attempts"]), max_attempts=int(row["max_attempts"]),
             available_at=float(row["available_at"]), created_at=float(row["created_at"]), updated_at=float(row["updated_at"]),
-            worker_id=row["worker_id"], lease_until=row["lease_until"], last_error_digest=row["last_error_digest"],
+            worker_id=row["worker_id"], lease_until=row["lease_until"], lease_token=row["lease_token"], last_error_digest=row["last_error_digest"],
             checkpoint_ref=row["checkpoint_ref"], result_ref=row["result_ref"], report_ref=row["report_ref"],
             learning_ref=row["learning_ref"], ledger_ref=row["ledger_ref"], cancel_requested=bool(row["cancel_requested"]),
         )
 
 
-__all__ = ["JobQueue", "JobRecord", "JobStatus"]
+__all__ = ["JobQueue", "JobRecord", "JobStatus", "StaleLeaseError"]

@@ -37,7 +37,7 @@ from .factor_loop import (
     FactorResearchState,
     run_factor_research,
 )
-from .job_queue import JobQueue, JobRecord, JobStatus
+from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
 from .paper_trader import PaperLedger, PaperLedgerEntry, PaperTrader
 from .portfolio_runtime import PaperPortfolioProposal, PortfolioManager
@@ -154,6 +154,7 @@ __all__ = [
     "RunControl",
     "RunEvent",
     "RunStoreError",
+    "StaleLeaseError",
     "UserApiDriver",
     "WorkerResult",
     "WorkerStatus",

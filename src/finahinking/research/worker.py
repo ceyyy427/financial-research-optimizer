@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any
 
 from .contracts import AgentTask, stable_digest
-from .job_queue import JobQueue, JobRecord, JobStatus, _ref
+from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError, _ref
 
 
 class WorkerStatus(str, Enum):
@@ -42,9 +42,31 @@ class WorkerResult:
 _RESULT_FIELDS = frozenset({"status", "result_ref", "checkpoint_ref", "report_ref", "learning_ref", "ledger_ref"})
 
 
-def _invoke_child(connection: Any, runner: Callable[..., Any], task: AgentTask, checkpoint_ref: str | None, max_result_bytes: int) -> None:
+def _invoke_child(
+    connection: Any,
+    resolver: Callable[[str], AgentTask],
+    runner: Callable[..., Any],
+    task_ref: str,
+    expected_digest: str,
+    checkpoint_ref: str | None,
+    max_result_bytes: int,
+) -> None:
     """Send JSON only; exceptions and arbitrary objects never cross IPC."""
     try:
+        task = resolver(task_ref)
+        if not isinstance(task, AgentTask) or stable_digest(
+            {
+                "role": task.role,
+                "task_id": task.task_id,
+                "input_digest": task.input_digest,
+                "capabilities": task.capabilities,
+                "required": task.required,
+                "timeout_seconds": task.timeout_seconds,
+                "payload_digest": stable_digest(task.inputs),
+            }
+        ) != expected_digest:
+            connection.send_bytes(b'{"failure":"TASK_IDENTITY_MISMATCH"}')
+            return
         value = runner(task, checkpoint_ref)
         if not isinstance(value, Mapping) or set(value) - _RESULT_FIELDS:
             connection.send_bytes(b'{"failure":"RESULT_INVALID"}')
@@ -110,25 +132,22 @@ report/learning/ledger references and is idempotent.
         if job is None:
             return WorkerResult(WorkerStatus.IDLE)
         self._executed += 1
-        try:
-            task = self.task_resolver(job.task_ref)
-            if not isinstance(task, AgentTask) or self.queue._task_digest(task) != job.task_digest:
-                return self._fail(job, "TASK_IDENTITY_MISMATCH", retryable=False)
-        except Exception:  # noqa: BLE001 - resolver failures remain digest-only
-            return self._fail(job, "TASK_UNAVAILABLE", retryable=False)
         if self.queue.is_cancel_requested(job.job_id):
-            cancelled = self.queue.mark_cancelled(job.job_id)
+            try:
+                cancelled = self.queue.mark_cancelled(job.job_id, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            except StaleLeaseError:
+                return self._stale(job)
             return WorkerResult(WorkerStatus.CANCELLED, job.job_id, attempts=cancelled.attempts)
 
         # Lease must outlive this attempt. A stricter queue lease prevents two
         # workers from simultaneously publishing the same logical job.
-        deadline = min(self.timeout_seconds, task.timeout_seconds, self.queue.lease_seconds)
+        deadline = min(self.timeout_seconds, self.queue.lease_seconds)
         context = multiprocessing.get_context("fork")
         parent, child = context.Pipe(duplex=False)
-        process = context.Process(target=_invoke_child, args=(child, self.runner, task, job.checkpoint_ref, self.max_result_bytes), daemon=True)
+        process = context.Process(target=_invoke_child, args=(child, self.task_resolver, self.runner, job.task_ref, job.task_digest, job.checkpoint_ref, self.max_result_bytes), daemon=True)
+        started = time.monotonic()
         process.start()
         child.close()
-        started = time.monotonic()
         payload: Mapping[str, Any] | None = None
         failure: str | None = None
         try:
@@ -157,7 +176,10 @@ report/learning/ledger references and is idempotent.
                 process.join(timeout=1)
             parent.close()
         if failure == "CANCELLED":
-            cancelled = self.queue.mark_cancelled(job.job_id)
+            try:
+                cancelled = self.queue.mark_cancelled(job.job_id, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            except StaleLeaseError:
+                return self._stale(job)
             return WorkerResult(WorkerStatus.CANCELLED, job.job_id, attempts=cancelled.attempts)
         if failure is not None:
             return self._fail(job, failure, retryable=failure in {"TIMEOUT", "RUNNER_FAILED"})
@@ -170,20 +192,33 @@ report/learning/ledger references and is idempotent.
             if set(payload) - _RESULT_FIELDS or payload.get("status") != "completed":
                 raise ValueError("invalid result fields")
             refs = {key: _ref(value, key) for key, value in payload.items() if key != "status"}
-            completed = self.queue.complete(job.job_id, **refs)
+            completed = self.queue.complete(job.job_id, **refs, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
         except (TypeError, ValueError):
             return self._fail(job, "RESULT_INVALID", retryable=False)
+        except StaleLeaseError:
+            return self._stale(job)
         status = WorkerStatus.CANCELLED if completed.status is JobStatus.CANCELLED else WorkerStatus.COMPLETED
         return WorkerResult(status, completed.job_id, completed.result_ref, attempts=completed.attempts)
 
     def _fail(self, job: JobRecord, kind: str, *, retryable: bool) -> WorkerResult:
         if not retryable:
             # A rejected result is a permanent failure, not a repeated attempt.
-            failed = self.queue.fail(job.job_id, kind)
+            try:
+                failed = self.queue.fail(job.job_id, kind, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            except StaleLeaseError:
+                return self._stale(job)
         else:
-            failed = self.queue.retry(job.job_id, kind)
+            try:
+                failed = self.queue.retry(job.job_id, kind, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            except StaleLeaseError:
+                return self._stale(job)
         status = WorkerStatus.RETRYABLE if failed.status is JobStatus.RETRYABLE else WorkerStatus.FAILED
         return WorkerResult(status, job.job_id, failure_kind=kind, message_digest=stable_digest(kind), attempts=failed.attempts)
+
+    @staticmethod
+    def _stale(job: JobRecord) -> WorkerResult:
+        kind = "STALE_LEASE"
+        return WorkerResult(WorkerStatus.FAILED, job.job_id, failure_kind=kind, message_digest=stable_digest(kind), attempts=job.attempts)
 
 
 __all__ = ["ResearchWorker", "WorkerResult", "WorkerStatus"]

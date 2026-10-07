@@ -63,17 +63,49 @@ def test_worker_passes_durable_checkpoint_reference_to_resolved_task(tmp_path) -
     path = tmp_path / "jobs.sqlite"
     first_queue = JobQueue(path)
     record = first_queue.enqueue(task(), "idem-1")
-    first_queue.update_checkpoint(record.job_id, "checkpoint:resume-1")
-    reopened = JobQueue(path)
+    claimed = first_queue.claim("worker-a")
+    assert claimed is not None
+    first_queue.update_checkpoint(record.job_id, "checkpoint:resume-1", worker_id=claimed.worker_id, attempt=claimed.attempts, lease_until=claimed.lease_until, lease_token=claimed.lease_token)
     def resolver(task_ref: str) -> AgentTask:
         return task(task_ref)
 
     def runner(received: AgentTask, checkpoint_ref: str | None) -> dict[str, str]:
         return {"status": "completed", "result_ref": "artifact:resume-ok" if checkpoint_ref == "checkpoint:resume-1" else "artifact:resume-bad"}
 
-    result = ResearchWorker(reopened, runner=runner, task_resolver=resolver, worker_id="worker-a").run_once()
+    # Reopen returns the running lease to retryable after it expires; use a
+    # fresh queue clock/short lease to model recovery before the worker runs.
+    recovered = JobQueue(path, clock=lambda: claimed.lease_until + 1, lease_seconds=5)
+    result = ResearchWorker(recovered, runner=runner, task_resolver=resolver, worker_id="worker-a").run_once()
     assert result.status is WorkerStatus.COMPLETED
     assert result.result_ref == "artifact:resume-ok"
+
+
+def test_resolver_is_inside_global_timeout(tmp_path) -> None:
+    import time
+
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    queue.enqueue(task(), "idem-1")
+
+    def resolver(task_ref: str) -> AgentTask:
+        time.sleep(0.15)
+        return task(task_ref)
+
+    def runner(received: AgentTask, checkpoint_ref: str | None) -> dict[str, str]:
+        return {"status": "completed", "result_ref": "artifact:late"}
+
+    started = time.monotonic()
+    result = ResearchWorker(queue, runner=runner, task_resolver=resolver, worker_id="worker-a", timeout_seconds=0.01).run_once()
+    assert time.monotonic() - started < 0.1
+    assert result.status is WorkerStatus.RETRYABLE
+
+
+def test_task_id_collision_is_rejected(tmp_path) -> None:
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    queue.enqueue(task(), "idem-1")
+    conflicting = AgentTask(role="technical", task_id="task-1", input_digest="different-input")
+    import pytest
+    with pytest.raises(ValueError, match="task_id"):
+        queue.enqueue(conflicting, "idem-2")
 
 
 def test_worker_rejects_unbounded_or_unsafe_result(tmp_path) -> None:

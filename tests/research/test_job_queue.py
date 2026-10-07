@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from finahinking.research.contracts import AgentTask
-from finahinking.research.job_queue import JobQueue, JobStatus
+from finahinking.research.job_queue import JobQueue, JobStatus, StaleLeaseError
 
 
 def task(task_id: str = "task-1") -> AgentTask:
@@ -47,7 +47,8 @@ def test_retry_backoff_cancel_and_terminal_transitions(tmp_path) -> None:
     queue = JobQueue(tmp_path / "jobs.sqlite", clock=lambda: now[0], backoff_base_seconds=10)
     record = queue.enqueue(task(), "idem-1")
     queue.claim("worker-a")
-    retried = queue.retry(record.job_id, "temporary failure")
+    running = queue.get(record.job_id)
+    retried = queue.retry(record.job_id, "temporary failure", worker_id=running.worker_id, attempt=running.attempts, lease_until=running.lease_until, lease_token=running.lease_token)
     assert retried.status is JobStatus.RETRYABLE
     assert retried.available_at == 110.0
     assert retried.last_error_digest
@@ -60,9 +61,35 @@ def test_queue_reopens_and_preserves_only_references(tmp_path) -> None:
     path = tmp_path / "jobs.sqlite"
     first = JobQueue(path)
     record = first.enqueue(task(), "idem-1")
-    first.update_checkpoint(record.job_id, "checkpoint:abc123")
+    claimed = first.claim("worker-a")
+    assert claimed is not None
+    first.update_checkpoint(record.job_id, "checkpoint:abc123", worker_id=claimed.worker_id, attempt=claimed.attempts, lease_until=claimed.lease_until, lease_token=claimed.lease_token)
     reopened = JobQueue(path)
     loaded = reopened.get(record.job_id)
     assert loaded.checkpoint_ref == "checkpoint:abc123"
     assert loaded.task_ref == "task-1"
 
+
+def test_stale_worker_cannot_complete_or_update_checkpoint(tmp_path) -> None:
+    now = [100.0]
+    queue = JobQueue(tmp_path / "jobs.sqlite", clock=lambda: now[0], lease_seconds=5, backoff_base_seconds=0)
+    record = queue.enqueue(task(), "idem-1")
+    first = queue.claim("worker-a")
+    assert first is not None
+    now[0] = 106.0
+    second = queue.claim("worker-b")
+    assert second is not None
+    with pytest.raises(StaleLeaseError):
+        queue.complete(record.job_id, result_ref="artifact:stale", worker_id=first.worker_id, attempt=first.attempts, lease_until=first.lease_until, lease_token=first.lease_token)
+    with pytest.raises(StaleLeaseError):
+        queue.update_checkpoint(record.job_id, "checkpoint:stale", worker_id=first.worker_id, attempt=first.attempts, lease_until=first.lease_until, lease_token=first.lease_token)
+
+
+def test_cancelled_running_job_cannot_be_revived_by_retry(tmp_path) -> None:
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    record = queue.enqueue(task(), "idem-1")
+    claimed = queue.claim("worker-a")
+    assert claimed is not None
+    queue.cancel(record.job_id)
+    result = queue.retry(record.job_id, "late failure", worker_id=claimed.worker_id, attempt=claimed.attempts, lease_until=claimed.lease_until, lease_token=claimed.lease_token)
+    assert result.status is JobStatus.CANCELLED
