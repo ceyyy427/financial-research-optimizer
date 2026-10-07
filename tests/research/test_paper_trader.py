@@ -12,6 +12,8 @@ def snapshot() -> dict[str, object]:
         "snapshot_id": "snap-1",
         "as_of": "2026-10-01",
         "pit_status": "AVAILABLE",
+        "drawdown": 0.05,
+        "stress_results": {"shock": {"passed": True}},
         "observations": (
             {"instrument": "AAA", "close": 100.0, "volume": 1000.0, "available_at": "2026-10-01"},
             {"instrument": "BBB", "close": 50.0, "volume": 1000.0, "available_at": "2026-10-01"},
@@ -40,3 +42,9 @@ def test_paper_trader_rejects_live_execution_surface() -> None:
     with pytest.raises(ValueError, match="paper|broker|order|live|account"):
         PaperTrader().simulate(proposal(), snapshot(), {"broker": object()})
 
+
+def test_paper_trader_rejects_forged_proposal_and_never_creates_negative_cash() -> None:
+    with pytest.raises(TypeError, match="PaperPortfolioProposal"):
+        PaperTrader().simulate({"passed": True, "weights": {"AAA": 1.0}}, snapshot(), {"initial_cash": 100})
+    ledger = PaperTrader().simulate(proposal(), snapshot(), {"fee_bps": 100, "slippage_bps": 100, "initial_cash": 100})
+    assert all(entry.cash >= 0 for entry in ledger.entries)

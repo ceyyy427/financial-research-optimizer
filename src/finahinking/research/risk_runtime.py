@@ -149,6 +149,7 @@ class RiskReviewResult:
     snapshot_digest: str = ""
     factor_digest: str = ""
     policy_version: str = "risk.v1"
+    limits: Mapping[str, Any] = field(default_factory=dict)
     paper_only: bool = True
 
     def __post_init__(self) -> None:
@@ -166,6 +167,7 @@ class RiskReviewResult:
         object.__setattr__(self, "gates", tuple(str(item) for item in self.gates))
         object.__setattr__(self, "blocking_reasons", tuple(str(item) for item in self.blocking_reasons))
         object.__setattr__(self, "metrics", dict(self.metrics))
+        object.__setattr__(self, "limits", dict(self.limits))
         if self.paper_only is not True:
             raise ValueError("risk review must be paper-only")
 
@@ -187,6 +189,7 @@ class RiskReviewResult:
             "snapshot_digest": self.snapshot_digest,
             "factor_digest": self.factor_digest,
             "policy_version": self.policy_version,
+            "limits": dict(self.limits),
             "paper_only": self.paper_only,
             "fingerprint": self.fingerprint,
         }
@@ -209,7 +212,9 @@ class RiskManager:
             reasons.append("PIT status is unknown or unavailable")
 
         factor_status = str(_nested(factor, "status", "admission_status", "evaluation_status") or "").upper()
-        if factor_status and factor_status not in {"ADMITTED", "VALID", "PASSED", "READY", "HUMAN_ADMITTED"}:
+        if not factor_status:
+            reasons.append("factor status is unavailable")
+        elif factor_status not in {"ADMITTED", "VALID", "PASSED", "READY", "HUMAN_ADMITTED"}:
             reasons.append("factor result is not eligible")
         if factor.get("passed") is False:
             reasons.append("factor result failed")
@@ -269,11 +274,11 @@ class RiskManager:
         if drawdown is None:
             drawdown = _nested(snap, "drawdown", "max_drawdown")
         drawdown_unknown = isinstance(drawdown, str) and drawdown.strip().upper() in {"UNKNOWN", "UNAVAILABLE", "MISSING", "N/A", "NONE"}
-        if drawdown_unknown:
+        if drawdown_unknown or drawdown is None:
             reasons.append("drawdown metric is unavailable")
             drawdown = 0.0
         else:
-            drawdown = 0.0 if drawdown is None else abs(_number(drawdown, "drawdown"))
+            drawdown = abs(_number(drawdown, "drawdown"))
         max_drawdown = _nested(policy, "max_drawdown", "drawdown_limit")
         if max_drawdown is not None and drawdown > _number(max_drawdown, "max_drawdown") + 1e-12:
             reasons.append("drawdown limit failed")
@@ -281,19 +286,27 @@ class RiskManager:
 
         stress = _nested(snap, "stress_results") or _nested(metrics, "stress_results")
         scenarios = _nested(policy, "stress_scenarios", "stress_tests")
-        if scenarios is not None:
+        if scenarios is None:
+            reasons.append("stress scenarios are unavailable")
+        elif scenarios is not None:
             if not isinstance(scenarios, Mapping) or not scenarios:
                 reasons.append("stress scenarios are invalid")
             else:
                 for name, scenario in scenarios.items():
                     outcome = stress.get(name) if isinstance(stress, Mapping) else None
-                    if isinstance(outcome, Mapping) and outcome.get("passed") is False:
+                    if not isinstance(outcome, Mapping):
+                        reasons.append(f"stress scenario result unavailable: {name}")
+                    elif outcome.get("passed") is False:
                         reasons.append(f"stress scenario failed: {name}")
-                    elif isinstance(scenario, Mapping) and "drawdown" in scenario and max_drawdown is not None:
-                        if abs(_number(scenario["drawdown"], f"stress.{name}.drawdown")) > _number(max_drawdown, "max_drawdown") + 1e-12:
-                            reasons.append(f"stress scenario failed: {name}")
-                    elif outcome is not None and not isinstance(outcome, Mapping):
-                        reasons.append(f"stress scenario invalid: {name}")
+                    elif outcome.get("passed") is not True:
+                        reasons.append(f"stress scenario result unknown: {name}")
+                    elif (
+                        isinstance(scenario, Mapping)
+                        and "drawdown" in scenario
+                        and max_drawdown is not None
+                        and abs(_number(scenario["drawdown"], f"stress.{name}.drawdown")) > _number(max_drawdown, "max_drawdown") + 1e-12
+                    ):
+                        reasons.append(f"stress scenario failed: {name}")
         gates.append("stress")
 
         try:
@@ -319,6 +332,7 @@ class RiskManager:
             snapshot_digest=stable_digest(snap),
             factor_digest=stable_digest(factor),
             policy_version=str(policy.get("policy_version", policy.get("version", "risk.v1"))),
+            limits=policy,
         )
 
 

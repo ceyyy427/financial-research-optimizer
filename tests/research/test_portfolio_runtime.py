@@ -15,6 +15,8 @@ def snapshot() -> dict[str, object]:
             {"instrument": "AAA", "close": 100.0, "volume": 1000.0, "available_at": "2026-10-01"},
             {"instrument": "BBB", "close": 50.0, "volume": 1000.0, "available_at": "2026-10-01"},
         ),
+        "drawdown": 0.05,
+        "stress_results": {"base": {"passed": True}, "shock": {"passed": True}},
     }
 
 
@@ -37,7 +39,7 @@ def test_portfolio_constructs_sorted_long_only_paper_weights() -> None:
 
 def test_portfolio_blocks_failed_risk_and_concentration() -> None:
     blocked = PortfolioManager().construct(
-        type("Blocked", (), {"passed": False, "blocking_reasons": ("drawdown",)})(),
+        RiskManager().review(snapshot(), {"status": "BLOCKED"}, {"max_drawdown": 0.2, "max_concentration": 0.8, "min_liquidity": 100.0, "stress_scenarios": {"shock": {"drawdown": 0.1}}}),
         ("AAA", "BBB"),
         {"max_single_weight": 0.6},
     )
@@ -45,3 +47,15 @@ def test_portfolio_blocks_failed_risk_and_concentration() -> None:
     with pytest.raises(ValueError, match="long-only|weight|concentration"):
         PortfolioManager().construct(risk(), ("AAA",), {"long_only": False})
 
+
+def test_portfolio_rejects_forged_risk_mapping_and_rechecks_risk_concentration() -> None:
+    with pytest.raises(TypeError, match="RiskReviewResult"):
+        PortfolioManager().construct({"passed": True}, ("AAA",), {"max_single_weight": 1.0})
+
+    constrained = RiskManager().review(
+        snapshot(),
+        {"status": "ADMITTED", "metrics": {"factor_score": 0.5}},
+        {"max_drawdown": 0.2, "max_concentration": 0.75, "min_liquidity": 100.0, "stress_scenarios": {"shock": {"drawdown": 0.1}}},
+    )
+    proposal = PortfolioManager().construct(constrained, ("AAA",), {"max_single_weight": 1.0})
+    assert proposal.weights["AAA"] <= 0.75

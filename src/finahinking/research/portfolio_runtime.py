@@ -127,10 +127,20 @@ class PortfolioManager:
     """Construct a transparent equal-weight paper portfolio after risk gates."""
 
     def construct(self, risk_result: RiskReviewResult | Mapping[str, Any], candidates: Sequence[Any] | Mapping[str, Any], constraints: Mapping[str, Any] | Any) -> PaperPortfolioProposal:
-        risk = _mapping(risk_result, "risk_result")
+        if not isinstance(risk_result, RiskReviewResult):
+            raise TypeError("risk_result must be a RiskReviewResult")
+        risk = risk_result.to_dict()
         policy = _mapping(constraints, "constraints")
         if policy.get("long_only", True) is not True:
             raise ValueError("portfolio runtime is long-only")
+        if risk_result.blocking_reasons:
+            return PaperPortfolioProposal(
+                status="BLOCKED",
+                passed=False,
+                risk_digest=risk_result.fingerprint,
+                constraints=policy,
+                rationale="risk gate blocked portfolio: " + "; ".join(risk_result.blocking_reasons),
+            )
         if risk.get("passed") is not True and str(risk.get("status", "")).upper() != "PASSED":
             reasons = tuple(str(item) for item in risk.get("blocking_reasons", ()))
             return PaperPortfolioProposal(status="BLOCKED", passed=False, candidates=(), risk_digest=str(risk.get("fingerprint", "")), constraints=policy, rationale="risk gate blocked portfolio: " + "; ".join(reasons))
@@ -139,7 +149,10 @@ class PortfolioManager:
         if isinstance(candidates, Mapping):
             source = tuple(candidates.items())
             for instrument, weight in source:
-                extracted.append((str(instrument), _number(weight, f"candidate.{instrument}")))
+                value = _number(weight, f"candidate.{instrument}")
+                if not 0 <= value <= 1:
+                    raise ValueError("candidate weight is outside long-only bounds")
+                extracted.append((str(instrument), value))
         elif isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
             raise TypeError("candidates must be a sequence or mapping")
         else:
@@ -166,6 +179,21 @@ class PortfolioManager:
         max_single = _number(policy.get("max_single_weight", policy.get("max_weight", 1.0)), "max_single_weight")
         max_exposure = _number(policy.get("max_exposure", 1.0), "max_exposure")
         cash_buffer = _number(policy.get("cash_buffer", 0.0), "cash_buffer")
+        risk_max_concentration = risk_result.limits.get("max_concentration", risk_result.limits.get("concentration_limit"))
+        if risk_max_concentration is None:
+            risk_max_concentration = risk_result.metrics.get("max_concentration_limit")
+        if risk_max_concentration is not None:
+            risk_limit = _number(risk_max_concentration, "risk.max_concentration")
+            observed = risk_result.metrics.get("concentration")
+            if isinstance(observed, (int, float)) and float(observed) > risk_limit + 1e-12:
+                return PaperPortfolioProposal(
+                    status="BLOCKED",
+                    passed=False,
+                    risk_digest=risk_result.fingerprint,
+                    constraints=policy,
+                    rationale="risk concentration gate failed",
+                )
+            max_single = min(max_single, risk_limit)
         if not 0 <= max_single <= 1 or not 0 <= max_exposure <= 1 or not 0 <= cash_buffer <= 1:
             raise ValueError("portfolio constraints must be between zero and one")
         max_exposure = min(max_exposure, 1.0 - cash_buffer)

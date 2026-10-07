@@ -406,8 +406,12 @@ class ResearchOrchestrator:
     ) -> DecisionCard:
         if risk_result is None:
             risk_result = getattr(self, "_paper_risk_result", None)
+        if risk_result is None:
+            raise ValueError("paper decision requires a structured risk result")
         if risk_review.blocking_reasons:
             raise ValueError("cannot make decision after blocked risk review")
+        if isinstance(risk_result, Mapping) and set(risk_result) == {"passed"}:
+            raise ValueError("paper decision requires structured risk, portfolio, and paper gates")
         if isinstance(risk_result, Mapping) and "snapshot" in risk_result:
             risk = RiskManager().review(
                 risk_result["snapshot"],

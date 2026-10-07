@@ -10,6 +10,8 @@ def snapshot(**overrides: object) -> dict[str, object]:
         "snapshot_id": "snap-1",
         "as_of": "2026-10-01",
         "pit_status": "AVAILABLE",
+        "drawdown": 0.05,
+        "stress_results": {"base": {"passed": True}, "shock": {"passed": True}},
         "observations": (
             {"instrument": "AAA", "close": 100.0, "volume": 1000.0, "available_at": "2026-10-01"},
             {"instrument": "BBB", "close": 50.0, "volume": 1000.0, "available_at": "2026-10-01"},
@@ -64,3 +66,20 @@ def test_risk_review_rejects_unsafe_live_inputs() -> None:
     with pytest.raises(ValueError, match="paper|broker|live|order"):
         RiskManager().review(snapshot(broker=lambda: None), good_factor(), limits())
 
+
+def test_risk_review_blocks_missing_factor_status_drawdown_and_stress_results() -> None:
+    missing_factor_status = RiskManager().review(snapshot(), {"metrics": {"drawdown": 0.05}}, limits())
+    assert missing_factor_status.passed is False
+    assert any("factor" in item.casefold() for item in missing_factor_status.blocking_reasons)
+
+    missing_drawdown = snapshot()
+    missing_drawdown.pop("drawdown")
+    result = RiskManager().review(missing_drawdown, good_factor(), limits())
+    assert result.passed is False
+    assert any("drawdown" in item.casefold() for item in result.blocking_reasons)
+
+    missing_stress = snapshot()
+    missing_stress.pop("stress_results")
+    result = RiskManager().review(missing_stress, good_factor(), limits())
+    assert result.passed is False
+    assert any("stress" in item.casefold() for item in result.blocking_reasons)

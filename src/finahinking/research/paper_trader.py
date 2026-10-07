@@ -169,7 +169,9 @@ class PaperTrader:
     """Simulate delayed paper fills with declared fee and slippage costs."""
 
     def simulate(self, proposal: PaperPortfolioProposal | Mapping[str, Any], snapshot: Any, execution_policy: Mapping[str, Any] | Any) -> PaperLedger:
-        proposal_data = _mapping(proposal, "proposal")
+        if not isinstance(proposal, PaperPortfolioProposal):
+            raise TypeError("proposal must be a PaperPortfolioProposal")
+        proposal_data = proposal.to_dict()
         if proposal_data.get("passed") is not True and str(proposal_data.get("status", "")).upper() != "PASSED":
             raise ValueError("paper simulation requires a passed portfolio proposal")
         snap = _mapping(snapshot, "snapshot")
@@ -202,6 +204,10 @@ class PaperTrader:
         weights = proposal_data.get("weights", {})
         if not isinstance(weights, Mapping):
             raise TypeError("proposal weights must be a mapping")
+        total_weight = sum(_number(value, f"weights.{key}") for key, value in weights.items())
+        if total_weight < -1e-12 or total_weight + _number(proposal_data.get("cash_weight", 0.0), "cash_weight") > 1.0 + 1e-9:
+            raise ValueError("paper proposal exposure exceeds one")
+        fee_rate = fee_bps / 10000.0
         timestamp = str(snap.get("as_of", "paper-time"))
         for instrument in sorted(str(key) for key in weights):
             weight = _number(weights[instrument], f"weights.{instrument}")
@@ -215,11 +221,13 @@ class PaperTrader:
                 raise ValueError("paper prices must be positive")
             allocation = initial_cash * weight
             execution = reference * (1.0 + slippage_bps / 10000.0)
-            quantity = allocation / execution if allocation else 0.0
+            quantity = allocation / (execution * (1.0 + fee_rate)) if allocation else 0.0
             notional = quantity * execution
             fees = notional * fee_bps / 10000.0
             slippage = abs(quantity * (execution - reference))
             cash -= notional + fees
+            if cash < -1e-9:
+                raise ValueError("paper simulation would create negative cash")
             entries.append(PaperLedgerEntry(timestamp, "paper_fill", instrument, weight, quantity, reference, execution, notional, fees, slippage, cash, cash + notional))
         return PaperLedger(tuple(entries), True, stable_digest(snap), str(proposal_data.get("fingerprint", "")), policy)
 
