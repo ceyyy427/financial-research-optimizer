@@ -209,6 +209,47 @@ def test_all_public_identifiers_reject_paths_uris_and_secret_markers() -> None:
         AgentOutcome(role="news", task_id="n1", input_digest="d", output_digest="s3://bucket/key")
 
 
+def test_identifier_fields_reject_secret_marker_values() -> None:
+    from finahinking.research.contracts import AgentOutcome
+
+    for value in ("api_key:secret", "token:secret"):
+        with pytest.raises((TypeError, ValueError)):
+            AgentTask(role=value, task_id="n1", input_digest="d")
+        with pytest.raises((TypeError, ValueError)):
+            AgentTask(role="news", task_id=value, input_digest="d")
+        with pytest.raises((TypeError, ValueError)):
+            AgentOutcome(role="news", task_id="n1", input_digest="d", status=value)
+
+
+def test_recursive_inputs_reject_credential_and_prefixed_uri_or_path_values() -> None:
+    values = (
+        "credential:secret",
+        "artifact:ssh://host/private",
+        "artifact:s3://bucket/key",
+        "artifact:file:///private/key",
+        "artifact:~/private/key",
+        "artifact:relative/path.json",
+    )
+    for value in values:
+        with pytest.raises((TypeError, ValueError)):
+            AgentTask(role="news", task_id="n1", input_digest="d", inputs={"nested": {"value": value}})
+
+
+def test_evidence_refs_reject_prefixed_uri_or_path_values() -> None:
+    from finahinking.research.contracts import AgentOutcome
+
+    for value in (
+        "artifact:ssh://host/private",
+        "artifact:s3://bucket/key",
+        "artifact:file:///private/key",
+        "artifact:~/private/key",
+        "artifact:relative/path.json",
+        "artifact:credential:secret",
+    ):
+        with pytest.raises((TypeError, ValueError)):
+            AgentOutcome(role="news", task_id="n1", input_digest="d", evidence_refs=(value,))
+
+
 def test_agent_role_enum_covers_runtime_roles() -> None:
     assert {role.value for role in AgentRole} >= {
         "fundamentals",

@@ -25,10 +25,20 @@ Residual boundary follow-up: `08b6c14` — `fix(research): close residual agent 
 
 Identifier boundary follow-up: `eaa43ad` — `fix(research): seal residual identifier boundaries`.
 
+Fresh boundary follow-up (current round): `fix(research): close residual identifier boundaries`.
+This closes the remaining P1 cases where public role, task ID, or status fields
+accepted secret-marker text such as `api_key:secret` and `token:secret`, where
+recursive inputs accepted `credential:secret`, and where URI/path markers could
+be hidden behind an `artifact:` prefix.  Public identity/status fields now run
+the same secret/path/URI screen as evidence and digest fields.  Recursive JSON
+strings reject credential markers and detect schemes and path prefixes at any
+position, while existing artifact identifiers such as `artifact:offline:news`
+remain valid.
+
 ## Verification
 
-- `PYTHONPATH=src python3 -m pytest -q tests/research/test_agent_roles.py tests/research/test_analyst_runtime.py` — 26 passed.
-- `PYTHONPATH=src python3 -m pytest -q tests/research` — 260 passed.
+- `PYTHONPATH=src python3 -m pytest -q tests/research/test_agent_roles.py tests/research/test_analyst_runtime.py` — 29 passed after the fresh boundary tests.
+- `PYTHONPATH=src python3 -m pytest -q tests/research` — 263 passed.
 - `python3 -m ruff check src/finahinking/research/agent_roles.py src/finahinking/research/contracts.py src/finahinking/research/__init__.py tests/research/test_agent_roles.py` — passed.
 - `PYTHONPATH=src python3 -m compileall -q src/finahinking/research/agent_roles.py src/finahinking/research/contracts.py` — passed.
 - Initial TDD RED was observed: focused collection failed with `ModuleNotFoundError` for the not-yet-created `agent_roles` module.
@@ -42,6 +52,9 @@ Identifier boundary follow-up: `eaa43ad` — `fix(research): seal residual ident
 - Identifier-review RED was observed for secret/path/URI content in roles,
   task IDs, evidence refs, failure kinds, and digests; `ssh://`, `s3://`,
   `~/`, and backslash paths are now rejected by the shared public grammar.
+- Fresh boundary-review RED was observed for `api_key:secret`,
+  `token:secret`, `credential:secret`, and prefixed URI/path values; the new
+  tests are green with the closed public and recursive-input grammar.
 
 ## Risks and unfinished items
 

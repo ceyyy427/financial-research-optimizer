@@ -89,10 +89,23 @@ _TRANSITIONS: dict[ResearchState, frozenset[ResearchState]] = {
 
 _SECRET_KEY = re.compile(r"(?:api[-_]?key|secret|token|password|credential|authorization)", re.IGNORECASE)
 _SENSITIVE_KEY = re.compile(r"(?:endpoint|absolute[-_]?path|file[-_]?path|private[-_]?key)", re.IGNORECASE)
-_RUNTIME_SECRET_VALUE = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]", re.IGNORECASE)
-_RUNTIME_URI_VALUE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://", re.IGNORECASE)
-_RUNTIME_PUBLIC_REF = re.compile(r"(?:api[-_]?key|secret|token|password|authorization)\s*[=:]|\b(?:https?|ftp|file)://|(?:^|/)(?:Users|private|tmp)/", re.IGNORECASE)
-_RUNTIME_PATH_VALUE = re.compile(r"^(?:[A-Za-z]:[\\/]|/|~[\\/]|\.{1,2}[\\/]|[A-Za-z0-9_.-]+/[^\s]+$)|\\", re.IGNORECASE)
+_RUNTIME_SECRET_VALUE = re.compile(
+    r"(?:api[-_]?key|secret|token|password|credential|authorization)\s*[=:]",
+    re.IGNORECASE,
+)
+# These markers are rejected wherever they occur.  An artifact prefix must
+# not turn an endpoint or a local path into an apparently public reference.
+_RUNTIME_URI_VALUE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://", re.IGNORECASE)
+_RUNTIME_PUBLIC_REF = re.compile(
+    r"(?:api[-_]?key|secret|token|password|credential|authorization)\s*[=:]"
+    r"|[A-Za-z][A-Za-z0-9+.-]*://"
+    r"|(?:^|[:\s])(?:~[\\/]|[\\/]|\.{1,2}[\\/]|[A-Za-z0-9_.-]+[\\/])",
+    re.IGNORECASE,
+)
+_RUNTIME_PATH_VALUE = re.compile(
+    r"(?:^|[:\s])(?:[A-Za-z]:[\\/]|~[\\/]|[\\/]|\.{1,2}[\\/]|[A-Za-z0-9_.-]+[\\/])|\\",
+    re.IGNORECASE,
+)
 _PUBLIC_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _PAPER_ONLY_STATUS = re.compile(r"(?:order|live|broker|account|cancel|executed|filled|placed|bought|sold)", re.IGNORECASE)
 
@@ -317,7 +330,10 @@ class AgentTask:
         object.__setattr__(self, "input_digest", _public_identifier(self.input_digest, "input_digest"))
         capabilities = tuple(_public_identifier(item, "capabilities") for item in _text_tuple(self.capabilities, "capabilities", unique=True))
         object.__setattr__(self, "capabilities", capabilities)
-        if _unsafe_public_text(self.input_digest) or any(_unsafe_public_text(item) for item in self.capabilities):
+        if any(
+            _unsafe_public_text(item)
+            for item in (self.role, self.task_id, self.input_digest, *self.capabilities)
+        ):
             raise ValueError("task identity and capabilities must remain secret-free")
         if not isinstance(self.required, bool):
             raise TypeError("required must be a bool")
@@ -350,9 +366,14 @@ class AgentOutcome:
         object.__setattr__(self, "input_digest", _public_identifier(self.input_digest, "input_digest"))
         capabilities = tuple(_public_identifier(item, "capabilities") for item in _text_tuple(self.capabilities, "capabilities", unique=True))
         object.__setattr__(self, "capabilities", capabilities)
-        if _unsafe_public_text(self.input_digest) or any(_unsafe_public_text(item) for item in self.capabilities):
+        if any(
+            _unsafe_public_text(item)
+            for item in (self.role, self.task_id, self.input_digest, *self.capabilities)
+        ):
             raise ValueError("outcome identity and capabilities must remain secret-free")
         object.__setattr__(self, "status", _public_identifier(self.status, "status").upper())
+        if _unsafe_public_text(self.status):
+            raise ValueError("status must remain secret-free")
         if _PAPER_ONLY_STATUS.search(self.status):
             raise ValueError("paper-only outcome status cannot describe live or order activity")
         if self.failure_kind is not None and not isinstance(self.failure_kind, FailureKind):
