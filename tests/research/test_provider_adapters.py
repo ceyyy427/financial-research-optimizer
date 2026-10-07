@@ -143,6 +143,57 @@ def test_adapter_retries_bounded_transport_failure() -> None:
     assert len(transport.calls) == 2
 
 
+@pytest.mark.parametrize("finish_reason", [SECRET, ENDPOINT, "prompt leaked"])
+def test_adapter_rejects_unsafe_finish_reason(finish_reason: str) -> None:
+    transport = Transport(
+        {
+            "status_code": 200,
+            "json": {
+                "schema_version": "research-model.v1",
+                "content": {"status": "READY"},
+                "finish_reason": finish_reason,
+            },
+        }
+    )
+    with pytest.raises(ProviderAdapterError) as error:
+        adapter(transport).invoke(envelope())
+    assert error.value.kind is ProviderFailureKind.SCHEMA_ERROR
+    assert SECRET not in str(error.value)
+
+
+def test_adapter_rejects_mismatched_or_ambiguous_credential_reference() -> None:
+    deepseek_ref = ProviderCredentialRef("deepseek-compatible", env_var="FINAHINK_TEST_KEY")
+    with pytest.raises(ValueError, match="provider"):
+        OpenAICompatibleAdapter(
+            model="model-v1",
+            endpoint=ENDPOINT,
+            transport=Transport(),
+            credential_ref=deepseek_ref,
+            credential_store=InMemoryCredentialStore({deepseek_ref: SECRET}),
+        )
+    with pytest.raises(ValueError, match="exactly one"):
+        ProviderCredentialRef("openai-compatible", env_var="FINAHINK_TEST_KEY", keychain_label="user-key")
+
+
+def test_adapter_rejects_empty_content() -> None:
+    transport = Transport({"status_code": 200, "json": {"schema_version": "research-model.v1", "content": {}}})
+    with pytest.raises(ProviderAdapterError) as error:
+        adapter(transport).invoke(envelope())
+    assert error.value.kind is ProviderFailureKind.SCHEMA_ERROR
+
+
+def test_http_status_is_classified_before_json_parser() -> None:
+    class ErrorResponse:
+        status_code = 503
+
+        def json(self) -> object:
+            raise ValueError("not json")
+
+    with pytest.raises(ProviderAdapterError) as error:
+        adapter(Transport(ErrorResponse())).invoke(envelope())
+    assert error.value.kind is ProviderFailureKind.HTTP_ERROR
+
+
 def test_adapter_result_does_not_include_secret_endpoint_prompt_or_raw_response() -> None:
     transport = Transport(
         {"status_code": 200, "json": {"schema_version": "research-model.v1", "content": {"status": "READY", "claims": ["safe"]}, "raw_provider_response": SECRET}}

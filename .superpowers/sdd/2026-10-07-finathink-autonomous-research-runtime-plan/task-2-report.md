@@ -8,6 +8,7 @@
 - Added `codex_bridge.py` with digest-only `CodexTaskEnvelope` creation and result acceptance. Handoffs are paper-only, have no tools, and contain request/context/prompt digests plus allowlisted capabilities. Missing external callbacks produce `EXTERNAL_HANDOFF_REQUIRED`; callback validation covers schema, input digest, capabilities, paper-only, duplicate result, and artifact boundaries.
 - Updated `drivers.py` to map typed adapter failures to existing research `FailureKind` values, and tightened `provider_status.py` capability validation so status payloads never stringify arbitrary capability objects or expose unsafe names.
 - Exported the new bridge and adapters from `finahinking.research`.
+- Hardened the result boundaries after independent review: finish reasons are allowlisted; invalid Codex callbacks remain retryable; callback schemas are closed and require explicit `paper_only=True`; artifact references are digest/`artifact:` only; capabilities are finite and strictly named; credential references are provider-bound and single-source; empty provider content and parser/status ambiguity fail closed.
 
 ## TDD evidence
 
@@ -17,10 +18,10 @@ The new adapter and bridge tests were written before their implementation. The i
 
 ```text
 python3 -m pytest -q tests/research/test_provider_adapters.py tests/research/test_codex_bridge.py tests/research/test_provider_status.py tests/research/test_drivers.py
-35 passed
+55 passed
 
 python3 -m pytest -q tests/research
-224 passed
+254 passed
 
 python3 -m ruff check [Task 2 source and test files]
 All checks passed!

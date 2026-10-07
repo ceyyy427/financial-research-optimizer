@@ -93,7 +93,7 @@ def test_accept_result_rejects_sensitive_text_inside_evidence_refs() -> None:
 def test_accept_result_rejects_schema_error_and_duplicate_result() -> None:
     bridge = CodexBridge()
     envelope = bridge.create_handoff(Task())
-    valid = {"schema_version": envelope.schema_version, "input_digest": envelope.input_digest, "status": "READY", "evidence_refs": ["artifact:1"]}
+    valid = {"schema_version": envelope.schema_version, "input_digest": envelope.input_digest, "status": "READY", "paper_only": True, "evidence_refs": ["artifact:1"]}
     first = bridge.accept_result(envelope, valid)
     second = bridge.accept_result(envelope, valid)
 
@@ -109,7 +109,49 @@ def test_accept_result_rejects_schema_error_and_duplicate_result() -> None:
     assert malformed.failure_kind == "SCHEMA_ERROR"
 
 
-@pytest.mark.parametrize("capability", ["execute_order", "broker", "filesystem", "network", "live"])
+def test_invalid_result_does_not_consume_envelope_and_valid_retry_is_accepted() -> None:
+    bridge = CodexBridge()
+    envelope = bridge.create_handoff(Task())
+    invalid = bridge.accept_result(
+        envelope,
+        {"schema_version": envelope.schema_version, "input_digest": "wrong-digest", "status": "READY", "paper_only": True},
+    )
+    valid = bridge.accept_result(
+        envelope,
+        {"schema_version": envelope.schema_version, "input_digest": envelope.input_digest, "status": "READY", "paper_only": True},
+    )
+    assert invalid.failure_kind == "INPUT_DIGEST_MISMATCH"
+    assert valid.status == "READY"
+    assert valid.failure_kind is None
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"schema_version": "codex-task.v1", "input_digest": "input-digest", "status": "READY"},
+        {"schema_version": "codex-task.v1", "input_digest": "input-digest", "status": "READY", "paper_only": False},
+        {"schema_version": "codex-task.v1", "input_digest": "input-digest", "status": "READY", "unknown": "field", "paper_only": True},
+        {"schema_version": "codex-task.v1", "input_digest": "input-digest", "status": "READY", "paper_only": True, "extra": object()},
+    ],
+)
+def test_result_schema_is_closed_and_requires_explicit_paper_only(result: dict[str, object]) -> None:
+    envelope = CodexBridge().create_handoff(Task())
+    outcome = CodexBridge().accept_result(envelope, result)
+    assert outcome.status == "REJECTED"
+    assert outcome.failure_kind in {"SCHEMA_ERROR", "PAPER_ONLY_VIOLATION", "ARTIFACT_BOUNDARY_VIOLATION"}
+
+
+@pytest.mark.parametrize("ref", ["/tmp/report.json", "file:///tmp/report.json", "C:\\Users\\me\\report.json", "s3://bucket/report", "https://example/report"])
+def test_evidence_refs_are_digest_or_artifact_only(ref: str) -> None:
+    envelope = CodexBridge().create_handoff(Task())
+    outcome = CodexBridge().accept_result(
+        envelope,
+        {"schema_version": envelope.schema_version, "input_digest": envelope.input_digest, "status": "READY", "paper_only": True, "evidence_refs": [ref]},
+    )
+    assert outcome.failure_kind == "ARTIFACT_BOUNDARY_VIOLATION"
+
+
+@pytest.mark.parametrize("capability", ["execute_order", "execute-order", "tool-call", "network-call", "https://example", "broker", "filesystem", "network", "live"])
 def test_create_handoff_rejects_non_research_capabilities(capability: str) -> None:
     with pytest.raises(ValueError, match="capability"):
         CodexBridge().create_handoff(Task(capabilities=(capability,)))

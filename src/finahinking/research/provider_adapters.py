@@ -99,6 +99,8 @@ def _response_parts(response: object) -> tuple[int, object]:
         try:
             return status_code, json_method()
         except Exception:  # noqa: BLE001 - normalize parser internals
+            if status_code < 200 or status_code >= 300:
+                raise ProviderAdapterError("provider returned an error status", kind=ProviderFailureKind.HTTP_ERROR) from None
             raise ProviderAdapterError("provider response is not JSON", kind=ProviderFailureKind.NON_JSON) from None
     body = getattr(response, "body", None)
     if body is not None:
@@ -126,6 +128,7 @@ _FORBIDDEN_TEXT = re.compile(
     r"(?:api[-_]?key|authorization|password|secret|token|https?://|/Users/|/private/|prompt)",
     re.IGNORECASE,
 )
+_SAFE_FINISH_REASONS = frozenset({"stop", "length", "content_filter"})
 
 
 def _safe_content(value: object) -> dict[str, Any]:
@@ -133,6 +136,8 @@ def _safe_content(value: object) -> dict[str, Any]:
         raise ProviderSchemaError()
     keys = {str(key) for key in value}
     if keys - _CONTENT_KEYS:
+        raise ProviderSchemaError()
+    if "status" not in value:
         raise ProviderSchemaError()
     result: dict[str, Any] = {}
     for key in _CONTENT_KEYS:
@@ -187,6 +192,10 @@ class _CompatibleAdapter:
             raise TypeError("retry_policy must be RetryPolicy or a mapping")
         if credential_ref is not None and not isinstance(credential_ref, ProviderCredentialRef):
             raise TypeError("credential_ref must be a ProviderCredentialRef")
+        if credential_ref is not None and credential_ref.provider != self.provider_name:
+            raise ValueError("credential reference provider must match adapter provider")
+        if credential_ref is not None and credential_ref.env_var is not None and credential_ref.keychain_label is not None:
+            raise ValueError("credential reference must select exactly one source")
         if credential_ref is not None and credential_store is None:
             raise ValueError("credential store is required for a credential reference")
         if transport is not None and not callable(getattr(transport, "request", None)) and not callable(transport):
@@ -250,7 +259,10 @@ class _CompatibleAdapter:
                 if body.get("schema_version") != self.schema_version:
                     raise ProviderSchemaError()
                 content = _safe_content(body.get("content"))
-                return ModelResponse(provider=self.provider_name, model=self.model, content=content, finish_reason=str(body.get("finish_reason", "stop")))
+                finish_reason = body.get("finish_reason", "stop")
+                if type(finish_reason) is not str or finish_reason not in _SAFE_FINISH_REASONS:
+                    raise ProviderSchemaError()
+                return ModelResponse(provider=self.provider_name, model=self.model, content=content, finish_reason=finish_reason)
             except ProviderAdapterError:
                 raise
             except TimeoutError:

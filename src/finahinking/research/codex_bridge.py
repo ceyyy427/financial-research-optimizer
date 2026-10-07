@@ -7,6 +7,7 @@ research outcome.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -17,6 +18,24 @@ from .contracts import AgentOutcome, stable_digest
 _FORBIDDEN_CAPABILITY_PARTS = frozenset(
     {"account", "broker", "call", "cancel", "execute", "filesystem", "live", "network", "order", "shell", "tool", "write"}
 )
+_CAPABILITY_RE = re.compile(r"^[a-z][a-z0-9_]{0,47}$")
+_ALLOWED_CAPABILITIES = frozenset(
+    {
+        "paper_only",
+        "structured_output",
+        "evidence_refs",
+        "research_observation",
+        "reasoning",
+        "deterministic_gateway",
+        "deterministic_risk_gateway",
+        "deterministic_portfolio_gateway",
+        "deterministic_paper_gateway",
+        "risk_gateway",
+        "portfolio_gateway",
+        "paper_gateway",
+    }
+)
+_ARTIFACT_REF_RE = re.compile(r"^(?:artifact:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}|(?:digest|sha256):[0-9a-f]{64})$")
 _SENSITIVE_KEYS = frozenset(
     {
         "api_key",
@@ -62,7 +81,9 @@ def _capabilities(value: object) -> tuple[str, ...]:
             raise TypeError("capabilities must contain only non-empty strings")
         name = item.strip()
         lowered = name.casefold()
-        if any(part in lowered.split("_") for part in _FORBIDDEN_CAPABILITY_PARTS):
+        if not _CAPABILITY_RE.fullmatch(lowered) or name not in _ALLOWED_CAPABILITIES:
+            raise ValueError("capability is outside the research boundary")
+        if any(part in lowered.replace("_", " ").split() for part in _FORBIDDEN_CAPABILITY_PARTS):
             raise ValueError("capability is outside the research boundary")
         normalized.append(name)
     if len(set(normalized)) != len(normalized):
@@ -108,13 +129,21 @@ class CodexTaskEnvelope:
 
 
 def _contains_sensitive(value: object) -> bool:
+    if value is None or isinstance(value, (bool, int)):
+        return False
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if not isinstance(value, (Mapping, list, str)):
+        return True
     if isinstance(value, Mapping):
         for key, item in value.items():
+            if not isinstance(key, str):
+                return True
             if str(key).casefold() in _SENSITIVE_KEYS:
                 return True
             if _contains_sensitive(item):
                 return True
-    elif isinstance(value, (list, tuple)):
+    elif isinstance(value, list):
         return any(_contains_sensitive(item) for item in value)
     elif isinstance(value, str):
         return _SENSITIVE_TEXT.search(value) is not None
@@ -158,18 +187,22 @@ class CodexBridge:
             return self._outcome(envelope, status="REJECTED", failure_kind="DUPLICATE_RESULT")
         if result is None:
             return self._outcome(envelope, status="EXTERNAL_HANDOFF_REQUIRED", failure_kind="EXTERNAL_HANDOFF_REQUIRED")
-        self._accepted.add(envelope_key)
         if not isinstance(result, Mapping):
             return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
         if _contains_sensitive(result):
             return self._outcome(envelope, status="REJECTED", failure_kind="ARTIFACT_BOUNDARY_VIOLATION")
+        allowed_keys = frozenset(
+            {"schema_version", "input_digest", "task_id", "role", "status", "failure_kind", "evidence_refs", "capabilities", "paper_only", "output_digest"}
+        )
+        if set(result) - allowed_keys:
+            return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
         if result.get("schema_version") != envelope.schema_version:
             return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
         if result.get("input_digest") != envelope.input_digest:
             return self._outcome(envelope, status="REJECTED", failure_kind="INPUT_DIGEST_MISMATCH")
         if result.get("task_id", envelope.task_id) != envelope.task_id or result.get("role", envelope.role) != envelope.role:
             return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
-        if result.get("paper_only", True) is not True:
+        if "paper_only" not in result or result["paper_only"] is not True:
             return self._outcome(envelope, status="REJECTED", failure_kind="PAPER_ONLY_VIOLATION")
         try:
             result_capabilities = _capabilities(result.get("capabilities", envelope.capabilities))
@@ -177,7 +210,9 @@ class CodexBridge:
             return self._outcome(envelope, status="REJECTED", failure_kind="CAPABILITY_DENIED")
         if not set(result_capabilities).issubset(envelope.capabilities):
             return self._outcome(envelope, status="REJECTED", failure_kind="CAPABILITY_DENIED")
-        status = result.get("status", "READY")
+        if "status" not in result:
+            return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
+        status = result["status"]
         if not isinstance(status, str) or not status.strip():
             return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
         failure_kind = result.get("failure_kind")
@@ -186,13 +221,19 @@ class CodexBridge:
         refs = result.get("evidence_refs", ())
         if isinstance(refs, (str, bytes)) or not isinstance(refs, Sequence) or any(not isinstance(item, str) or not item.strip() for item in refs):
             return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
-        return self._outcome(
+        if any(not _ARTIFACT_REF_RE.fullmatch(item.strip()) for item in refs):
+            return self._outcome(envelope, status="REJECTED", failure_kind="ARTIFACT_BOUNDARY_VIOLATION")
+        if "output_digest" in result and (not isinstance(result["output_digest"], str) or not re.fullmatch(r"[0-9a-f]{64}", result["output_digest"])):
+            return self._outcome(envelope, status="REJECTED", failure_kind="SCHEMA_ERROR")
+        outcome = self._outcome(
             envelope,
             status=status,
             failure_kind=failure_kind,
             evidence_refs=tuple(sorted({item.strip() for item in refs})),
             output_digest=stable_digest({"status": status.strip(), "failure_kind": failure_kind, "evidence_refs": tuple(refs)}),
         )
+        self._accepted.add(envelope_key)
+        return outcome
 
     @staticmethod
     def _outcome(

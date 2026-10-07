@@ -30,6 +30,8 @@ class ProviderCredentialRef:
             raise ValueError("provider must be non-empty")
         if self.env_var is None and self.keychain_label is None:
             raise ValueError("credential reference requires environment or keychain reference")
+        if self.env_var is not None and self.keychain_label is not None:
+            raise ValueError("credential reference must select exactly one source")
         if self.env_var is not None and not _ENV_NAME.fullmatch(self.env_var):
             raise ValueError("credential environment variable name is invalid")
         if self.keychain_label is not None and (
