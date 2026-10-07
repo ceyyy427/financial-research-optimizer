@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import re
@@ -11,11 +12,12 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any
 
-from .contracts import ReportManifest, ResearchRunState
+from .contracts import ReportManifest, ResearchRunState, ResearchState
 from .reports import redact_public_payload
 
 _ANALYST_ROLES = ("fundamentals", "technical", "sentiment", "news", "learning")
 _SECTIONS = frozenset(("complete", "2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision"))
+_RUNTIME_REGISTRY: dict[str, tuple[ResearchRunState, Any, tuple[Any, ...]]] = {}
 
 
 def _scrub(value: Any) -> Any:
@@ -102,6 +104,127 @@ def research_view_model(run_state: ResearchRunState, manifest: ReportManifest | 
             "limitations": sorted({limitation for report in reports.values() for limitation in report.limitations}),
         }
     )
+
+
+def register_runtime_snapshot(run_state: ResearchRunState, manifest: ReportManifest | Mapping[str, Any], events: tuple[Any, ...] = ()) -> None:
+    """Register typed server state for the local read-only stream."""
+
+    if not isinstance(run_state, ResearchRunState):
+        raise TypeError("run_state must be ResearchRunState")
+    _RUNTIME_REGISTRY[run_state.run_id] = (run_state, manifest, tuple(events))
+
+
+def _runtime_manifest_digest(manifest: ReportManifest | Mapping[str, Any]) -> str:
+    payload = _manifest_payload(manifest)
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _runtime_event_metadata(events: tuple[Any, ...], manifest: ReportManifest | Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    values: list[Mapping[str, Any]] = []
+    source = _manifest_payload(manifest).get("source_snapshot", {})
+    if isinstance(source, Mapping):
+        values.append(source)
+    for event in events:
+        metadata = getattr(event, "metadata", None)
+        if isinstance(metadata, Mapping):
+            values.append(metadata)
+    return tuple(values)
+
+
+def _runtime_latest(metadata: tuple[Mapping[str, Any], ...], keys: tuple[str, ...], default: Any) -> Any:
+    for item in reversed(metadata):
+        for key in keys:
+            if key in item:
+                return item[key]
+    return default
+
+
+def _runtime_tools(metadata: tuple[Mapping[str, Any], ...]) -> list[dict[str, Any]]:
+    items: list[Any] = []
+    for source in metadata:
+        value = next((source[key] for key in ("tool_summaries", "tool_summary", "tools") if key in source), None)
+        if isinstance(value, Mapping):
+            items.append(value)
+        elif isinstance(value, (list, tuple)):
+            items.extend(value)
+    result: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        summary = {key: item[key] for key in ("name", "tool", "status", "digest", "duration_ms") if key in item}
+        if summary:
+            result.append(_scrub(summary))
+    return result
+
+
+def research_runtime_view_model(
+    run_id: str,
+    *,
+    state: ResearchRunState | None = None,
+    manifest: ReportManifest | Mapping[str, Any] | None = None,
+    events: tuple[Any, ...] = (),
+) -> dict[str, Any]:
+    """Build a redacted server-owned live snapshot without doing browser math."""
+
+    if not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9._:-]+", run_id):
+        raise ValueError("run_id is invalid")
+    if state is None:
+        registered = _RUNTIME_REGISTRY.get(run_id)
+        if registered is None:
+            raise ValueError("runtime snapshot is not registered")
+        state, manifest, events = registered
+    if state.run_id != run_id:
+        raise ValueError("runtime run_id does not match state")
+    if manifest is None:
+        manifest = {"run_id": run_id, "schema_version": "research-report.v1", "files": {}, "source_snapshot": {}}
+    if _manifest_payload(manifest).get("run_id") != run_id:
+        raise ValueError("runtime run_id does not match manifest")
+    base = research_view_model(state, manifest)
+    metadata = _runtime_event_metadata(tuple(events), manifest)
+    stage_status = dict(base.get("stage_status", {}))
+    if state.current_state in {ResearchState.ANALYSTS_RUNNING, ResearchState.ANALYSTS_READY}:
+        stage_status["analysts"] = "CURRENT" if state.current_state is ResearchState.ANALYSTS_RUNNING else "COMPLETE"
+    aliases = {
+        "data": "DATA_CHECKED",
+        "research_plan": "RESEARCH_PLAN_READY",
+        "factor_research": "FACTOR_RESEARCH_READY",
+        "portfolio": "PORTFOLIO_REVIEWED",
+        "paper": "PAPER_DECISION_READY",
+        "learning": "LEARNING_RECORDED",
+        "report": "REPORT_PUBLISHED",
+    }
+    history = {item.value for item in state.state_history}
+    for name, marker in aliases.items():
+        if marker in history:
+            stage_status[name] = "COMPLETE"
+        elif marker == state.current_state.value:
+            stage_status[name] = "CURRENT"
+        elif state.current_state in {ResearchState.CANCELLED, ResearchState.FAILED, ResearchState.VALIDATION_FAILED, ResearchState.PROVIDER_NOT_CONFIGURED}:
+            stage_status[name] = "CANCELLED" if state.current_state is ResearchState.CANCELLED else "BLOCKED"
+        else:
+            stage_status.setdefault(name, "PENDING")
+    retry_value = _runtime_latest(metadata, ("retries", "retry_count", "attempts"), 0)
+    retries = {"count": int(retry_value) if isinstance(retry_value, (int, float)) and retry_value >= 0 else 0}
+    checkpoint = _runtime_latest(metadata, ("checkpoint", "checkpoint_status", "checkpoint_state"), {"state": "NOT_ATTACHED"})
+    if not isinstance(checkpoint, Mapping):
+        checkpoint = {"state": str(checkpoint)}
+    learning = _runtime_latest(metadata, ("learning_proposal", "learning"), {"status": "NO_LEARNING_UPDATE"})
+    if not isinstance(learning, Mapping):
+        learning = {"status": str(learning)}
+    model = {
+        **base,
+        "schema_version": 2,
+        "stage_status": dict(sorted(stage_status.items())),
+        "stages": dict(sorted(stage_status.items())),
+        "roles": list(base.get("analysts", ())),
+        "tool_summaries": _runtime_tools(metadata),
+        "retries": retries,
+        "checkpoint": dict(checkpoint),
+        "learning_proposal": dict(learning),
+        "manifest_digest": _runtime_manifest_digest(manifest),
+        "stream": {"mode": "SERVER_SNAPSHOT", "read_only": True, "paper_only": True},
+    }
+    return _scrub(model)
 
 
 def _manifest_payload(value: ReportManifest | Mapping[str, Any]) -> dict[str, Any]:

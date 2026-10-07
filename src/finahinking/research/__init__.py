@@ -60,6 +60,7 @@ from .provider_status import ProviderCredentialRef, ProviderStatus, provider_sta
 from .reports import (
     BundleVerification,
     ReportBundleWriter,
+    compare_experiments,
     compare_report_manifests,
     render_section_html,
     verify_report_bundle,
@@ -87,6 +88,7 @@ from .tools import (
     ResearchToolResponse,
     ResearchToolStatus,
 )
+from .ui import register_runtime_snapshot, research_runtime_view_model
 from .worker import ResearchWorker, WorkerResult, WorkerStatus
 from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
@@ -175,10 +177,13 @@ __all__ = [
     "WorkerResult",
     "WorkerStatus",
     "WorkflowLimits",
+    "compare_experiments",
     "compare_report_manifests",
     "provider_status_payload",
     "reconcile_learning",
+    "register_runtime_snapshot",
     "render_section_html",
+    "research_runtime_view_model",
     "run_factor_research",
     "stable_digest",
     "to_jsonable",

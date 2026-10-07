@@ -116,6 +116,66 @@ export function renderResearchStatusWall(root, payload) {
   return normalized;
 }
 
+const RUNTIME_STATES = RESEARCH_RUN_STATES;
+
+function normalizeRuntimeRecord(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`${field} is invalid`);
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (STATUS_WALL_FORBIDDEN.test(key) || STATUS_WALL_FORBIDDEN.test(String(item)) || (typeof item !== 'string' && typeof item !== 'number')) throw new TypeError(`${field} contains unsafe data`);
+    output[key] = item;
+  }
+  return output;
+}
+
+export function normalizeResearchRuntime(payload) {
+  if (!payload || payload.schema_version !== 2 || typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research runtime schema is invalid');
+  if (!RUNTIME_STATES.has(payload.state)) throw new TypeError('research runtime state is invalid');
+  if (payload.mode !== 'OFFLINE' || payload.paper_only !== true) throw new TypeError('research runtime boundary is invalid');
+  const stage_status = normalizePublicMap(payload.stage_status ?? {}, 'stage_status');
+  const role_status = normalizePublicMap(payload.role_status ?? {}, 'role_status');
+  const checkpoint = normalizeRuntimeRecord(payload.checkpoint ?? { state: 'NOT_ATTACHED' }, 'checkpoint');
+  const learning_proposal = normalizeRuntimeRecord(payload.learning_proposal ?? { status: 'NO_LEARNING_UPDATE' }, 'learning proposal');
+  const retries = normalizeRuntimeRecord(payload.retries ?? { count: 0 }, 'retries');
+  if (!Number.isInteger(retries.count) || retries.count < 0) throw new TypeError('retry count is invalid');
+  if (typeof payload.manifest_digest !== 'string' || !/^[a-f0-9]{64}$/i.test(payload.manifest_digest)) throw new TypeError('manifest digest is invalid');
+  const tool_summaries = Array.isArray(payload.tool_summaries) ? payload.tool_summaries.map((item) => normalizeRuntimeRecord(item, 'tool summary')) : [];
+  const limitations = Array.isArray(payload.limitations) ? payload.limitations.map((item) => {
+    if (typeof item !== 'string' || STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError('runtime limitation is unsafe');
+    return item;
+  }) : [];
+  return { ...payload, schema_version: 2, stage_status, role_status, checkpoint, learning_proposal, retries, tool_summaries, limitations };
+}
+
+export function renderResearchRuntime(root, payload) {
+  const normalized = normalizeResearchRuntime(payload);
+  if (root?.dataset) {
+    root.dataset.runtimeStatus = 'READY';
+    root.dataset.runtimeState = normalized.state;
+  }
+  const state = root?.querySelector?.('[data-research-runtime-state]');
+  if (state) state.textContent = `${normalized.state} · READ-ONLY · PAPER-ONLY`;
+  const stage = root?.querySelector?.('[data-research-runtime-stages]');
+  if (stage) stage.textContent = Object.entries(normalized.stage_status).map(([name, value]) => `${name}: ${value}`).join(' · ');
+  const tools = root?.querySelector?.('[data-research-runtime-tools]');
+  if (tools) tools.textContent = normalized.tool_summaries.map((item) => `${item.name ?? item.tool ?? 'tool'}: ${item.status ?? 'RECORDED'}`).join(' · ') || 'No tool summary recorded.';
+  return normalized;
+}
+
+export function mountResearchRuntime(root, { payload, payloadUrl } = {}) {
+  if (root) root.dataset.runtimeStatus = 'LOADING';
+  const load = payload ? Promise.resolve(payload) : fetch(payloadUrl || root.dataset.payloadUrl).then((response) => {
+    if (!response.ok) throw new Error(`research runtime request failed (${response.status})`);
+    return response.json();
+  });
+  return load.then((raw) => renderResearchRuntime(root, raw)).catch((error) => {
+    if (root) root.dataset.runtimeStatus = 'ERROR';
+    const target = root?.querySelector('[data-research-runtime-error]');
+    if (target) { target.textContent = `Research runtime unavailable: ${error.message}`; target.hidden = false; }
+    throw error;
+  });
+}
+
 export function renderResearchRun(root, payload) {
   const normalized = normalizeResearchRun(payload);
   root.dataset.state = normalized.state;
@@ -444,5 +504,6 @@ export function mountResearch(root, { payload, payloadUrl } = {}) {
 if (typeof document !== 'undefined') {
   document.querySelectorAll('[data-finathink-research]').forEach((root) => { mountResearch(root); });
   document.querySelectorAll('[data-research-run]').forEach((root) => { mountResearchRun(root).catch(() => {}); });
+  document.querySelectorAll('[data-research-runtime]').forEach((root) => { mountResearchRuntime(root).catch(() => {}); });
   document.querySelectorAll('[data-finathink-workbench]').forEach((root) => { if (!root.closest('[data-finathink-research]')) mountWorkbench(root).catch(() => {}); });
 }

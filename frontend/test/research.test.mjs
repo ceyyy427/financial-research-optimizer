@@ -12,6 +12,8 @@ import {
   previewWorkbenchParameter,
   normalizeResearchStatusWall,
   renderResearchStatusWall,
+  normalizeResearchRuntime,
+  renderResearchRuntime,
 } from '../src/research.js';
 
 const payload = {
@@ -131,6 +133,48 @@ test('renderResearchStatusWall is read-only and supports no-JS fallback', () => 
   });
   assert.equal(root.dataset.statusWall, 'READY');
   assert.equal(normalized.state, 'CANCELLED');
+});
+
+test('normalizeResearchRuntime keeps server-owned stream facts and rejects public secrets', () => {
+  const normalized = normalizeResearchRuntime({
+    schema_version: 2,
+    run_id: 'stream-ui',
+    state: 'ANALYSTS_RUNNING',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { analysts: 'CURRENT' },
+    role_status: { technical: 'READY' },
+    tool_summaries: [{ name: 'factor_scan', status: 'COMPLETE' }],
+    retries: { count: 1 },
+    checkpoint: { state: 'SAVED' },
+    learning_proposal: { status: 'NO_LEARNING_UPDATE' },
+    manifest_digest: 'a'.repeat(64),
+    limitations: ['fixture'],
+  });
+  assert.equal(normalized.run_id, 'stream-ui');
+  assert.equal(normalized.tool_summaries[0].name, 'factor_scan');
+  assert.throws(() => normalizeResearchRuntime({ ...normalized, checkpoint: { prompt: 'hidden' } }), /unsafe|invalid/i);
+});
+
+test('renderResearchRuntime is render-only and supports no-JS fallback', () => {
+  const root = { dataset: {}, querySelector: () => ({ textContent: '' }) };
+  const rendered = renderResearchRuntime(root, {
+    schema_version: 2,
+    run_id: 'stream-ui',
+    state: 'CANCELLED',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { cancel: 'CANCELLED' },
+    role_status: {},
+    tool_summaries: [],
+    retries: { count: 0 },
+    checkpoint: { state: 'CANCELLED' },
+    learning_proposal: { status: 'NO_LEARNING_UPDATE' },
+    manifest_digest: 'a'.repeat(64),
+    limitations: [],
+  });
+  assert.equal(root.dataset.runtimeStatus, 'READY');
+  assert.equal(rendered.state, 'CANCELLED');
 });
 
 const workbench = {

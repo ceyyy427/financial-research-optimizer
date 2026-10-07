@@ -516,3 +516,41 @@ def compare_report_manifests(left: ReportManifest | Mapping[str, Any], right: Re
             },
         },
     }
+
+
+def compare_experiments(runs: Sequence[Mapping[str, Any] | ReportManifest]) -> dict[str, Any]:
+    """Return a descriptive comparison of experiment inputs, metrics and limits.
+
+    This function deliberately does not rank runs, name a preferred strategy,
+    or produce any trading language.  The browser receives this server-owned
+    snapshot and only renders it.
+    """
+
+    if not isinstance(runs, (list, tuple)):
+        raise TypeError("runs must be a list or tuple")
+    output: list[dict[str, Any]] = []
+    for item in runs:
+        payload = _manifest_payload(item) if isinstance(item, ReportManifest) else dict(item) if isinstance(item, Mapping) else None
+        if payload is None:
+            raise TypeError("each experiment must be a mapping or ReportManifest")
+        run_id = payload.get("run_id")
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("experiment run_id is required")
+        safe = _sanitize_public(payload)
+        snapshot = safe.get("source_snapshot", {})
+        if not isinstance(snapshot, Mapping):
+            snapshot = {}
+        raw_inputs = safe.get("inputs", snapshot.get("inputs", {}))
+        metrics = safe.get("metrics", snapshot.get("metrics", {}))
+        limitations = safe.get("limitations", snapshot.get("limitations", ()))
+        if not isinstance(raw_inputs, Mapping) or not isinstance(metrics, Mapping):
+            raise TypeError("experiment inputs and metrics must be mappings")
+        if not isinstance(limitations, (list, tuple)) or not all(isinstance(value, str) for value in limitations):
+            raise TypeError("experiment limitations must be text")
+        output.append({
+            "run_id": run_id,
+            "inputs": dict(raw_inputs),
+            "metrics": dict(metrics),
+            "limitations": sorted(set(limitations)),
+        })
+    return {"schema_version": 1, "paper_only": True, "runs": output}

@@ -340,10 +340,14 @@ class LocalApplication:
         bundle = self.artifact_root / "reports" / run_id
         if not (bundle / "manifest.json").exists():
             raise ValueError("research report manifest is missing")
-        self._research_runs[run_id] = {"state": result.state, "manifest": manifest, "bundle": bundle}
+        events = tuple(getattr(result, "events", ()) or ())
+        self._research_runs[run_id] = {"state": result.state, "manifest": manifest, "events": events, "bundle": bundle}
+        from finahinking.research.ui import register_runtime_snapshot
+
+        register_runtime_snapshot(result.state, manifest, events)
 
     def _research_run_route(self, clean: str) -> tuple[int, str, Any]:
-        from finahinking.research.ui import research_view_model
+        from finahinking.research.ui import research_runtime_view_model, research_view_model
 
         parts = [part for part in clean.removeprefix("/research/").split("/") if part]
         if not parts:
@@ -353,6 +357,7 @@ class LocalApplication:
         if entry is None:
             return 404, "application/json", {"error": "research run not found"}
         view_model = research_view_model(entry["state"], entry["manifest"])
+        runtime_model = research_runtime_view_model(run_id, state=entry["state"], manifest=entry["manifest"], events=entry.get("events", ()))
         if len(parts) == 2 and parts[1] == "status":
             return 200, "application/json", view_model
         if len(parts) == 1:
@@ -366,6 +371,7 @@ class LocalApplication:
                 f'<h1>Research run {html.escape(run_id)}</h1>'
                 f'<p class="lede">As-of: {html.escape(str(view_model.get("as_of") or "not attached"))}. This view is read-only and never submits an order.</p>'
                 f'<section class="card"><h2>Analyst status</h2><pre>{html.escape(json.dumps(view_model, ensure_ascii=False, indent=2, sort_keys=True))}</pre></section>'
+                f'<section class="card" data-research-runtime data-payload-url="/api/research/runs/{html.escape(run_id)}/stream"><h2>Runtime status wall</h2><p data-research-runtime-state>{html.escape(runtime_model["state"])} · READ-ONLY · PAPER-ONLY</p><p data-research-runtime-stages>{html.escape(" · ".join(f"{key}: {value}" for key, value in runtime_model.get("stage_status", {}).items()))}</p><p data-research-runtime-tools>{html.escape(" · ".join(str(item.get("name", item.get("tool", "tool"))) for item in runtime_model.get("tool_summaries", ())) or "No tool summary recorded." )}</p><p class="field-help">Server snapshot only; the browser never calculates financial indicators.</p><p class="error-state" data-research-runtime-error hidden></p></section>'
                 f'<div class="action-row">{link_html}</div>'
                 f'<section data-research-run data-payload-url="/research/{html.escape(run_id)}/status"><p class="field-help" data-research-run-status>SERVER-RENDERED · {html.escape(view_model["state"])}</p><p class="field-help" data-research-run-summary>As-of {html.escape(str(view_model.get("as_of") or "not attached"))}</p><p class="error-state" data-research-run-error hidden></p></section>'
             )
@@ -1028,6 +1034,22 @@ class LocalApplication:
             except (DataConnectorError, TypeError, ValueError) as exc:
                 return 502, "application/json", {"status": "FAILED", "connection_id": connection_id, "reason": getattr(exc, "code", "connection test failed")}
             return 200, "application/json", {"status": "READY", "connection_id": connection_id, "record_count": len(batch.records), "quality_issue_count": len(batch.quality_issues), "pit_available": batch.pit_available}
+        if clean.startswith("/api/research/runs/") and clean.endswith("/stream"):
+            if method != "GET":
+                return 405, "application/json", {"error": "research runtime stream is read-only"}
+            run_id = clean.removeprefix("/api/research/runs/").removesuffix("/stream").strip("/")
+            if not run_id or "/" in run_id or "\\" in run_id:
+                return 400, "application/json", {"error": "research run id is invalid"}
+            entry = self._research_runs.get(run_id)
+            if entry is None:
+                return 404, "application/json", {"error": "research run not found"}
+            from finahinking.research.ui import research_runtime_view_model
+
+            try:
+                payload = research_runtime_view_model(run_id, state=entry["state"], manifest=entry["manifest"], events=entry.get("events", ()))
+            except (TypeError, ValueError) as exc:
+                return 422, "application/json", {"error": str(exc)}
+            return 200, "application/json", payload
         if clean == "/assets/finathink-splash-map.jpg" and method == "GET":
             return 200, "image/jpeg", self.splash_asset()
         if clean == "/assets/finathink-research-splash.jpg" and method == "GET":
