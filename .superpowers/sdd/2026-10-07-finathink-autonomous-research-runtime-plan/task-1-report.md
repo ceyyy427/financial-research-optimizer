@@ -19,8 +19,7 @@ package exports the new contracts and runtime through `finahinking.research`.
 
 `21a960f` — `feat(research): add full agent role runtime`
 
-Hardening follow-up: `fix pending` (the review fixes are staged in the next
-commit as `fix(research): harden agent role boundaries`).
+Hardening follow-up: `8fe8bf7` — `fix(research): harden agent role boundaries`.
 
 ## Verification
 
