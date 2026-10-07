@@ -54,6 +54,11 @@ def _invoke_child(
     """Send JSON only; exceptions and arbitrary objects never cross IPC."""
     try:
         task = resolver(task_ref)
+    except Exception:  # noqa: BLE001 - resolver details never cross the boundary
+        connection.send_bytes(b'{"failure":"TASK_UNAVAILABLE"}')
+        connection.close()
+        return
+    try:
         if not isinstance(task, AgentTask) or stable_digest(
             {
                 "role": task.role,
@@ -67,6 +72,8 @@ def _invoke_child(
         ) != expected_digest:
             connection.send_bytes(b'{"failure":"TASK_IDENTITY_MISMATCH"}')
             return
+        ready = json.dumps({"ready": True, "timeout_seconds": task.timeout_seconds}, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        connection.send_bytes(ready)
         value = runner(task, checkpoint_ref)
         if not isinstance(value, Mapping) or set(value) - _RESULT_FIELDS:
             connection.send_bytes(b'{"failure":"RESULT_INVALID"}')
@@ -146,19 +153,30 @@ report/learning/ledger references and is idempotent.
         parent, child = context.Pipe(duplex=False)
         process = context.Process(target=_invoke_child, args=(child, self.task_resolver, self.runner, job.task_ref, job.task_digest, job.checkpoint_ref, self.max_result_bytes), daemon=True)
         started = time.monotonic()
+        overall_deadline = started + deadline
+        task_deadline = overall_deadline
         process.start()
         child.close()
         payload: Mapping[str, Any] | None = None
         failure: str | None = None
         try:
-            while time.monotonic() - started < deadline:
+            while time.monotonic() < task_deadline:
                 if self.queue.is_cancel_requested(job.job_id):
                     failure = "CANCELLED"
                     break
-                if parent.poll(min(0.01, max(0.0, deadline - (time.monotonic() - started)))):
+                remaining = max(0.0, task_deadline - time.monotonic())
+                if parent.poll(min(0.01, remaining)):
                     try:
                         encoded = parent.recv_bytes(maxlength=self.max_result_bytes)
-                        payload = json.loads(encoded)
+                        message = json.loads(encoded)
+                        if isinstance(message, Mapping) and message.get("ready") is True:
+                            task_timeout = float(message["timeout_seconds"])
+                            if not math.isfinite(task_timeout) or task_timeout <= 0:
+                                failure = "RESULT_INVALID"
+                                break
+                            task_deadline = min(overall_deadline, time.monotonic() + task_timeout)
+                            continue
+                        payload = message
                     except (EOFError, OSError, UnicodeError, json.JSONDecodeError):
                         failure = "RESULT_INVALID"
                     break

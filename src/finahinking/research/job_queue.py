@@ -141,10 +141,17 @@ class JobQueue:
                     status TEXT NOT NULL,
                     timestamp REAL NOT NULL,
                     reason_digest TEXT,
-                    worker_id TEXT
+                    worker_id TEXT,
+                    attempt INTEGER,
+                    lease_token_digest TEXT
                 );
                 """
             )
+            event_columns = {row["name"] for row in db.execute("PRAGMA table_info(job_events)").fetchall()}
+            if "attempt" not in event_columns:
+                db.execute("ALTER TABLE job_events ADD COLUMN attempt INTEGER")
+            if "lease_token_digest" not in event_columns:
+                db.execute("ALTER TABLE job_events ADD COLUMN lease_token_digest TEXT")
             columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
             if "lease_token" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
@@ -189,6 +196,12 @@ class JobQueue:
                 if existing["task_digest"] != task_digest:
                     raise ValueError("idempotency key is already bound to another task")
                 return self._row(existing)
+            collision = db.execute(
+                "SELECT 1 FROM jobs WHERE task_ref = ? AND task_digest <> ? LIMIT 1",
+                (task.task_id, task_digest),
+            ).fetchone()
+            if collision is not None:
+                raise ValueError("task_id is already bound to another persisted task digest")
             db.execute(
                 """INSERT INTO jobs
                 (job_id, task_ref, task_digest, idempotency_key, status, attempts,
@@ -319,7 +332,15 @@ class JobQueue:
             row = self._must_row(db, job_id)
             self._assert_fence(row, worker_id=worker_id, attempt=attempt, lease_until=lease_until, lease_token=lease_token, now=now)
             db.execute("UPDATE jobs SET checkpoint_ref=?, updated_at=? WHERE job_id=?", (checkpoint_ref, now, job_id))
-            self._event(db, job_id, "checkpoint_updated", now, worker_id=worker_id)
+            self._event(
+                db,
+                job_id,
+                "checkpoint_updated",
+                now,
+                worker_id=worker_id,
+                attempt=int(attempt),
+                lease_token_digest=stable_digest(lease_token or row["lease_token"])[:32],
+            )
             result = self._must_row(db, job_id)
             db.commit()
             return self._row(result)
@@ -447,8 +468,21 @@ class JobQueue:
             self._event(db, row["job_id"], status.value, now)
 
     @staticmethod
-    def _event(db: sqlite3.Connection, job_id: str, status: str, timestamp: float, *, reason_digest: str | None = None, worker_id: str | None = None) -> None:
-        db.execute("INSERT INTO job_events(job_id,status,timestamp,reason_digest,worker_id) VALUES(?,?,?,?,?)", (job_id, status, timestamp, reason_digest, worker_id))
+    def _event(
+        db: sqlite3.Connection,
+        job_id: str,
+        status: str,
+        timestamp: float,
+        *,
+        reason_digest: str | None = None,
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_token_digest: str | None = None,
+    ) -> None:
+        db.execute(
+            "INSERT INTO job_events(job_id,status,timestamp,reason_digest,worker_id,attempt,lease_token_digest) VALUES(?,?,?,?,?,?,?)",
+            (job_id, status, timestamp, reason_digest, worker_id, attempt, lease_token_digest),
+        )
 
     @staticmethod
     def _must_row(db: sqlite3.Connection, job_id: str) -> sqlite3.Row:

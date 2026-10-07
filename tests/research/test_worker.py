@@ -99,6 +99,39 @@ def test_resolver_is_inside_global_timeout(tmp_path) -> None:
     assert result.status is WorkerStatus.RETRYABLE
 
 
+def test_task_timeout_is_enforced_inside_worker_global_budget(tmp_path) -> None:
+    import time
+
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    short_task = AgentTask(role="technical", task_id="short", input_digest="short-input", timeout_seconds=0.01)
+    queue.enqueue(short_task, "idem-short")
+
+    def runner(received: AgentTask, checkpoint_ref: str | None) -> dict[str, str]:
+        time.sleep(0.15)
+        return {"status": "completed", "result_ref": "artifact:late"}
+
+    started = time.monotonic()
+    result = ResearchWorker(queue, runner=runner, worker_id="worker-a", timeout_seconds=0.5).run_once()
+    assert time.monotonic() - started < 0.1
+    assert result.status is WorkerStatus.RETRYABLE
+
+
+def test_resolver_exception_is_permanent_task_unavailable(tmp_path) -> None:
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    queue.enqueue(task(), "idem-1")
+
+    def resolver(task_ref: str) -> AgentTask:
+        raise RuntimeError("secret details must not cross boundary")
+
+    def runner(received: AgentTask, checkpoint_ref: str | None) -> dict[str, str]:
+        return {"status": "completed", "result_ref": "artifact:never"}
+
+    result = ResearchWorker(queue, runner=runner, task_resolver=resolver, worker_id="worker-a").run_once()
+    assert result.status is WorkerStatus.FAILED
+    assert result.failure_kind == "TASK_UNAVAILABLE"
+    assert queue.get(result.job_id).status is JobStatus.FAILED
+
+
 def test_task_id_collision_is_rejected(tmp_path) -> None:
     queue = JobQueue(tmp_path / "jobs.sqlite")
     queue.enqueue(task(), "idem-1")

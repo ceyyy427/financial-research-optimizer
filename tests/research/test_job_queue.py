@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finahinking.research.contracts import AgentTask
+from finahinking.research.contracts import AgentTask, stable_digest
 from finahinking.research.job_queue import JobQueue, JobStatus, StaleLeaseError
 
 
@@ -70,6 +70,14 @@ def test_queue_reopens_and_preserves_only_references(tmp_path) -> None:
     assert loaded.task_ref == "task-1"
 
 
+def test_persisted_task_id_collision_is_rejected_after_restart(tmp_path) -> None:
+    path = tmp_path / "jobs.sqlite"
+    JobQueue(path).enqueue(task(), "idem-1")
+    reopened = JobQueue(path)
+    with pytest.raises(ValueError, match="persisted task digest"):
+        reopened.enqueue(AgentTask(role="technical", task_id="task-1", input_digest="different-input"), "idem-2")
+
+
 def test_stale_worker_cannot_complete_or_update_checkpoint(tmp_path) -> None:
     now = [100.0]
     queue = JobQueue(tmp_path / "jobs.sqlite", clock=lambda: now[0], lease_seconds=5, backoff_base_seconds=0)
@@ -83,6 +91,19 @@ def test_stale_worker_cannot_complete_or_update_checkpoint(tmp_path) -> None:
         queue.complete(record.job_id, result_ref="artifact:stale", worker_id=first.worker_id, attempt=first.attempts, lease_until=first.lease_until, lease_token=first.lease_token)
     with pytest.raises(StaleLeaseError):
         queue.update_checkpoint(record.job_id, "checkpoint:stale", worker_id=first.worker_id, attempt=first.attempts, lease_until=first.lease_until, lease_token=first.lease_token)
+
+
+def test_checkpoint_event_contains_owner_attempt_and_lease_digest(tmp_path) -> None:
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    record = queue.enqueue(task(), "idem-1")
+    claimed = queue.claim("worker-a")
+    assert claimed is not None
+    queue.update_checkpoint(record.job_id, "checkpoint:owned", worker_id=claimed.worker_id, attempt=claimed.attempts, lease_until=claimed.lease_until, lease_token=claimed.lease_token)
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "jobs.sqlite") as db:
+        row = db.execute("SELECT worker_id, attempt, lease_token_digest FROM job_events WHERE status='checkpoint_updated'").fetchone()
+    assert row == ("worker-a", claimed.attempts, stable_digest(claimed.lease_token)[:32])
 
 
 def test_cancelled_running_job_cannot_be_revived_by_retry(tmp_path) -> None:
