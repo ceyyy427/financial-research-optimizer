@@ -118,9 +118,11 @@ class _FixtureTools(ResearchToolGateway):
         quant.register("quant.analyze_risk", lambda params: {"passed": risk_passes, "max_drawdown": 0.08, "params": params})
         super().__init__(quant_gateway=quant)
         self.batch = batch
+        self.normalized_input_digest = stable_digest(tuple(dict(record) for record in batch.records))
         self.quant_inputs = []
 
     def _backtest(self, params):
+        assert self.normalized_input_digest in params["factor_ids"]
         self.quant_inputs.append(params)
         return {"engine": "finathink-deterministic", "oos": True, "passed": True, "params": params}
 
@@ -284,9 +286,11 @@ def test_offline_capability_vertical_slice_is_reproducible_and_recoverable(tmp_p
     assert parse_factor_expression(proposals[0].expression, proposals[0].required_fields).fields
     factor_run = _factor_run(first_batch, proposals[0])
     assert factor_run.fingerprint == _factor_run(second_batch, proposals[0]).fingerprint
+    normalized_input_digest = stable_digest(tuple(dict(record) for record in first_batch.records))
+    assert normalized_input_digest == stable_digest(tuple(dict(record) for record in second_batch.records))
 
     request = _request()
-    request = replace(request, research_plan=replace(request.research_plan, factor_ids=(factor_run.fingerprint,)))
+    request = replace(request, research_plan=replace(request.research_plan, factor_ids=(factor_run.fingerprint, normalized_input_digest)))
     tools = _tools(first_batch)
     result = ResearchOrchestrator().run(
         request,
@@ -301,7 +305,7 @@ def test_offline_capability_vertical_slice_is_reproducible_and_recoverable(tmp_p
     assert result.decision is not None and result.decision.approval_required is True
     assert result.decision.eligible is True
     assert tuple(report.role for report in result.state.analyst_reports) == request.analyst_roles
-    assert tools.quant_inputs[0]["factor_ids"] == [factor_run.fingerprint]
+    assert tools.quant_inputs[0]["factor_ids"] == [factor_run.fingerprint, normalized_input_digest]
 
     bundle_root = tmp_path / "reports"
     manifest = ReportBundleWriter().write(result, bundle_root)
