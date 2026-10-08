@@ -241,9 +241,19 @@ def _normalize_report_status(value: Mapping[str, Any]) -> bool:
     fingerprint = value.get("fingerprint")
     if not isinstance(fingerprint, str) or len(fingerprint) != 64:
         return False
-    if _report_texts(value, "evidence_refs") != tuple(value.get("evidence_refs", ()) or ()):
+    raw_refs = value.get("evidence_refs", ())
+    raw_limits = value.get("limitations", ())
+    if raw_refs is None:
+        raw_refs = ()
+    if raw_limits is None:
+        raw_limits = ()
+    if isinstance(raw_refs, (str, bytes)) or not isinstance(raw_refs, Sequence):
         return False
-    if _report_texts(value, "limitations") != tuple(value.get("limitations", ()) or ()):
+    if isinstance(raw_limits, (str, bytes)) or not isinstance(raw_limits, Sequence):
+        return False
+    if _report_texts(value, "evidence_refs") != tuple(raw_refs):
+        return False
+    if _report_texts(value, "limitations") != tuple(raw_limits):
         return False
     try:
         if "industry_exposure" in value:
@@ -283,7 +293,7 @@ def _normalize_report_status(value: Mapping[str, Any]) -> bool:
             return False
     except (TypeError, ValueError):
         return False
-    return report.fingerprint == fingerprint
+    return passed and report.fingerprint == fingerprint
 
 
 def _freeze(value: Any) -> Any:
@@ -469,7 +479,12 @@ class StressReport:
         passed = bool(self.passed)
         object.__setattr__(self, "passed", passed)
         object.__setattr__(self, "status", "PASSED" if passed else "BLOCKED")
-        object.__setattr__(self, "scenarios", _freeze({str(k): dict(v) for k, v in sorted(self.scenarios.items())}))
+        normalized_scenarios: dict[str, Any] = {}
+        for key, value in self.scenarios.items():
+            if not isinstance(value, Mapping):
+                raise TypeError("stress scenarios must be mappings")
+            normalized_scenarios[str(key)] = _safe(value, f"scenarios.{key}")
+        object.__setattr__(self, "scenarios", _freeze(dict(sorted(normalized_scenarios.items()))))
         object.__setattr__(self, "blocking_reasons", tuple(dict.fromkeys(str(item) for item in self.blocking_reasons)))
         object.__setattr__(self, "evidence_refs", tuple(dict.fromkeys(str(item) for item in self.evidence_refs if str(item).strip())))
         object.__setattr__(self, "limitations", tuple(dict.fromkeys(str(item) for item in self.limitations if str(item).strip())))
@@ -566,7 +581,9 @@ class RiskManager:
                         factor_totals[str(name)] = factor_totals.get(str(name), 0.0) + weight * _number(value, f"factor.{instrument}.{name}")
                     except (TypeError, ValueError):
                         reasons.append(f"factor exposure invalid: {instrument}.{name}")
-            bucket = _nested(observation, "liquidity_bucket", "liquidity_tier", "liquidity")
+            bucket = _nested(observation, "liquidity_bucket", "liquidity_tier")
+            if bucket is None and isinstance(observation.get("liquidity"), str):
+                bucket = observation["liquidity"]
             if bucket is not None and isinstance(bucket, str):
                 bucket_name = bucket.strip().upper()
                 if bucket_name not in _LIQUIDITY_BUCKETS:
@@ -577,6 +594,8 @@ class RiskManager:
                 bucket_name = "UNKNOWN"
             else:
                 raw_liquidity = _nested(observation, "average_volume", "volume", "dollar_volume", "liquidity_value")
+                if raw_liquidity is None and "liquidity" in observation and not isinstance(observation["liquidity"], str):
+                    raw_liquidity = observation["liquidity"]
                 try:
                     value = _known_number(raw_liquidity, f"liquidity.{instrument}")
                 except (TypeError, ValueError):
