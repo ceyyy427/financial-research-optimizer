@@ -239,6 +239,17 @@ def _safe_text_tuple(values: Any, field_name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(item.strip() for item in values if item.strip()))
 
 
+def _safe_nested_scenario(value: Any, path: str = "scenario") -> Any:
+    normalized = _safe(value, path)
+    if isinstance(normalized, Mapping):
+        return {str(key): _safe_nested_scenario(child, f"{path}.{key}") for key, child in normalized.items()}
+    if isinstance(normalized, list):
+        return [_safe_nested_scenario(child, f"{path}[]") for child in normalized]
+    if isinstance(normalized, str) and (_unsafe_public_text(normalized) or _PROMPT_TEXT.search(normalized)):
+        raise ValueError("scenario contains unsafe public text")
+    return normalized
+
+
 def _safe_identifier(value: Any, field_name: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field_name} identifier is invalid")
@@ -526,7 +537,7 @@ class StressReport:
                 safe_key = _safe_identifier(key, "stress scenario")
             except ValueError as exc:
                 raise ValueError("stress scenario identifiers must be public identifiers") from exc
-            normalized_scenarios[safe_key] = _safe(value, "scenario")
+            normalized_scenarios[safe_key] = _safe_nested_scenario(value)
         object.__setattr__(self, "scenarios", _freeze(dict(sorted(normalized_scenarios.items()))))
         object.__setattr__(self, "blocking_reasons", _safe_text_tuple(self.blocking_reasons, "blocking_reasons"))
         object.__setattr__(self, "evidence_refs", _safe_text_tuple(self.evidence_refs, "evidence_refs"))

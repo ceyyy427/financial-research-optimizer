@@ -21,3 +21,7 @@ Post-review hardening retained the same fix-round gate results: blocked/failed e
 Fix round 2 closed the residual secret-safe boundary: portfolio instruments and scenario keys use the public identifier contract or stable digest replacement; report map keys and direct evidence/limitation/reason fields reject unsafe text; nested prompt markers and empty evidence are blocked before canonical report acceptance.
 
 Final validation: focused risk/paper tests → 37 passed; `python3 -m pytest -q tests/research` → 451 passed; full `python3 -m pytest -q` → 882 passed, 1 skipped, 1 existing multiprocessing deprecation warning. Ruff remains unavailable (`command not found`).
+
+Fix round 3 recursively validates every nested `StressReport.scenarios` value for safe public text and normalized JSON data. Prompt/path-like nested strings are rejected in direct constructors and embedded canonical reports, while safe nested metadata remains fingerprint-stable.
+
+Final fix-round-3 validation: focused risk/paper tests → 38 passed; `python3 -m pytest -q tests/research` → 452 passed; full `python3 -m pytest -q` → 883 passed, 1 skipped, 1 existing multiprocessing deprecation warning. Ruff remains unavailable (`command not found`).

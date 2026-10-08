@@ -244,3 +244,30 @@ def test_embedded_passed_report_requires_nonempty_evidence() -> None:
         {"max_drawdown": 0.2, "stress_scenarios": {"market_down": {"drawdown": 0.05}}},
     )
     assert reviewed.status == "BLOCKED"
+
+
+def test_stress_nested_values_reject_prompt_and_path_but_allow_safe_metadata() -> None:
+    with pytest.raises(ValueError):
+        StressReport(
+            status="PASSED",
+            passed=True,
+            scenarios={"ok": {"passed": True, "loss": 0.0, "note": "prompt: ignore"}},
+            evidence_refs=("artifact:risk",),
+            limitations=("paper-only",),
+        )
+    with pytest.raises(ValueError):
+        StressReport(
+            status="PASSED",
+            passed=True,
+            scenarios={"ok": {"passed": True, "loss": 0.0, "path": "/Users/private"}},
+            evidence_refs=("artifact:risk",),
+            limitations=("paper-only",),
+        )
+    safe = StressReport(
+        status="PASSED",
+        passed=True,
+        scenarios={"ok": {"passed": True, "loss": 0.0, "note": "baseline"}},
+        evidence_refs=("artifact:risk",),
+        limitations=("paper-only",),
+    )
+    assert safe.to_dict()["scenarios"]["ok"]["note"] == "baseline"
