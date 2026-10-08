@@ -78,12 +78,18 @@ def render_workbench_report_html(payload: Mapping[str, Any], explanation: Mappin
         for point in points
     ) or '<tr><td colspan="7">No points were returned.</td></tr>'
     factor_research = safe_payload.get("factor_research", {}) if isinstance(safe_payload, Mapping) else {}
+    factor_experiments = safe_payload.get("factor_experiments", {}) if isinstance(safe_payload, Mapping) else {}
     factor_rows = "".join(
         f'<tr><th scope="row">{esc(item.get("candidate", {}).get("candidate_id"))}</th><td><code>{esc(item.get("candidate", {}).get("expression"))}</code></td><td>{esc(item.get("evaluation", {}).get("status"))}</td><td>{esc(item.get("evaluation", {}).get("information_coefficient"))}</td><td>{esc(item.get("evaluation", {}).get("oos_status"))}</td><td>{esc(item.get("admission", {}).get("status"))}</td></tr>'
         for item in factor_research.get("rounds", ())
         if isinstance(item, Mapping)
     ) or '<tr><td colspan="6">No factor candidates were evaluated.</td></tr>'
-    factor_section = f'''<section class="section"><div class="section-head"><h2>Factor research ledger</h2><p>Bounded candidate templates keep expression, evidence, decay and OOS visibility together.</p></div><div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Expression</th><th>Status</th><th>IC</th><th>OOS</th><th>Admission</th></tr></thead><tbody>{factor_rows}</tbody></table></div><p class="note">{esc(factor_research.get("boundary", "paper-only factor evidence"))}</p></section>'''
+    experiment_rows = "".join(
+        f'<tr><th scope="row">{esc(item.get("experiment_id"))}</th><td>{esc(item.get("parameters"))}</td><td>{esc(item.get("ic"))}</td><td>{esc(item.get("ir"))}</td><td>{esc(item.get("turnover"))}</td><td>{esc(item.get("decay"))}</td></tr>'
+        for item in factor_experiments.get("experiments", ()) if isinstance(item, Mapping)
+    ) or '<tr><td colspan="6">No parameter experiments were evaluated.</td></tr>'
+    experiment_section = f'''<section class="section"><div class="section-head"><h2>Factor parameter experiments</h2><p>Finite PIT/OOS diagnostics are descriptive and carry their fingerprints and limitations.</p></div><div class="table-wrap"><table><thead><tr><th>Experiment</th><th>Parameters</th><th>IC</th><th>IR</th><th>Turnover</th><th>Decay</th></tr></thead><tbody>{experiment_rows}</tbody></table></div><p class="note">{esc("; ".join(factor_experiments.get("limitations", ())) or "paper-only; no trade advice")}</p></section>'''
+    factor_section = f'''<section class="section"><div class="section-head"><h2>Factor research ledger</h2><p>Bounded candidate templates keep expression, evidence, decay and OOS visibility together.</p></div><div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Expression</th><th>Status</th><th>IC</th><th>OOS</th><th>Admission</th></tr></thead><tbody>{factor_rows}</tbody></table></div><p class="note">{esc(factor_research.get("boundary", "paper-only factor evidence"))}</p></section>{experiment_section}'''
     provider_status = safe_payload.get("provider_status", {}) if isinstance(safe_payload, Mapping) else {}
     provider_rows = "".join(
         f'<tr><th scope="row">{esc(item.get("provider"))}</th><td>{esc(item.get("model"))}</td><td>{esc("READY" if item.get("configured") else "NOT CONFIGURED")}</td><td>{esc(item.get("reason"))}</td></tr>'
@@ -526,13 +532,30 @@ def compare_experiments(runs: Sequence[Mapping[str, Any] | ReportManifest]) -> d
     snapshot and only renders it.
     """
 
+    output: list[dict[str, Any]] = []
+    if isinstance(runs, Mapping):
+        if isinstance(runs.get("runs"), (list, tuple)):
+            runs = runs["runs"]
+        elif isinstance(runs.get("experiments"), (list, tuple)):
+            runs = tuple(
+                {
+                    "run_id": item.get("experiment_id"),
+                    "inputs": {"parameters": item.get("parameters", {}), "dataset_fingerprint": item.get("dataset_fingerprint"), "config_digest": item.get("config_digest"), "research_fingerprint": item.get("research_fingerprint")},
+                    "metrics": {"ic": item.get("ic"), "ir": item.get("ir"), "turnover": item.get("turnover"), "decay": item.get("decay", {})},
+                    "limitations": item.get("limitations", ()),
+                }
+                for item in runs["experiments"] if isinstance(item, Mapping)
+            )
+        else:
+            runs = ()
     if not isinstance(runs, (list, tuple)):
         raise TypeError("runs must be a list or tuple")
-    output: list[dict[str, Any]] = []
     for item in runs:
         payload = _manifest_payload(item) if isinstance(item, ReportManifest) else dict(item) if isinstance(item, Mapping) else None
         if payload is None:
             raise TypeError("each experiment must be a mapping or ReportManifest")
+        # FactorExperimentResult.to_dict() is accepted directly as a compact
+        # server payload; each bounded experiment remains an independent run.
         run_id = payload.get("run_id")
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("experiment run_id is required")

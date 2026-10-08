@@ -37,6 +37,7 @@ from .factor_loop import (
     FactorResearchState,
     run_factor_research,
 )
+from .factor_experiments import FactorExperimentRecord, FactorExperimentResult, FactorExperimentSpec, run_factor_experiments
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
 from .learning_manager import (
@@ -129,6 +130,9 @@ __all__ = [
     "FactorResearchRound",
     "FactorResearchRun",
     "FactorResearchState",
+    "FactorExperimentRecord",
+    "FactorExperimentResult",
+    "FactorExperimentSpec",
     "FailureKind",
     "JobQueue",
     "JobRecord",
@@ -190,6 +194,7 @@ __all__ = [
     "render_section_html",
     "research_runtime_view_model",
     "run_factor_research",
+    "run_factor_experiments",
     "stable_digest",
     "to_jsonable",
     "validate_learning_entry",

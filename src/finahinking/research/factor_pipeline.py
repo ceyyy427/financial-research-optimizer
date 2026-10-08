@@ -347,6 +347,13 @@ class FactorResearchPipeline:
             admissions.append(FactorAdmissionProposal(item.candidate.candidate_id, item.candidate.candidate_id, "PENDING_HUMAN_ADMISSION", item.evaluation.fingerprint, item.admission.reasons, item.admission.evidence_refs, candidate_lineage))
         return FactorResearchResult(normalized_hypothesis, proposals, research_run, ranks, tuple(admissions), tuple(catalog_entries), data_fingerprint, config_digest)
 
+    def run_experiments(self, spec: Any, dataset: Mapping[str, Any], config: Mapping[str, Any] | None = None) -> Any:
+        """Run a bounded parameter grid through the shared factor evaluator."""
+
+        from .factor_experiments import run_factor_experiments
+
+        return run_factor_experiments(spec, dataset, config)
+
 
 def admit_factor_proposal(result: FactorResearchResult, proposal_id: str, admission_record: HumanAdmissionRecord) -> FactorAdmissionProposal:
     """Apply an explicit human admission record to a research proposal only."""
