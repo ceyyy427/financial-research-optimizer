@@ -61,3 +61,19 @@ def test_callback_status_and_idempotency_survive_bridge_restart(tmp_path):
     with __import__("sqlite3").connect(path) as db:
         raw = repr(db.execute("SELECT * FROM external_dispatches").fetchall())
     assert "prompt-1" not in raw and "provider" not in raw and "secret" not in raw
+
+
+def test_pre_migration_external_row_is_backfilled_on_restart(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "jobs.sqlite"
+    first_queue = JobQueue(path)
+    envelope = CodexBridge().create_handoff(Task())
+    old = first_queue.enqueue_external(envelope, idempotency_key="codex:legacy")
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM external_dispatches")
+        db.execute("UPDATE jobs SET status='queued' WHERE job_id=?", (old.job_id,))
+    bridge = CodexBridge(queue=JobQueue(path))
+    valid = {"schema_version": envelope.schema_version, "input_digest": envelope.input_digest, "status": "READY", "paper_only": True}
+    assert bridge.record_external_result(envelope, valid).status == "READY"
+    assert bridge.record_external_result(envelope, valid).status == "READY"

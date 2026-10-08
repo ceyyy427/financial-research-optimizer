@@ -49,3 +49,20 @@ claims, and transition to completed only through a validated callback. The
 SQLite `external_dispatches` table stores status and digest fields only, so a
 restarted bridge replays the durable callback result without retaining prompt,
 provider, or secret data.
+
+## Review round 2 migration fix
+
+Red phase: an upgrade fixture that removed `external_dispatches` for a legacy
+`task_type='external'` row caused callback handling to raise `KeyError`.
+
+Green verification:
+
+```text
+PYTHONPATH=src python3 -m pytest tests/research/test_codex_dispatch.py tests/research/test_codex_bridge.py tests/research/test_job_queue.py tests/research/test_worker.py tests/research/test_workflow.py tests/research/test_vertical_slice.py -q
+53 passed
+```
+
+`JobQueue._initialize()` now transactionally backfills missing dispatch rows
+from the existing task and idempotency digests, normalizes legacy queued
+external jobs to `external_waiting`, and keeps callback completion/replay
+idempotent after restart.

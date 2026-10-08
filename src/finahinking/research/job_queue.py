@@ -169,6 +169,19 @@ class JobQueue:
                 db.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
             if "task_type" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN task_type TEXT NOT NULL DEFAULT 'research'")
+            # Backfill external jobs written before the durable dispatch table
+            # existed. Only public task/idempotency digests are copied.
+            old_external = db.execute(
+                "SELECT task_digest, task_ref, idempotency_key, status FROM jobs WHERE task_type='external'"
+            ).fetchall()
+            for item in old_external:
+                dispatch_status = JobStatus.EXTERNAL_WAITING.value if item["status"] in {JobStatus.QUEUED.value, JobStatus.EXTERNAL_WAITING.value} else item["status"]
+                db.execute(
+                    "INSERT OR IGNORE INTO external_dispatches(envelope_digest, task_id, external_ref, status) VALUES(?,?,?,?)",
+                    (item["task_digest"], item["task_ref"], item["idempotency_key"], dispatch_status),
+                )
+                if item["status"] == JobStatus.QUEUED.value:
+                    db.execute("UPDATE jobs SET status=? WHERE task_digest=? AND task_type='external'", (JobStatus.EXTERNAL_WAITING.value, item["task_digest"]))
 
     @staticmethod
     def _task_digest(task: AgentTask) -> str:
