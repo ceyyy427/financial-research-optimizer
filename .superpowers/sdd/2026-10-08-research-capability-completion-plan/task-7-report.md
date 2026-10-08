@@ -52,7 +52,13 @@ PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_catalog_loader.py
 
 PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_catalog.py tests/research/test_factor_registry.py tests/research/test_factor_pipeline.py tests/research/test_factor_template_catalog.py
 51 passed
+
+PYTHONPATH=src python3 -m pytest -q
+844 passed, 1 skipped, 1 failed
 ```
+
+The same pre-existing wheel-install integration failure remains isolated to
+`tests/validation/test_artifact_install.py`.
 
 ## Boundary
 
