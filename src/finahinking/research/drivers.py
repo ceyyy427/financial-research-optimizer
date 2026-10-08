@@ -121,6 +121,9 @@ class UserApiDriver:
                     ProviderFailureKind.NOT_CONFIGURED: "provider is not configured",
                     ProviderFailureKind.SCHEMA_ERROR: "provider response schema invalid",
                     ProviderFailureKind.CAPABILITY_REJECTED: "provider capability rejected",
+                    ProviderFailureKind.TIMEOUT: "provider timeout",
+                    ProviderFailureKind.NON_JSON: "provider response is not JSON",
+                    ProviderFailureKind.HTTP_ERROR: "provider request failed",
                 }.get(error.kind, "provider request failed"),
             )
         except Exception:  # noqa: BLE001 - provider failures must stay secret-free

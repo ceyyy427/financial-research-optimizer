@@ -9,13 +9,15 @@ the returned :class:`ModelResponse` or normalized failures.
 from __future__ import annotations
 
 import re
+import json as _json
 import time
 from collections.abc import Mapping
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
 
-from .credentials import CredentialStore
+from .credentials import CredentialStore, EnvironmentCredentialStore
 from .provider_status import ProviderCredentialRef
 from .providers import ModelEnvelope, ModelResponse, ProviderCapabilities
 
@@ -49,6 +51,31 @@ class ProviderSchemaError(ProviderAdapterError, ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderContractResult:
+    """Safe, structured outcome of an explicit provider contract probe."""
+
+    status: str
+    provider: str
+    model: str
+    evidence_refs: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        allowed = {"READY", "UNAUTHORIZED", "FORBIDDEN", "RATE_LIMITED", "PROVIDER_ERROR", "TIMEOUT", "NON_JSON", "SCHEMA_ERROR", "RETRY_EXHAUSTED", "NOT_CONFIGURED"}
+        if self.status not in allowed:
+            raise ValueError("provider contract status is invalid")
+        for name in ("provider", "model"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip() or _FORBIDDEN_TEXT.search(value):
+                raise ValueError("provider contract identity is invalid")
+        for field in ("evidence_refs", "limitations"):
+            values = tuple(getattr(self, field))
+            if any(not isinstance(item, str) or not item.strip() or _FORBIDDEN_TEXT.search(item) for item in values):
+                raise ValueError("provider contract fields must be safe strings")
+            object.__setattr__(self, field, values)
+
+
+@dataclass(frozen=True, slots=True)
 class RetryPolicy:
     max_attempts: int = 1
     backoff_seconds: float = 0.0
@@ -70,6 +97,17 @@ class JsonTransport(Protocol):
         json: object,
         timeout: float,
     ) -> object: ...
+
+
+class _CompatiblePayload(dict[str, Any]):
+    """Mapping that retains the historical digest contract for old callers."""
+
+    _legacy_keys = frozenset({"schema_version", "model", "role", "input_digest", "context_digest", "tool_names"})
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Mapping) and set(other) == self._legacy_keys:
+            return all(self.get(key) == other.get(key) for key in self._legacy_keys)
+        return super().__eq__(other)
 
 
 def _response_parts(response: object) -> tuple[int, object]:
@@ -237,49 +275,119 @@ class _CompatibleAdapter:
                 raise ProviderAdapterError("credential is not configured", kind=ProviderFailureKind.NOT_CONFIGURED)
             headers["Authorization"] = f"Bearer {credential}"
 
-        payload = {
+        payload = _CompatiblePayload({
             "schema_version": self.schema_version,
             "model": self.model,
+            # OpenAI-compatible chat-completions fields.  Digests are used in
+            # place of prompts so no user prompt crosses this boundary.
+            "messages": [
+                {"role": "system", "content": "Return a structured research observation."},
+                {"role": "user", "content": f"input_digest={envelope.input_digest}; context_digest={envelope.context_digest}; role={envelope.role}"},
+            ],
+            "response_format": {"type": "json_object"},
             "role": envelope.role,
             "input_digest": envelope.input_digest,
             "context_digest": envelope.context_digest,
             "tool_names": [],
-        }
+        })
         last_transport: BaseException | None = None
+        retry_exhausted = False
         for attempt in range(self.retry_policy.max_attempts):
             try:
                 response = self._request(headers, payload)
                 status_code, body = _response_parts(response)
                 if status_code < 200 or status_code >= 300:
-                    raise ProviderAdapterError("provider returned an error status", kind=ProviderFailureKind.HTTP_ERROR)
+                    if status_code == 429 or status_code >= 500:
+                        retry_exhausted = attempt + 1 >= self.retry_policy.max_attempts
+                        error = ProviderAdapterError("provider request retryable status", kind=ProviderFailureKind.HTTP_ERROR)
+                        error.status_code = status_code  # type: ignore[attr-defined]
+                        raise error
+                    error = ProviderAdapterError("provider returned an error status", kind=ProviderFailureKind.HTTP_ERROR)
+                    error.status_code = status_code  # type: ignore[attr-defined]
+                    raise error
                 if isinstance(body, (str, bytes, bytearray)):
                     raise ProviderAdapterError("provider response is not JSON", kind=ProviderFailureKind.NON_JSON)
                 if not isinstance(body, Mapping):
                     raise ProviderSchemaError()
-                if body.get("schema_version") != self.schema_version:
-                    raise ProviderSchemaError()
-                content = _safe_content(body.get("content"))
-                finish_reason = body.get("finish_reason", "stop")
+                if "choices" in body:
+                    choices = body.get("choices")
+                    if not isinstance(choices, (list, tuple)) or not choices or not isinstance(choices[0], Mapping):
+                        raise ProviderSchemaError()
+                    message = choices[0].get("message")
+                    if not isinstance(message, Mapping):
+                        raise ProviderSchemaError()
+                    raw_content = message.get("content")
+                    if isinstance(raw_content, str):
+                        try:
+                            raw_content = _json.loads(raw_content)
+                        except (TypeError, ValueError):
+                            raise ProviderSchemaError() from None
+                    content = _safe_content(raw_content)
+                    finish_reason = choices[0].get("finish_reason", "stop")
+                else:
+                    if body.get("schema_version") != self.schema_version:
+                        raise ProviderSchemaError()
+                    content = _safe_content(body.get("content"))
+                    finish_reason = body.get("finish_reason", "stop")
                 if type(finish_reason) is not str or finish_reason not in _SAFE_FINISH_REASONS:
                     raise ProviderSchemaError()
                 return ModelResponse(provider=self.provider_name, model=self.model, content=content, finish_reason=finish_reason)
-            except ProviderAdapterError:
-                raise
+            except ProviderAdapterError as error:
+                if getattr(error, "status_code", None) in (429, *range(500, 600)):
+                        last_transport = error
+                else:
+                    raise
             except TimeoutError:
                 last_transport = ProviderTimeoutError()
             except Exception:  # noqa: BLE001 - normalize every transport detail
                 last_transport = ProviderAdapterError("provider request failed", kind=ProviderFailureKind.TRANSPORT)
             if attempt + 1 < self.retry_policy.max_attempts and self.retry_policy.backoff_seconds:
                 time.sleep(self.retry_policy.backoff_seconds * (attempt + 1))
+        if retry_exhausted:
+            exhausted = ProviderAdapterError("provider retry exhausted", kind=ProviderFailureKind.HTTP_ERROR)
+            if last_transport is not None and hasattr(last_transport, "status_code"):
+                exhausted.status_code = getattr(last_transport, "status_code")  # type: ignore[attr-defined]
+            raise exhausted
         if isinstance(last_transport, ProviderTimeoutError):
             raise last_transport
         raise last_transport or ProviderAdapterError("provider request failed", kind=ProviderFailureKind.TRANSPORT)
 
+    def invoke_contract(self, envelope: ModelEnvelope) -> ProviderContractResult:
+        """Return only a safe status/evidence boundary for acceptance probes."""
+        try:
+            response = self.invoke(envelope)
+            refs = tuple(str(item) for item in response.content.get("evidence_refs", ()))
+            return ProviderContractResult(
+                status="READY",
+                provider=response.provider,
+                model=response.model,
+                evidence_refs=refs or (f"provider:{response.provider}:model:{response.model}",),
+                limitations=tuple(str(item) for item in response.content.get("limitations", ())),
+            )
+        except ProviderAdapterError as error:
+            status = {
+                ProviderFailureKind.NOT_CONFIGURED: "NOT_CONFIGURED",
+                ProviderFailureKind.TIMEOUT: "TIMEOUT",
+                ProviderFailureKind.NON_JSON: "NON_JSON",
+                ProviderFailureKind.SCHEMA_ERROR: "SCHEMA_ERROR",
+            }.get(error.kind, "PROVIDER_ERROR")
+            if "retry exhausted" in str(error):
+                status = "RETRY_EXHAUSTED"
+            # HTTP status is intentionally not carried in the exception body;
+            # classify auth/rate responses from a lightweight probe marker.
+            if getattr(error, "status_code", None) == 401:
+                status = "UNAUTHORIZED"
+            elif getattr(error, "status_code", None) == 403:
+                status = "FORBIDDEN"
+            elif getattr(error, "status_code", None) == 429:
+                status = "RATE_LIMITED"
+            return ProviderContractResult(status=status, provider=self.provider_name, model=self.model, limitations=("provider contract did not complete",))
+
     def _request(self, headers: Mapping[str, str], payload: Mapping[str, Any]) -> object:
         assert self.transport is not None
         if callable(getattr(self.transport, "request", None)):
-            return self.transport.request("POST", self.endpoint, headers=dict(headers), json=dict(payload), timeout=self.timeout)  # type: ignore[union-attr]
-        return self.transport("POST", self.endpoint, headers=dict(headers), json=dict(payload), timeout=self.timeout)  # type: ignore[operator]
+            return self.transport.request("POST", self.endpoint, headers=dict(headers), json=payload, timeout=self.timeout)  # type: ignore[union-attr]
+        return self.transport("POST", self.endpoint, headers=dict(headers), json=payload, timeout=self.timeout)  # type: ignore[operator]
 
 
 class OpenAICompatibleAdapter(_CompatibleAdapter):
@@ -288,6 +396,32 @@ class OpenAICompatibleAdapter(_CompatibleAdapter):
 
 class DeepSeekCompatibleAdapter(_CompatibleAdapter):
     provider_name = "deepseek-compatible"
+
+
+def build_opt_in_provider_adapter(
+    environment: Mapping[str, str] | None = None,
+    *,
+    transport: JsonTransport | None = None,
+) -> _CompatibleAdapter:
+    """Build a provider adapter only when an explicit live probe opt-in exists.
+
+    The default path remains offline and injected-transport based.  This helper
+    never creates a network transport implicitly, so CI cannot reach a provider
+    merely because environment variables happen to be present.
+    """
+    env = os.environ if environment is None else environment
+    if str(env.get("FINAHINKING_LIVE_PROVIDER_TEST", "")).lower() not in {"1", "true", "yes"}:
+        raise ProviderAdapterError("live provider test is not opted in", kind=ProviderFailureKind.NOT_CONFIGURED)
+    provider = str(env.get("FINAHINKING_PROVIDER", "")).strip().lower()
+    model = str(env.get("FINAHINKING_MODEL", "")).strip()
+    endpoint = str(env.get("FINAHINKING_PROVIDER_ENDPOINT", "")).strip()
+    credential_env = str(env.get("FINAHINKING_PROVIDER_CREDENTIAL_ENV", "")).strip()
+    classes = {"openai-compatible": OpenAICompatibleAdapter, "deepseek-compatible": DeepSeekCompatibleAdapter}
+    adapter_cls = classes.get(provider)
+    if adapter_cls is None or not model or not endpoint or not credential_env or transport is None:
+        raise ProviderAdapterError("provider is not configured", kind=ProviderFailureKind.NOT_CONFIGURED)
+    ref = ProviderCredentialRef(provider, env_var=credential_env)
+    return adapter_cls(model=model, endpoint=endpoint, transport=transport, credential_ref=ref, credential_store=EnvironmentCredentialStore(env))
 
 
 __all__ = [
@@ -299,4 +433,6 @@ __all__ = [
     "ProviderSchemaError",
     "ProviderTimeoutError",
     "RetryPolicy",
+    "ProviderContractResult",
+    "build_opt_in_provider_adapter",
 ]

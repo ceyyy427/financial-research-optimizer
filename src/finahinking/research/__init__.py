@@ -53,8 +53,10 @@ from .provider_adapters import (
     DeepSeekCompatibleAdapter,
     OpenAICompatibleAdapter,
     ProviderAdapterError,
+    ProviderContractResult,
     ProviderFailureKind,
     RetryPolicy,
+    build_opt_in_provider_adapter,
 )
 from .provider_status import ProviderCredentialRef, ProviderStatus, provider_status_payload
 from .reports import (
@@ -144,8 +146,10 @@ __all__ = [
     "PaperTrader",
     "PortfolioManager",
     "ProviderAdapterError",
+    "ProviderContractResult",
     "ProviderCredentialRef",
     "ProviderFailureKind",
+    "build_opt_in_provider_adapter",
     "ProviderSelection",
     "ProviderStatus",
     "ReportBundleWriter",

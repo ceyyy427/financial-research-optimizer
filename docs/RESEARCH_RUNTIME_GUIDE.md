@@ -27,3 +27,15 @@ Finathink 的研究运行时仍然是本地、只读、paper-only。浏览器只
 ## 报告边界
 
 报告继续使用可离线打开的 HTML、manifest 和 activity 文件。所有路由是只读的；任何写入、下单、账户访问和 broker 操作都不属于该运行时。
+
+## 兼容模型契约探针
+
+`OpenAICompatibleAdapter` 和 `DeepSeekCompatibleAdapter` 只依赖注入的
+`JsonTransport`，发送无 prompt 的摘要字段和标准 chat-completions 字段，
+并将响应收敛为 `ProviderContractResult`。401/403、429、5xx、超时、非 JSON
+和 schema 错误只产生稳定状态，不保存密钥、endpoint、原始响应或模型 prompt。
+429 与 5xx 使用最多 5 次的有界重试；退避由 `RetryPolicy` 控制。
+
+默认测试永远离线。只有同时设置
+`FINAHINKING_LIVE_PROVIDER_TEST=1`、provider/model/endpoint 和凭证引用环境变量，
+并显式注入 transport，才允许构造验收适配器；代码不会因环境变量存在而自动联网。
