@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -143,19 +144,63 @@ _MATRIX: Final[dict[str, CapabilityRecord]] = {
     "data_vendor_sdk": CapabilityRecord(
         "data_vendor_sdk",
         not_in_scope=True,
-        evidence=("docs/PROJECT_STATE.md",),
+        evidence=("docs/PROJECT_STATE.md", "docs/RESEARCH_CAPABILITY_BACKLOG.md"),
     ),
     "unattended_self_improvement": CapabilityRecord(
         "unattended_self_improvement",
         not_in_scope=True,
-        evidence=("docs/PROJECT_STATE.md",),
+        evidence=("docs/PROJECT_STATE.md", "docs/RESEARCH_CAPABILITY_BACKLOG.md"),
     ),
 }
 
 
-def load_release_matrix() -> Mapping[str, CapabilityRecord]:
-    """Load the immutable, repository-defined research acceptance matrix."""
+_SOURCE_MARKERS: Final[dict[str, tuple[str, ...]]] = {
+    "provider": ("provider", "数据"),
+    "codex": ("codex", "模型"),
+    "factor": ("factor", "因子"),
+    "engine": ("engine", "引擎", "qlib", "vectorbt"),
+    "risk": ("risk", "风险"),
+    "portfolio": ("portfolio", "组合"),
+    "learning": ("learning", "学习"),
+    "queue": ("queue", "队列", "worker"),
+    "ui": ("ui", "前端", "报告"),
+    "data_vendor_sdk": ("vendor", "供应商", "sdk"),
+    "unattended_self_improvement": ("self-improvement", "自我改进"),
+}
 
+
+def _default_project_root() -> Path:
+    # release_matrix.py lives at <root>/src/finahinking/research/.
+    return Path(__file__).resolve().parents[3]
+
+
+def _validate_sources(matrix: Mapping[str, CapabilityRecord], project_root: Path) -> None:
+    """Fail closed when checklists or test evidence drift from the matrix."""
+
+    for name, record in matrix.items():
+        markers = _SOURCE_MARKERS[name]
+        found_marker = False
+        for relative in record.evidence:
+            path = project_root / relative
+            if not path.is_file():
+                raise ValueError(f"evidence path does not exist: {relative}")
+            if path.suffix.lower() in {".md", ".rst", ".txt"}:
+                text = path.read_text(encoding="utf-8").lower()
+                if any(marker.lower() in text for marker in markers):
+                    found_marker = True
+        if not found_marker:
+            raise ValueError(f"capability source marker missing: {name}")
+
+
+def load_release_matrix(project_root: str | Path | None = None) -> Mapping[str, CapabilityRecord]:
+    """Load the immutable matrix after validating repository source evidence.
+
+    ``project_root`` is injectable for deterministic drift tests; normal use
+    resolves the repository root from this module's location.
+    """
+
+    root = Path(project_root) if project_root is not None else _default_project_root()
+    _validate_sources(_MATRIX, root)
     return MappingProxyType(_MATRIX)
 
 

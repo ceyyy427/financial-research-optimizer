@@ -2,6 +2,16 @@
 
 Status: DONE
 
+## Review fix round 1
+
+The matrix now validates its repository sources at load time. Every evidence
+path must exist, each capability must have a marker in its checklist or state
+document, and focused test evidence must remain present. `load_release_matrix`
+accepts an optional project root so drift checks are deterministic and
+testable; missing or contradictory source evidence raises `ValueError` rather
+than returning a stale matrix. Constructor boundary tests also cover
+immutability-related invariants and invalid flag/task combinations.
+
 ## Delivered
 
 - Added `CapabilityStatus`, immutable `CapabilityRecord`, and
@@ -46,6 +56,12 @@ PASS
 
 python3 -m ruff check src/finahinking/research/release_matrix.py tests/research/test_release_matrix.py
 All checks passed!
+```
+
+Review-fix verification reran the focused and relevant suite:
+
+```text
+18 passed
 ```
 
 The full repository gate was not run because Task 1 is scoped to the matrix
