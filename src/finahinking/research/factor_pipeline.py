@@ -72,13 +72,13 @@ def _config_value(config: Mapping[str, Any], *names: str, default: Any = None) -
     return default
 
 
-def _coerce_hypothesis(hypothesis: FactorHypothesis | Mapping[str, Any] | str, config: Mapping[str, Any]) -> FactorHypothesis:
+def _coerce_hypothesis(hypothesis: FactorHypothesis | Mapping[str, Any] | str, config: Mapping[str, Any], registry: FactorTemplateRegistry) -> FactorHypothesis:
     if isinstance(hypothesis, FactorHypothesis):
-        return hypothesis
+        return registry.bind(hypothesis)
     if isinstance(hypothesis, Mapping):
         values = dict(hypothesis)
     elif isinstance(hypothesis, str):
-        return FactorTemplateRegistry().resolve(hypothesis, config)
+        return registry.resolve(hypothesis, config)
     else:
         raise TypeError("hypothesis must be a FactorHypothesis, mapping or string")
     values.setdefault("hypothesis_id", f"hypothesis-{_digest(values.get('text', 'hypothesis'))[:12]}")
@@ -87,7 +87,7 @@ def _coerce_hypothesis(hypothesis: FactorHypothesis | Mapping[str, Any] | str, c
     values.setdefault("inputs", _config_value(config, "inputs", "required_fields", default=("close",)))
     values.setdefault("horizon", _config_value(config, "horizon", default=20))
     values.setdefault("direction", _config_value(config, "direction", default="positive"))
-    return FactorHypothesis(**values)
+    return registry.bind(FactorHypothesis(**values))
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,11 +263,17 @@ def rank_factor_proposals(results: FactorResearchResult | Sequence[FactorResearc
 class FactorResearchPipeline:
     """Run a bounded proposal/evaluation cycle without production mutation."""
 
+    def __init__(self, registry: FactorTemplateRegistry | None = None) -> None:
+        self.registry = registry if registry is not None else FactorTemplateRegistry()
+
     def run(self, hypothesis: FactorHypothesis | Mapping[str, Any] | str, dataset: Mapping[str, Any], config: Mapping[str, Any] | None = None) -> FactorResearchResult:
         if not isinstance(dataset, Mapping):
             raise TypeError("dataset must be a mapping")
         config = dict(config or {})
-        normalized_hypothesis = _coerce_hypothesis(hypothesis, config)
+        normalized_hypothesis = _coerce_hypothesis(hypothesis, config, self.registry)
+        template = self.registry.get(normalized_hypothesis.template_name)
+        if "template_version" in config and config["template_version"] != template.version:
+            raise ValueError("template version does not match registered version")
         frame = dataset.get("frame")
         forward = dataset.get("forward_return")
         if not isinstance(frame, pd.DataFrame) or not isinstance(forward, pd.Series):
@@ -285,7 +291,7 @@ class FactorResearchPipeline:
         if not isinstance(raw_version, str) or not raw_version.strip():
             raise ValueError("version must be non-empty")
         version = raw_version.strip()
-        proposals = FactorProposalCatalog().propose(normalized_hypothesis, limit=int(_config_value(config, "max_proposals", default=5)))
+        proposals = FactorProposalCatalog(self.registry).propose(normalized_hypothesis, limit=int(_config_value(config, "max_proposals", default=5)))
         for proposal in proposals:
             validate_factor_proposal(proposal)
         candidates = tuple(FactorCandidate(item.proposal_id, item.expression, normalized_hypothesis.text, "controlled-template", {"required_fields": item.required_fields, "source_ids": source_ids}) for item in proposals)
@@ -315,7 +321,8 @@ class FactorResearchPipeline:
         )
         research_run = run_factor_research(charter, candidates, dataset, {"max_rounds": max_rounds})
         ranks = rank_factor_proposals(research_run.rounds)
-        config_digest = _digest({**config, "factor_template": {"name": normalized_hypothesis.template_name, "version": normalized_hypothesis.template_version}})
+        template_identity = {"name": template.name, "version": template.version, "digest": template.digest}
+        config_digest = _digest({**config, "factor_template": template_identity})
         research_lineage = _digest({
             "dataset_fingerprint": data_fingerprint,
             "config_digest": config_digest,
@@ -327,6 +334,7 @@ class FactorResearchPipeline:
                 "version": version,
                 "template_name": normalized_hypothesis.template_name,
                 "template_version": normalized_hypothesis.template_version,
+                "template_digest": template.digest,
             },
         })
         catalog_entries: list[FactorCatalogEntry] = []

@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import re
+from string import Formatter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
-from finahinking.factors.dsl import parse_factor_expression
+import pandas as pd
+
+from finahinking.factors.dsl import evaluate_expression, parse_factor_expression
 
 _FIELDS = frozenset({"close", "volume", "return_1d"})
 _FAMILIES = frozenset({"mean_reversion", "momentum", "volatility", "liquidity"})
@@ -75,6 +78,10 @@ class FactorTemplate:
     required_fields: tuple[str, ...]
     version: str
 
+    @property
+    def digest(self) -> str:
+        return hashlib.sha256(repr((self.name, self.family, self.expression_template, self.required_fields, self.version)).encode()).hexdigest()
+
 
 class FactorTemplateRegistry:
     """Registry for fixed, versioned factor DSL expressions.
@@ -85,7 +92,7 @@ class FactorTemplateRegistry:
 
     def __init__(self, templates: Mapping[str, FactorTemplate] | None = None) -> None:
         self._templates: dict[str, FactorTemplate] = {}
-        for template in (templates or _default_templates()):
+        for template in (_default_templates() if templates is None else templates.values()):
             self.register(template.name, template.family, template.expression_template, template.required_fields, template.version)
 
     def register(self, name: str, family: str, expression_template: str, required_fields: Sequence[str], version: str) -> FactorTemplate:
@@ -102,9 +109,17 @@ class FactorTemplateRegistry:
             raise ValueError("required_fields contain a field outside the data whitelist")
         if not isinstance(version, str) or not version.strip():
             raise ValueError("version must be non-empty")
-        placeholders = set(re.findall(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}", expression_template))
-        if placeholders - _TEMPLATE_FIELDS:
-            raise ValueError("template contains an unsupported placeholder")
+        try:
+            for _, placeholder, spec, conversion in Formatter().parse(expression_template):
+                if placeholder is not None and (placeholder not in _TEMPLATE_FIELDS or spec or conversion):
+                    raise ValueError("template contains an unsupported placeholder")
+            for window in (1, 20, 252):
+                parsed = parse_factor_expression(expression_template.format(field=names[0], window=window), names)
+                if parsed.fields != names:
+                    raise ValueError("template dependencies must match required_fields")
+                evaluate_expression(parsed.expression, pd.DataFrame({name: [1.0, 2.0] for name in names}))
+        except (KeyError, IndexError) as exc:
+            raise ValueError("template placeholders are invalid") from exc
         if normalized_name in self._templates:
             raise ValueError(f"factor template {normalized_name} is already registered")
         template = FactorTemplate(normalized_name, normalized_family, expression_template.strip(), names, version.strip())
@@ -122,26 +137,25 @@ class FactorTemplateRegistry:
         if not isinstance(text, str) or not text.strip() or _UNSAFE.search(text):
             raise ValueError("unknown or unsafe factor language")
         config = dict(config or {})
-        lowered = " ".join(text.casefold().split())
+        lowered = " ".join(text.casefold().replace("_", " ").replace("-", " ").split())
         requested = config.get("template") or config.get("template_name")
         template = self.get(str(requested)) if requested is not None else None
         if template is None:
             # Exact template names and a small, explicit family vocabulary only.
             for candidate in sorted(self._templates.values(), key=lambda item: len(item.name), reverse=True):
-                if re.search(rf"\b{re.escape(candidate.name.replace('_', ' '))}\b", lowered):
+                if candidate.name.replace('_', ' ') == lowered:
                     template = candidate
                     break
         if template is None:
             family = config.get("family")
-            aliases = (("mean_reversion", ("mean reversion", "reversion", "reversal")), ("momentum", ("momentum", "trend")), ("volatility", ("volatility", "vol")), ("liquidity", ("liquidity", "volume")))
+            aliases = (("mean_reversion", ("mean reversion", "mean revert", "reversion", "reversal")), ("momentum", ("momentum", "trend", "momentum signal", "price momentum should persist")), ("volatility", ("volatility", "vol")), ("liquidity", ("liquidity", "volume")))
             if family is None:
-                family = next((name for name, words in aliases if any(word in lowered for word in words)), None)
+                family = next((name for name, words in aliases if lowered in words), None)
             if family is None:
                 raise ValueError("unknown factor language")
-            matching = [item for item in self._templates.values() if item.family == str(family).casefold().replace(" ", "_")]
-            if not matching:
-                raise ValueError("unknown factor template family")
-            template = sorted(matching, key=lambda item: item.name)[0]
+            template = self.get(str(family))
+        if "template_version" in config and config["template_version"] != template.version:
+            raise ValueError("template version does not match registered version")
         raw_window = config.get("horizon", config.get("window", 20))
         if isinstance(raw_window, bool) or not isinstance(raw_window, int) or not 1 <= raw_window <= 252:
             raise ValueError("window must be an integer between 1 and 252")
@@ -162,6 +176,23 @@ class FactorTemplateRegistry:
     def list(self) -> tuple[FactorTemplate, ...]:
         return tuple(self._templates[key] for key in sorted(self._templates))
 
+    def bind(self, hypothesis: FactorHypothesis) -> FactorHypothesis:
+        if hypothesis.template_name:
+            template = self.get(hypothesis.template_name)
+        else:
+            # Explicit compatibility for original object/mapping hypotheses.
+            name = hypothesis.family
+            if name in {"momentum", "volatility"} and "return_1d" not in hypothesis.inputs:
+                name += "_close"
+            if name == "mean_reversion" and "return_1d" in hypothesis.inputs:
+                name += "_returns"
+            template = self.get(name)
+        if hypothesis.template_version and hypothesis.template_version != template.version:
+            raise ValueError("template version does not match registered version")
+        if hypothesis.family != template.family or not set(template.required_fields).issubset(hypothesis.inputs):
+            raise ValueError("hypothesis family or fields do not match registered template")
+        return replace(hypothesis, template_name=template.name, template_version=template.version)
+
 
 def _default_templates() -> tuple[FactorTemplate, ...]:
     return (
@@ -171,6 +202,9 @@ def _default_templates() -> tuple[FactorTemplate, ...]:
         FactorTemplate("liquidity", "liquidity", "rank(rolling_mean(volume,{window}))", ("volume",), "1.0.0"),
         FactorTemplate("short_term_reversal", "mean_reversion", "negate(rank(rolling_mean({field},{window})))", ("return_1d",), "1.0.0"),
         FactorTemplate("volume_trend", "liquidity", "rank(rolling_mean(volume,{window}))", ("volume",), "1.0.0"),
+        FactorTemplate("momentum_close", "momentum", "rank(rolling_mean(close,{window}))", ("close",), "1.0.0"),
+        FactorTemplate("volatility_close", "volatility", "negate(rank(rolling_std(close,{window})))", ("close",), "1.0.0"),
+        FactorTemplate("mean_reversion_returns", "mean_reversion", "negate(rank(rolling_mean(return_1d,{window})))", ("return_1d",), "1.0.0"),
     )
 
 
@@ -184,37 +218,24 @@ class FactorProposal:
     paper_only: bool = True
 
 
-def _templates(hypothesis: FactorHypothesis) -> tuple[str, ...]:
-    if hypothesis.template_name:
-        template = FactorTemplateRegistry().get(hypothesis.template_name)
-        field = "return_1d" if "return_1d" in hypothesis.inputs and "return_1d" in template.required_fields else template.required_fields[0]
-        return tuple(template.expression_template.format(field=field, window=current) for current in tuple(dict.fromkeys((hypothesis.horizon, min(252, max(1, hypothesis.horizon * 2))))) )
-    window = hypothesis.horizon
-    windows = tuple(dict.fromkeys((window, min(252, max(1, window * 2)))))
-    base = "return_1d" if "return_1d" in hypothesis.inputs else "close"
-    expressions: list[str] = []
-    for current in windows:
-        if hypothesis.family == "momentum":
-            expressions.append(f"rank(rolling_mean({base},{current}))")
-        elif hypothesis.family == "mean_reversion":
-            expressions.append(f"negate(rank(rolling_mean({base},{current})))")
-        elif hypothesis.family == "volatility":
-            expressions.append(f"negate(rank(rolling_std({base},{current})))")
-        elif hypothesis.family == "liquidity" and "volume" in hypothesis.inputs:
-            expressions.append(f"rank(rolling_mean(volume,{current}))")
-    if hypothesis.family == "liquidity" and "volume" not in hypothesis.inputs:
-        raise ValueError("liquidity hypotheses require volume")
-    return tuple(expressions)
+def _templates(hypothesis: FactorHypothesis, registry: FactorTemplateRegistry) -> tuple[str, ...]:
+    template = registry.get(hypothesis.template_name)
+    windows = tuple(dict.fromkeys((hypothesis.horizon, min(252, hypothesis.horizon * 2))))
+    return tuple(template.expression_template.format(field=template.required_fields[0], window=window) for window in windows)
 
 
 class FactorProposalCatalog:
+    def __init__(self, registry: FactorTemplateRegistry | None = None) -> None:
+        self.registry = registry if registry is not None else FactorTemplateRegistry()
+
     def propose(self, hypothesis: FactorHypothesis, limit: int = 5) -> tuple[FactorProposal, ...]:
         if not isinstance(hypothesis, FactorHypothesis):
             raise TypeError("hypothesis must be a FactorHypothesis")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 32:
             raise ValueError("limit must be between 1 and 32")
+        hypothesis = self.registry.bind(hypothesis)
         proposals: list[FactorProposal] = []
-        for expression in _templates(hypothesis):
+        for expression in _templates(hypothesis, self.registry):
             parsed = parse_factor_expression(expression, hypothesis.inputs)
             payload = f"{hypothesis.hypothesis_id}|{parsed.expression}|{','.join(parsed.fields)}".encode()
             digest = hashlib.sha256(payload).hexdigest()[:12]

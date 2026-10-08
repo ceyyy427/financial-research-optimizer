@@ -10,4 +10,6 @@ Implemented the governed factor template registry and pipeline integration.
 Validation:
 
 - `python3 -m pytest tests/research/test_factor_template_catalog.py tests/factors tests/research/test_factor_*.py -q` — 80 passed.
-- `python3 -m pytest -q` — 803 passed, 1 skipped.
+- Round 1 fixes add registry injection, immutable template identity/version binding, exact aliases, and registration-time DSL validation.
+- `python3 -m pytest tests/research/test_factor_template_catalog.py tests/factors tests/research/test_factor_*.py tests/research/test_autonomous_runtime_vertical_slice.py tests/research/test_capability_vertical_slice.py -q` — 102 passed.
+- `python3 -m pytest -q` — 828 passed, 1 skipped.
