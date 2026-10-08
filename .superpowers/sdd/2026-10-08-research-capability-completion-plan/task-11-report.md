@@ -12,3 +12,5 @@ Red/green evidence: `tests/research/test_portfolio_optimizer.py` initially faile
 Validation: focused portfolio/paper/risk suites → 36 passed. Full suite: `python3 -m pytest -q` → 887 passed, 1 skipped, 1 existing multiprocessing fork deprecation warning.
 
 Known limitation: this remains an offline deterministic paper allocator; it does not certify live data, broker behavior, execution, or production deployment.
+
+Fix round 1 addressed review findings: `optimize` now cross-checks passed risk results against PIT, concentration, drawdown, liquidity, and declared limits; unsafe free-form execution-policy keys and values are rejected recursively; proposal constraints and ledger policies are deeply immutable; and negative previous weights fail closed instead of being clamped. Focused regression coverage is 40 passed. Final full-suite validation after the fix is `891 passed, 1 skipped, 1` existing multiprocessing fork deprecation warning.

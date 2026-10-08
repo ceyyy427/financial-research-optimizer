@@ -7,14 +7,18 @@ surface.  Inputs are normalized snapshot records and deterministic policies.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 from .contracts import stable_digest
 from .portfolio_runtime import PaperPortfolioProposal
 
 _FORBIDDEN = {"broker", "order", "orders", "cancel", "account", "live", "endpoint", "credential", "secret"}
+_UNSAFE_KEY = re.compile(r"(?:api[-_ ]?key|secret|token|password|credential|authorization)", re.IGNORECASE)
+_UNSAFE_TEXT = re.compile(r"(?:api[-_ ]?key|secret|token|password|credential|authorization)\s*[:=]|(?:https?|file|ftp|ssh|s3)://|(?:^|[\s:(])(?:/|~[/]|\.{1,2}[/])|\\", re.IGNORECASE)
 
 
 def _safe(value: Any, path: str = "value") -> Any:
@@ -24,13 +28,17 @@ def _safe(value: Any, path: str = "value") -> Any:
         result: dict[str, Any] = {}
         for key, child in value.items():
             name = str(key)
-            if any(token in name.casefold() for token in _FORBIDDEN):
+            if any(token in name.casefold() for token in _FORBIDDEN) or _UNSAFE_KEY.search(name):
                 raise ValueError(f"{path} contains forbidden paper-only field")
             result[name] = _safe(child, f"{path}.{name}")
         return result
     if isinstance(value, (tuple, list)):
         return [_safe(item, f"{path}[]") for item in value]
-    if value is None or isinstance(value, (str, int, bool)):
+    if isinstance(value, str):
+        if _UNSAFE_TEXT.search(value):
+            raise ValueError(f"{path} contains unsafe paper-only text")
+        return value
+    if value is None or isinstance(value, (int, bool)):
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
@@ -40,6 +48,24 @@ def _safe(value: Any, path: str = "value") -> Any:
     if callable(item):
         return _safe(item(), path)
     raise TypeError(f"{path} must be normalized JSON data")
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze(child) for key, child in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(child) for child in value)
+    if isinstance(value, tuple):
+        return tuple(_freeze(child) for child in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _thaw(child) for key, child in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_thaw(child) for child in value]
+    return value
 
 
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:
@@ -130,7 +156,8 @@ class PaperLedger:
     def __post_init__(self) -> None:
         normalized = tuple(item if isinstance(item, PaperLedgerEntry) else PaperLedgerEntry(**dict(item)) for item in self.entries)
         object.__setattr__(self, "entries", normalized)
-        object.__setattr__(self, "execution_policy", dict(self.execution_policy))
+        clean_policy = _safe(self.execution_policy, "execution_policy")
+        object.__setattr__(self, "execution_policy", _freeze(clean_policy))
         object.__setattr__(self, "policy_digest", str(self.policy_digest) or str(self.execution_policy.get("fingerprint", "")) or stable_digest(self.execution_policy))
         if self.paper_only is not True:
             raise ValueError("paper ledger must remain paper-only")
@@ -162,7 +189,7 @@ class PaperLedger:
             "paper_only": self.paper_only,
             "snapshot_digest": self.snapshot_digest,
             "proposal_digest": self.proposal_digest,
-            "execution_policy": dict(self.execution_policy),
+            "execution_policy": _thaw(self.execution_policy),
             "policy_digest": self.policy_digest,
             "fingerprint": self.fingerprint,
         }

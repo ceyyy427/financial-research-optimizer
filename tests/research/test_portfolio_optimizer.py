@@ -2,18 +2,24 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from finahinking.research.paper_trader import PaperLedger, PaperTrader
 from finahinking.research.portfolio_runtime import PaperPortfolioProposal, PortfolioManager
 from finahinking.research.risk_runtime import RiskReviewResult
 
 
-def risk() -> RiskReviewResult:
+def risk(**overrides: object) -> RiskReviewResult:
+    values: dict[str, object] = {
+        "status": "PASSED",
+        "passed": True,
+        "gates": ("pit", "factor", "concentration"),
+        "metrics": {"pit_status": "AVAILABLE"},
+        "snapshot_digest": "snapshot-digest",
+    }
+    values.update(overrides)
     return RiskReviewResult(
-        status="PASSED",
-        passed=True,
-        gates=("pit", "factor", "concentration"),
-        metrics={"pit_status": "AVAILABLE"},
-        snapshot_digest="snapshot-digest",
+        **values,
     )
 
 
@@ -86,3 +92,56 @@ def test_rebalance_binds_snapshot_policy_and_proposal_fingerprints() -> None:
     assert ledger.policy_digest == ledger.execution_policy["fingerprint"]
     assert ledger.entries
 
+
+def test_optimize_blocks_contradictory_passed_risk_metrics_and_limits() -> None:
+    contradictory = risk(
+        metrics={"pit_status": "AVAILABLE", "concentration": 0.9, "drawdown": 0.3, "liquidity": 10.0},
+        limits={"max_concentration": 0.5, "max_drawdown": 0.2, "min_liquidity": 100.0},
+    )
+    proposal = PortfolioManager().optimize(candidates(), contradictory, {"max_exposure": 0.8})
+    assert proposal.status == "BLOCKED"
+    assert proposal.passed is False
+    assert proposal.weights == {}
+
+
+def test_unsafe_execution_policy_values_are_rejected_without_leaking() -> None:
+    blocked = PortfolioManager().optimize(
+        candidates(),
+        risk(),
+        {"execution_policy": {"note": "api_key=SECRET /Users/private/x"}},
+    )
+    assert blocked.status == "BLOCKED"
+    assert "SECRET" not in repr(blocked.to_dict())
+    assert "/Users/private" not in repr(blocked.to_dict())
+    with pytest.raises(ValueError, match="unsafe|paper-only|secret|path"):
+        PaperTrader().simulate(
+            PortfolioManager().optimize(candidates(), risk(), {"max_exposure": 0.8}),
+            {"pit_status": "AVAILABLE", "observations": [{"instrument": "AAA", "close": 1}, {"instrument": "BBB", "close": 1}]},
+            {"note": "/Users/private/x"},
+        )
+
+
+def test_proposal_and_ledger_nested_policy_mappings_are_immutable() -> None:
+    proposal = PortfolioManager().optimize(
+        candidates(), risk(), {"max_exposure": 0.8, "execution_policy": {"fee_bps": 10, "metadata": {"desk": "paper"}}}
+    )
+    proposal_fingerprint = proposal.fingerprint
+    with pytest.raises(TypeError):
+        proposal.constraints["execution_policy"]["metadata"]["desk"] = "changed"  # type: ignore[index]
+    assert proposal.fingerprint == proposal_fingerprint
+    ledger = PaperTrader().rebalance(
+        proposal,
+        {"pit_status": "AVAILABLE", "observations": [{"instrument": "AAA", "close": 1}, {"instrument": "BBB", "close": 1}]},
+    )
+    ledger_fingerprint = ledger.fingerprint
+    with pytest.raises(TypeError):
+        ledger.execution_policy["metadata"]["desk"] = "changed"  # type: ignore[index]
+    assert ledger.fingerprint == ledger_fingerprint
+
+
+def test_negative_previous_weight_blocks_instead_of_clamping() -> None:
+    blocked = PortfolioManager().optimize(
+        candidates(), risk(), {"previous_weights": {"AAA": -0.1}, "max_turnover": 0.2}
+    )
+    assert blocked.status == "BLOCKED"
+    assert blocked.passed is False

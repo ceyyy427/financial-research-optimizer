@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 from .contracts import stable_digest
 from .risk_runtime import RiskReviewResult
 
 _FORBIDDEN = {"broker", "order", "cancel", "account", "live", "endpoint", "credential", "secret"}
+_UNSAFE_KEY = re.compile(r"(?:api[-_ ]?key|secret|token|password|credential|authorization|raw[_ -]?provider)", re.IGNORECASE)
+_UNSAFE_TEXT = re.compile(r"(?:api[-_ ]?key|secret|token|password|credential|authorization)\s*[:=]|(?:https?|file|ftp|ssh|s3)://|(?:^|[\s:(])(?:/|~[/]|\.{1,2}[/])|\\", re.IGNORECASE)
 
 
 def _safe(value: Any, path: str = "value") -> Any:
@@ -20,18 +24,40 @@ def _safe(value: Any, path: str = "value") -> Any:
         output: dict[str, Any] = {}
         for key, child in value.items():
             name = str(key)
-            if any(token in name.casefold() for token in _FORBIDDEN):
+            if any(token in name.casefold() for token in _FORBIDDEN) or _UNSAFE_KEY.search(name):
                 raise ValueError(f"{path} contains a forbidden paper-only field")
             output[name] = _safe(child, f"{path}.{name}")
         return output
     if isinstance(value, (tuple, list)):
         return [_safe(item, f"{path}[]") for item in value]
-    if value is None or isinstance(value, (str, int, bool)):
+    if isinstance(value, str):
+        if _UNSAFE_TEXT.search(value):
+            raise ValueError(f"{path} contains unsafe paper-only text")
+        return value
+    if value is None or isinstance(value, (int, bool)):
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
             raise ValueError(f"{path} must be finite")
         return value
+    raise TypeError(f"{path} must be normalized JSON data")
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze(child) for key, child in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(child) for child in value)
+    if isinstance(value, tuple):
+        return tuple(_freeze(child) for child in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _thaw(child) for key, child in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_thaw(child) for child in value]
     return value
 
 
@@ -92,12 +118,12 @@ class PaperPortfolioProposal:
             if value < -1e-12:
                 raise ValueError("portfolio weights must be long-only")
             normalized[name] = max(0.0, value)
-        object.__setattr__(self, "weights", {key: normalized[key] for key in sorted(normalized)})
+        object.__setattr__(self, "weights", MappingProxyType({key: normalized[key] for key in sorted(normalized)}))
         object.__setattr__(self, "cash_weight", _number(self.cash_weight, "cash_weight"))
         if self.cash_weight < -1e-12:
             raise ValueError("cash weight must be non-negative")
         object.__setattr__(self, "candidates", tuple(str(item) for item in self.candidates))
-        object.__setattr__(self, "constraints", dict(self.constraints))
+        object.__setattr__(self, "constraints", _freeze(_safe(self.constraints, "constraints")))
         object.__setattr__(self, "rationale", str(self.rationale))
         if self.paper_only is not True:
             raise ValueError("portfolio proposal must be paper-only")
@@ -116,7 +142,7 @@ class PaperPortfolioProposal:
             "cash_weight": self.cash_weight,
             "candidates": list(self.candidates),
             "risk_digest": self.risk_digest,
-            "constraints": dict(self.constraints),
+            "constraints": _thaw(self.constraints),
             "rationale": self.rationale,
             "paper_only": self.paper_only,
             "fingerprint": self.fingerprint,
@@ -231,6 +257,30 @@ class PortfolioManager:
             digest = risk_result.fingerprint
             if not risk_result.passed or risk_result.blocking_reasons:
                 return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="risk gate blocked portfolio")
+            # A caller-supplied PASSED flag is not sufficient evidence.  The
+            # Task 10 metrics and limits must agree before allocation begins.
+            metrics = risk_result.metrics
+            limits = risk_result.limits
+            pit_status = str(metrics.get("pit_status", "UNKNOWN")).strip().upper()
+            if pit_status not in {"AVAILABLE", "VALID", "VERIFIED", "KNOWN", "READY", "TRUE", "OK"}:
+                return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="risk gate metrics are contradictory")
+            checks = (
+                ("concentration", ("max_concentration", "concentration_limit"), "max"),
+                ("drawdown", ("max_drawdown", "drawdown_limit"), "max"),
+                ("liquidity", ("min_liquidity", "minimum_liquidity"), "min"),
+            )
+            for metric_name, limit_names, direction in checks:
+                limit = next((limits[name] for name in limit_names if name in limits), None)
+                if limit is None:
+                    continue
+                observed = metrics.get(metric_name)
+                try:
+                    observed_value = _number(observed, f"risk.metrics.{metric_name}")
+                    limit_value = _number(limit, f"risk.limits.{metric_name}")
+                except (TypeError, ValueError):
+                    return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="risk gate metrics are unavailable")
+                if (direction == "max" and observed_value > limit_value + 1e-12) or (direction == "min" and observed_value < limit_value - 1e-12):
+                    return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="risk gate metrics violate limits")
             if policy.get("long_only", True) is not True:
                 raise ValueError("portfolio runtime is long-only")
 
@@ -293,7 +343,12 @@ class PortfolioManager:
             previous_raw = policy.get("previous_weights", policy.get("current_weights", {}))
             if not isinstance(previous_raw, Mapping):
                 raise ValueError("previous_weights must be a mapping")
-            previous = {str(key): max(0.0, _number(value, f"previous_weights.{key}")) for key, value in previous_raw.items()}
+            previous = {}
+            for key, value in previous_raw.items():
+                parsed_previous = _number(value, f"previous_weights.{key}")
+                if parsed_previous < 0 or parsed_previous > 1:
+                    raise ValueError("previous weights must be between zero and one")
+                previous[str(key)] = parsed_previous
             max_turnover = policy.get("max_turnover", policy.get("turnover_limit"))
             max_turnover_value = None if max_turnover is None else _number(max_turnover, "max_turnover")
             if max_turnover_value is not None and max_turnover_value < 0:
