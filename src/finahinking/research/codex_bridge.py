@@ -128,6 +128,17 @@ class CodexTaskEnvelope:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class CodexDispatchRecord:
+    """Digest-only record of an external Codex turn."""
+
+    task_id: str
+    envelope_digest: str
+    status: str
+    external_ref: str
+    result_digest: str = ""
+
+
 def _contains_sensitive(value: object) -> bool:
     if value is None or isinstance(value, (bool, int)):
         return False
@@ -151,10 +162,13 @@ def _contains_sensitive(value: object) -> bool:
 
 
 class CodexBridge:
-    def __init__(self, *, schema_version: str = "codex-task.v1", workflow_version: str = "research.v1") -> None:
+    def __init__(self, *, schema_version: str = "codex-task.v1", workflow_version: str = "research.v1", queue: Any | None = None) -> None:
         self.schema_version = _nonempty(schema_version, "schema_version")
         self.workflow_version = _nonempty(workflow_version, "workflow_version")
         self._accepted: set[str] = set()
+        self._dispatches: dict[str, CodexDispatchRecord] = {}
+        self._outcomes: dict[str, AgentOutcome] = {}
+        self._queue = queue
 
     def create_handoff(self, task: object) -> CodexTaskEnvelope:
         task_id = _nonempty(_field(task, "task_id"), "task_id")
@@ -178,6 +192,38 @@ class CodexBridge:
             workflow_version=_nonempty(_field(task, "workflow_version", self.workflow_version), "workflow_version"),
             schema_version=self.schema_version,
         )
+
+    def enqueue(self, envelope: CodexTaskEnvelope) -> CodexDispatchRecord:
+        if not isinstance(envelope, CodexTaskEnvelope):
+            raise TypeError("envelope must be a CodexTaskEnvelope")
+        digest = stable_digest(envelope.to_dict())
+        previous = self._dispatches.get(digest)
+        if previous is not None:
+            return previous
+        external_ref = f"codex:{digest[:32]}"
+        if self._queue is not None:
+            self._queue.enqueue_external(envelope, idempotency_key=external_ref)
+        record = CodexDispatchRecord(envelope.task_id, digest, "EXTERNAL_HANDOFF_REQUIRED", external_ref)
+        self._dispatches[digest] = record
+        return record
+
+    def record_external_result(self, envelope: CodexTaskEnvelope, result: Mapping[str, Any] | None) -> AgentOutcome:
+        if not isinstance(envelope, CodexTaskEnvelope):
+            raise TypeError("envelope must be a CodexTaskEnvelope")
+        digest = stable_digest(envelope.to_dict())
+        prior = self._outcomes.get(digest)
+        if prior is not None:
+            return prior
+        outcome = self.accept_result(envelope, result)
+        if outcome.status not in {"EXTERNAL_HANDOFF_REQUIRED", "REJECTED"}:
+            self._outcomes[digest] = outcome
+            record = self._dispatches.get(digest)
+            if record is not None:
+                self._dispatches[digest] = CodexDispatchRecord(
+                    record.task_id, record.envelope_digest, outcome.status, record.external_ref,
+                    outcome.output_digest,
+                )
+        return outcome
 
     def accept_result(self, envelope: CodexTaskEnvelope, result: Mapping[str, Any] | None) -> AgentOutcome:
         if not isinstance(envelope, CodexTaskEnvelope):
@@ -258,4 +304,4 @@ class CodexBridge:
         )
 
 
-__all__ = ["CodexBridge", "CodexTaskEnvelope"]
+__all__ = ["CodexBridge", "CodexDispatchRecord", "CodexTaskEnvelope"]

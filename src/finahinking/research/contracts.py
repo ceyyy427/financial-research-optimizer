@@ -24,6 +24,7 @@ class ResearchState(str, Enum):
     IDENTIFIED = "IDENTIFIED"
     DATA_CHECKED = "DATA_CHECKED"
     ANALYSTS_RUNNING = "ANALYSTS_RUNNING"
+    EXTERNAL_TURN_REQUIRED = "EXTERNAL_TURN_REQUIRED"
     ANALYSTS_READY = "ANALYSTS_READY"
     EVIDENCE_REVIEW = "EVIDENCE_REVIEW"
     RESEARCH_PLAN_READY = "RESEARCH_PLAN_READY"
@@ -37,6 +38,7 @@ class ResearchState(str, Enum):
     DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
     VALIDATION_FAILED = "VALIDATION_FAILED"
     PROVIDER_NOT_CONFIGURED = "PROVIDER_NOT_CONFIGURED"
+    EXTERNAL_HANDOFF_REQUIRED = "EXTERNAL_HANDOFF_REQUIRED"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
 
@@ -68,6 +70,7 @@ _TERMINAL_STATES = frozenset(
         ResearchState.DATA_UNAVAILABLE,
         ResearchState.VALIDATION_FAILED,
         ResearchState.PROVIDER_NOT_CONFIGURED,
+        ResearchState.EXTERNAL_TURN_REQUIRED,
         ResearchState.CANCELLED,
         ResearchState.FAILED,
     }
@@ -77,7 +80,7 @@ _TRANSITIONS: dict[ResearchState, frozenset[ResearchState]] = {
     ResearchState.RECEIVED: frozenset({ResearchState.IDENTIFIED, ResearchState.REJECTED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.IDENTIFIED: frozenset({ResearchState.DATA_CHECKED, ResearchState.REJECTED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.DATA_CHECKED: frozenset({ResearchState.ANALYSTS_RUNNING, ResearchState.NO_DATA_AVAILABLE, ResearchState.DATA_UNAVAILABLE, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
-    ResearchState.ANALYSTS_RUNNING: frozenset({ResearchState.ANALYSTS_READY, ResearchState.PROVIDER_NOT_CONFIGURED, ResearchState.CANCELLED, ResearchState.FAILED}),
+    ResearchState.ANALYSTS_RUNNING: frozenset({ResearchState.ANALYSTS_READY, ResearchState.EXTERNAL_TURN_REQUIRED, ResearchState.PROVIDER_NOT_CONFIGURED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.ANALYSTS_READY: frozenset({ResearchState.EVIDENCE_REVIEW, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.EVIDENCE_REVIEW: frozenset({ResearchState.RESEARCH_PLAN_READY, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),
     ResearchState.RESEARCH_PLAN_READY: frozenset({ResearchState.QUANT_VALIDATION, ResearchState.VALIDATION_FAILED, ResearchState.CANCELLED, ResearchState.FAILED}),

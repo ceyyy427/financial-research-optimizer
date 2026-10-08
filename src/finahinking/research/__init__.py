@@ -8,7 +8,7 @@ from finahinking.factors.registry import (
 )
 
 from .agent_roles import AgentRuntime, AgentStatus, RoleCapabilityPolicy
-from .codex_bridge import CodexBridge, CodexTaskEnvelope
+from .codex_bridge import CodexBridge, CodexDispatchRecord, CodexTaskEnvelope
 from .contracts import (
     AgentOutcome,
     AgentReport,
@@ -114,6 +114,7 @@ __all__ = [
     "CheckpointSchemaError",
     "CheckpointValidationError",
     "CodexBridge",
+    "CodexDispatchRecord",
     "CodexInteractiveDriver",
     "CodexTaskEnvelope",
     "CompatibleApiDriver",

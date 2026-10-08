@@ -390,7 +390,7 @@ class ResearchOrchestrator:
                 message = "provider is not configured" if driver_result.failure_kind is FailureKind.PROVIDER_NOT_CONFIGURED else "driver failed"
                 return finish(target, driver_result.failure_kind, message)
             if driver_result.requires_external_turn:
-                return finish(ResearchState.PROVIDER_NOT_CONFIGURED, FailureKind.PROVIDER_NOT_CONFIGURED, "Codex handoff requires an explicit external turn")
+                return finish(ResearchState.EXTERNAL_TURN_REQUIRED, FailureKind.EXTERNAL_HANDOFF_REQUIRED, "Codex handoff requires an explicit external turn")
 
             reports = tuple(sorted((_sanitize_report(report) for report in driver_result.reports), key=lambda report: report.role))
             report_by_role = {report.role: report for report in reports}

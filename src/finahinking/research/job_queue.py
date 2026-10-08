@@ -71,6 +71,7 @@ class JobRecord:
     learning_ref: str | None = None
     ledger_ref: str | None = None
     cancel_requested: bool = False
+    task_type: str = "research"
 
 
 class JobQueue:
@@ -133,6 +134,7 @@ class JobQueue:
                     learning_ref TEXT,
                     ledger_ref TEXT,
                     cancel_requested INTEGER NOT NULL DEFAULT 0
+                    ,task_type TEXT NOT NULL DEFAULT 'research'
                 );
                 CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs(status, available_at, created_at);
                 CREATE TABLE IF NOT EXISTS job_events (
@@ -155,6 +157,8 @@ class JobQueue:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
             if "lease_token" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
+            if "task_type" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN task_type TEXT NOT NULL DEFAULT 'research'")
 
     @staticmethod
     def _task_digest(task: AgentTask) -> str:
@@ -217,6 +221,37 @@ class JobQueue:
         # succeed; rejected collisions must not overwrite the resolver.
         self._tasks[task.task_id] = task
         return result
+
+    def enqueue_external(self, envelope: object, idempotency_key: str | None = None) -> JobRecord:
+        """Queue a Codex handoff while retaining only public digests."""
+        task_id = getattr(envelope, "task_id", None)
+        to_dict = getattr(envelope, "to_dict", None)
+        if not isinstance(task_id, str) or not callable(to_dict):
+            raise TypeError("external envelope must expose task_id and to_dict")
+        payload = to_dict()
+        task_digest = stable_digest(payload)
+        key = idempotency_key or f"external:{task_digest[:32]}"
+        key = _ref(key, "idempotency_key")
+        job_id = self._job_id(task_digest, key)
+        now = float(self._clock())
+        with self._connect() as db:
+            existing = db.execute("SELECT * FROM jobs WHERE idempotency_key = ?", (key,)).fetchone()
+            if existing is not None:
+                if existing["task_digest"] != task_digest:
+                    raise ValueError("idempotency key is already bound to another task")
+                return self._row(existing)
+            collision = db.execute("SELECT 1 FROM jobs WHERE task_ref = ? AND task_digest <> ? LIMIT 1", (task_id, task_digest)).fetchone()
+            if collision is not None:
+                raise ValueError("task_id is already bound to another persisted task digest")
+            db.execute(
+                """INSERT INTO jobs (job_id, task_ref, task_digest, idempotency_key, status, attempts, max_attempts, available_at, created_at, updated_at, task_type)
+                   VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'external')""",
+                (job_id, _ref(task_id, "task_ref"), task_digest, key, JobStatus.QUEUED.value, self.max_attempts, now, now, now),
+            )
+            self._event(db, job_id, JobStatus.QUEUED.value, now)
+            row = self._must_row(db, job_id)
+            db.commit()
+            return self._row(row)
 
     def resolve_task(self, task_ref: str) -> AgentTask:
         """Resolve an ephemeral task; reopened queues need an explicit resolver."""
@@ -527,6 +562,7 @@ class JobQueue:
             worker_id=row["worker_id"], lease_until=row["lease_until"], lease_token=row["lease_token"], last_error_digest=row["last_error_digest"],
             checkpoint_ref=row["checkpoint_ref"], result_ref=row["result_ref"], report_ref=row["report_ref"],
             learning_ref=row["learning_ref"], ledger_ref=row["ledger_ref"], cancel_requested=bool(row["cancel_requested"]),
+            task_type=row["task_type"] if "task_type" in row.keys() else "research",
         )
 
 
