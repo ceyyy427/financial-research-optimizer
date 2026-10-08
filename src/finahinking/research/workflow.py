@@ -89,11 +89,34 @@ def _sanitize_report(report: AgentReport) -> AgentReport:
 
 
 class ResearchOrchestrator:
-    def __init__(self, *, connection_store: Any | None = None, data_transport: Any | None = None, driver: ModelDriver | None = None, tools: ResearchToolGateway | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        connection_store: Any | None = None,
+        data_transport: Any | None = None,
+        driver: ModelDriver | None = None,
+        tools: ResearchToolGateway | None = None,
+        engine_registry: Any | None = None,
+        optional_engine_registry: Any | None = None,
+    ) -> None:
         self.connection_store = connection_store
         self.data_transport = data_transport
         self.default_driver = driver
         self.default_tools = tools
+        self.engine_registry = optional_engine_registry or engine_registry
+
+    def run_optional_engine(self, name: str, snapshot: Any, spec: Any) -> Any:
+        """Run an explicitly selected optional engine through the typed registry.
+
+        The regular workflow still uses its existing deterministic tool gateway.
+        This opt-in seam keeps optional dependencies out of startup while making
+        an admitted, normalized engine usable by callers that explicitly select it.
+        """
+
+        from .engine_registry import EngineRegistry
+
+        registry = self.engine_registry or EngineRegistry()
+        return registry.resolve(name, snapshot).run(snapshot, spec)
 
     def run_from_connection(
         self,

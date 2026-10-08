@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -44,6 +46,7 @@ class TrustedSandboxRunner:
     trusted_sandbox: ClassVar[bool] = False
     network_disabled: ClassVar[bool] = True
     file_write_disabled: ClassVar[bool] = True
+    timeout_seconds: ClassVar[float] = 30.0
 
     def run(self, adapter: Any, specification: Any, dataset: DatasetSnapshot) -> Any:
         raise NotImplementedError("a deployment must provide the audited sandbox runner")
@@ -146,6 +149,9 @@ class EngineAdmission:
     fallback: bool = False
     controlled_runner: bool = False
     runner: TrustedSandboxRunner | None = None
+    version: str | None = None
+    license_name: str | None = None
+    timeout_seconds: float = 30.0
 
     _GATES: ClassVar[tuple[str, ...]] = (
         "software_version",
@@ -162,6 +168,14 @@ class EngineAdmission:
             self.runner is not None and not getattr(self.runner, "trusted_sandbox", False)
         ):
             raise ValueError("controlled_runner must be derived from a trusted sandbox runner")
+        if self.version is not None and (not isinstance(self.version, str) or not self.version.strip()):
+            raise TypeError("engine version must be a non-empty string when provided")
+        if self.license_name is not None and (not isinstance(self.license_name, str) or not self.license_name.strip()):
+            raise TypeError("license name must be a non-empty string when provided")
+        if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)):
+            raise TypeError("engine timeout_seconds must be numeric")
+        if self.timeout_seconds <= 0 or self.timeout_seconds > 300:
+            raise ValueError("engine timeout_seconds must be between 0 and 300 seconds")
 
     @classmethod
     def from_value(cls, value: Mapping[str, Any] | EngineAdmission | None, *, installed_default: bool) -> EngineAdmission:
@@ -171,7 +185,7 @@ class EngineAdmission:
             return value
         if not isinstance(value, Mapping):
             raise TypeError("isolation must be a mapping or EngineAdmission")
-        allowed = {"installed", *cls._GATES, "runner"}
+        allowed = {"installed", *cls._GATES, "runner", "version", "engine_version", "license_name", "license_id", "timeout_seconds"}
         unknown = set(value) - allowed
         if unknown:
             raise ValueError("unknown engine admission fields")
@@ -181,8 +195,9 @@ class EngineAdmission:
         ):
             raise TypeError("runner must be an audited trusted sandbox runner")
         values: dict[str, bool] = {}
+        metadata_keys = {"version", "engine_version", "license_name", "license_id", "timeout_seconds"}
         for key in allowed:
-            if key == "runner":
+            if key == "runner" or key in metadata_keys:
                 continue
             raw = value.get(key, installed_default if key == "installed" else False)
             if not isinstance(raw, bool):
@@ -194,7 +209,16 @@ class EngineAdmission:
             values["controlled_runner"] = False
         if runner is not None:
             values["controlled_runner"] = True
-        return cls(**values, runner=runner)
+        version = value.get("version", value.get("engine_version"))
+        license_name = value.get("license_name", value.get("license_id"))
+        timeout_seconds = value.get("timeout_seconds", getattr(runner, "timeout_seconds", 30.0))
+        return cls(
+            **values,
+            runner=runner,
+            version=version,
+            license_name=license_name,
+            timeout_seconds=timeout_seconds,
+        )
 
     @property
     def missing_gates(self) -> tuple[str, ...]:
@@ -213,6 +237,32 @@ class _Entry:
         if not self.admission.installed:
             return RegistryStatus.NOT_INSTALLED
         return RegistryStatus.AVAILABLE if not self.admission.missing_gates else RegistryStatus.DEFERRED
+
+
+@dataclass(frozen=True, slots=True)
+class EngineResolution:
+    """A dataset-bound, typed resolution of an optional research engine."""
+
+    AVAILABLE: ClassVar[str] = RegistryStatus.AVAILABLE
+    NOT_INSTALLED: ClassVar[str] = RegistryStatus.NOT_INSTALLED
+    DEFERRED: ClassVar[str] = RegistryStatus.DEFERRED
+
+    name: str
+    status: str
+    dataset: DatasetSnapshot
+    capability: str | None
+    engine_version: str | None
+    license: str | None
+    _registry: EngineRegistry
+
+    @property
+    def snapshot(self) -> DatasetSnapshot:
+        """Alias used by callers that name the normalized input a snapshot."""
+
+        return self.dataset
+
+    def run(self, snapshot: DatasetSnapshot, spec: MLResearchSpecification | ParameterSweepSpecification) -> MLResearchResult | SweepResult:
+        return self._registry._run_resolution(self, snapshot, spec)
 
 
 def _safe_error_type(error: Exception) -> str:
@@ -252,12 +302,64 @@ class EngineRegistry:
             "status": entry.status,
             "installed": entry.admission.installed,
             "missing_gates": entry.admission.missing_gates,
+            "version": entry.admission.version,
+            "license": entry.admission.license_name,
         }
+
+    def resolve(self, name: str, dataset: DatasetSnapshot) -> EngineResolution:
+        """Resolve an engine against one normalized, fingerprinted snapshot."""
+
+        if not isinstance(dataset, DatasetSnapshot):
+            raise TypeError("dataset must be a DatasetSnapshot")
+        normalized_name = name.strip().casefold() if isinstance(name, str) else ""
+        entry = self._entries.get(normalized_name)
+        if entry is None:
+            return EngineResolution(
+                name=normalized_name or "unknown",
+                status=RegistryStatus.NOT_INSTALLED,
+                dataset=dataset,
+                capability=None,
+                engine_version=None,
+                license=None,
+                _registry=self,
+            )
+        return EngineResolution(
+            name=entry.name,
+            status=entry.status,
+            dataset=dataset,
+            capability=entry.capability,
+            engine_version=entry.admission.version,
+            license=entry.admission.license_name,
+            _registry=self,
+        )
 
     def run(self, name: str, request: FinathinkSpecification) -> MLResearchResult | SweepResult:
         if not isinstance(request, FinathinkSpecification):
             raise TypeError("request must be a FinathinkSpecification")
-        entry = self._entries.get(name.casefold() if isinstance(name, str) else "")
+        return self.resolve(name, request.dataset).run(request.dataset, request.specification)
+
+    def _run_resolution(
+        self,
+        resolution: EngineResolution,
+        snapshot: DatasetSnapshot,
+        spec: MLResearchSpecification | ParameterSweepSpecification,
+    ) -> MLResearchResult | SweepResult:
+        if not isinstance(snapshot, DatasetSnapshot):
+            raise TypeError("snapshot must be a DatasetSnapshot")
+        if snapshot.fingerprint != resolution.dataset.fingerprint:
+            raise ValueError("snapshot fingerprint does not match engine resolution")
+        if not isinstance(spec, (MLResearchSpecification, ParameterSweepSpecification)):
+            raise TypeError("spec must be an MLResearchSpecification or ParameterSweepSpecification")
+        request = FinathinkSpecification(
+            dataset=snapshot,
+            ml=spec if isinstance(spec, MLResearchSpecification) else None,
+            sweep=spec if isinstance(spec, ParameterSweepSpecification) else None,
+        )
+        try:
+            self._validate_safe_payload(request.specification.to_dict())
+        except (TypeError, ValueError):
+            return self._fallback(request, "optional engine request contains restricted values")
+        entry = self._entries.get(resolution.name.casefold())
         if entry is None:
             return self._fallback(request, "unknown optional engine is not installed in the approved isolated environment")
         if entry.capability != request.kind:
@@ -266,9 +368,13 @@ class EngineRegistry:
             try:
                 if entry.admission.runner is None:
                     raise RuntimeError("controlled worker is not configured")
-                result = entry.admission.runner.run(entry.adapter, request.specification, request.dataset)
+                result = self._run_with_timeout(entry, request)
                 self._validate_result(result, request)
-                return result
+                return self._annotate_result(result, entry)
+            except FutureTimeoutError:
+                fallback_reason = f"{entry.name} adapter execution timeout after {entry.admission.timeout_seconds:g} seconds"
+            except TimeoutError:
+                fallback_reason = f"{entry.name} adapter execution timeout after {entry.admission.timeout_seconds:g} seconds"
             except Exception as exc:  # noqa: BLE001 - adapter boundary fails closed
                 fallback_reason = f"{entry.name} adapter execution failed ({_safe_error_type(exc)})"
         elif entry.status == RegistryStatus.NOT_INSTALLED:
@@ -276,6 +382,65 @@ class EngineRegistry:
         else:
             fallback_reason = f"{entry.name} admission gates are incomplete"
         return self._fallback(request, fallback_reason)
+
+    @staticmethod
+    def _run_with_timeout(entry: _Entry, request: FinathinkSpecification) -> Any:
+        runner = entry.admission.runner
+        if runner is None:
+            raise RuntimeError("controlled worker is not configured")
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="finathink-engine")
+        future = executor.submit(runner.run, entry.adapter, request.specification, request.dataset)
+        try:
+            result = future.result(timeout=entry.admission.timeout_seconds)
+        except FutureTimeoutError:
+            future.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+        except BaseException:
+            executor.shutdown(wait=True, cancel_futures=True)
+            raise
+        else:
+            executor.shutdown(wait=True, cancel_futures=True)
+            return result
+
+    @staticmethod
+    def _annotate_result(result: MLResearchResult | SweepResult, entry: _Entry) -> MLResearchResult | SweepResult:
+        metadata = {
+            "engine": result.engine,
+            "engine_version": entry.admission.version or "unknown",
+            "license": entry.admission.license_name or "unknown",
+        }
+        if isinstance(result, MLResearchResult):
+            artifact = dict(result.model_artifact or {})
+            artifact.update({key: value for key, value in metadata.items() if key not in artifact})
+            return MLResearchResult(
+                specification_fingerprint=result.specification_fingerprint,
+                dataset_fingerprint=result.dataset_fingerprint,
+                status=result.status,
+                engine=result.engine,
+                metrics=result.metrics,
+                predictions=result.predictions,
+                feature_importance=result.feature_importance,
+                limitations=result.limitations,
+                fallback_used=result.fallback_used,
+                model_artifact=artifact,
+                fallback_reason=result.fallback_reason,
+            )
+        multiple_testing = dict(result.multiple_testing)
+        multiple_testing.update({key: value for key, value in metadata.items() if key not in multiple_testing})
+        return SweepResult(
+            specification_fingerprint=result.specification_fingerprint,
+            experiments=result.experiments,
+            warnings=result.warnings,
+            multiple_testing=multiple_testing,
+            robust_regions=result.robust_regions,
+            unstable_regions=result.unstable_regions,
+            oos_comparison=result.oos_comparison,
+            engine=result.engine,
+            status=result.status,
+            fallback_used=result.fallback_used,
+            fallback_reason=result.fallback_reason,
+        )
 
     @staticmethod
     def _validate_result(result: Any, request: FinathinkSpecification) -> None:
@@ -374,6 +539,7 @@ class EngineRegistry:
 __all__ = [
     "EngineAdmission",
     "EngineRegistry",
+    "EngineResolution",
     "FinathinkSpecification",
     "RegistryStatus",
     "RestrictedProcessRunner",
