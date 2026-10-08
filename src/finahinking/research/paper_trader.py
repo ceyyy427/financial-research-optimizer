@@ -125,11 +125,13 @@ class PaperLedger:
     snapshot_digest: str = ""
     proposal_digest: str = ""
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
+    policy_digest: str = ""
 
     def __post_init__(self) -> None:
         normalized = tuple(item if isinstance(item, PaperLedgerEntry) else PaperLedgerEntry(**dict(item)) for item in self.entries)
         object.__setattr__(self, "entries", normalized)
         object.__setattr__(self, "execution_policy", dict(self.execution_policy))
+        object.__setattr__(self, "policy_digest", str(self.policy_digest) or str(self.execution_policy.get("fingerprint", "")) or stable_digest(self.execution_policy))
         if self.paper_only is not True:
             raise ValueError("paper ledger must remain paper-only")
 
@@ -152,7 +154,7 @@ class PaperLedger:
             entry = PaperLedgerEntry(**clean)
         if not isinstance(entry, PaperLedgerEntry):
             raise TypeError("ledger entry must be a PaperLedgerEntry")
-        return PaperLedger(self.entries + (entry,), True, self.snapshot_digest, self.proposal_digest, self.execution_policy)
+        return PaperLedger(self.entries + (entry,), True, self.snapshot_digest, self.proposal_digest, self.execution_policy, self.policy_digest)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -161,6 +163,7 @@ class PaperLedger:
             "snapshot_digest": self.snapshot_digest,
             "proposal_digest": self.proposal_digest,
             "execution_policy": dict(self.execution_policy),
+            "policy_digest": self.policy_digest,
             "fingerprint": self.fingerprint,
         }
 
@@ -185,6 +188,12 @@ class PaperTrader:
         if pit not in {"AVAILABLE", "VALID", "VERIFIED", "KNOWN", "READY", "TRUE", "OK"}:
             raise ValueError("paper simulation requires known PIT snapshot")
         policy = _mapping(execution_policy, "execution_policy")
+        policy = dict(policy)
+        supplied_policy_digest = str(policy.pop("fingerprint", ""))
+        policy_digest = stable_digest(policy)
+        if supplied_policy_digest and supplied_policy_digest != policy_digest:
+            raise ValueError("execution policy fingerprint mismatch")
+        policy["fingerprint"] = policy_digest
         fee_bps = _number(policy.get("fee_bps", policy.get("transaction_cost_bps", 0.0)), "fee_bps")
         slippage_bps = _number(policy.get("slippage_bps", policy.get("slippage", 0.0)), "slippage_bps")
         initial_cash = _number(policy.get("initial_cash", policy.get("starting_cash", 1.0)), "initial_cash")
@@ -229,7 +238,17 @@ class PaperTrader:
             if cash < -1e-9:
                 raise ValueError("paper simulation would create negative cash")
             entries.append(PaperLedgerEntry(timestamp, "paper_fill", instrument, weight, quantity, reference, execution, notional, fees, slippage, cash, cash + notional))
-        return PaperLedger(tuple(entries), True, stable_digest(snap), str(proposal_data.get("fingerprint", "")), policy)
+        return PaperLedger(tuple(entries), True, stable_digest(snap), str(proposal_data.get("fingerprint", "")), policy, policy_digest)
+
+    def rebalance(self, proposal: PaperPortfolioProposal, snapshot: Any) -> PaperLedger:
+        """Record a paper-only rebalance using the policy frozen in proposal."""
+        if not isinstance(proposal, PaperPortfolioProposal):
+            raise TypeError("proposal must be a PaperPortfolioProposal")
+        if proposal.passed is not True or proposal.status != "PASSED":
+            raise ValueError("paper rebalance requires a passed portfolio proposal")
+        constraints = _mapping(proposal.constraints, "proposal.constraints")
+        execution_policy = constraints.get("execution_policy", constraints.get("paper_execution_policy", {}))
+        return self.simulate(proposal, snapshot, execution_policy)
 
 
 __all__ = ["PaperLedger", "PaperLedgerEntry", "PaperTrader"]

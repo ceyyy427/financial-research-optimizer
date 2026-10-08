@@ -212,5 +212,168 @@ class PortfolioManager:
             rationale="deterministic long-only paper allocation; no investment recommendation",
         )
 
+    def optimize(
+        self,
+        candidates: Sequence[Any] | Mapping[str, Any],
+        risk_result: RiskReviewResult,
+        constraints: Mapping[str, Any] | Any,
+    ) -> PaperPortfolioProposal:
+        """Build a deterministic constrained long-only allocation.
+
+        This is deliberately a small allocation engine rather than a numerical
+        optimizer.  Candidate order, tie breaks, clipping, and exposure repair
+        are all deterministic, and every infeasible request remains BLOCKED.
+        """
+        try:
+            if not isinstance(risk_result, RiskReviewResult):
+                raise TypeError("risk_result must be a RiskReviewResult")
+            policy = _mapping(constraints, "constraints")
+            digest = risk_result.fingerprint
+            if not risk_result.passed or risk_result.blocking_reasons:
+                return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="risk gate blocked portfolio")
+            if policy.get("long_only", True) is not True:
+                raise ValueError("portfolio runtime is long-only")
+
+            records: list[dict[str, Any]] = []
+            source = tuple(candidates.items()) if isinstance(candidates, Mapping) else candidates
+            if isinstance(source, (str, bytes)) or not isinstance(source, Sequence):
+                raise TypeError("candidates must be a sequence or mapping")
+            for item in source:
+                if isinstance(candidates, Mapping):
+                    instrument, value = item
+                    record = dict(value) if isinstance(value, Mapping) else {"score": value}
+                    record["instrument"] = instrument
+                elif isinstance(item, str):
+                    record = {"instrument": item}
+                elif isinstance(item, Mapping):
+                    record = dict(item)
+                else:
+                    record = {name: getattr(item, name) for name in ("instrument", "symbol", "score", "industry", "factors") if hasattr(item, name)}
+                instrument = str(record.get("instrument", record.get("symbol", record.get("id", "")))).strip()
+                if not instrument or any(token in instrument.casefold() for token in _FORBIDDEN):
+                    raise ValueError("candidate instrument is invalid")
+                factors = record.get("factors", record.get("factor_exposures", record.get("factor_exposure", record.get("factor_scores", {}))))
+                if not isinstance(factors, Mapping):
+                    raise ValueError("candidate factors must be a mapping")
+                clean_factors = {str(key): _number(value, f"factor.{key}") for key, value in factors.items()}
+                score = _number(record.get("score", record.get("rank_score", 1.0)), f"score.{instrument}")
+                records.append({"instrument": instrument, "score": max(0.0, score), "industry": str(record.get("industry", record.get("sector", ""))), "factors": clean_factors})
+            unique: dict[str, dict[str, Any]] = {item["instrument"]: item for item in records}
+            records = sorted(unique.values(), key=lambda item: (-item["score"], item["instrument"]))
+            if not records:
+                raise ValueError("no candidates")
+
+            max_single = _number(policy.get("max_single_weight", policy.get("max_weight", 1.0)), "max_single_weight")
+            risk_single = risk_result.limits.get("max_concentration", risk_result.limits.get("concentration_limit"))
+            if risk_single is not None:
+                max_single = min(max_single, _number(risk_single, "risk.max_concentration"))
+            max_exposure = _number(policy.get("max_exposure", policy.get("max_total_exposure", policy.get("total_exposure", 1.0))), "max_exposure")
+            cash_buffer = _number(policy.get("cash_buffer", policy.get("cash_minimum", policy.get("min_cash", 0.0))), "cash_buffer")
+            if not (0 <= max_single <= 1 and 0 <= max_exposure <= 1 and 0 <= cash_buffer <= 1):
+                raise ValueError("portfolio constraints must be between zero and one")
+            target = min(max_exposure, 1.0 - cash_buffer)
+            industry_limits = policy.get("industry_limits", policy.get("industry_caps", policy.get("industry_exposure_limits", {})))
+            factor_limits = policy.get("factor_limits", policy.get("factor_bounds", policy.get("factor_exposure_limits", {})))
+            if not isinstance(industry_limits, Mapping) or not isinstance(factor_limits, Mapping):
+                raise ValueError("exposure limits must be mappings")
+            industry_limits = {str(key): _number(value, f"industry_limits.{key}") for key, value in industry_limits.items()}
+            if any(value < 0 or value > 1 for value in industry_limits.values()):
+                raise ValueError("industry limits must be between zero and one")
+            parsed_factors: dict[str, tuple[float, float]] = {}
+            for key, value in factor_limits.items():
+                if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) and len(value) == 2:
+                    bounds = (_number(value[0], f"factor_limits.{key}[0]"), _number(value[1], f"factor_limits.{key}[1]"))
+                else:
+                    bound = abs(_number(value, f"factor_limits.{key}"))
+                    bounds = (-bound, bound)
+                if bounds[0] > bounds[1]:
+                    raise ValueError("factor limit lower bound exceeds upper bound")
+                parsed_factors[str(key)] = bounds
+
+            previous_raw = policy.get("previous_weights", policy.get("current_weights", {}))
+            if not isinstance(previous_raw, Mapping):
+                raise ValueError("previous_weights must be a mapping")
+            previous = {str(key): max(0.0, _number(value, f"previous_weights.{key}")) for key, value in previous_raw.items()}
+            max_turnover = policy.get("max_turnover", policy.get("turnover_limit"))
+            max_turnover_value = None if max_turnover is None else _number(max_turnover, "max_turnover")
+            if max_turnover_value is not None and max_turnover_value < 0:
+                raise ValueError("max_turnover must be non-negative")
+            cost_bps = _number(policy.get("transaction_cost_bps", policy.get("cost_bps", 0.0)), "transaction_cost_bps")
+            max_cost = policy.get("max_transaction_cost", policy.get("cost_limit"))
+            max_cost_value = None if max_cost is None else _number(max_cost, "max_transaction_cost")
+            if cost_bps < 0 or (max_cost_value is not None and max_cost_value < 0):
+                raise ValueError("transaction costs must be non-negative")
+
+            positive_score = sum(item["score"] for item in records)
+            weights: dict[str, float] = {}
+            industry_used: dict[str, float] = {}
+            preserve_previous = bool(previous) and sum(previous.values()) <= target + 1e-8
+            for item in records:
+                name = item["instrument"]
+                desired = target * (item["score"] / positive_score if positive_score else 1.0 / len(records))
+                cap = max_single
+                industry = item["industry"]
+                if industry in industry_limits:
+                    cap = min(cap, max(0.0, industry_limits[industry] - industry_used.get(industry, 0.0)))
+                if max_turnover_value is not None:
+                    cap = min(cap, previous.get(name, 0.0) + max_turnover_value)
+                if preserve_previous and name in previous:
+                    desired = previous[name]
+                weights[name] = max(0.0, min(desired, cap))
+                industry_used[industry] = industry_used.get(industry, 0.0) + weights[name]
+
+            # Repair factor bounds by moving weight from the violating side to
+            # the most suitable opposing candidate.  A bounded iteration keeps
+            # behavior stable while avoiding an unconstrained fallback.
+            for _ in range(len(records) * 4 + 1):
+                changed = False
+                for factor, (lower, upper) in parsed_factors.items():
+                    exposure = sum(weights[item["instrument"]] * item["factors"].get(factor, 0.0) for item in records)
+                    if exposure > upper + 1e-10:
+                        donors = sorted((item for item in records if item["factors"].get(factor, 0.0) > 0), key=lambda item: (-item["factors"].get(factor, 0.0), item["instrument"]))
+                        receivers = sorted((item for item in records if item["factors"].get(factor, 0.0) < 0), key=lambda item: (item["factors"].get(factor, 0.0), item["instrument"]))
+                        excess = exposure - upper
+                    elif exposure < lower - 1e-10:
+                        donors = sorted((item for item in records if item["factors"].get(factor, 0.0) < 0), key=lambda item: (item["factors"].get(factor, 0.0), item["instrument"]))
+                        receivers = sorted((item for item in records if item["factors"].get(factor, 0.0) > 0), key=lambda item: (-item["factors"].get(factor, 0.0), item["instrument"]))
+                        excess = lower - exposure
+                    else:
+                        continue
+                    if not donors or not receivers:
+                        continue
+                    donor, receiver = donors[0], receivers[0]
+                    donor_name, receiver_name = donor["instrument"], receiver["instrument"]
+                    delta = min(weights[donor_name], excess / max(abs(donor["factors"].get(factor, 0.0)) + abs(receiver["factors"].get(factor, 0.0)), 1e-12))
+                    receiver_cap = max_single
+                    if receiver["industry"] in industry_limits:
+                        receiver_cap = min(receiver_cap, max(0.0, industry_limits[receiver["industry"]] - sum(weights[item["instrument"]] for item in records if item["industry"] == receiver["industry"])))
+                    delta = min(delta, max(0.0, receiver_cap - weights[receiver_name]))
+                    if delta > 1e-12:
+                        weights[donor_name] -= delta
+                        weights[receiver_name] += delta
+                        changed = True
+                if not changed:
+                    break
+
+            total = sum(weights.values())
+            turnover = sum(abs(weights.get(name, 0.0) - previous.get(name, 0.0)) for name in set(weights) | set(previous))
+            cost = turnover * cost_bps / 10000.0
+            factor_values = {factor: sum(weights[item["instrument"]] * item["factors"].get(factor, 0.0) for item in records) for factor in parsed_factors}
+            industry_values = {industry: sum(weights[item["instrument"]] for item in records if item["industry"] == industry) for industry in industry_limits}
+            valid = total <= target + 1e-8 and all(value <= limit + 1e-8 for industry, value in industry_values.items() for limit in [industry_limits[industry]]) and all(lower - 1e-8 <= factor_values[factor] <= upper + 1e-8 for factor, (lower, upper) in parsed_factors.items())
+            if max_turnover_value is not None:
+                valid = valid and turnover <= max_turnover_value + 1e-8
+            if max_cost is not None:
+                valid = valid and cost <= max_cost_value + 1e-8
+            if policy.get("require_target_exposure") is True:
+                valid = valid and total >= target - 1e-8
+            if not valid:
+                return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="portfolio constraints are infeasible")
+            return PaperPortfolioProposal(status="PASSED", passed=True, weights=weights, cash_weight=max(0.0, 1.0 - total), candidates=tuple(item["instrument"] for item in records), risk_digest=digest, constraints=policy, rationale="deterministic constrained long-only paper allocation; no investment recommendation")
+        except (TypeError, ValueError, KeyError) as exc:
+            # Keep diagnostics generic so malformed/unsafe inputs cannot leak
+            # paths, credentials, or arbitrary caller text into the proposal.
+            return PaperPortfolioProposal(status="BLOCKED", risk_digest=risk_result.fingerprint if isinstance(risk_result, RiskReviewResult) else "", constraints={}, rationale="portfolio optimization blocked")
+
 
 __all__ = ["PaperPortfolioProposal", "PortfolioManager"]
