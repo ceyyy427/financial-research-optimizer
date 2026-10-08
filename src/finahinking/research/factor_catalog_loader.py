@@ -46,7 +46,7 @@ def _entry(raw: Any) -> FactorCatalogEntry:
         raise ValueError(f"unknown catalog field: {min(unknown)}")
     values = {key: raw[key] for key in _ENTRY_FIELDS - {"fingerprint"} if key in raw}
     entry = FactorCatalogEntry(**values)
-    audit = audit_factor_catalog_entry(entry)
+    audit = audit_factor_catalog_entry(entry, require_evaluation=True)
     if not audit.eligible:
         raise ValueError(f"catalog entry is blocked: {entry.factor_id}")
     if "fingerprint" not in raw:
@@ -86,7 +86,7 @@ def admit_catalog_entry(
 ) -> RegisteredFactor | CatalogAdmissionProposal:
     """Return a proposal unless an explicit human record authorizes the write."""
 
-    audit = audit_factor_catalog_entry(entry)
+    audit = audit_factor_catalog_entry(entry, require_evaluation=True)
     if not audit.eligible:
         raise ValueError("catalog entry is blocked")
     if admission is None:

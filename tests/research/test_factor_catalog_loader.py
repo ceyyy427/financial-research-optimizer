@@ -42,6 +42,17 @@ def test_loader_validates_fingerprint_and_builds_immutable_catalog(tmp_path) -> 
         load_audited_catalog(path)
 
 
+def test_loader_rejects_missing_evaluation_fingerprint(tmp_path) -> None:
+    row = _row()
+    row.pop("evaluation_fingerprint")
+    entry = FactorCatalogEntry(**row)
+    row["fingerprint"] = entry.fingerprint
+    path = tmp_path / "catalog.json"
+    path.write_text(json.dumps({"entries": [row]}), encoding="utf-8")
+    with pytest.raises(ValueError, match="evaluation fingerprint"):
+        load_audited_catalog(path)
+
+
 @pytest.mark.parametrize("override, message", [
     ({"required_fields": ["future_return"]}, "future"),
     ({"license_status": "PROPRIETARY_UNREVIEWED"}, "license"),

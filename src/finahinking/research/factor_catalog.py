@@ -128,7 +128,7 @@ class FactorCatalogEntry:
         return {**self._payload(), "fingerprint": self.fingerprint}
 
 
-def audit_factor_catalog_entry(entry: FactorCatalogEntry) -> FactorCatalogAudit:
+def audit_factor_catalog_entry(entry: FactorCatalogEntry, *, require_evaluation: bool = False) -> FactorCatalogAudit:
     """Fail closed when source, license, PIT or field metadata is incomplete."""
 
     if not isinstance(entry, FactorCatalogEntry):
@@ -143,6 +143,8 @@ def audit_factor_catalog_entry(entry: FactorCatalogEntry) -> FactorCatalogAudit:
         raise ValueError("PIT semantics are missing or unknown")
     if not entry.required_fields:
         raise ValueError("required source fields are missing")
+    if require_evaluation and not entry.evaluation_fingerprint:
+        raise ValueError("evaluation fingerprint is required")
     if len(set(entry.source_ids)) != len(entry.source_ids):
         raise ValueError("duplicate source metadata")
     if len(set(entry.required_fields)) != len(entry.required_fields):

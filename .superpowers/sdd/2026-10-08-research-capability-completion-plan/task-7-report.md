@@ -60,6 +60,20 @@ PYTHONPATH=src python3 -m pytest -q
 The same pre-existing wheel-install integration failure remains isolated to
 `tests/validation/test_artifact_install.py`.
 
+## Review fix round 2
+
+Added a red regression for JSON entries missing `evaluation_fingerprint`.
+Audited loading now calls the catalog audit with evaluation provenance
+required, so such entries fail closed before becoming proposals. Explicit
+admission uses the same requirement. The legacy metadata audit remains
+backward-compatible for proposal-only callers, while the loader and admission
+boundary require the fingerprint.
+
+```text
+PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_catalog_loader.py tests/research/test_factor_catalog.py tests/research/test_factor_registry.py tests/research/test_factor_pipeline.py tests/research/test_factor_template_catalog.py
+61 passed
+```
+
 ## Boundary
 
 Catalog loading is read-only. Registry mutation requires a typed, explicit
