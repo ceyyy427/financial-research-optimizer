@@ -322,6 +322,10 @@ class LocalApplication:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
         self._research_runs: dict[str, dict[str, Any]] = {}
+        from finahinking.research.provider_config import ProviderConfigStore
+
+        provider_path = None if self.config.db_path == ":memory:" else Path(self.config.db_path).expanduser().with_suffix(".providers.json")
+        self._provider_configs = ProviderConfigStore(provider_path)
         if self.config.db_path == ":memory:":
             self._data_connections = DataConnectionSettingsStore(data_credential_store)
         else:
@@ -798,11 +802,10 @@ class LocalApplication:
     def research_script_asset() -> bytes:
         return LocalApplication.asset_bytes("finathink-research.js")
 
-    @staticmethod
-    def _provider_config() -> dict[str, Any]:
+    def _provider_config(self) -> dict[str, Any]:
         """Return the local provider registry without accepting secret values."""
 
-        return {
+        config = {
             "defaults": {
                 "provider": os.environ.get("FINAHINKING_PROVIDER", "offline"),
                 "model": os.environ.get("FINAHINKING_MODEL", "fixture-v1"),
@@ -826,6 +829,11 @@ class LocalApplication:
                 },
             ],
         }
+        configured = {item["provider_id"]: item for item in self._provider_configs.list()}
+        config["providers"] = [item for item in config["providers"] if item["name"] not in configured]
+        for item in configured.values():
+            config["providers"].append({"name": item["provider_id"], "model": item["model"], "enabled": item["enabled"], "offline": item["adapter_kind"] == "offline", "credential_ref": item["credential_ref"], "capabilities": ["structured_output"]})
+        return config
 
     @staticmethod
     def katex_asset(asset_name: str, *, font: bool = False) -> bytes:
@@ -1002,6 +1010,23 @@ class LocalApplication:
         parsed = urlsplit(path)
         query = parse_qs(parsed.query) if query is None else query
         clean = parsed.path.rstrip("/") or "/"
+        if clean == "/api/research/providers/config":
+            if method == "GET":
+                return 200, "application/json", {"providers": list(self._provider_configs.list()), "paper_only": True, "provider_called": False}
+            if method != "POST":
+                return 405, "application/json", {"error": "provider configuration supports GET and POST"}
+            denied = self._data_write_guard(body)
+            if denied is not None:
+                return denied
+            from finahinking.research.provider_config import ProviderConfig
+
+            try:
+                config = ProviderConfig.from_mapping({key: value for key, value in body.items() if key != "_csrf"})
+                self._provider_configs.save(config)
+            except (TypeError, ValueError) as exc:
+                status = 409 if str(exc) == "provider already exists" else 400
+                return status, "application/json", {"error": str(exc)}
+            return 201, "application/json", config.redacted()
         if clean == "/settings/data-connections" and method == "GET":
             return 200, "text/html; charset=utf-8", self._data_connections_page()
         if clean == "/api/data/connections" and method == "GET":

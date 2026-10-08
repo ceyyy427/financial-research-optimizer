@@ -130,9 +130,9 @@ def provider_status_payload(
     env = environment or {}
     statuses: list[ProviderStatus] = []
     for item in providers:
-        if not isinstance(item, Mapping) or not str(item.get("name", "")).strip():
+        if not isinstance(item, Mapping) or not str(item.get("name", item.get("provider_id", ""))).strip():
             raise ValueError("each provider requires a name")
-        name = str(item["name"]).strip()
+        name = str(item.get("name", item.get("provider_id"))).strip()
         model = str(item.get("model", default_model)).strip()
         if not model:
             raise ValueError("provider model must be non-empty")
@@ -170,9 +170,23 @@ def provider_status_payload(
             )
         )
     statuses.sort(key=lambda status: status.provider)
-    return {
+    payload = {
         "defaults": {"provider": default_provider, "model": default_model},
         "role_models": role_models,
         "providers": [status.to_dict() for status in statuses],
         "secret_policy": "Only credential references are returned; secret values stay in the user environment or keychain.",
     }
+    # Persisted user configurations expose only non-sensitive adapter metadata.
+    metadata_by_name = {
+        str(source.get("name", source.get("provider_id"))).strip(): source
+        for source in providers
+        if isinstance(source, Mapping)
+    }
+    for target in payload["providers"]:
+        source = metadata_by_name.get(str(target.get("provider")))
+        if isinstance(source, Mapping) and isinstance(target, dict):
+            if isinstance(source.get("adapter_kind"), str):
+                target["adapter_kind"] = source["adapter_kind"]
+            if type(source.get("endpoint_configured")) is bool:
+                target["endpoint_configured"] = source["endpoint_configured"]
+    return payload
