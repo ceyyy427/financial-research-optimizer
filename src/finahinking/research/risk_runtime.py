@@ -10,13 +10,15 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, is_dataclass
+from types import MappingProxyType
 from typing import Any
 
-from .contracts import stable_digest
+from .contracts import _unsafe_public_text, stable_digest
 
 _FORBIDDEN = {"broker", "order", "orders", "cancel", "account", "live", "endpoint", "credential", "secret"}
 _PIT_PASS = {"AVAILABLE", "VALID", "VERIFIED", "KNOWN", "READY", "TRUE", "OK"}
 _PIT_FAIL = {"UNKNOWN", "UNAVAILABLE", "INVALID", "FALSE", "STALE", "MISSING", "UNVERIFIED"}
+_LIQUIDITY_BUCKETS = {"HIGH", "MEDIUM", "LOW"}
 
 
 def _safe(value: Any, path: str = "value") -> Any:
@@ -95,29 +97,36 @@ def _pit_status(snapshot: Mapping[str, Any]) -> str:
         if isinstance(semantics, bool):
             return "AVAILABLE" if semantics else "UNKNOWN"
         raw = semantics
+    explicit: str | None = None
     if isinstance(raw, str):
         value = raw.strip().upper().replace("-", "_")
         if value in _PIT_PASS or value in _PIT_FAIL:
-            return value
-        if "UNKNOWN" in value or "UNAVAILABLE" in value:
-            return "UNKNOWN"
-        if "AVAILABLE" in value or "VERIFIED" in value:
-            return "AVAILABLE"
+            explicit = value
+        elif "UNKNOWN" in value or "UNAVAILABLE" in value:
+            explicit = "UNKNOWN"
+        elif "AVAILABLE" in value or "VERIFIED" in value:
+            explicit = "AVAILABLE"
     if isinstance(raw, Mapping):
         nested_status = _nested(raw, "status", "state", "value")
         if nested_status is not None:
-            return _pit_status({"pit_status": nested_status})
+            explicit = _pit_status({"pit_status": nested_status})
     observations = snapshot.get("observations", snapshot.get("records", ()))
     as_of = snapshot.get("as_of")
-    if isinstance(observations, Sequence) and not isinstance(observations, (str, bytes)) and as_of is not None:
-        available = []
-        for item in observations:
-            if isinstance(item, Mapping):
-                value = item.get("available_at", item.get("timestamp"))
-                if value is not None:
-                    available.append(str(value) <= str(as_of))
-        if available and all(available):
-            return "AVAILABLE"
+    if as_of is not None and observations is not None:
+        try:
+            records = _observations(snapshot)
+        except (TypeError, ValueError):
+            return "UNKNOWN"
+        if records:
+            for item in records:
+                available_at = item.get("available_at", item.get("timestamp"))
+                if available_at is None or str(available_at) > str(as_of):
+                    return "UNKNOWN"
+            if explicit in _PIT_FAIL:
+                return explicit
+            return explicit if explicit in _PIT_PASS else "AVAILABLE"
+    if explicit is not None:
+        return explicit
     return "UNKNOWN"
 
 
@@ -215,11 +224,82 @@ def _report_texts(value: Any, field_name: str) -> tuple[str, ...]:
     raw = value.get(field_name, ()) if isinstance(value, Mapping) else ()
     if isinstance(raw, (str, bytes)) or not isinstance(raw, Sequence):
         return ()
-    return tuple(dict.fromkeys(str(item) for item in raw if str(item).strip()))
+    if any(not isinstance(item, str) or _unsafe_public_text(item) for item in raw):
+        return ()
+    return tuple(dict.fromkeys(item.strip() for item in raw if item.strip()))
 
 
 def _normalize_report_status(value: Mapping[str, Any]) -> bool:
-    return value.get("passed") is True or str(value.get("status", "")).upper() == "PASSED"
+    if not isinstance(value, Mapping) or value.get("paper_only") is not True:
+        return False
+    status = str(value.get("status", "")).strip().upper()
+    passed = value.get("passed")
+    if status not in {"PASSED", "BLOCKED", "FAILED"} or not isinstance(passed, bool):
+        return False
+    if (status == "PASSED") != passed:
+        return False
+    fingerprint = value.get("fingerprint")
+    if not isinstance(fingerprint, str) or len(fingerprint) != 64:
+        return False
+    if _report_texts(value, "evidence_refs") != tuple(value.get("evidence_refs", ()) or ()):
+        return False
+    if _report_texts(value, "limitations") != tuple(value.get("limitations", ()) or ()):
+        return False
+    try:
+        if "industry_exposure" in value:
+            required = {"industry_exposure", "factor_exposure", "liquidity_buckets", "concentration", "cvar", "confidence"}
+            if not required.issubset(value):
+                return False
+            report = ExposureReport(
+                status=status,
+                passed=passed,
+                industry_exposure=value["industry_exposure"],
+                factor_exposure=value["factor_exposure"],
+                liquidity_buckets=value["liquidity_buckets"],
+                concentration=value["concentration"],
+                cvar=value["cvar"],
+                confidence=value["confidence"],
+                blocking_reasons=value.get("blocking_reasons", ()),
+                evidence_refs=_report_texts(value, "evidence_refs"),
+                limitations=_report_texts(value, "limitations"),
+                snapshot_digest=value.get("snapshot_digest", ""),
+                portfolio_digest=value.get("portfolio_digest", ""),
+                factor_digest=value.get("factor_digest", ""),
+                paper_only=True,
+            )
+        elif "scenarios" in value:
+            report = StressReport(
+                status=status,
+                passed=passed,
+                scenarios=value["scenarios"],
+                blocking_reasons=value.get("blocking_reasons", ()),
+                evidence_refs=_report_texts(value, "evidence_refs"),
+                limitations=_report_texts(value, "limitations"),
+                snapshot_digest=value.get("snapshot_digest", ""),
+                portfolio_digest=value.get("portfolio_digest", ""),
+                paper_only=True,
+            )
+        else:
+            return False
+    except (TypeError, ValueError):
+        return False
+    return report.fingerprint == fingerprint
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze(child) for key, child in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(child) for child in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _thaw(child) for key, child in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(child) for child in value]
+    return value
 
 
 def _weights(portfolio: Any) -> tuple[dict[str, float], dict[str, Any]]:
@@ -310,13 +390,13 @@ class ExposureReport:
         passed = bool(self.passed)
         object.__setattr__(self, "passed", passed)
         object.__setattr__(self, "status", "PASSED" if passed else "BLOCKED")
-        object.__setattr__(self, "industry_exposure", dict(sorted((str(k), round(_number(v, f"industry_exposure.{k}"), 12)) for k, v in self.industry_exposure.items())))
-        object.__setattr__(self, "factor_exposure", dict(sorted((str(k), round(_number(v, f"factor_exposure.{k}"), 12)) for k, v in self.factor_exposure.items())))
-        object.__setattr__(self, "liquidity_buckets", dict(sorted((str(k), round(_number(v, f"liquidity_buckets.{k}"), 12)) for k, v in self.liquidity_buckets.items())))
+        object.__setattr__(self, "industry_exposure", _freeze(dict(sorted((str(k), round(_number(v, f"industry_exposure.{k}"), 12)) for k, v in self.industry_exposure.items()))))
+        object.__setattr__(self, "factor_exposure", _freeze(dict(sorted((str(k), round(_number(v, f"factor_exposure.{k}"), 12)) for k, v in self.factor_exposure.items()))))
+        object.__setattr__(self, "liquidity_buckets", _freeze(dict(sorted((str(k), round(_number(v, f"liquidity_buckets.{k}"), 12)) for k, v in self.liquidity_buckets.items()))))
         clean_concentration: dict[str, float | str] = {}
         for key, value in self.concentration.items():
             clean_concentration[str(key)] = value if isinstance(value, str) else round(_number(value, f"concentration.{key}"), 12)
-        object.__setattr__(self, "concentration", dict(sorted(clean_concentration.items())))
+        object.__setattr__(self, "concentration", _freeze(dict(sorted(clean_concentration.items()))))
         if self.cvar is not None:
             object.__setattr__(self, "cvar", round(_number(self.cvar, "cvar"), 12))
         object.__setattr__(self, "confidence", _number(self.confidence, "confidence"))
@@ -354,10 +434,10 @@ class ExposureReport:
         return {
             "status": self.status,
             "passed": self.passed,
-            "industry_exposure": dict(self.industry_exposure),
-            "factor_exposure": dict(self.factor_exposure),
-            "liquidity_buckets": dict(self.liquidity_buckets),
-            "concentration": dict(self.concentration),
+            "industry_exposure": _thaw(self.industry_exposure),
+            "factor_exposure": _thaw(self.factor_exposure),
+            "liquidity_buckets": _thaw(self.liquidity_buckets),
+            "concentration": _thaw(self.concentration),
             "cvar": self.cvar,
             "confidence": self.confidence,
             "blocking_reasons": list(self.blocking_reasons),
@@ -389,7 +469,7 @@ class StressReport:
         passed = bool(self.passed)
         object.__setattr__(self, "passed", passed)
         object.__setattr__(self, "status", "PASSED" if passed else "BLOCKED")
-        object.__setattr__(self, "scenarios", {str(k): dict(v) for k, v in sorted(self.scenarios.items())})
+        object.__setattr__(self, "scenarios", _freeze({str(k): dict(v) for k, v in sorted(self.scenarios.items())}))
         object.__setattr__(self, "blocking_reasons", tuple(dict.fromkeys(str(item) for item in self.blocking_reasons)))
         object.__setattr__(self, "evidence_refs", tuple(dict.fromkeys(str(item) for item in self.evidence_refs if str(item).strip())))
         object.__setattr__(self, "limitations", tuple(dict.fromkeys(str(item) for item in self.limitations if str(item).strip())))
@@ -412,7 +492,7 @@ class StressReport:
         return {
             "status": self.status,
             "passed": self.passed,
-            "scenarios": {key: dict(value) for key, value in self.scenarios.items()},
+            "scenarios": _thaw(self.scenarios),
             "blocking_reasons": list(self.blocking_reasons),
             "evidence_refs": list(self.evidence_refs),
             "limitations": list(self.limitations),
@@ -440,7 +520,11 @@ class RiskManager:
         except (TypeError, ValueError) as exc:
             factors = {}
             reasons.append(f"factor metadata unavailable: {exc}")
-        observations = _observation_index(snap)
+        try:
+            observations = _observation_index(snap)
+        except (TypeError, ValueError) as exc:
+            observations = {}
+            reasons.append(f"snapshot observations malformed: {exc}")
         snapshot_digest = stable_digest(snap)
         portfolio_digest = stable_digest(portfolio_data)
         factor_digest = stable_digest(factors)
@@ -483,8 +567,14 @@ class RiskManager:
                     except (TypeError, ValueError):
                         reasons.append(f"factor exposure invalid: {instrument}.{name}")
             bucket = _nested(observation, "liquidity_bucket", "liquidity_tier", "liquidity")
-            if bucket is not None and isinstance(bucket, str) and bucket.strip().upper() not in {"UNKNOWN", "UNAVAILABLE", "MISSING", "N/A"}:
+            if bucket is not None and isinstance(bucket, str):
                 bucket_name = bucket.strip().upper()
+                if bucket_name not in _LIQUIDITY_BUCKETS:
+                    reasons.append(f"liquidity bucket invalid: {instrument}")
+                    bucket_name = "UNKNOWN"
+            elif bucket is not None:
+                reasons.append(f"liquidity bucket invalid: {instrument}")
+                bucket_name = "UNKNOWN"
             else:
                 raw_liquidity = _nested(observation, "average_volume", "volume", "dollar_volume", "liquidity_value")
                 try:
@@ -576,7 +666,13 @@ class RiskManager:
         except (TypeError, ValueError) as exc:
             weights, portfolio_data = {}, {}
             reasons.append(f"portfolio metrics unavailable: {exc}")
-        observations = _observation_index(snap)
+        try:
+            observations = _observation_index(snap)
+        except (TypeError, ValueError) as exc:
+            observations = {}
+            reasons.append(f"snapshot observations malformed: {exc}")
+        if any(instrument not in observations for instrument in weights):
+            reasons.append("snapshot observations are missing portfolio instruments")
         snapshot_digest = stable_digest(snap)
         portfolio_digest = stable_digest(portfolio_data)
         if _pit_status(snap) not in _PIT_PASS:
@@ -608,7 +704,9 @@ class RiskManager:
                     continue
                 explicit_loss = _nested(config, "loss", "drawdown")
                 if explicit_loss is not None:
-                    loss = abs(_number(explicit_loss, f"stress.{name}.loss"))
+                    loss = _number(explicit_loss, f"stress.{name}.loss")
+                    if loss < 0:
+                        raise ValueError("stress scenario loss must be non-negative")
                     attribution = {"explicit": loss}
                 else:
                     scalar = _nested(config, "return_shock", "market_shock", "shock")
@@ -623,6 +721,23 @@ class RiskManager:
                         raise ValueError("scenario shock maps must be mappings")
                     if not scalar_was_supplied and not instrument_shocks and not industry_shocks and not factor_shocks:
                         raise ValueError("scenario has no shock metric")
+                    unknown_instruments = set(str(key) for key in instrument_shocks) - set(weights)
+                    if unknown_instruments:
+                        raise ValueError("scenario contains unknown instrument shock target")
+                    known_industries = {
+                        str(_nested(item, "industry", "sector"))
+                        for item in observations.values()
+                        if _nested(item, "industry", "sector") is not None
+                    }
+                    if set(str(key) for key in industry_shocks) - known_industries:
+                        raise ValueError("scenario contains unknown industry shock target")
+                    known_factors = {
+                        str(factor_name)
+                        for item in observations.values()
+                        for factor_name in (_nested(item, "factors", "factor_exposures") or {})
+                    }
+                    if set(str(key) for key in factor_shocks) - known_factors:
+                        raise ValueError("scenario contains unknown factor shock target")
                     loss = 0.0
                     for instrument, weight in weights.items():
                         observation = observations.get(instrument)
@@ -642,9 +757,10 @@ class RiskManager:
                         attribution[instrument] = contribution
                 threshold = _nested(config, "max_loss", "loss_limit", "max_drawdown")
                 if threshold is None:
-                    threshold_value = None
-                else:
-                    threshold_value = abs(_number(threshold, f"stress.{name}.max_loss"))
+                    raise ValueError("stress scenario max_loss is unavailable")
+                threshold_value = _number(threshold, f"stress.{name}.max_loss")
+                if threshold_value < 0:
+                    raise ValueError("stress scenario max_loss must be non-negative")
                 passed = threshold_value is None or loss <= threshold_value + 1e-12
                 outcome = {
                     "status": "PASSED" if passed else "BLOCKED",
@@ -707,26 +823,34 @@ class RiskManager:
             reasons.append("factor result requests production write")
         gates.append("factor")
 
-        observations = _observations(snap)
+        try:
+            observations = _observations(snap)
+        except (TypeError, ValueError) as exc:
+            observations = ()
+            reasons.append(f"snapshot observations malformed: {exc}")
         metrics = factor.get("metrics") if isinstance(factor.get("metrics"), Mapping) else {}
         snapshot_metrics = snap.get("metrics") if isinstance(snap.get("metrics"), Mapping) else {}
 
         exposure_report = snap.get("exposure_report")
         if isinstance(exposure_report, Mapping):
-            exposure_digest = str(exposure_report.get("fingerprint", ""))
-            evidence_refs.extend(_report_texts(exposure_report, "evidence_refs"))
-            limitations.extend(_report_texts(exposure_report, "limitations"))
-            if not _normalize_report_status(exposure_report):
+            if _normalize_report_status(exposure_report):
+                exposure_digest = str(exposure_report["fingerprint"])
+                evidence_refs.extend(_report_texts(exposure_report, "evidence_refs"))
+                limitations.extend(_report_texts(exposure_report, "limitations"))
+            else:
                 report_reasons = _report_texts(exposure_report, "blocking_reasons")
-                reasons.extend(f"exposure: {item}" for item in (report_reasons or ("report is blocked",)))
+                reasons.extend(f"exposure: {item}" for item in (report_reasons or ("embedded report is invalid or blocked",)))
             gates.append("exposure")
         stress_report = snap.get("stress_report")
         if isinstance(stress_report, Mapping):
-            stress_digest = str(stress_report.get("fingerprint", ""))
-            evidence_refs.extend(_report_texts(stress_report, "evidence_refs"))
-            limitations.extend(_report_texts(stress_report, "limitations"))
-            if not _normalize_report_status(stress_report):
+            if _normalize_report_status(stress_report):
+                stress_digest = str(stress_report["fingerprint"])
+                evidence_refs.extend(_report_texts(stress_report, "evidence_refs"))
+                limitations.extend(_report_texts(stress_report, "limitations"))
+            else:
                 reasons.extend(f"stress: {item}" for item in _report_texts(stress_report, "blocking_reasons"))
+                if not _report_texts(stress_report, "blocking_reasons"):
+                    reasons.append("stress: embedded report is invalid or blocked")
             gates.append("stress_report")
 
         liquidity = _nested(metrics, "liquidity", "min_liquidity", "average_volume")

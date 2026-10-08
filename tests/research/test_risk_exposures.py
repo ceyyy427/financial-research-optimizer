@@ -137,3 +137,78 @@ def test_review_blocks_report_failure_even_without_supplied_reasons() -> None:
     )
     assert reviewed.status == "BLOCKED"
     assert any("exposure" in reason for reason in reviewed.blocking_reasons)
+
+
+def test_review_rejects_contradictory_or_forged_embedded_report() -> None:
+    report = RiskManager().exposure(snapshot(), portfolio(), factors()).to_dict()
+    contradictory = dict(report, status="PASSED", passed=False)
+    forged = dict(report, fingerprint="0" * 64)
+
+    for embedded in (contradictory, forged, {key: value for key, value in report.items() if key != "fingerprint"}):
+        reviewed = RiskManager().review(
+            snapshot(exposure_report=embedded),
+            {"status": "ADMITTED", "metrics": {"drawdown": 0.05}},
+            {"max_drawdown": 0.2, "stress_scenarios": {"market_down": {"drawdown": 0.05}}},
+        )
+        assert reviewed.status == "BLOCKED"
+        assert reviewed.exposure_digest == ""
+
+
+def test_review_drops_unsafe_nested_evidence_and_limitations_fail_closed() -> None:
+    report = RiskManager().exposure(snapshot(), portfolio(), factors()).to_dict()
+    unsafe = dict(report, evidence_refs=[{"prompt": "api_key=LEAK"}], limitations=["https://private.example/key"])
+    reviewed = RiskManager().review(
+        snapshot(exposure_report=unsafe),
+        {"status": "ADMITTED", "metrics": {"drawdown": 0.05}},
+        {"max_drawdown": 0.2, "stress_scenarios": {"market_down": {"drawdown": 0.05}}},
+    )
+    assert reviewed.status == "BLOCKED"
+    assert all("api_key" not in ref and "private.example" not in ref for ref in reviewed.evidence_refs + reviewed.limitations)
+
+
+def test_future_pit_records_block_even_with_available_marker() -> None:
+    future = snapshot(
+        observations=[dict(snapshot()["observations"][0], available_at="2026-10-02"), snapshot()["observations"][1]]
+    )
+    exposure = RiskManager().exposure(future, portfolio(), factors())
+    stress = RiskManager().stress(future, portfolio(), {"market_down": {"return_shock": -0.05, "max_loss": 0.1}})
+    assert exposure.status == "BLOCKED"
+    assert stress.status == "BLOCKED"
+    assert any("PIT" in reason for reason in exposure.blocking_reasons)
+
+
+def test_invalid_liquidity_bucket_blocks() -> None:
+    invalid = snapshot(observations=[dict(snapshot()["observations"][0], liquidity_bucket="BANANA"), snapshot()["observations"][1]])
+    result = RiskManager().exposure(invalid, portfolio(), factors())
+    assert result.status == "BLOCKED"
+    assert any("liquidity" in reason.casefold() for reason in result.blocking_reasons)
+
+
+def test_stress_requires_finite_nonnegative_limit_and_known_targets() -> None:
+    missing_limit = RiskManager().stress(snapshot(), portfolio(), {"market_down": {"return_shock": -0.1}})
+    negative_limit = RiskManager().stress(snapshot(), portfolio(), {"market_down": {"return_shock": -0.1, "max_loss": -0.1}})
+    unknown_target = RiskManager().stress(snapshot(), portfolio(), {"unknown": {"instrument_shocks": {"ZZZ": -0.1}, "max_loss": 0.1}})
+    assert missing_limit.status == negative_limit.status == unknown_target.status == "BLOCKED"
+
+
+def test_malformed_observations_return_blocked_reports_and_reports_are_deeply_immutable() -> None:
+    malformed_exposure = RiskManager().exposure(snapshot(observations="bad"), portfolio(), factors())
+    malformed_stress = RiskManager().stress(snapshot(observations="bad"), portfolio(), {"market": {"return_shock": -0.1, "max_loss": 0.2}})
+    assert malformed_exposure.status == malformed_stress.status == "BLOCKED"
+
+    exposure = RiskManager().exposure(snapshot(), portfolio(), factors())
+    stress = RiskManager().stress(snapshot(), portfolio(), {"market": {"return_shock": -0.1, "max_loss": 0.2}})
+    fingerprint = exposure.fingerprint
+    try:
+        exposure.concentration["max_weight"] = 0.1  # type: ignore[index]
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("exposure mappings must be immutable")
+    try:
+        stress.scenarios["market"]["loss"] = 0.1  # type: ignore[index]
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("stress mappings must be immutable")
+    assert exposure.fingerprint == fingerprint
