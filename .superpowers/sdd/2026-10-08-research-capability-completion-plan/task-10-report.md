@@ -16,4 +16,4 @@ Fix round 1 addressed all review findings: embedded reports now require a strict
 
 Fix-round validation: `python3 -m pytest -q tests/research` → 448 passed; full `python3 -m pytest -q` → 879 passed, 1 skipped, 1 existing multiprocessing deprecation warning. Ruff is unavailable (`command not found`).
 
-Post-review hardening retained the same fix-round gate results: blocked/failed embedded reports are never promoted, malformed report fields fail closed, numeric liquidity values still derive buckets, and stress scenario shells sanitize nested values before freezing.
+Post-review hardening retained the same fix-round gate results: blocked/failed embedded reports are never promoted, malformed report fields fail closed, numeric liquidity values still derive buckets, and stress scenario shells sanitize nested values before freezing. Embedded report payloads now require the exact serialized field set and strict boolean types.

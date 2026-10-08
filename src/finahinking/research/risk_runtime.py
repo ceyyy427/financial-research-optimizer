@@ -257,8 +257,8 @@ def _normalize_report_status(value: Mapping[str, Any]) -> bool:
         return False
     try:
         if "industry_exposure" in value:
-            required = {"industry_exposure", "factor_exposure", "liquidity_buckets", "concentration", "cvar", "confidence"}
-            if not required.issubset(value):
+            required = {"status", "passed", "industry_exposure", "factor_exposure", "liquidity_buckets", "concentration", "cvar", "confidence", "blocking_reasons", "evidence_refs", "limitations", "snapshot_digest", "portfolio_digest", "factor_digest", "paper_only", "fingerprint"}
+            if set(value) != required:
                 return False
             report = ExposureReport(
                 status=status,
@@ -278,6 +278,9 @@ def _normalize_report_status(value: Mapping[str, Any]) -> bool:
                 paper_only=True,
             )
         elif "scenarios" in value:
+            required = {"status", "passed", "scenarios", "blocking_reasons", "evidence_refs", "limitations", "snapshot_digest", "portfolio_digest", "paper_only", "fingerprint"}
+            if set(value) != required:
+                return False
             report = StressReport(
                 status=status,
                 passed=passed,
@@ -397,7 +400,9 @@ class ExposureReport:
     paper_only: bool = True
 
     def __post_init__(self) -> None:
-        passed = bool(self.passed)
+        if not isinstance(self.passed, bool):
+            raise TypeError("passed must be boolean")
+        passed = self.passed
         object.__setattr__(self, "passed", passed)
         object.__setattr__(self, "status", "PASSED" if passed else "BLOCKED")
         object.__setattr__(self, "industry_exposure", _freeze(dict(sorted((str(k), round(_number(v, f"industry_exposure.{k}"), 12)) for k, v in self.industry_exposure.items()))))
@@ -476,7 +481,9 @@ class StressReport:
     paper_only: bool = True
 
     def __post_init__(self) -> None:
-        passed = bool(self.passed)
+        if not isinstance(self.passed, bool):
+            raise TypeError("passed must be boolean")
+        passed = self.passed
         object.__setattr__(self, "passed", passed)
         object.__setattr__(self, "status", "PASSED" if passed else "BLOCKED")
         normalized_scenarios: dict[str, Any] = {}
@@ -721,6 +728,27 @@ class RiskManager:
                     reasons.append(f"stress scenario failed: {name}")
                     results[name] = outcome
                     continue
+                instrument_shocks = _nested(config, "instrument_shocks", "asset_shocks", "shocks") or {}
+                industry_shocks = _nested(config, "industry_shocks", "sector_shocks") or {}
+                factor_shocks = _nested(config, "factor_shocks", "factors") or {}
+                if not all(isinstance(item, Mapping) for item in (instrument_shocks, industry_shocks, factor_shocks)):
+                    raise ValueError("scenario shock maps must be mappings")
+                if set(str(key) for key in instrument_shocks) - set(weights):
+                    raise ValueError("scenario contains unknown instrument shock target")
+                known_industries = {
+                    str(_nested(item, "industry", "sector"))
+                    for item in observations.values()
+                    if _nested(item, "industry", "sector") is not None
+                }
+                if set(str(key) for key in industry_shocks) - known_industries:
+                    raise ValueError("scenario contains unknown industry shock target")
+                known_factors = {
+                    str(factor_name)
+                    for item in observations.values()
+                    for factor_name in (_nested(item, "factors", "factor_exposures") or {})
+                }
+                if set(str(key) for key in factor_shocks) - known_factors:
+                    raise ValueError("scenario contains unknown factor shock target")
                 explicit_loss = _nested(config, "loss", "drawdown")
                 if explicit_loss is not None:
                     loss = _number(explicit_loss, f"stress.{name}.loss")
@@ -733,30 +761,8 @@ class RiskManager:
                     if scalar is None:
                         scalar = 0.0
                     scalar_value = _number(scalar, f"stress.{name}.shock")
-                    instrument_shocks = _nested(config, "instrument_shocks", "asset_shocks", "shocks") or {}
-                    industry_shocks = _nested(config, "industry_shocks", "sector_shocks") or {}
-                    factor_shocks = _nested(config, "factor_shocks", "factors") or {}
-                    if not all(isinstance(item, Mapping) for item in (instrument_shocks, industry_shocks, factor_shocks)):
-                        raise ValueError("scenario shock maps must be mappings")
                     if not scalar_was_supplied and not instrument_shocks and not industry_shocks and not factor_shocks:
                         raise ValueError("scenario has no shock metric")
-                    unknown_instruments = set(str(key) for key in instrument_shocks) - set(weights)
-                    if unknown_instruments:
-                        raise ValueError("scenario contains unknown instrument shock target")
-                    known_industries = {
-                        str(_nested(item, "industry", "sector"))
-                        for item in observations.values()
-                        if _nested(item, "industry", "sector") is not None
-                    }
-                    if set(str(key) for key in industry_shocks) - known_industries:
-                        raise ValueError("scenario contains unknown industry shock target")
-                    known_factors = {
-                        str(factor_name)
-                        for item in observations.values()
-                        for factor_name in (_nested(item, "factors", "factor_exposures") or {})
-                    }
-                    if set(str(key) for key in factor_shocks) - known_factors:
-                        raise ValueError("scenario contains unknown factor shock target")
                     loss = 0.0
                     for instrument, weight in weights.items():
                         observation = observations.get(instrument)
