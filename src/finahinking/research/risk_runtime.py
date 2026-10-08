@@ -8,17 +8,19 @@ dependency; a missing or ambiguous gate is a blocking result.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, is_dataclass
 from types import MappingProxyType
 from typing import Any
 
-from .contracts import _unsafe_public_text, stable_digest
+from .contracts import _public_identifier, _unsafe_public_text, stable_digest
 
 _FORBIDDEN = {"broker", "order", "orders", "cancel", "account", "live", "endpoint", "credential", "secret"}
 _PIT_PASS = {"AVAILABLE", "VALID", "VERIFIED", "KNOWN", "READY", "TRUE", "OK"}
 _PIT_FAIL = {"UNKNOWN", "UNAVAILABLE", "INVALID", "FALSE", "STALE", "MISSING", "UNVERIFIED"}
 _LIQUIDITY_BUCKETS = {"HIGH", "MEDIUM", "LOW"}
+_PROMPT_TEXT = re.compile(r"\b(?:prompt|system\s+message|developer\s+message)\b", re.IGNORECASE)
 
 
 def _safe(value: Any, path: str = "value") -> Any:
@@ -224,9 +226,26 @@ def _report_texts(value: Any, field_name: str) -> tuple[str, ...]:
     raw = value.get(field_name, ()) if isinstance(value, Mapping) else ()
     if isinstance(raw, (str, bytes)) or not isinstance(raw, Sequence):
         return ()
-    if any(not isinstance(item, str) or _unsafe_public_text(item) for item in raw):
+    if any(not isinstance(item, str) or _unsafe_public_text(item) or _PROMPT_TEXT.search(item) for item in raw):
         return ()
     return tuple(dict.fromkeys(item.strip() for item in raw if item.strip()))
+
+
+def _safe_text_tuple(values: Any, field_name: str) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise TypeError(f"{field_name} must be a sequence of public text")
+    if any(not isinstance(item, str) or _unsafe_public_text(item) or _PROMPT_TEXT.search(item) for item in values):
+        raise ValueError(f"{field_name} contains unsafe public text")
+    return tuple(dict.fromkeys(item.strip() for item in values if item.strip()))
+
+
+def _safe_identifier(value: Any, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} identifier is invalid")
+    try:
+        return _public_identifier(value.strip(), field_name)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} identifier is invalid") from exc
 
 
 def _normalize_report_status(value: Mapping[str, Any]) -> bool:
@@ -254,6 +273,8 @@ def _normalize_report_status(value: Mapping[str, Any]) -> bool:
     if _report_texts(value, "evidence_refs") != tuple(raw_refs):
         return False
     if _report_texts(value, "limitations") != tuple(raw_limits):
+        return False
+    if not raw_refs or not raw_limits:
         return False
     try:
         if "industry_exposure" in value:
@@ -339,9 +360,10 @@ def _weights(portfolio: Any) -> tuple[dict[str, float], dict[str, Any]]:
         raise ValueError("portfolio weights are unavailable")
     result: dict[str, float] = {}
     for name, value in items:
-        instrument = str(name).strip()
-        if not instrument:
-            raise ValueError("portfolio instrument is empty")
+        try:
+            instrument = _safe_identifier(name, "portfolio instrument")
+        except ValueError as exc:
+            raise ValueError("portfolio instrument identifier is invalid") from exc
         weight = _number(value, f"portfolio.weights.{instrument}")
         if weight < -1e-12:
             raise ValueError("portfolio weights must be non-negative")
@@ -405,19 +427,29 @@ class ExposureReport:
         passed = self.passed
         object.__setattr__(self, "passed", passed)
         object.__setattr__(self, "status", "PASSED" if passed else "BLOCKED")
-        object.__setattr__(self, "industry_exposure", _freeze(dict(sorted((str(k), round(_number(v, f"industry_exposure.{k}"), 12)) for k, v in self.industry_exposure.items()))))
-        object.__setattr__(self, "factor_exposure", _freeze(dict(sorted((str(k), round(_number(v, f"factor_exposure.{k}"), 12)) for k, v in self.factor_exposure.items()))))
-        object.__setattr__(self, "liquidity_buckets", _freeze(dict(sorted((str(k), round(_number(v, f"liquidity_buckets.{k}"), 12)) for k, v in self.liquidity_buckets.items()))))
+        try:
+            industry = {_safe_identifier(k, "industry"): round(_number(v, "industry exposure"), 12) for k, v in self.industry_exposure.items()}
+            factors = {_safe_identifier(k, "factor"): round(_number(v, "factor exposure"), 12) for k, v in self.factor_exposure.items()}
+            liquidity = {_safe_identifier(k, "liquidity bucket"): round(_number(v, "liquidity exposure"), 12) for k, v in self.liquidity_buckets.items()}
+        except (TypeError, ValueError) as exc:
+            raise ValueError("exposure identifiers must be public identifiers") from exc
+        object.__setattr__(self, "industry_exposure", _freeze(dict(sorted(industry.items()))))
+        object.__setattr__(self, "factor_exposure", _freeze(dict(sorted(factors.items()))))
+        object.__setattr__(self, "liquidity_buckets", _freeze(dict(sorted(liquidity.items()))))
         clean_concentration: dict[str, float | str] = {}
         for key, value in self.concentration.items():
-            clean_concentration[str(key)] = value if isinstance(value, str) else round(_number(value, f"concentration.{key}"), 12)
+            try:
+                safe_key = _safe_identifier(key, "concentration")
+            except ValueError as exc:
+                raise ValueError("concentration identifiers must be public identifiers") from exc
+            clean_concentration[safe_key] = value if isinstance(value, str) else round(_number(value, "concentration value"), 12)
         object.__setattr__(self, "concentration", _freeze(dict(sorted(clean_concentration.items()))))
         if self.cvar is not None:
             object.__setattr__(self, "cvar", round(_number(self.cvar, "cvar"), 12))
         object.__setattr__(self, "confidence", _number(self.confidence, "confidence"))
-        object.__setattr__(self, "blocking_reasons", tuple(dict.fromkeys(str(item) for item in self.blocking_reasons)))
-        object.__setattr__(self, "evidence_refs", tuple(dict.fromkeys(str(item) for item in self.evidence_refs if str(item).strip())))
-        object.__setattr__(self, "limitations", tuple(dict.fromkeys(str(item) for item in self.limitations if str(item).strip())))
+        object.__setattr__(self, "blocking_reasons", _safe_text_tuple(self.blocking_reasons, "blocking_reasons"))
+        object.__setattr__(self, "evidence_refs", _safe_text_tuple(self.evidence_refs, "evidence_refs"))
+        object.__setattr__(self, "limitations", _safe_text_tuple(self.limitations, "limitations"))
         if self.paper_only is not True:
             raise ValueError("exposure report must be paper-only")
 
@@ -490,11 +522,15 @@ class StressReport:
         for key, value in self.scenarios.items():
             if not isinstance(value, Mapping):
                 raise TypeError("stress scenarios must be mappings")
-            normalized_scenarios[str(key)] = _safe(value, f"scenarios.{key}")
+            try:
+                safe_key = _safe_identifier(key, "stress scenario")
+            except ValueError as exc:
+                raise ValueError("stress scenario identifiers must be public identifiers") from exc
+            normalized_scenarios[safe_key] = _safe(value, "scenario")
         object.__setattr__(self, "scenarios", _freeze(dict(sorted(normalized_scenarios.items()))))
-        object.__setattr__(self, "blocking_reasons", tuple(dict.fromkeys(str(item) for item in self.blocking_reasons)))
-        object.__setattr__(self, "evidence_refs", tuple(dict.fromkeys(str(item) for item in self.evidence_refs if str(item).strip())))
-        object.__setattr__(self, "limitations", tuple(dict.fromkeys(str(item) for item in self.limitations if str(item).strip())))
+        object.__setattr__(self, "blocking_reasons", _safe_text_tuple(self.blocking_reasons, "blocking_reasons"))
+        object.__setattr__(self, "evidence_refs", _safe_text_tuple(self.evidence_refs, "evidence_refs"))
+        object.__setattr__(self, "limitations", _safe_text_tuple(self.limitations, "limitations"))
         if self.paper_only is not True:
             raise ValueError("stress report must be paper-only")
 
@@ -575,8 +611,12 @@ class RiskManager:
             if industry_name is None or not str(industry_name).strip():
                 reasons.append(f"industry exposure unavailable: {instrument}")
             else:
-                name = str(industry_name).strip()
-                industry[name] = industry.get(name, 0.0) + weight
+                try:
+                    name = _safe_identifier(industry_name, "industry")
+                except ValueError:
+                    reasons.append("industry exposure identifier is invalid")
+                else:
+                    industry[name] = industry.get(name, 0.0) + weight
             raw_exposures = _nested(factor, "factors", "factor_exposures")
             if raw_exposures is None:
                 raw_exposures = {key: value for key, value in factor.items() if str(key).casefold() not in {"industry", "sector", "factors", "factor_exposures"}}
@@ -585,9 +625,10 @@ class RiskManager:
             else:
                 for name, value in raw_exposures.items():
                     try:
-                        factor_totals[str(name)] = factor_totals.get(str(name), 0.0) + weight * _number(value, f"factor.{instrument}.{name}")
+                        safe_name = _safe_identifier(name, "factor")
+                        factor_totals[safe_name] = factor_totals.get(safe_name, 0.0) + weight * _number(value, "factor exposure")
                     except (TypeError, ValueError):
-                        reasons.append(f"factor exposure invalid: {instrument}.{name}")
+                        reasons.append("factor exposure identifier or value is invalid")
             bucket = _nested(observation, "liquidity_bucket", "liquidity_tier")
             if bucket is None and isinstance(observation.get("liquidity"), str):
                 bucket = observation["liquidity"]
@@ -712,7 +753,13 @@ class RiskManager:
             scenario_items = list(scenarios.items())
         results: dict[str, Mapping[str, Any]] = {}
         for raw_name, raw_config in scenario_items:
-            name = str(raw_name)
+            try:
+                name = _safe_identifier(raw_name, "stress scenario")
+            except ValueError:
+                name = f"scenario:{stable_digest(str(raw_name))}"
+                reasons.append("stress scenario identifier is invalid")
+                results[name] = {"status": "BLOCKED", "passed": False, "loss": None, "blocking_reasons": ["scenario identifier is invalid"]}
+                continue
             outcome: dict[str, Any] = {"status": "BLOCKED", "passed": False, "loss": None, "blocking_reasons": []}
             if not isinstance(raw_config, Mapping):
                 outcome["blocking_reasons"] = ["invalid scenario configuration"]
@@ -776,7 +823,8 @@ class RiskManager:
                             raise ValueError(f"factor exposure unavailable: {instrument}")
                         if isinstance(exposures, Mapping):
                             for factor_name, factor_value in exposures.items():
-                                shock += _number(factor_value, f"stress.{name}.{factor_name}") * _number(factor_shocks.get(factor_name, 0.0), f"stress.{name}.factor")
+                                safe_factor = _safe_identifier(factor_name, "factor")
+                                shock += _number(factor_value, "stress factor exposure") * _number(factor_shocks.get(factor_name, 0.0), "stress factor shock")
                         contribution = max(0.0, -weight * shock)
                         loss += contribution
                         attribution[instrument] = contribution
