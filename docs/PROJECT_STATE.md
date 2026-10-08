@@ -24,6 +24,7 @@ Phase changes require the corresponding gate design and an independent review.
 - P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
 - P8.2B status: REMOTE VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are merged; browser/vendor/provider gates remain conditional
 - Autonomous delivery status: IMPLEMENTED LOCALLY — the governed analyst pool, research manager, provider/Codex contracts, user-configured data API contract, deterministic factor proposal pipeline, risk and paper portfolio gates, durable queue and worker, settlement-aware learning proposals, resumable checkpoints, report status wall, experiment comparison, and the offline vertical slice are implemented on this branch. The release checklist records reproducible evidence for each stage.
+- Research capability acceptance matrix: FROZEN — `docs/RESEARCH_CAPABILITY_BACKLOG.md` and `finahinking.research.release_matrix` separate offline evidence, isolated deferred engines, externally unverified connections, and permanent out-of-scope boundaries. `DEFERRED` and `EXTERNAL_UNVERIFIED` are never treated as pass.
 - Last reviewed: 2026-10-07
 
 ## Historical later-stage records
