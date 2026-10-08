@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from finahinking.research.codex_bridge import CodexBridge
 from finahinking.research.job_queue import JobQueue
+from finahinking.research.worker import ResearchWorker, WorkerStatus
 
 
 @dataclass(frozen=True)
@@ -20,8 +21,7 @@ def test_dispatch_is_digest_only_and_external_until_callback(tmp_path):
     envelope = bridge.create_handoff(Task())
     record = bridge.enqueue(envelope)
     assert record.status == "EXTERNAL_HANDOFF_REQUIRED"
-    claimed = queue.claim("worker")
-    assert claimed is not None and claimed.task_type == "external"
+    assert queue.claim("worker") is None
     assert bridge.record_external_result(envelope, None).status == "EXTERNAL_HANDOFF_REQUIRED"
 
 
@@ -36,3 +36,28 @@ def test_dispatch_rejects_input_fingerprint_and_duplicate_callback_is_idempotent
     second = bridge.record_external_result(envelope, valid)
     assert first.status == second.status == "READY"
     assert first == second
+
+
+def test_external_handoff_is_not_claimed_or_failed_by_normal_worker(tmp_path):
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    bridge = CodexBridge(queue=queue)
+    envelope = bridge.create_handoff(Task())
+    record = bridge.enqueue(envelope)
+    result = ResearchWorker(queue, runner=lambda *_: {"status": "completed", "result_ref": "artifact:no"}, worker_id="worker").run_once()
+    assert result.status is WorkerStatus.IDLE
+    assert queue.external_dispatch(record.envelope_digest)["status"] == "external_waiting"
+
+
+def test_callback_status_and_idempotency_survive_bridge_restart(tmp_path):
+    path = tmp_path / "jobs.sqlite"
+    bridge = CodexBridge(queue=JobQueue(path))
+    envelope = bridge.create_handoff(Task())
+    bridge.enqueue(envelope)
+    valid = {"schema_version": envelope.schema_version, "input_digest": envelope.input_digest, "status": "READY", "paper_only": True}
+    first = bridge.record_external_result(envelope, valid)
+    restarted = CodexBridge(queue=JobQueue(path))
+    replay = restarted.record_external_result(envelope, valid)
+    assert replay.status == first.status == "READY"
+    with __import__("sqlite3").connect(path) as db:
+        raw = repr(db.execute("SELECT * FROM external_dispatches").fetchall())
+    assert "prompt-1" not in raw and "provider" not in raw and "secret" not in raw

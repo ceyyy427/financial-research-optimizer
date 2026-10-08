@@ -28,6 +28,7 @@ class JobStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
+    EXTERNAL_WAITING = "external_waiting"
 
 
 _PUBLIC_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -137,6 +138,15 @@ class JobQueue:
                     ,task_type TEXT NOT NULL DEFAULT 'research'
                 );
                 CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs(status, available_at, created_at);
+                CREATE TABLE IF NOT EXISTS external_dispatches (
+                    envelope_digest TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    external_ref TEXT NOT NULL UNIQUE,
+                    status TEXT NOT NULL,
+                    result_digest TEXT NOT NULL DEFAULT '',
+                    failure_kind TEXT,
+                    output_digest TEXT NOT NULL DEFAULT ''
+                );
                 CREATE TABLE IF NOT EXISTS job_events (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL,
@@ -246,12 +256,29 @@ class JobQueue:
             db.execute(
                 """INSERT INTO jobs (job_id, task_ref, task_digest, idempotency_key, status, attempts, max_attempts, available_at, created_at, updated_at, task_type)
                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'external')""",
-                (job_id, _ref(task_id, "task_ref"), task_digest, key, JobStatus.QUEUED.value, self.max_attempts, now, now, now),
+                (job_id, _ref(task_id, "task_ref"), task_digest, key, JobStatus.EXTERNAL_WAITING.value, self.max_attempts, now, now, now),
             )
-            self._event(db, job_id, JobStatus.QUEUED.value, now)
+            self._event(db, job_id, JobStatus.EXTERNAL_WAITING.value, now)
+            db.execute("INSERT OR IGNORE INTO external_dispatches(envelope_digest, task_id, external_ref, status) VALUES(?,?,?,?)", (task_digest, task_id, key, JobStatus.EXTERNAL_WAITING.value))
             row = self._must_row(db, job_id)
             db.commit()
             return self._row(row)
+
+    def external_dispatch(self, envelope_digest: str) -> dict[str, str] | None:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM external_dispatches WHERE envelope_digest=?", (envelope_digest,)).fetchone()
+            return None if row is None else {key: row[key] for key in row.keys()}
+
+    def record_external_result(self, envelope_digest: str, *, status: str, result_digest: str, failure_kind: str | None, output_digest: str) -> None:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM external_dispatches WHERE envelope_digest=?", (envelope_digest,)).fetchone()
+            if row is None:
+                raise KeyError("unknown external dispatch")
+            if row["status"] not in {JobStatus.EXTERNAL_WAITING.value, JobStatus.QUEUED.value}:
+                return
+            db.execute("UPDATE external_dispatches SET status=?, result_digest=?, failure_kind=?, output_digest=? WHERE envelope_digest=?", (status, result_digest, failure_kind, output_digest, envelope_digest))
+            db.execute("UPDATE jobs SET status=?, result_ref=?, updated_at=? WHERE task_digest=? AND task_type='external'", (JobStatus.COMPLETED.value, result_digest, float(self._clock()), envelope_digest))
+            db.commit()
 
     def resolve_task(self, task_ref: str) -> AgentTask:
         """Resolve an ephemeral task; reopened queues need an explicit resolver."""
@@ -265,7 +292,7 @@ class JobQueue:
             self._recover_expired(db, now)
             row = db.execute(
                 """SELECT * FROM jobs
-                   WHERE status IN (?, ?) AND available_at <= ? AND cancel_requested = 0
+                   WHERE status IN (?, ?) AND task_type <> 'external' AND available_at <= ? AND cancel_requested = 0
                    ORDER BY available_at, created_at, job_id LIMIT 1""",
                 (JobStatus.QUEUED.value, JobStatus.RETRYABLE.value, now),
             ).fetchone()

@@ -203,6 +203,11 @@ class CodexBridge:
         external_ref = f"codex:{digest[:32]}"
         if self._queue is not None:
             self._queue.enqueue_external(envelope, idempotency_key=external_ref)
+            persisted = self._queue.external_dispatch(digest)
+            if persisted is not None:
+                record = CodexDispatchRecord(envelope.task_id, digest, "EXTERNAL_HANDOFF_REQUIRED" if persisted["status"] == "external_waiting" else persisted["status"], persisted["external_ref"], persisted.get("result_digest", ""))
+                self._dispatches[digest] = record
+                return record
         record = CodexDispatchRecord(envelope.task_id, digest, "EXTERNAL_HANDOFF_REQUIRED", external_ref)
         self._dispatches[digest] = record
         return record
@@ -214,6 +219,10 @@ class CodexBridge:
         prior = self._outcomes.get(digest)
         if prior is not None:
             return prior
+        if self._queue is not None:
+            persisted = self._queue.external_dispatch(digest)
+            if persisted is not None and persisted.get("status") not in {"external_waiting", "queued"}:
+                return self._outcome(envelope, status=persisted["status"], failure_kind=persisted.get("failure_kind"), output_digest=persisted.get("output_digest", ""))
         outcome = self.accept_result(envelope, result)
         if outcome.status not in {"EXTERNAL_HANDOFF_REQUIRED", "REJECTED"}:
             self._outcomes[digest] = outcome
@@ -222,6 +231,14 @@ class CodexBridge:
                 self._dispatches[digest] = CodexDispatchRecord(
                     record.task_id, record.envelope_digest, outcome.status, record.external_ref,
                     outcome.output_digest,
+                )
+            if self._queue is not None:
+                self._queue.record_external_result(
+                    digest,
+                    status=outcome.status,
+                    result_digest=stable_digest(result),
+                    failure_kind=str(outcome.failure_kind) if outcome.failure_kind is not None else None,
+                    output_digest=outcome.output_digest,
                 )
         return outcome
 
