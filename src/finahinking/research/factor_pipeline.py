@@ -26,6 +26,7 @@ from .factor_proposals import (
     FactorHypothesis,
     FactorProposal,
     FactorProposalCatalog,
+    FactorTemplateRegistry,
     validate_factor_proposal,
 )
 
@@ -77,12 +78,7 @@ def _coerce_hypothesis(hypothesis: FactorHypothesis | Mapping[str, Any] | str, c
     if isinstance(hypothesis, Mapping):
         values = dict(hypothesis)
     elif isinstance(hypothesis, str):
-        text = hypothesis
-        lowered = text.casefold()
-        family = _config_value(config, "family", default=None)
-        if family is None:
-            family = "mean_reversion" if "mean revert" in lowered else "volatility" if "volatil" in lowered else "liquidity" if "liquid" in lowered else "momentum"
-        values = {"hypothesis_id": f"hypothesis-{_digest(text)[:12]}", "text": text, "family": family}
+        return FactorTemplateRegistry().resolve(hypothesis, config)
     else:
         raise TypeError("hypothesis must be a FactorHypothesis, mapping or string")
     values.setdefault("hypothesis_id", f"hypothesis-{_digest(values.get('text', 'hypothesis'))[:12]}")
@@ -193,6 +189,8 @@ class FactorResearchResult:
                 "inputs": list(self.hypothesis.inputs),
                 "horizon": self.hypothesis.horizon,
                 "direction": self.hypothesis.direction,
+                "template_name": self.hypothesis.template_name,
+                "template_version": self.hypothesis.template_version,
             },
             "proposals": [item.__dict__ if hasattr(item, "__dict__") else {"proposal_id": item.proposal_id, "expression": item.expression, "source_hypothesis": item.source_hypothesis, "required_fields": list(item.required_fields), "constraints": dict(item.constraints), "paper_only": item.paper_only} for item in self.proposals],
             "research_run": self.research_run.to_dict(),
@@ -317,7 +315,7 @@ class FactorResearchPipeline:
         )
         research_run = run_factor_research(charter, candidates, dataset, {"max_rounds": max_rounds})
         ranks = rank_factor_proposals(research_run.rounds)
-        config_digest = _digest(config)
+        config_digest = _digest({**config, "factor_template": {"name": normalized_hypothesis.template_name, "version": normalized_hypothesis.template_version}})
         research_lineage = _digest({
             "dataset_fingerprint": data_fingerprint,
             "config_digest": config_digest,
@@ -327,6 +325,8 @@ class FactorResearchPipeline:
                 "license_status": license_status,
                 "pit_semantics": pit_semantics,
                 "version": version,
+                "template_name": normalized_hypothesis.template_name,
+                "template_version": normalized_hypothesis.template_version,
             },
         })
         catalog_entries: list[FactorCatalogEntry] = []
