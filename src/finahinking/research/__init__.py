@@ -76,7 +76,7 @@ from .reports import (
     render_section_html,
     verify_report_bundle,
 )
-from .risk_runtime import RiskManager, RiskReviewResult
+from .risk_runtime import ExposureReport, RiskManager, RiskReviewResult, StressReport
 from .run_store import (
     CheckpointCorruptError,
     CheckpointIdentityMismatch,
@@ -190,9 +190,11 @@ __all__ = [
     "ResearchToolStatus",
     "ResearchWorker",
     "RetryPolicy",
+    "ExposureReport",
     "RiskManager",
     "RiskReview",
     "RiskReviewResult",
+    "StressReport",
     "RoleCapabilityPolicy",
     "RunControl",
     "RunEvent",
