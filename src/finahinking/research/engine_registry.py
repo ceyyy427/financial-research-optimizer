@@ -195,6 +195,7 @@ class EngineAdmission:
     controlled_runner: bool = False
     runner: TrustedSandboxRunner | None = None
     version: str | None = None
+    runtime_version: str | None = None
     license_name: str | None = None
     timeout_seconds: float = 30.0
     evidence: EngineAdmissionEvidence | None = None
@@ -217,11 +218,13 @@ class EngineAdmission:
             raise ValueError("controlled_runner must be derived from a trusted sandbox runner")
         if self.version is not None and (not isinstance(self.version, str) or not self.version.strip()):
             raise TypeError("engine version must be a non-empty string when provided")
+        if self.runtime_version is not None and (not isinstance(self.runtime_version, str) or not self.runtime_version.strip()):
+            raise TypeError("runtime version must be a non-empty string when provided")
         if self.license_name is not None and (not isinstance(self.license_name, str) or not self.license_name.strip()):
             raise TypeError("license name must be a non-empty string when provided")
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)):
             raise TypeError("engine timeout_seconds must be numeric")
-        if self.timeout_seconds <= 0 or self.timeout_seconds > 300:
+        if not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0 or self.timeout_seconds > 300:
             raise ValueError("engine timeout_seconds must be between 0 and 300 seconds")
         if self.evidence is not None and not isinstance(self.evidence, EngineAdmissionEvidence):
             raise TypeError("evidence must be an EngineAdmissionEvidence")
@@ -236,7 +239,7 @@ class EngineAdmission:
             return value
         if not isinstance(value, Mapping):
             raise TypeError("isolation must be a mapping or EngineAdmission")
-        allowed = {"installed", *cls._GATES, "runner", "version", "engine_version", "license_name", "license_id", "timeout_seconds", "evidence", "verifier"}
+        allowed = {"installed", *cls._GATES, "runner", "version", "engine_version", "runtime_version", "license_name", "license_id", "timeout_seconds", "evidence", "verifier"}
         unknown = set(value) - allowed
         if unknown:
             raise ValueError("unknown engine admission fields")
@@ -246,7 +249,7 @@ class EngineAdmission:
         ):
             raise TypeError("runner must be an audited trusted sandbox runner")
         values: dict[str, bool] = {}
-        metadata_keys = {"version", "engine_version", "license_name", "license_id", "timeout_seconds", "evidence", "verifier"}
+        metadata_keys = {"version", "engine_version", "runtime_version", "license_name", "license_id", "timeout_seconds", "evidence", "verifier"}
         for key in allowed:
             if key == "runner" or key in metadata_keys:
                 continue
@@ -261,12 +264,14 @@ class EngineAdmission:
         if runner is not None:
             values["controlled_runner"] = True
         version = value.get("version", value.get("engine_version"))
+        runtime_version = value.get("runtime_version", version)
         license_name = value.get("license_name", value.get("license_id"))
         timeout_seconds = value.get("timeout_seconds", getattr(runner, "timeout_seconds", 30.0))
         return cls(
             **values,
             runner=runner,
             version=version,
+            runtime_version=runtime_version,
             license_name=license_name,
             timeout_seconds=timeout_seconds,
             evidence=value.get("evidence"),
@@ -285,7 +290,8 @@ class EngineAdmission:
             evidence.engine_name.casefold() != name
             or not self.version
             or evidence.pinned_version != self.version
-            or evidence.runtime_version != self.version
+            or not self.runtime_version
+            or evidence.runtime_version != self.runtime_version
             or not self.license_name
             or evidence.license_name != self.license_name
             or runner.network_disabled is not True
@@ -330,6 +336,7 @@ class EngineResolution:
     dataset: DatasetSnapshot
     capability: str | None
     engine_version: str | None
+    runtime_version: str | None
     license: str | None
     _registry: EngineRegistry
 
@@ -399,6 +406,7 @@ class EngineRegistry:
                 dataset=frozen_dataset,
                 capability=None,
                 engine_version=None,
+                runtime_version=None,
                 license=None,
                 _registry=self,
             )
@@ -408,6 +416,7 @@ class EngineRegistry:
             dataset=frozen_dataset,
             capability=entry.capability,
             engine_version=entry.admission.version,
+            runtime_version=entry.admission.runtime_version,
             license=entry.admission.license_name,
             _registry=self,
         )
@@ -481,6 +490,7 @@ class EngineRegistry:
         metadata = {
             "engine": entry.name,
             "engine_version": entry.admission.version or "unknown",
+            "runtime_version": entry.admission.runtime_version or "unknown",
             "license": entry.admission.license_name or "unknown",
         }
         EngineRegistry._validate_safe_payload(metadata)

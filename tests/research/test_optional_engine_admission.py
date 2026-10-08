@@ -337,3 +337,50 @@ def test_admission_metadata_overrides_adapter_provenance_conflicts() -> None:
     assert result.engine == "fixture-optional"
     assert result.model_artifact["engine_version"] == "1.2.3"
     assert result.model_artifact["license"] == "BSD-3-Clause"
+
+
+def test_engine_version_and_runtime_version_are_verified_separately() -> None:
+    dataset, spec = _request()
+    registry = EngineRegistry()
+    registry.register(
+        "fixture-runtime",
+        capability="ml",
+        adapter=_Adapter(),
+        isolation={
+            "installed": True,
+            "software_version": True,
+            "license": True,
+            "isolated": True,
+            "normalized_fixture": True,
+            "raw_object_boundary": True,
+            "fallback": True,
+            "runner": _Runner(),
+            "version": "1.2.3",
+            "runtime_version": "python-3.13",
+            "license_name": "BSD-3-Clause",
+            "evidence": EngineAdmissionEvidence(
+                engine_name="fixture-runtime",
+                pinned_version="1.2.3",
+                runtime_version="python-3.13",
+                license_name="BSD-3-Clause",
+                version_audit_digest="0" * 64,
+                license_audit_digest="1" * 64,
+                sandbox_audit_digest="2" * 64,
+                fixture_digest="3" * 64,
+            ),
+            "verifier": _Verifier(),
+        },
+    )
+
+    resolution = registry.resolve("fixture-runtime", dataset)
+
+    assert resolution.status == RegistryStatus.AVAILABLE
+    assert resolution.run(dataset, spec).fallback_used is False
+
+
+@pytest.mark.parametrize("timeout", (float("nan"), float("inf"), 0.0, -1.0))
+def test_admission_rejects_non_finite_or_non_positive_timeout(timeout: float) -> None:
+    with pytest.raises((TypeError, ValueError), match="timeout"):
+        from finahinking.research.engine_registry import EngineAdmission
+
+        EngineAdmission(timeout_seconds=timeout)

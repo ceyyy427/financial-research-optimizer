@@ -76,3 +76,19 @@ PYTHONPATH=src python3 -m pytest -q
 
 The same unrelated wheel-install integration failure remains isolated to
 `tests/validation/test_artifact_install.py::test_wheel_install_exposes_migrations_fixtures_and_local_routes`.
+
+## Review fix round 2
+
+The remaining admission issues were resolved in a separate follow-up commit:
+`timeout_seconds` now rejects non-finite values, and engine package version is
+bound independently from the runtime version (for example, engine `1.2.3`
+under `python-3.13`).
+
+```text
+Focused Task 8/registry/workflow tests: 32 passed
+Research suite: 431 passed, 1 warning
+Full suite: 861 passed, 1 skipped, 1 failed
+```
+
+The full-suite failure remains the pre-existing wheel-install integration probe
+listed above.
