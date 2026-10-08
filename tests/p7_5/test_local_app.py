@@ -116,12 +116,12 @@ def test_api_rejects_invalid_payload_without_sql_or_network() -> None:
 
 def test_provider_config_routes_require_csrf_and_persist_redacted_config(tmp_path) -> None:
     app = LocalApplication(LocalAppConfig(db_path=str(tmp_path / "app.sqlite3")))
-    payload = {"provider_id": "personal", "adapter_kind": "openai_compatible", "model": "user-model", "endpoint": "https://provider.example.test/v1", "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"}, "enabled": True, "role_models": {"technical": "user-model"}}
+    payload = {"provider_id": "personal", "adapter_kind": "openai_compatible", "model": "user-model", "endpoint": "https://provider.example.net/v1", "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"}, "enabled": True, "role_models": {"technical": "user-model"}}
     assert app.route("POST", "/api/research/providers/config", body=payload)[0] == 403
     status, _, saved = app.route("POST", "/api/research/providers/config", body={**payload, "_csrf": app.csrf_token})
     assert status == 201
     assert saved["endpoint_configured"] is True
-    assert "https://provider.example.test" not in json.dumps(saved)
+    assert "https://provider.example.net" not in json.dumps(saved)
     assert app.route("POST", "/api/research/providers/config", body={**payload, "_csrf": app.csrf_token})[0] == 409
     app.close()
     app = LocalApplication(LocalAppConfig(db_path=str(tmp_path / "app.sqlite3")))

@@ -38,7 +38,7 @@ def _config(provider_id: str = "user-compatible") -> ProviderConfig:
         provider_id=provider_id,
         adapter_kind="openai_compatible",
         model="user-model",
-        endpoint="https://provider.example.test/v1",
+        endpoint="https://provider.example.net/v1",
         credential_ref=ProviderCredentialRef(provider_id, env_var="FINAHINK_USER_API_KEY"),
         enabled=True,
         role_models={"technical": "user-model"},
@@ -53,7 +53,7 @@ def test_provider_config_store_persists_restart_and_redacts_secret_material(tmp_
     assert listed[0]["provider_id"] == "user-compatible"
     assert listed[0]["credential_ref"] == {"env_var": "FINAHINK_USER_API_KEY"}
     assert listed[0]["endpoint_configured"] is True
-    assert "https://provider.example.test" not in json.dumps(listed)
+    assert "https://provider.example.net" not in json.dumps(listed)
     assert '"api_key"' not in path.read_text(encoding="utf-8").lower()
 
     reopened = ProviderConfigStore(path)
@@ -86,3 +86,18 @@ def test_provider_config_allow_lists_adapter_model_and_fields() -> None:
         ProviderConfig("x", "offline", "unapproved-model")
     with pytest.raises(ValueError, match="unsupported"):
         ProviderConfig.from_mapping({"provider_id": "x", "adapter_kind": "offline", "model": "fixture-v1", "prompt": "secret"})
+
+
+@pytest.mark.parametrize("host", ["foo.internal", "foo.intranet", "foo.lan", "foo.home", "foo.test", "foo.invalid", "foo.example", "singlelabel"])
+def test_provider_config_rejects_special_use_dns_hosts(host: str) -> None:
+    with pytest.raises(ValueError, match="endpoint"):
+        ProviderConfig("bad-host", "openai_compatible", "user-model", endpoint=f"https://{host}/v1")
+
+
+def test_provider_config_remove_persists_across_restart(tmp_path) -> None:
+    path = tmp_path / "providers.json"
+    store = ProviderConfigStore(path)
+    store.save(_config())
+    store.remove("user-compatible")
+    assert store.list() == ()
+    assert ProviderConfigStore(path).list() == ()

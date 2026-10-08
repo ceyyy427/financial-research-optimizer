@@ -18,3 +18,11 @@ Implemented `ProviderConfig` and `ProviderConfigStore` in `src/finahinking/resea
 
 - The store uses atomic JSON persistence; it does not introduce a new SQLite migration. In-memory local app instances intentionally use process-local configuration because there is no restartable path.
 - Endpoint URLs are retained in the private on-disk configuration for later adapter construction but are omitted from all list and route responses.
+
+## Review round 1 fix
+
+- Added fail-closed DNS admission for special-use and non-routable suffixes: `.internal`, `.intranet`, `.lan`, `.home`, `.test`, `.invalid`, `.example`, `.localhost`, `.local`, `.onion`, `.alt`, plus single-label hosts. The existing private/link-local IP checks remain in force.
+- Added regression coverage for all listed suffix classes and removal persistence across restart.
+- Red phase: the new suffix regression test failed for 7 cases before the validator change (`7 failed, 18 passed`).
+- Focused green: `python3 -m pytest tests/research/test_provider_config.py tests/p7_5/test_local_app.py -q` → **25 passed**.
+- Full green: `python3 -m pytest -q` → **789 passed, 1 skipped, 1 warning**. The warning remains the unrelated Python 3.13 multiprocessing fork deprecation in `tests/research/test_autonomous_runtime_vertical_slice.py::test_factor_risk_portfolio_and_worker_fail_closed`.

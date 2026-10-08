@@ -33,6 +33,7 @@ ALLOWED_ROLES = frozenset({"technical", "fundamentals", "news", "sentiment", "le
 _FIELDS = frozenset({"provider_id", "adapter_kind", "model", "endpoint", "credential_ref", "enabled", "role_models"})
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _SENSITIVE = re.compile(r"api[-_]?key|secret|token|password|credential|prompt|raw[-_]?provider", re.IGNORECASE)
+_SPECIAL_USE_SUFFIXES = frozenset({"internal", "intranet", "lan", "home", "test", "invalid", "example", "localhost", "local", "onion", "alt"})
 
 
 def _endpoint(value: str | None) -> str | None:
@@ -48,7 +49,8 @@ def _endpoint(value: str | None) -> str | None:
         raise ValueError("provider endpoint is invalid") from None
     if parsed.scheme != "https" or not host or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment or port not in {None, 443}:
         raise ValueError("provider endpoint must be a credential-free HTTPS address")
-    if host.lower() == "localhost" or host.lower().endswith((".localhost", ".local")) or _SENSITIVE.search(parsed.path):
+    normalized_host = host.rstrip(".").lower()
+    if normalized_host in _SPECIAL_USE_SUFFIXES or any(normalized_host.endswith("." + suffix) for suffix in _SPECIAL_USE_SUFFIXES) or _SENSITIVE.search(parsed.path):
         raise ValueError("provider endpoint is invalid")
     try:
         address = ipaddress.ip_address(host)
