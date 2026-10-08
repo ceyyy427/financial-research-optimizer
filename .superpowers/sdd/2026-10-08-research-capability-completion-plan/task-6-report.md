@@ -12,3 +12,9 @@ Validation:
 - `PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_experiments.py tests/research/test_factor_pipeline.py tests/research/test_reports.py` — 12 passed.
 - `PYTHONPATH=src python3 -m pytest -q` — 829 passed, 1 skipped; one pre-existing wheel-install integration failure in `tests/validation/test_artifact_install.py::test_wheel_install_exposes_migrations_fixtures_and_local_routes`.
 - `PYTHONPATH=src python3 -m ruff check src/finahinking/research/factor_experiments.py src/finahinking/research/factor_pipeline.py src/finahinking/research/reports.py tests/research/test_factor_experiments.py` — passed.
+
+Round 1 fix evidence:
+
+- Red regression coverage added for unordered set/frozenset axes, non-string keys, empty axes, invalid budgets, and NaN/inf split values; the pre-fix implementation failed the empty-axis assertion and accepted unordered/non-string boundaries.
+- Green rerun: `PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_experiments.py tests/research/test_factor_pipeline.py tests/research/test_reports.py` — 18 passed.
+- Set/frozenset axes now use a type-tagged serialized stable sort before budget truncation; parameter keys must be non-empty strings; split ratios and parameter values reject non-finite values with explicit errors.

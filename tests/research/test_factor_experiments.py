@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from finahinking.research.factor_experiments import FactorExperimentSpec, run_factor_experiments
 from finahinking.research.reports import compare_experiments
@@ -30,3 +31,28 @@ def test_repeated_run_is_byte_deterministic() -> None:
     second = run_factor_experiments(spec, _dataset(), {"min_samples": 4})
     assert first.experiment_digest == second.experiment_digest
     assert first.to_dict() == second.to_dict()
+
+
+def test_unordered_axes_are_stably_normalized_before_budget_truncation() -> None:
+    spec = FactorExperimentSpec({"expression": {"rank(close)", "negate(rank(close))"}}, max_experiments=2)
+    first = run_factor_experiments(spec, _dataset(), {"min_samples": 4})
+    second = run_factor_experiments(spec, _dataset(), {"min_samples": 4})
+    assert [item.parameters for item in first.experiments] == [item.parameters for item in second.experiments]
+    assert first.experiment_digest == second.experiment_digest
+
+
+@pytest.mark.parametrize("budget", [0, -1, 257, True])
+def test_invalid_budgets_and_grids_fail_clearly(budget) -> None:
+    with pytest.raises(ValueError, match="max_experiments"):
+        FactorExperimentSpec({"window": [5]}, max_experiments=budget)
+    with pytest.raises(ValueError, match="parameter axis"):
+        FactorExperimentSpec({"window": []})
+
+
+def test_non_string_keys_and_nonfinite_splits_are_rejected() -> None:
+    with pytest.raises(TypeError, match="keys"):
+        FactorExperimentSpec({1: [5]})
+    with pytest.raises(ValueError, match="finite"):
+        FactorExperimentSpec({"window": [5]}, split={"train": float("nan"), "validation": 0.2, "test": 0.2})
+    with pytest.raises(ValueError, match="finite"):
+        FactorExperimentSpec({"window": [5]}, split={"train": float("inf"), "validation": 0.2, "test": 0.2})

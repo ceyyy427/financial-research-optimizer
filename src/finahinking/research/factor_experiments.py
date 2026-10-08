@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -40,6 +41,33 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _validate_finite(value: Any, path: str) -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{path} must contain only finite values")
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _validate_finite(item, f"{path}[{key!r}]")
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        for index, item in enumerate(value):
+            _validate_finite(item, f"{path}[{index}]")
+
+
+def _validate_parameter_mapping(value: Mapping[Any, Any], path: str) -> None:
+    if not value:
+        raise ValueError(f"{path} must contain at least one parameter axis")
+    if any(not isinstance(key, str) or not key.strip() for key in value):
+        raise TypeError(f"{path} keys must be non-empty strings")
+    if len(set(value)) != len(value):
+        raise ValueError(f"{path} contains duplicate parameter keys")
+    _validate_finite(value, path)
+
+
+def _stable_axis_key(value: Any) -> str:
+    """Return a cross-process ordering key for unordered axis values."""
+
+    return json.dumps({"type": type(value).__name__, "value": _jsonable(value)}, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+
+
 @dataclass(frozen=True, slots=True)
 class FactorExperimentSpec:
     parameters: Mapping[str, Any] | Sequence[Mapping[str, Any]]
@@ -50,9 +78,26 @@ class FactorExperimentSpec:
     def __post_init__(self) -> None:
         if isinstance(self.max_experiments, bool) or not isinstance(self.max_experiments, int) or not 1 <= self.max_experiments <= 256:
             raise ValueError("max_experiments must be between 1 and 256")
-        split = dict(self.split or {"train": 0.6, "validation": 0.2, "test": 0.2})
-        if set(split) != {"train", "validation", "test"} or any(float(value) <= 0 for value in split.values()) or abs(sum(float(value) for value in split.values()) - 1.0) > 1e-9:
+        split = {"train": 0.6, "validation": 0.2, "test": 0.2} if self.split is None else dict(self.split)
+        if set(split) != {"train", "validation", "test"}:
             raise ValueError("split must contain positive train, validation and test ratios summing to one")
+        ratios = tuple(split.values())
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) <= 0 for value in ratios) or abs(sum(float(value) for value in ratios) - 1.0) > 1e-9:
+            raise ValueError("split must contain positive finite train, validation and test ratios summing to one")
+        if isinstance(self.parameters, Mapping):
+            _validate_parameter_mapping(self.parameters, "parameters")
+            for name, value in self.parameters.items():
+                if isinstance(value, (list, tuple, set, frozenset)) and not value:
+                    raise ValueError(f"parameter axis {name!r} must not be empty")
+        elif isinstance(self.parameters, Sequence) and not isinstance(self.parameters, (str, bytes)):
+            if not self.parameters:
+                raise ValueError("parameters must contain at least one experiment mapping")
+            for index, item in enumerate(self.parameters):
+                if not isinstance(item, Mapping):
+                    raise TypeError(f"parameters[{index}] must be a mapping")
+                _validate_parameter_mapping(item, f"parameters[{index}]")
+        else:
+            raise TypeError("parameters must be a mapping or sequence of mappings")
         horizons = tuple(self.decay_horizons)
         if not horizons or any(isinstance(item, bool) or int(item) != item or int(item) < 1 for item in horizons):
             raise ValueError("decay_horizons must contain positive integers")
@@ -125,11 +170,19 @@ class FactorExperimentResult:
 
 def _grid(parameters: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any], ...]:
     if isinstance(parameters, Mapping):
-        names = tuple(sorted(str(name) for name in parameters))
+        _validate_parameter_mapping(parameters, "parameters")
+        names = tuple(sorted(parameters))
         axes = []
         for name in names:
             value = parameters[name]
-            axes.append(tuple(value) if isinstance(value, (list, tuple, set, frozenset)) else (value,))
+            if isinstance(value, (set, frozenset)):
+                value = tuple(sorted(value, key=_stable_axis_key))
+            elif isinstance(value, (list, tuple)):
+                value = tuple(value)
+            if not value and isinstance(value, (list, tuple)):
+                raise ValueError(f"parameter axis {name!r} must not be empty")
+            _validate_finite(value, f"parameters[{name!r}]")
+            axes.append(tuple(value) if isinstance(value, (list, tuple)) else (value,))
         return tuple(dict(zip(names, values)) for values in itertools.product(*axes))
     if isinstance(parameters, Sequence) and not isinstance(parameters, (str, bytes)):
         if not all(isinstance(item, Mapping) for item in parameters):
