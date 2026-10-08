@@ -38,6 +38,13 @@ from .factor_loop import (
     run_factor_research,
 )
 from .factor_experiments import FactorExperimentRecord, FactorExperimentResult, FactorExperimentSpec, run_factor_experiments
+from .factor_catalog_loader import (
+    BUILTIN_AUDITED_CATALOG,
+    CatalogAdmissionProposal,
+    DEFAULT_FACTOR_CATALOG,
+    admit_catalog_entry,
+    load_audited_catalog,
+)
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
 from .learning_manager import (
@@ -106,6 +113,8 @@ __all__ = [
     "AgentTask",
     "AnalystSpec",
     "BundleVerification",
+    "BUILTIN_AUDITED_CATALOG",
+    "CatalogAdmissionProposal",
     "CheckpointCorruptError",
     "CheckpointIdentity",
     "CheckpointIdentityMismatch",
@@ -118,6 +127,7 @@ __all__ = [
     "CodexDispatchRecord",
     "CodexInteractiveDriver",
     "CodexTaskEnvelope",
+    "DEFAULT_FACTOR_CATALOG",
     "CompatibleApiDriver",
     "CompletedRunError",
     "CorruptCheckpointError",
@@ -133,6 +143,8 @@ __all__ = [
     "FactorExperimentRecord",
     "FactorExperimentResult",
     "FactorExperimentSpec",
+    "admit_catalog_entry",
+    "load_audited_catalog",
     "FailureKind",
     "JobQueue",
     "JobRecord",

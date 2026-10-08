@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+_SEMVER = re.compile(r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$")
 _UNSAFE_FIELD = re.compile(r"(?:future|lookahead|target|label|forward|next|tomorrow)", re.IGNORECASE)
 _LICENSE_ALLOWLIST = frozenset({
     "APPROVED", "VERIFIED", "PUBLIC_DOMAIN", "INTERNAL", "FIXTURE", "MIT",
@@ -94,6 +95,8 @@ class FactorCatalogEntry:
         object.__setattr__(self, "license_status", "" if self.license_status is None else str(self.license_status).strip())
         if self.status not in _KNOWN_STATUSES:
             raise ValueError("status is not a recognized catalog status")
+        if not _SEMVER.fullmatch(self.version):
+            raise ValueError("version must be semantic version x.y.z")
         if self.research_fingerprint and not _HEX64.fullmatch(self.research_fingerprint):
             raise ValueError("research_fingerprint must be a SHA-256 hex digest")
 
@@ -136,6 +139,10 @@ def audit_factor_catalog_entry(entry: FactorCatalogEntry) -> FactorCatalogAudit:
         raise ValueError("PIT semantics are missing or unknown")
     if not entry.required_fields:
         raise ValueError("required source fields are missing")
+    if len(set(entry.source_ids)) != len(entry.source_ids):
+        raise ValueError("duplicate source metadata")
+    if len(set(entry.required_fields)) != len(entry.required_fields):
+        raise ValueError("duplicate required fields")
     unsafe = next((field for field in entry.required_fields if _UNSAFE_FIELD.search(field)), None)
     if unsafe is not None:
         raise ValueError(f"future-looking field is not allowed: {unsafe}")

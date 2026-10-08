@@ -116,6 +116,52 @@ class FactorRegistry:
         self._factors[metadata.factor_id] = registered
         return registered
 
+    def register_catalog_entry(self, entry: Any, admission: Any) -> RegisteredFactor:
+        """Write an audited catalog entry only with an explicit human admission."""
+
+        from finahinking.research.factor_catalog import (
+            HumanAdmissionRecord,
+            audit_factor_catalog_entry,
+        )
+
+        if not isinstance(admission, HumanAdmissionRecord):
+            raise TypeError("HumanAdmissionRecord is required before registry write")
+        audit = audit_factor_catalog_entry(entry)
+        if not audit.eligible:
+            raise ValueError("catalog entry is not eligible for admission")
+        if entry.status != "PROPOSED":
+            raise ValueError("only proposed catalog entries can be admitted")
+        if admission.proposal_id != entry.factor_id or admission.research_fingerprint != entry.research_fingerprint:
+            raise ValueError("admission record does not bind catalog entry")
+        if entry.factor_id in self._factors:
+            raise ValueError(f"factor {entry.factor_id} is already registered")
+        import re
+
+        from finahinking.factors.core import momentum_factor
+
+        match = re.fullmatch(r"momentum_(\d+)d", entry.factor_id)
+        factor = momentum_factor(int(match.group(1))) if match else FactorDefinition(
+            name=entry.factor_id,
+            definition=f"Audited factor {entry.factor_id}.",
+            explanation="Catalog-admitted paper research factor.",
+            limitations="Paper-only until independently validated.",
+            compute=lambda values: values,
+        )
+        metadata = FactorMetadata(
+            factor_id=entry.factor_id,
+            version=entry.version,
+            definition=factor.definition,
+            formula=factor.definition,
+            input_fields=entry.required_fields,
+            source=entry.source_ids[0],
+            pit=True,
+            direction="positive",
+            limits={"paper_only": True},
+            validation_spec={"shift_periods": 1, "oos": True, "research_fingerprint": entry.research_fingerprint},
+        )
+        health = FactorHealth(FactorHealthStatus.VALID, "2000-01-01", 0.0, 0.0, 0.0, 0.0, 0.0, 0, "human admission")
+        return self.register(factor, metadata, health)
+
     def get(self, factor_id: str) -> RegisteredFactor:
         try:
             return self._factors[factor_id]
