@@ -645,6 +645,19 @@ class LearningManager:
             }
         if not isinstance(baseline, Mapping):
             raise TypeError("baseline must be a mapping or VersionedResearchPolicy")
+        allowed = {
+            "version",
+            "factor_weights",
+            "risk_rules",
+            "registry",
+            "as_of",
+            "settlement_as_of",
+            "ledger_digest",
+            "dataset_digest",
+        }
+        unknown = [key for key in baseline if not isinstance(key, str) or key not in allowed]
+        if unknown:
+            raise ValueError("baseline contains unsupported fields")
         version = baseline.get("version", 0)
         if isinstance(version, bool) or not isinstance(version, int) or version < 0:
             raise ValueError("baseline version must be a non-negative integer")
@@ -664,6 +677,9 @@ class LearningManager:
     def _check_evidence_binding(proposal: LearningUpdateProposal, baseline: Mapping[str, Any]) -> None:
         """Fail closed when a baseline declares incompatible settlement evidence."""
 
+        baseline_as_of = baseline.get("as_of")
+        if proposal.as_of is not None and baseline_as_of is not None and baseline_as_of > proposal.as_of:
+            raise ValueError("baseline as_of is newer than admitted settlement")
         for name in ("ledger_digest", "dataset_digest"):
             expected = getattr(proposal, name)
             actual = baseline.get(name)
