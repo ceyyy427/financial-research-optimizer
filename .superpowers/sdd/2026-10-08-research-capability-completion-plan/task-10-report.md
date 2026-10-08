@@ -25,3 +25,7 @@ Final validation: focused risk/paper tests → 37 passed; `python3 -m pytest -q 
 Fix round 3 recursively validates every nested `StressReport.scenarios` value for safe public text and normalized JSON data. Prompt/path-like nested strings are rejected in direct constructors and embedded canonical reports, while safe nested metadata remains fingerprint-stable.
 
 Final fix-round-3 validation: focused risk/paper tests → 38 passed; `python3 -m pytest -q tests/research` → 452 passed; full `python3 -m pytest -q` → 883 passed, 1 skipped, 1 existing multiprocessing deprecation warning. Ruff remains unavailable (`command not found`).
+
+Fix round 4 extends the recursive scenario sanitizer to mapping keys as well as values. Path/prompt/API-key-like nested keys are rejected before freezing, serialization, or embedded canonical-report acceptance; safe nested keys remain fingerprint-stable.
+
+Final fix-round-4 validation: focused risk/paper tests → 38 passed; `python3 -m pytest -q tests/research` → 452 passed; full `python3 -m pytest -q` → 883 passed, 1 skipped, 1 existing multiprocessing deprecation warning. Ruff remains unavailable (`command not found`).

@@ -21,6 +21,7 @@ _PIT_PASS = {"AVAILABLE", "VALID", "VERIFIED", "KNOWN", "READY", "TRUE", "OK"}
 _PIT_FAIL = {"UNKNOWN", "UNAVAILABLE", "INVALID", "FALSE", "STALE", "MISSING", "UNVERIFIED"}
 _LIQUIDITY_BUCKETS = {"HIGH", "MEDIUM", "LOW"}
 _PROMPT_TEXT = re.compile(r"\b(?:prompt|system\s+message|developer\s+message)\b", re.IGNORECASE)
+_UNSAFE_NESTED_KEY = re.compile(r"(?:api[-_]?key|secret|token|password|credential|authorization|endpoint|(?:^|[_-])path(?:$|[_-]))", re.IGNORECASE)
 
 
 def _safe(value: Any, path: str = "value") -> Any:
@@ -242,7 +243,13 @@ def _safe_text_tuple(values: Any, field_name: str) -> tuple[str, ...]:
 def _safe_nested_scenario(value: Any, path: str = "scenario") -> Any:
     normalized = _safe(value, path)
     if isinstance(normalized, Mapping):
-        return {str(key): _safe_nested_scenario(child, f"{path}.{key}") for key, child in normalized.items()}
+        sanitized: dict[str, Any] = {}
+        for key, child in normalized.items():
+            key_text = str(key)
+            if _unsafe_public_text(key_text) or _PROMPT_TEXT.search(key_text) or _UNSAFE_NESTED_KEY.search(key_text):
+                raise ValueError("scenario contains unsafe public text")
+            sanitized[key_text] = _safe_nested_scenario(child, f"{path}.value")
+        return sanitized
     if isinstance(normalized, list):
         return [_safe_nested_scenario(child, f"{path}[]") for child in normalized]
     if isinstance(normalized, str) and (_unsafe_public_text(normalized) or _PROMPT_TEXT.search(normalized)):

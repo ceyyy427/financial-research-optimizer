@@ -263,6 +263,14 @@ def test_stress_nested_values_reject_prompt_and_path_but_allow_safe_metadata() -
             evidence_refs=("artifact:risk",),
             limitations=("paper-only",),
         )
+    with pytest.raises(ValueError):
+        StressReport(
+            status="PASSED",
+            passed=True,
+            scenarios={"ok": {"/Users/private": 1, "passed": True}},
+            evidence_refs=("artifact:risk",),
+            limitations=("paper-only",),
+        )
     safe = StressReport(
         status="PASSED",
         passed=True,
