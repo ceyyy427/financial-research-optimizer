@@ -19,6 +19,7 @@ from .factor_catalog import (
 _ENTRY_FIELDS = frozenset({
     "factor_id", "version", "source_ids", "license_status", "pit_semantics",
     "required_fields", "research_fingerprint", "status", "fingerprint",
+    "evaluation_fingerprint",
 })
 
 
@@ -104,6 +105,7 @@ def _builtin_entry(factor_id: str, fingerprint: str) -> FactorCatalogEntry:
         required_fields=("close",),
         research_fingerprint=fingerprint,
         status="PROPOSED",
+        evaluation_fingerprint=fingerprint,
     )
 
 

@@ -341,7 +341,7 @@ class FactorResearchPipeline:
         admissions: list[FactorAdmissionProposal] = []
         for item in research_run.rounds:
             candidate_lineage = _digest({"research_lineage": research_lineage, "proposal_id": item.candidate.candidate_id, "evaluation_fingerprint": item.evaluation.fingerprint})
-            catalog_entry = FactorCatalogEntry(item.candidate.candidate_id, version, source_ids, license_status, pit_semantics, item.candidate.metadata["required_fields"], candidate_lineage, "PROPOSED")
+            catalog_entry = FactorCatalogEntry(item.candidate.candidate_id, version, source_ids, license_status, pit_semantics, item.candidate.metadata["required_fields"], candidate_lineage, "PROPOSED", item.evaluation.fingerprint)
             audit_factor_catalog_entry(catalog_entry)
             catalog_entries.append(catalog_entry)
             admissions.append(FactorAdmissionProposal(item.candidate.candidate_id, item.candidate.candidate_id, "PENDING_HUMAN_ADMISSION", item.evaluation.fingerprint, item.admission.reasons, item.admission.evidence_refs, candidate_lineage))

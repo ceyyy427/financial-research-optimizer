@@ -37,6 +37,23 @@ The full-suite failure is the pre-existing wheel-install integration test
 `tests/validation/test_artifact_install.py::test_wheel_install_exposes_migrations_fixtures_and_local_routes`.
 The focused catalog, registry, and factor-pipeline checks pass.
 
+## Review fix round 1
+
+Red regressions were added for swapped evaluation fingerprints, paper-only
+selection, and source lineage. The registry now requires the catalog's
+`evaluation_fingerprint` as well as its research fingerprint, preserves all
+`source_ids` in `FactorMetadata`, and admits catalog entries as
+`INSUFFICIENT_DATA` paper records that cannot be selected until separately
+validated. Focused verification after the fix:
+
+```text
+PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_catalog_loader.py
+9 passed
+
+PYTHONPATH=src python3 -m pytest -q tests/research/test_factor_catalog.py tests/research/test_factor_registry.py tests/research/test_factor_pipeline.py tests/research/test_factor_template_catalog.py
+51 passed
+```
+
 ## Boundary
 
 Catalog loading is read-only. Registry mutation requires a typed, explicit

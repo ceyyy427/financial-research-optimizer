@@ -78,6 +78,7 @@ class FactorCatalogEntry:
     required_fields: tuple[str, ...]
     research_fingerprint: str
     status: str = "PROPOSED"
+    evaluation_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("factor_id", "version", "research_fingerprint", "status"):
@@ -99,6 +100,8 @@ class FactorCatalogEntry:
             raise ValueError("version must be semantic version x.y.z")
         if self.research_fingerprint and not _HEX64.fullmatch(self.research_fingerprint):
             raise ValueError("research_fingerprint must be a SHA-256 hex digest")
+        if self.evaluation_fingerprint is not None and not _HEX64.fullmatch(self.evaluation_fingerprint):
+            raise ValueError("evaluation_fingerprint must be a SHA-256 hex digest")
 
     @property
     def production_admitted(self) -> bool:
@@ -118,6 +121,7 @@ class FactorCatalogEntry:
             "required_fields": list(self.required_fields),
             "research_fingerprint": self.research_fingerprint,
             "status": self.status,
+            "evaluation_fingerprint": self.evaluation_fingerprint,
         }
 
     def to_dict(self) -> dict[str, Any]:

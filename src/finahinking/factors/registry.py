@@ -46,6 +46,7 @@ class FactorMetadata:
     direction: str
     limits: Mapping[str, Any]
     validation_spec: Mapping[str, Any]
+    source_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         for name in ("factor_id", "version", "definition", "formula", "source", "direction"):
@@ -59,6 +60,8 @@ class FactorMetadata:
         object.__setattr__(self, "validation_spec", dict(self.validation_spec))
         if not self.validation_spec:
             raise ValueError("validation_spec must not be empty")
+        source_ids = tuple(_text(item, "source_ids") for item in self.source_ids)
+        object.__setattr__(self, "source_ids", source_ids or (self.source,))
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +136,8 @@ class FactorRegistry:
             raise ValueError("only proposed catalog entries can be admitted")
         if admission.proposal_id != entry.factor_id or admission.research_fingerprint != entry.research_fingerprint:
             raise ValueError("admission record does not bind catalog entry")
+        if not entry.evaluation_fingerprint or admission.evaluation_fingerprint != entry.evaluation_fingerprint:
+            raise ValueError("admission record does not bind evaluation fingerprint")
         if entry.factor_id in self._factors:
             raise ValueError(f"factor {entry.factor_id} is already registered")
         import re
@@ -158,8 +163,9 @@ class FactorRegistry:
             direction="positive",
             limits={"paper_only": True},
             validation_spec={"shift_periods": 1, "oos": True, "research_fingerprint": entry.research_fingerprint},
+            source_ids=entry.source_ids,
         )
-        health = FactorHealth(FactorHealthStatus.VALID, "2000-01-01", 0.0, 0.0, 0.0, 0.0, 0.0, 0, "human admission")
+        health = FactorHealth(FactorHealthStatus.INSUFFICIENT_DATA, "2000-01-01", 0.0, 0.0, 0.0, 0.0, 0.0, 0, "human admission requires evaluation")
         return self.register(factor, metadata, health)
 
     def get(self, factor_id: str) -> RegisteredFactor:
@@ -185,6 +191,8 @@ class FactorRegistry:
         eligible: list[RegisteredFactor] = []
         for factor in self.list():
             if factor.health.as_of > cutoff or factor.health.status is not FactorHealthStatus.VALID:
+                continue
+            if factor.metadata.limits.get("paper_only") is True:
                 continue
             if any(factor.metadata.limits.get(key, value) > value for key, value in constraints.items() if isinstance(value, (int, float))):
                 continue

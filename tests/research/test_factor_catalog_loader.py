@@ -23,6 +23,7 @@ def _row(**overrides: object) -> dict[str, object]:
         "pit_semantics": "T+1 point-in-time",
         "required_fields": ["close"],
         "research_fingerprint": "a" * 64,
+        "evaluation_fingerprint": "b" * 64,
         "status": "PROPOSED",
     }
     row.update(overrides)
@@ -77,7 +78,24 @@ def test_missing_admission_returns_proposal_without_registry_write() -> None:
 def test_explicit_human_admission_is_required_before_registry_write() -> None:
     entry = BUILTIN_AUDITED_CATALOG.list()[0]
     registry = FactorRegistry()
-    admission = HumanAdmissionRecord(entry.factor_id, "b" * 64, entry.research_fingerprint, "reviewer-1")
+    admission = HumanAdmissionRecord(entry.factor_id, entry.evaluation_fingerprint, entry.research_fingerprint, "reviewer-1")
     registered = admit_catalog_entry(entry, admission, registry=registry)
     assert registered.metadata.factor_id == entry.factor_id
     assert registry.get(entry.factor_id) == registered
+
+
+def test_evaluation_fingerprint_mismatch_is_rejected() -> None:
+    entry = BUILTIN_AUDITED_CATALOG.list()[0]
+    admission = HumanAdmissionRecord(entry.factor_id, "f" * 64, entry.research_fingerprint, "reviewer-1")
+    with pytest.raises(ValueError, match="evaluation"):
+        admit_catalog_entry(entry, admission, registry=FactorRegistry())
+
+
+def test_paper_only_admission_is_not_valid_or_selectable() -> None:
+    entry = BUILTIN_AUDITED_CATALOG.list()[0]
+    registry = FactorRegistry()
+    admission = HumanAdmissionRecord(entry.factor_id, entry.evaluation_fingerprint, entry.research_fingerprint, "reviewer-1")
+    registered = admit_catalog_entry(entry, admission, registry=registry)
+    assert registered.health.status.value == "INSUFFICIENT_DATA"
+    assert registry.select_eligible("2026-01-01") == ()
+    assert registered.metadata.source_ids == entry.source_ids
