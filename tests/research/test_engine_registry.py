@@ -7,7 +7,9 @@ import pytest
 from finahinking.p8_2.contracts import MLResearchSpecification, ParameterSweepSpecification
 from finahinking.p8_2.data_sources import FixtureMarketDataSource
 from finahinking.research.engine_registry import (
+    EngineAdmissionEvidence,
     EngineRegistry,
+    ExternalAdmissionVerifier,
     FinathinkSpecification,
     RegistryStatus,
     RestrictedProcessRunner,
@@ -41,9 +43,30 @@ class _AdmittedAdapter:
 
 class _FakeTrustedRunner(TrustedSandboxRunner):
     trusted_sandbox = True
+    supports_termination = True
+
+    def run_with_timeout(self, adapter, specification, dataset, timeout_seconds):
+        return self.run(adapter, specification, dataset)
 
     def run(self, adapter, specification, dataset):
         return adapter.run(specification, dataset)
+
+
+class _Verifier(ExternalAdmissionVerifier):
+    def verify(self, evidence, runner):
+        return True
+
+
+_EVIDENCE = EngineAdmissionEvidence(
+    engine_name="qlib",
+    pinned_version="unknown",
+    runtime_version="unknown",
+    license_name="unknown",
+    version_audit_digest="0" * 64,
+    license_audit_digest="1" * 64,
+    sandbox_audit_digest="2" * 64,
+    fixture_digest="3" * 64,
+)
 
 
 def _ml_request() -> FinathinkSpecification:
@@ -138,12 +161,16 @@ def test_admitted_adapter_result_is_normalized_and_reports_actual_engine() -> No
             "fallback": True,
             "controlled_runner": True,
             "runner": _FakeTrustedRunner(),
+            "version": "unknown",
+            "license_name": "unknown",
+            "evidence": _EVIDENCE,
+            "verifier": _Verifier(),
         },
     )
 
     assert registry.status("qlib") == RegistryStatus.AVAILABLE
     result = registry.run("qlib", _ml_request())
-    assert result.engine == "fixture-qlib"
+    assert result.engine == "qlib"
     assert result.fallback_used is False
     assert result.fallback_reason is None
 
@@ -259,6 +286,10 @@ def test_sensitive_adapter_payload_is_rejected_and_falls_back() -> None:
             "raw_object_boundary": True,
             "fallback": True,
             "runner": _FakeTrustedRunner(),
+            "version": "unknown",
+            "license_name": "unknown",
+            "evidence": _EVIDENCE,
+            "verifier": _Verifier(),
         },
     )
     result = registry.run("qlib", _ml_request())

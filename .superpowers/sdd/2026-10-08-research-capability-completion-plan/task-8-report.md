@@ -48,3 +48,31 @@ deprecation warning.
 No vendor SDK was installed, no network or live trading path was enabled, and
 no optional engine is marked available without the existing admission gates and
 trusted external runner contract.
+
+## Review fix round 1
+
+The review identified that marker-only runners could claim `AVAILABLE`, timed
+out work could continue in a background thread, provenance metadata could be
+overridden by adapters, unsafe sweep parameters could be echoed by fallback,
+and admitted sweeps were rejected by an ML-only field access. The follow-up
+adds deployment-owned audit evidence and verifier bindings, requires an
+externally enforced termination runner and finite timeout, makes admitted
+engine/version/license metadata authoritative and rescans assembled outputs,
+sanitizes rejected sweep inputs, freezes the resolved snapshot, and binds
+successful sweep results to the resolved dataset fingerprint.
+
+Focused verification after the fix:
+
+```text
+PYTHONPATH=src python3 -m pytest -q tests/research/test_optional_engine_admission.py tests/research/test_engine_registry.py
+22 passed
+
+PYTHONPATH=src python3 -m pytest -q tests/research
+426 passed, 1 warning
+
+PYTHONPATH=src python3 -m pytest -q
+856 passed, 1 skipped, 1 failed
+```
+
+The same unrelated wheel-install integration failure remains isolated to
+`tests/validation/test_artifact_install.py::test_wheel_install_exposes_migrations_fixtures_and_local_routes`.

@@ -9,10 +9,9 @@ reason remains part of the result.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Mapping
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -35,6 +34,48 @@ class RegistryStatus:
     DEFERRED: ClassVar[str] = "DEFERRED"
 
 
+@dataclass(frozen=True, slots=True)
+class EngineAdmissionEvidence:
+    """Bindings to deployment-owned external audit receipts.
+
+    Digests identify the version/dependency, license and OS/container policy
+    audits. They are references, not proof by themselves: a separately supplied
+    verifier must validate them against the deployment's trusted audit store.
+    The core ships no verifier that grants admission.
+    """
+
+    engine_name: str
+    pinned_version: str
+    runtime_version: str
+    license_name: str
+    version_audit_digest: str
+    license_audit_digest: str
+    sandbox_audit_digest: str
+    fixture_digest: str
+
+    def __post_init__(self) -> None:
+        for name in ("engine_name", "pinned_version", "runtime_version", "license_name"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]{0,95}", value):
+                raise ValueError(f"{name} must be a safe audit identifier")
+        for name in ("version_audit_digest", "license_audit_digest", "sandbox_audit_digest", "fixture_digest"):
+            if not isinstance(getattr(self, name), str) or not re.fullmatch(r"[0-9a-f]{64}", getattr(self, name)):
+                raise ValueError(f"{name} must be a SHA-256 digest")
+
+
+class ExternalAdmissionVerifier:
+    """Deployment integration for checking actual external admission receipts.
+
+    Implementations must independently inspect their trusted external audit
+    records and current OS/container runner, including pinned/runtime version,
+    license/extras/hosting review, no-network policy and timeout termination.
+    Boolean markers on the runner are never substituted for this verification.
+    """
+
+    def verify(self, evidence: EngineAdmissionEvidence, runner: TrustedSandboxRunner) -> bool:
+        return False
+
+
 class TrustedSandboxRunner:
     """Marker base for a separately audited OS sandbox runner.
 
@@ -47,9 +88,13 @@ class TrustedSandboxRunner:
     network_disabled: ClassVar[bool] = True
     file_write_disabled: ClassVar[bool] = True
     timeout_seconds: ClassVar[float] = 30.0
+    supports_termination: ClassVar[bool] = False
 
     def run(self, adapter: Any, specification: Any, dataset: DatasetSnapshot) -> Any:
         raise NotImplementedError("a deployment must provide the audited sandbox runner")
+
+    def run_with_timeout(self, adapter: Any, specification: Any, dataset: DatasetSnapshot, timeout_seconds: float) -> Any:
+        raise RuntimeError("runner does not provide externally enforced termination")
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +112,7 @@ class RestrictedProcessRunner(TrustedSandboxRunner):
     file_write_disabled: bool = True
 
     def __post_init__(self) -> None:
-        if self.timeout_seconds <= 0 or self.timeout_seconds > 300:
+        if not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0 or self.timeout_seconds > 300:
             raise ValueError("runner timeout must be between 0 and 300 seconds")
         if self.network_disabled is not True or self.file_write_disabled is not True:
             raise ValueError("restricted runner must disable network and file writes")
@@ -152,6 +197,8 @@ class EngineAdmission:
     version: str | None = None
     license_name: str | None = None
     timeout_seconds: float = 30.0
+    evidence: EngineAdmissionEvidence | None = None
+    verifier: ExternalAdmissionVerifier | None = None
 
     _GATES: ClassVar[tuple[str, ...]] = (
         "software_version",
@@ -176,6 +223,10 @@ class EngineAdmission:
             raise TypeError("engine timeout_seconds must be numeric")
         if self.timeout_seconds <= 0 or self.timeout_seconds > 300:
             raise ValueError("engine timeout_seconds must be between 0 and 300 seconds")
+        if self.evidence is not None and not isinstance(self.evidence, EngineAdmissionEvidence):
+            raise TypeError("evidence must be an EngineAdmissionEvidence")
+        if self.verifier is not None and not isinstance(self.verifier, ExternalAdmissionVerifier):
+            raise TypeError("verifier must be an ExternalAdmissionVerifier")
 
     @classmethod
     def from_value(cls, value: Mapping[str, Any] | EngineAdmission | None, *, installed_default: bool) -> EngineAdmission:
@@ -185,7 +236,7 @@ class EngineAdmission:
             return value
         if not isinstance(value, Mapping):
             raise TypeError("isolation must be a mapping or EngineAdmission")
-        allowed = {"installed", *cls._GATES, "runner", "version", "engine_version", "license_name", "license_id", "timeout_seconds"}
+        allowed = {"installed", *cls._GATES, "runner", "version", "engine_version", "license_name", "license_id", "timeout_seconds", "evidence", "verifier"}
         unknown = set(value) - allowed
         if unknown:
             raise ValueError("unknown engine admission fields")
@@ -195,7 +246,7 @@ class EngineAdmission:
         ):
             raise TypeError("runner must be an audited trusted sandbox runner")
         values: dict[str, bool] = {}
-        metadata_keys = {"version", "engine_version", "license_name", "license_id", "timeout_seconds"}
+        metadata_keys = {"version", "engine_version", "license_name", "license_id", "timeout_seconds", "evidence", "verifier"}
         for key in allowed:
             if key == "runner" or key in metadata_keys:
                 continue
@@ -218,11 +269,33 @@ class EngineAdmission:
             version=version,
             license_name=license_name,
             timeout_seconds=timeout_seconds,
+            evidence=value.get("evidence"),
+            verifier=value.get("verifier"),
         )
 
     @property
     def missing_gates(self) -> tuple[str, ...]:
         return tuple(key for key in self._GATES if not getattr(self, key))
+
+    def externally_verified(self, name: str) -> bool:
+        evidence, verifier, runner = self.evidence, self.verifier, self.runner
+        if evidence is None or verifier is None or runner is None:
+            return False
+        if (
+            evidence.engine_name.casefold() != name
+            or not self.version
+            or evidence.pinned_version != self.version
+            or evidence.runtime_version != self.version
+            or not self.license_name
+            or evidence.license_name != self.license_name
+            or runner.network_disabled is not True
+            or runner.file_write_disabled is not True
+        ):
+            return False
+        try:
+            return verifier.verify(evidence, runner) is True
+        except Exception:  # noqa: BLE001 - external verification fails closed
+            return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,7 +309,12 @@ class _Entry:
     def status(self) -> str:
         if not self.admission.installed:
             return RegistryStatus.NOT_INSTALLED
-        return RegistryStatus.AVAILABLE if not self.admission.missing_gates else RegistryStatus.DEFERRED
+        return RegistryStatus.AVAILABLE if (
+            not self.admission.missing_gates
+            and self.admission.externally_verified(self.name)
+            and bool(getattr(self.admission.runner, "supports_termination", False))
+            and callable(getattr(self.admission.runner, "run_with_timeout", None))
+        ) else RegistryStatus.DEFERRED
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,13 +389,14 @@ class EngineRegistry:
 
         if not isinstance(dataset, DatasetSnapshot):
             raise TypeError("dataset must be a DatasetSnapshot")
+        frozen_dataset = DatasetSnapshot.from_json(dataset.to_json())
         normalized_name = name.strip().casefold() if isinstance(name, str) else ""
         entry = self._entries.get(normalized_name)
         if entry is None:
             return EngineResolution(
                 name=normalized_name or "unknown",
                 status=RegistryStatus.NOT_INSTALLED,
-                dataset=dataset,
+                dataset=frozen_dataset,
                 capability=None,
                 engine_version=None,
                 license=None,
@@ -326,7 +405,7 @@ class EngineRegistry:
         return EngineResolution(
             name=entry.name,
             status=entry.status,
-            dataset=dataset,
+            dataset=frozen_dataset,
             capability=entry.capability,
             engine_version=entry.admission.version,
             license=entry.admission.license_name,
@@ -370,9 +449,9 @@ class EngineRegistry:
                     raise RuntimeError("controlled worker is not configured")
                 result = self._run_with_timeout(entry, request)
                 self._validate_result(result, request)
-                return self._annotate_result(result, entry)
-            except FutureTimeoutError:
-                fallback_reason = f"{entry.name} adapter execution timeout after {entry.admission.timeout_seconds:g} seconds"
+                annotated = self._annotate_result(result, entry, request)
+                self._validate_result(annotated, request, require_sweep_dataset=True)
+                return annotated
             except TimeoutError:
                 fallback_reason = f"{entry.name} adapter execution timeout after {entry.admission.timeout_seconds:g} seconds"
             except Exception as exc:  # noqa: BLE001 - adapter boundary fails closed
@@ -388,36 +467,31 @@ class EngineRegistry:
         runner = entry.admission.runner
         if runner is None:
             raise RuntimeError("controlled worker is not configured")
-        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="finathink-engine")
-        future = executor.submit(runner.run, entry.adapter, request.specification, request.dataset)
-        try:
-            result = future.result(timeout=entry.admission.timeout_seconds)
-        except FutureTimeoutError:
-            future.cancel()
-            executor.shutdown(wait=False, cancel_futures=True)
-            raise
-        except BaseException:
-            executor.shutdown(wait=True, cancel_futures=True)
-            raise
-        else:
-            executor.shutdown(wait=True, cancel_futures=True)
-            return result
+        if not getattr(runner, "supports_termination", False):
+            raise RuntimeError("runner termination contract is not externally verified")
+        return runner.run_with_timeout(
+            entry.adapter,
+            request.specification,
+            request.dataset,
+            entry.admission.timeout_seconds,
+        )
 
     @staticmethod
-    def _annotate_result(result: MLResearchResult | SweepResult, entry: _Entry) -> MLResearchResult | SweepResult:
+    def _annotate_result(result: MLResearchResult | SweepResult, entry: _Entry, request: FinathinkSpecification) -> MLResearchResult | SweepResult:
         metadata = {
-            "engine": result.engine,
+            "engine": entry.name,
             "engine_version": entry.admission.version or "unknown",
             "license": entry.admission.license_name or "unknown",
         }
+        EngineRegistry._validate_safe_payload(metadata)
         if isinstance(result, MLResearchResult):
             artifact = dict(result.model_artifact or {})
-            artifact.update({key: value for key, value in metadata.items() if key not in artifact})
+            artifact.update(metadata)
             return MLResearchResult(
                 specification_fingerprint=result.specification_fingerprint,
                 dataset_fingerprint=result.dataset_fingerprint,
                 status=result.status,
-                engine=result.engine,
+                engine=entry.name,
                 metrics=result.metrics,
                 predictions=result.predictions,
                 feature_importance=result.feature_importance,
@@ -427,7 +501,8 @@ class EngineRegistry:
                 fallback_reason=result.fallback_reason,
             )
         multiple_testing = dict(result.multiple_testing)
-        multiple_testing.update({key: value for key, value in metadata.items() if key not in multiple_testing})
+        multiple_testing.update(metadata)
+        multiple_testing["dataset_fingerprint"] = request.dataset.fingerprint
         return SweepResult(
             specification_fingerprint=result.specification_fingerprint,
             experiments=result.experiments,
@@ -436,22 +511,28 @@ class EngineRegistry:
             robust_regions=result.robust_regions,
             unstable_regions=result.unstable_regions,
             oos_comparison=result.oos_comparison,
-            engine=result.engine,
+            engine=entry.name,
             status=result.status,
             fallback_used=result.fallback_used,
             fallback_reason=result.fallback_reason,
         )
 
     @staticmethod
-    def _validate_result(result: Any, request: FinathinkSpecification) -> None:
+    def _validate_result(result: Any, request: FinathinkSpecification, *, require_sweep_dataset: bool = False) -> None:
         expected = MLResearchResult if request.kind == "ml" else SweepResult
         if not isinstance(result, expected):
             raise TypeError("adapter must return a Finathink-owned research result")
         expected_spec_fp = request.specification.fingerprint
         if result.specification_fingerprint != expected_spec_fp:
             raise ValueError("adapter result specification fingerprint mismatch")
-        if result.dataset_fingerprint != request.dataset.fingerprint and request.kind == "ml":
+        if request.kind == "ml" and result.dataset_fingerprint != request.dataset.fingerprint:
             raise ValueError("adapter result dataset fingerprint mismatch")
+        if request.kind == "sweep":
+            bound_dataset = result.multiple_testing.get("dataset_fingerprint")
+            if require_sweep_dataset and bound_dataset != request.dataset.fingerprint:
+                raise ValueError("adapter sweep result dataset fingerprint binding is missing")
+            if bound_dataset is not None and bound_dataset != request.dataset.fingerprint:
+                raise ValueError("adapter sweep result dataset fingerprint mismatch")
         EngineRegistry._validate_safe_payload(result.to_dict())
         # Force contract serialization at the boundary; this also rejects raw
         # third-party objects nested in predictions or artifacts.
@@ -509,6 +590,13 @@ class EngineRegistry:
             )
 
         assert request.sweep is not None
+        sweep_spec = request.sweep
+        try:
+            EngineRegistry._validate_safe_payload(sweep_spec.to_dict())
+        except (TypeError, ValueError):
+            # Preserve the caller's fingerprint for audit linkage while using
+            # a fresh, empty grid so rejected parameters cannot enter output.
+            sweep_spec = ParameterSweepSpecification(strategy_version="finathink-sanitized-fallback")
         closes = tuple(item.close for item in request.dataset.observations)
         average = sum(closes) / len(closes)
 
@@ -520,9 +608,9 @@ class EngineRegistry:
                 divisor = 1.0
             return {"oos": {"score": average / divisor}, "train": {}, "validation": {}}
 
-        result = run_parameter_sweep(request.sweep, evaluate)
-        return SweepResult(
-            specification_fingerprint=result.specification_fingerprint,
+        result = run_parameter_sweep(sweep_spec, evaluate)
+        fallback = SweepResult(
+            specification_fingerprint=request.sweep.fingerprint,
             experiments=result.experiments,
             warnings=result.warnings,
             multiple_testing=result.multiple_testing,
@@ -534,12 +622,16 @@ class EngineRegistry:
             fallback_used=True,
             fallback_reason=reason,
         )
+        EngineRegistry._validate_safe_payload(fallback.to_dict())
+        return fallback
 
 
 __all__ = [
     "EngineAdmission",
+    "EngineAdmissionEvidence",
     "EngineRegistry",
     "EngineResolution",
+    "ExternalAdmissionVerifier",
     "FinathinkSpecification",
     "RegistryStatus",
     "RestrictedProcessRunner",
