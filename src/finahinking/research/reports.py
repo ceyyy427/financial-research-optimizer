@@ -197,6 +197,7 @@ class ReportBundleWriter:
         *,
         workbench_payload: Mapping[str, Any] | None = None,
         explanation_package: Mapping[str, Any] | None = None,
+        quant_analytics: Mapping[str, Any] | Any | None = None,
     ) -> ReportManifest:
         bundle = Path(output_root) / result.state.run_id
         bundle.mkdir(parents=True, exist_ok=True)
@@ -242,6 +243,23 @@ class ReportBundleWriter:
             workbench_path.parent.mkdir(parents=True, exist_ok=True)
             workbench_path.write_text(render_workbench_report_html(workbench_payload, explanation_package), encoding="utf-8")
 
+        # Analytics are computed on the server and persisted as a redacted,
+        # content-addressed snapshot.  The HTML only displays these values.
+        analytics_payload: Mapping[str, Any] | None = None
+        if quant_analytics is not None:
+            if hasattr(quant_analytics, "to_dict") and callable(quant_analytics.to_dict):
+                analytics_payload = quant_analytics.to_dict()
+            elif isinstance(quant_analytics, Mapping):
+                analytics_payload = dict(quant_analytics)
+            else:
+                raise TypeError("quant_analytics must be a mapping or to_dict object")
+            analytics_payload = _scrub(analytics_payload)
+            analytics_path = bundle / "4_quant" / "analytics.json"
+            analytics_path.parent.mkdir(parents=True, exist_ok=True)
+            analytics_path.write_text(json.dumps(analytics_payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+            quant_index = bundle / "4_quant" / "index.html"
+            quant_index.write_text(render_section_html("4_quant", analytics_payload, limitations=analytics_payload.get("limitations", ())), encoding="utf-8")
+
         # The complete report starts with the same server-owned status facts as
         # the local UI.  It remains useful without JavaScript and never performs
         # client-side metric calculations.
@@ -280,6 +298,7 @@ class ReportBundleWriter:
                 "state_digest": stable_digest(result.state),
                 "decision_digest": stable_digest(result.decision) if result.decision else None,
                 **status_snapshot,
+                **({"quant_analytics": {"fingerprint": analytics_payload.get("fingerprint"), "limitations": analytics_payload.get("limitations", ())}} if analytics_payload else {}),
             },
             created_at=datetime.now(UTC),
         )

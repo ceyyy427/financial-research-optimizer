@@ -56,6 +56,7 @@ from .learning_manager import (
     LearningUpdateStatus,
 )
 from .paper_trader import PaperLedger, PaperLedgerEntry, PaperTrader
+from .quant_analytics import ParameterSurface, PerformanceReport, compute_parameter_surface, compute_performance_report
 from .portfolio_runtime import PaperPortfolioProposal, PortfolioManager
 from .provider_adapters import (
     DeepSeekCompatibleAdapter,
@@ -161,6 +162,10 @@ __all__ = [
     "PaperLedgerEntry",
     "PaperPortfolioProposal",
     "PaperTrader",
+    "ParameterSurface",
+    "PerformanceReport",
+    "compute_parameter_surface",
+    "compute_performance_report",
     "PortfolioManager",
     "ProviderAdapterError",
     "ProviderContractResult",
