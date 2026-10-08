@@ -220,6 +220,7 @@ class ResearchRequest:
     asset_class: str
     workflow_version: str
     config_digest: str
+    previous_policy_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "run_id", _nonempty(self.run_id, "run_id"))
@@ -233,6 +234,12 @@ class ResearchRequest:
         object.__setattr__(self, "asset_class", _nonempty(self.asset_class, "asset_class"))
         object.__setattr__(self, "workflow_version", _nonempty(self.workflow_version, "workflow_version"))
         object.__setattr__(self, "config_digest", _nonempty(self.config_digest, "config_digest"))
+        if self.previous_policy_fingerprint is not None:
+            object.__setattr__(
+                self,
+                "previous_policy_fingerprint",
+                _public_identifier(self.previous_policy_fingerprint, "previous_policy_fingerprint"),
+            )
 
 
 @dataclass(frozen=True, slots=True)

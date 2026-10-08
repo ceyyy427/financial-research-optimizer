@@ -481,6 +481,8 @@ class ResearchRunStore:
                 "risk_rule_updates": dict(proposal.risk_rule_updates),
                 "registry_updates": dict(proposal.registry_updates),
                 "evidence_refs": proposal.evidence_refs,
+                "ledger_digest": proposal.ledger_digest,
+                "dataset_digest": proposal.dataset_digest,
                 "proposal_digest": proposal.proposal_digest,
                 "admitted": proposal.admitted,
             },
@@ -524,6 +526,8 @@ class ResearchRunStore:
                 risk_rule_updates=proposal_payload.get("risk_rule_updates", {}),
                 registry_updates=proposal_payload.get("registry_updates", {}),
                 evidence_refs=tuple(proposal_payload.get("evidence_refs", ())),
+                ledger_digest=proposal_payload.get("ledger_digest"),
+                dataset_digest=proposal_payload.get("dataset_digest"),
                 proposal_digest=proposal_payload["proposal_digest"],
                 admitted=proposal_payload.get("admitted", False),
             )
