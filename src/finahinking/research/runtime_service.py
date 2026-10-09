@@ -20,7 +20,7 @@ from typing import Any
 from .contracts import AgentTask, ResearchRequest, stable_digest
 from .drivers import OfflineDriver
 from .job_queue import JobQueue, JobRecord, JobStatus, _ref
-from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, bind_runtime_budget
+from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, bind_runtime_budget, current_runtime_budget
 from .provider_adapters import ProviderAdapterError, ProviderFailureKind
 from .tools import ResearchToolGateway
 from .worker import ResearchWorker, WorkerResult, WorkerStatus
@@ -90,8 +90,8 @@ class ResearchRuntimeService:
         self._worker_id = _ref(worker_id, "worker_id")
         self._run_lock = threading.Lock()
         self._active_runs = 0
-        self._active_budget: RuntimeBudget | None = None
         self._last_metrics: RuntimeMetrics | None = None
+        self._metrics_by_run: dict[str, RuntimeMetrics] = {}
         self._timeout_seconds = float(timeout_seconds)
         self._max_result_bytes = int(max_result_bytes)
         if not math.isfinite(self._timeout_seconds) or self._timeout_seconds <= 0:
@@ -137,36 +137,41 @@ class ResearchRuntimeService:
         finally:
             with self._run_lock:
                 self._active_runs -= 1
-                self._active_budget = None
 
     def _run_bounded(self, job_id: str, bounds: RuntimeLimits) -> WorkerResult:
         started = time.monotonic()
-        self._active_budget = RuntimeBudget(job_id, bounds)
+        budget = RuntimeBudget(job_id, bounds)
         worker = self._worker(max_jobs=bounds.max_attempts, timeout_seconds=min(self._timeout_seconds, bounds.max_wall_seconds), max_result_bytes=min(self._max_result_bytes, bounds.max_bytes) if bounds.max_bytes is not None else self._max_result_bytes)
         calls = 0
-        while time.monotonic() - started < bounds.max_wall_seconds and calls < bounds.max_attempts:
-            record = self.queue.get(job_id)
-            terminal = self._terminal_result(record)
-            if terminal is not None:
-                return terminal
-            result = worker.run_once(target_job_id=job_id)
-            calls += 1
-            if self._active_budget is not None:
-                self._active_budget.retry_count = max(0, calls - 1)
-                self._last_metrics = self._active_budget.metrics()
-            record = self.queue.get(job_id)
-            if result.status in {WorkerStatus.COMPLETED, WorkerStatus.FAILED, WorkerStatus.CANCELLED}:
-                return result
-            terminal = self._terminal_result(record)
-            if terminal is not None:
-                return terminal
-            if result.status is WorkerStatus.IDLE:
-                delay = max(0.0, min(0.05, record.available_at - time.time()))
-                if delay:
-                    time.sleep(delay)
-                else:
-                    time.sleep(0.005)
-        return self._resource_limit(job_id)
+        result = self._resource_limit(job_id)
+        with bind_runtime_budget(budget):
+            while time.monotonic() - started < bounds.max_wall_seconds and calls < bounds.max_attempts:
+                record = self.queue.get(job_id)
+                terminal = self._terminal_result(record)
+                if terminal is not None:
+                    result = terminal
+                    break
+                result = worker.run_once(target_job_id=job_id)
+                calls += 1
+                budget.retry_count = max(0, calls - 1)
+                self._last_metrics = budget.metrics()
+                record = self.queue.get(job_id)
+                if result.status in {WorkerStatus.COMPLETED, WorkerStatus.FAILED, WorkerStatus.CANCELLED}:
+                    break
+                terminal = self._terminal_result(record)
+                if terminal is not None:
+                    break
+                if result.status is WorkerStatus.IDLE:
+                    delay = max(0.0, min(0.05, record.available_at - time.time()))
+                    if delay:
+                        time.sleep(delay)
+                    else:
+                        time.sleep(0.005)
+            else:
+                result = self._resource_limit(job_id)
+        self._metrics_by_run[job_id] = budget.metrics()
+        self._last_metrics = self._metrics_by_run[job_id]
+        return result
 
     def _resource_limit(self, job_id: str) -> WorkerResult:
         return WorkerResult(WorkerStatus.RETRYABLE, job_id, failure_kind="RESOURCE_LIMIT", message_digest=stable_digest("RESOURCE_LIMIT"), attempts=self.queue.get(job_id).attempts)
@@ -174,6 +179,9 @@ class ResearchRuntimeService:
     @property
     def metrics(self) -> RuntimeMetrics | None:
         return self._last_metrics
+
+    def metrics_for(self, run_id: str) -> RuntimeMetrics:
+        return self._metrics_by_run[run_id]
 
     def resume(self, job_id: str) -> WorkerResult:
         record = self.queue.get(job_id)
@@ -247,7 +255,7 @@ class ResearchRuntimeService:
             if self.queue.is_cancel_requested(job.job_id):
                 return {"failure": "CANCELLED"}
             try:
-                budget = self._active_budget
+                budget = current_runtime_budget()
                 if budget is not None:
                     budget.check_wall()
                     stage_started = time.monotonic()

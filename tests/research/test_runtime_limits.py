@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from finahinking.research.observability import RuntimeBudget, RuntimeLimitExceeded, bind_runtime_budget
+from finahinking.research.observability import RuntimeBudget, RuntimeLimitExceeded, bind_runtime_budget, current_runtime_budget
 from finahinking.research.provider_adapters import OpenAICompatibleAdapter, ProviderFailureKind, RetryPolicy
 from finahinking.research.providers import ModelEnvelope
 from finahinking.research.runtime_service import ResearchRuntimeService, RuntimeLimits
@@ -77,3 +77,30 @@ def test_service_rejects_concurrent_run_for_same_instance(tmp_path) -> None:
     finally:
         release.set()
         thread.join(3)
+
+
+def test_concurrent_runs_keep_independent_budgets_and_metrics(tmp_path) -> None:
+    def stage(received, previous):
+        budget = current_runtime_budget()
+        assert budget is not None
+        budget.charge_experiments(1)
+        time.sleep(0.15)
+        return {"status": "completed", "result_ref": f"artifact:{received.run_id}"}
+
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": stage})
+    first = service.submit(request("parallel-1"))
+    second = service.submit(request("parallel-2"))
+    limits = RuntimeLimits(max_wall_seconds=5, max_attempts=2, max_experiments=1, max_concurrency=2)
+    results = {}
+
+    def run(job):
+        results[job.job_id] = service.run_until_terminal(job.job_id, limits)
+
+    workers = [threading.Thread(target=run, args=(job,)) for job in (first, second)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(8)
+    assert {result.status for result in results.values()} == {WorkerStatus.COMPLETED}
+    assert service.metrics_for(first.job_id).experiments == 1
+    assert service.metrics_for(second.job_id).experiments == 1

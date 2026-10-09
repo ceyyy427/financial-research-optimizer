@@ -26,3 +26,7 @@
 ## Concerns
 
 Metrics are intentionally count/digest-only; raw provider responses, secrets, and filesystem paths are never serialized. The full research suite retains the unrelated vertical-slice failure described above.
+
+## Concurrency follow-up
+
+Review found that a service-wide active budget could be overwritten by concurrent runs. The follow-up moves budget ownership into a context variable inherited by each worker child, stores metrics by run ID, and adds a two-run regression covering independent experiment counters. Focused verification after the fix: 42 passed.
