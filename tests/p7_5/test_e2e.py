@@ -98,11 +98,39 @@ def _register_failed_runtime_app() -> LocalApplication:
     return app
 
 
+def _write_artifact_manifest(artifact_dir: Path) -> list[str]:
+    """Write a stable manifest for evidence files, excluding the manifest itself."""
+
+    manifest_path = artifact_dir / "SHA256SUMS.tsv"
+    lines: list[str] = []
+    for item in sorted(
+        (candidate for candidate in artifact_dir.iterdir() if candidate.is_file() and candidate != manifest_path),
+        key=lambda candidate: candidate.relative_to(artifact_dir).as_posix(),
+    ):
+        relative_name = item.relative_to(artifact_dir).as_posix()
+        content = item.read_bytes()
+        lines.append(f"{relative_name}\t{len(content)}\t{hashlib.sha256(content).hexdigest()}")
+    manifest_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return lines
+
+
+def _assert_artifact_manifest(artifact_dir: Path, lines: list[str]) -> None:
+    """Verify every listed evidence hash and size after writing the manifest."""
+
+    for line in lines:
+        relative_name, size, digest = line.split("\t")
+        item = artifact_dir / relative_name
+        content = item.read_bytes()
+        assert item != artifact_dir / "SHA256SUMS.tsv"
+        assert int(size) == len(content)
+        assert digest == hashlib.sha256(content).hexdigest()
+
+
 @pytest.mark.skipif(__import__("importlib.util").util.find_spec("playwright") is None, reason="playwright dev dependency is not installed")
 def test_browser_acceptance_real_engine_keyboard_responsive_failures_and_evidence(monkeypatch) -> None:
     """Exercise the served product in Chromium; HTMLParser tests cannot prove these behaviors."""
 
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import Error as PlaywrightError, sync_playwright
 
     artifact_dir = Path(__file__).resolve().parents[2] / ".superpowers" / "sdd" / "2026-10-08-research-capability-completion-plan" / "task-16-artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -113,11 +141,21 @@ def test_browser_acceptance_real_engine_keyboard_responsive_failures_and_evidenc
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
-    browser_path = "/Users/mac/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
     browser_errors: list[str] = []
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True, executable_path=browser_path)
+            # Let Playwright resolve its own bundled browser so this works on
+            # every developer/CI machine. Missing browser binaries are an
+            # explicit environment skip, rather than a path-specific failure.
+            if not Path(playwright.chromium.executable_path).is_file():
+                pytest.skip("Playwright bundled Chromium is unavailable; run `python -m playwright install chromium`")
+            try:
+                browser = playwright.chromium.launch(headless=True)
+            except PlaywrightError as error:
+                pytest.skip(
+                    f"Playwright bundled Chromium could not launch ({error.__class__.__name__}); "
+                    "run `python -m playwright install chromium`"
+                )
             no_js = browser.new_context(java_script_enabled=False, viewport={"width": 390, "height": 844})
             page = no_js.new_page()
             page.goto(f"{base}/research/browser-failed-run", wait_until="networkidle")
@@ -169,9 +207,8 @@ def test_browser_acceptance_real_engine_keyboard_responsive_failures_and_evidenc
         thread.join(timeout=3)
         app.close()
     assert not browser_errors, browser_errors
-    evidence = sorted(artifact_dir.iterdir())
-    manifest = "\n".join(f"{item.name}\t{item.stat().st_size}\t{hashlib.sha256(item.read_bytes()).hexdigest()}" for item in evidence)
-    (artifact_dir / "SHA256SUMS.tsv").write_text(manifest + "\n", encoding="utf-8")
+    manifest_lines = _write_artifact_manifest(artifact_dir)
+    _assert_artifact_manifest(artifact_dir, manifest_lines)
 
 
 def test_http_runtime_journey_has_no_js_navigation_redacted_settings_and_read_only_stream(monkeypatch) -> None:
