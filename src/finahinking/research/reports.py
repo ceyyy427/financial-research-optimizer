@@ -24,6 +24,19 @@ _PUBLIC_SENSITIVE_KEY = re.compile(
 _REQUIRED_ANALYSTS = ("fundamentals", "technical", "sentiment", "news", "learning")
 _REQUIRED_SECTIONS = ("2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision")
 _RUNTIME_SECTIONS = ("experiments", "risk_attribution", "learning_history")
+_RUNTIME_STAGE_MARKERS = {
+    "experiments": "QUANT_VALIDATION",
+    "risk_attribution": "RISK_REVIEW",
+    "learning_history": "LEARNING_RECORDED",
+}
+_BLOCKED_RUNTIME_STATES = {
+    "NO_DATA_AVAILABLE",
+    "DATA_UNAVAILABLE",
+    "FAILED",
+    "VALIDATION_FAILED",
+    "PROVIDER_NOT_CONFIGURED",
+    "CANCELLED",
+}
 
 
 def _scrub(value: Any) -> Any:
@@ -274,7 +287,7 @@ class ReportBundleWriter:
         for section, payload in runtime_payloads.items():
             path = bundle / section / "index.html"
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(_render_runtime_section_html(section, payload), encoding="utf-8")
+            path.write_text(_render_runtime_section_html(result.state.run_id, section, payload), encoding="utf-8")
 
         # The complete report starts with the same server-owned status facts as
         # the local UI.  It remains useful without JavaScript and never performs
@@ -369,16 +382,15 @@ def _runtime_report_payloads(result: ResearchRunResult) -> dict[str, dict[str, A
                 values[key] = item[key]
                 break
     terminal = result.state.current_state.value
-    history = {item.value for item in result.state.state_history}
-    stage_markers = {
-        "experiments": "QUANT_VALIDATION",
-        "risk_attribution": "RISK_REVIEW",
-        "learning_history": "LEARNING_RECORDED",
-    }
+    # ResearchRunState keeps the current state in state_history.  Exclude it
+    # before deriving historical completion, otherwise an active stage is
+    # incorrectly shown as COMPLETE instead of CURRENT.
+    history = {item.value for item in result.state.state_history if item.value != terminal}
+    failure_kind = result.state.failure_kind.value if result.state.failure_kind else terminal
     output: dict[str, dict[str, Any]] = {}
     for section in _RUNTIME_SECTIONS:
-        marker = stage_markers[section]
-        status = "COMPLETE" if marker in history else "CURRENT" if marker == terminal else "BLOCKED" if terminal in {"FAILED", "VALIDATION_FAILED", "PROVIDER_NOT_CONFIGURED", "CANCELLED"} else "PENDING"
+        marker = _RUNTIME_STAGE_MARKERS[section]
+        status = "CURRENT" if marker == terminal else "COMPLETE" if marker in history else "BLOCKED" if terminal in _BLOCKED_RUNTIME_STATES else "PENDING"
         value = values.get(section, [])
         if isinstance(value, Mapping):
             payload: dict[str, Any] = dict(value)
@@ -388,24 +400,28 @@ def _runtime_report_payloads(result: ResearchRunResult) -> dict[str, dict[str, A
             payload = {"value": value}
         payload = _scrub(payload)
         payload["status"] = status
+        if status == "BLOCKED":
+            payload["failure_kind"] = failure_kind
+            payload["blocked_evidence"] = [f"state:{terminal}", f"failure_kind:{failure_kind}"]
+            payload.setdefault("evidence_refs", [])
         payload.setdefault("limitations", ["server snapshot; descriptive and paper-only"])
         output[section] = payload
     return output
 
 
-def _render_runtime_section_html(section: str, payload: Mapping[str, Any]) -> str:
+def _render_runtime_section_html(run_id: str, section: str, payload: Mapping[str, Any]) -> str:
     safe = _scrub(payload)
     title = html.escape(section.replace("_", " ").title(), quote=True)
     status = html.escape(str(safe.get("status", "PENDING")), quote=True)
     body = html.escape(json.dumps(safe, ensure_ascii=False, sort_keys=True, indent=2), quote=False)
     links = " ".join(
-        f'<a href="../{other}/index.html">{html.escape(other.replace("_", " ").title())}</a>'
+        f'<a href="/research/{html.escape(run_id, quote=True)}/report/{other}">{html.escape(other.replace("_", " ").title())}</a>'
         for other in _RUNTIME_SECTIONS if other != section
     )
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         f"<title>{title} · research runtime</title></head><body><main>"
-        f"<nav><a href=\"../complete_report.html\">Complete report</a> {links}</nav>"
+        f"<nav><a href=\"/research/{html.escape(run_id, quote=True)}/report/complete\">Complete report</a> {links}</nav>"
         f"<h1>{title}</h1><p>Status: <strong>{status}</strong> · READ-ONLY · PAPER-ONLY</p>"
         f"<pre>{body}</pre><p>Values are server-provided; no financial indicators are calculated in the browser.</p>"
         "</main></body></html>"
@@ -435,15 +451,16 @@ def _status_snapshot(result: ResearchRunResult) -> dict[str, Any]:
         ("publication", "REPORT_PUBLISHED"),
         ("learning", "LEARNING_RECORDED"),
     )
-    history = {item.value for item in result.state.state_history}
+    terminal = result.state.current_state.value
+    history = {item.value for item in result.state.state_history if item.value != terminal}
     stage_status: dict[str, str] = {}
     for name, state_name in stage_states:
-        if state_name in history:
-            stage_status[name] = "COMPLETE"
-        elif result.state.current_state.value == state_name:
+        if terminal == state_name:
             stage_status[name] = "CURRENT"
-        elif result.state.current_state.value in {"CANCELLED", "FAILED", "VALIDATION_FAILED", "PROVIDER_NOT_CONFIGURED"}:
-            stage_status[name] = "CANCELLED" if result.state.current_state.value == "CANCELLED" else "BLOCKED"
+        elif state_name in history:
+            stage_status[name] = "COMPLETE"
+        elif terminal in _BLOCKED_RUNTIME_STATES:
+            stage_status[name] = "CANCELLED" if terminal == "CANCELLED" else "BLOCKED"
         else:
             stage_status[name] = "PENDING"
     metadata = [event.metadata for event in result.events if isinstance(event.metadata, Mapping)]

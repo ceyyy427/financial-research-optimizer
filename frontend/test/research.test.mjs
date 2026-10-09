@@ -151,6 +151,7 @@ test('normalizeResearchRuntime keeps server-owned stream facts and rejects publi
     manifest_digest: 'a'.repeat(64),
     limitations: ['fixture'],
   });
+  assert.equal(normalized.schema_version, 2);
   assert.equal(normalized.run_id, 'stream-ui');
   assert.equal(normalized.tool_summaries[0].name, 'factor_scan');
   assert.throws(() => normalizeResearchRuntime({ ...normalized, checkpoint: { prompt: 'hidden' } }), /unsafe|invalid/i);
@@ -184,16 +185,40 @@ test('normalizeResearchRuntime preserves server-owned report tree stages without
     state: 'RISK_REVIEW',
     mode: 'OFFLINE',
     paper_only: true,
-    stage_status: { risk: 'CURRENT' },
+    stage_status: { quant: 'COMPLETE', risk: 'CURRENT', learning: 'PENDING' },
     role_status: {},
     experiments: [{ experiment_id: 'exp-1', status: 'COMPLETE', metrics: { ic: 0.1 } }],
     risk_attribution: { status: 'CURRENT', factors: [{ name: 'volatility', contribution: 0.2 }] },
     learning_history: [],
     manifest_digest: 'a'.repeat(64),
   });
+  assert.equal(normalized.schema_version, 3);
   assert.equal(normalized.experiments[0].experiment_id, 'exp-1');
   assert.equal(normalized.risk_attribution.status, 'CURRENT');
   assert.throws(() => normalizeResearchRuntime({ ...normalized, experiments: [{ prompt: 'hidden' }] }), /unsafe/i);
+});
+
+test('renderResearchRuntime uses server stage status for array report data', () => {
+  const state = { textContent: '' };
+  const stages = { textContent: '' };
+  const root = {
+    dataset: {},
+    querySelector: (selector) => selector === '[data-research-runtime-state]' ? state : selector === '[data-research-runtime-report-stages]' ? stages : { textContent: '' },
+  };
+  renderResearchRuntime(root, {
+    schema_version: 3,
+    run_id: 'tree-ui',
+    state: 'RISK_REVIEW',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { quant: 'COMPLETE', risk: 'CURRENT', learning: 'PENDING' },
+    role_status: {},
+    experiments: [{ experiment_id: 'exp-1' }],
+    risk_attribution: [],
+    learning_history: [],
+    manifest_digest: 'a'.repeat(64),
+  });
+  assert.equal(stages.textContent, 'experiments: COMPLETE · risk_attribution: CURRENT · learning_history: PENDING');
 });
 
 const workbench = {

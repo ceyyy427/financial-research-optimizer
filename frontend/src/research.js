@@ -164,7 +164,7 @@ export function normalizeResearchRuntime(payload) {
   const risk_attribution = normalizeStageData(payload.risk_attribution, 'risk attribution');
   const learning_history = normalizeStageData(payload.learning_history, 'learning history');
   return {
-    schema_version: 2,
+    schema_version: payload.schema_version,
     run_id: payload.run_id,
     state: payload.state,
     mode: payload.mode,
@@ -196,7 +196,15 @@ export function renderResearchRuntime(root, payload) {
   const tools = root?.querySelector?.('[data-research-runtime-tools]');
   if (tools) tools.textContent = normalized.tool_summaries.map((item) => `${item.name ?? item.tool ?? 'tool'}: ${item.status ?? 'RECORDED'}`).join(' · ') || 'No tool summary recorded.';
   const stages = root?.querySelector?.('[data-research-runtime-report-stages]');
-  if (stages) stages.textContent = ['experiments', 'risk_attribution', 'learning_history'].map((name) => `${name}: ${normalized[name]?.status ?? 'PENDING'}`).join(' · ');
+  if (stages) {
+    const stageNames = { experiments: 'quant', risk_attribution: 'risk', learning_history: 'learning' };
+    stages.textContent = ['experiments', 'risk_attribution', 'learning_history'].map((name) => {
+      const stageData = normalized[name];
+      const dataStatus = stageData && !Array.isArray(stageData) && typeof stageData === 'object' ? stageData.status : null;
+      const status = normalized.stage_status[name] ?? normalized.stage_status[stageNames[name]] ?? dataStatus ?? 'PENDING';
+      return `${name}: ${status}`;
+    }).join(' · ');
+  }
   return normalized;
 }
 

@@ -17,6 +17,12 @@ from .reports import redact_public_payload
 
 _ANALYST_ROLES = ("fundamentals", "technical", "sentiment", "news", "learning")
 _SECTIONS = frozenset(("complete", "2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision", "experiments", "risk_attribution", "learning_history"))
+_RUNTIME_STAGE_MARKERS = {
+    "experiments": "QUANT_VALIDATION",
+    "risk_attribution": "RISK_REVIEW",
+    "learning_history": "LEARNING_RECORDED",
+}
+_RUNTIME_BLOCKED_STATES = frozenset(("NO_DATA_AVAILABLE", "DATA_UNAVAILABLE", "FAILED", "VALIDATION_FAILED", "PROVIDER_NOT_CONFIGURED", "CANCELLED"))
 _RUNTIME_REGISTRY: dict[str, tuple[ResearchRunState, Any, tuple[Any, ...]]] = {}
 
 
@@ -196,13 +202,23 @@ def research_runtime_view_model(
         "learning": "LEARNING_RECORDED",
         "report": "REPORT_PUBLISHED",
     }
-    history = {item.value for item in state.state_history}
+    terminal = state.current_state.value
+    history = {item.value for item in state.state_history if item.value != terminal}
     for name, marker in aliases.items():
-        if marker in history:
-            stage_status[name] = "COMPLETE"
-        elif marker == state.current_state.value:
+        if marker == terminal:
             stage_status[name] = "CURRENT"
-        elif state.current_state in {ResearchState.CANCELLED, ResearchState.FAILED, ResearchState.VALIDATION_FAILED, ResearchState.PROVIDER_NOT_CONFIGURED}:
+        elif marker in history:
+            stage_status[name] = "COMPLETE"
+        elif terminal in _RUNTIME_BLOCKED_STATES:
+            stage_status[name] = "CANCELLED" if state.current_state is ResearchState.CANCELLED else "BLOCKED"
+        else:
+            stage_status.setdefault(name, "PENDING")
+    for name, marker in _RUNTIME_STAGE_MARKERS.items():
+        if marker == terminal:
+            stage_status[name] = "CURRENT"
+        elif marker in history:
+            stage_status[name] = "COMPLETE"
+        elif terminal in _RUNTIME_BLOCKED_STATES:
             stage_status[name] = "CANCELLED" if state.current_state is ResearchState.CANCELLED else "BLOCKED"
         else:
             stage_status.setdefault(name, "PENDING")
@@ -283,14 +299,14 @@ def _stage_status(run_state: ResearchRunState) -> dict[str, str]:
         ("publication", "REPORT_PUBLISHED"),
         ("learning", "LEARNING_RECORDED"),
     )
-    history = {item.value for item in run_state.state_history}
     terminal = run_state.current_state.value
+    history = {item.value for item in run_state.state_history if item.value != terminal}
     return {
         name: (
-            "COMPLETE" if state_name in history else
             "CURRENT" if state_name == terminal else
+            "COMPLETE" if state_name in history else
             "CANCELLED" if terminal == "CANCELLED" else
-            "BLOCKED" if terminal in {"FAILED", "VALIDATION_FAILED", "PROVIDER_NOT_CONFIGURED"} else
+            "BLOCKED" if terminal in _RUNTIME_BLOCKED_STATES else
             "PENDING"
         )
         for name, state_name in stages

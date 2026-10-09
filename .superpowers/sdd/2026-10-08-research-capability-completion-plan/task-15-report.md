@@ -21,3 +21,16 @@
 ## Files
 
 `src/finahinking/research/reports.py`, `src/finahinking/research/ui.py`, `src/finahinking/local_app.py`, `frontend/src/research.js`, `frontend/test/research.test.mjs`, and `tests/research/test_report_tree.py`.
+
+## Fix round 1
+
+- Corrected runtime stage semantics so the current stage is `CURRENT`; only prior state-history entries are `COMPLETE`.
+- Mapped `NO_DATA_AVAILABLE` and `DATA_UNAVAILABLE` to `BLOCKED` for experiments, risk attribution, and learning history, with redacted state/failure evidence in each payload.
+- Replaced filesystem-relative runtime-page links with allow-listed local application routes preserving the run id.
+- Preserved frontend runtime `schema_version` 3 and rendered report-stage status from server stage data, including array-shaped stage payloads.
+- Added focused regression coverage for active-stage status, data-unavailable/no-data blocking evidence, route links, schema preservation, and array-safe frontend rendering.
+
+### Fix-round validation
+
+- `python3 -m pytest -q tests/research/test_report_tree.py tests/research/test_reports.py tests/research/test_report_status_wall.py tests/research/test_ui.py` → 28 passed.
+- `node --test frontend/test/research.test.mjs` → 15 passed.
