@@ -85,7 +85,7 @@ def test_store_retry_without_enrichment_preserves_existing_admission_and_preview
     store.save(proposal)
     enriched = store.save(proposal, admission=admission)
     assert store.save(proposal) == enriched
-    fully_enriched = store.save(proposal, admission=admission, preview=preview)
+    fully_enriched = store.save(proposal, preview=preview)
     retried = store.save(proposal)
 
     assert retried == fully_enriched

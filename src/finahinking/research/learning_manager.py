@@ -625,27 +625,28 @@ class LearningProposalStore:
         admission: LearningAdmissionRecord | None = None,
         preview: LearningApplyPreview | None = None,
     ) -> LearningProposalRecord:
-        record = LearningProposalRecord(proposal, admission, preview)
-        path = self._path(record.proposal_digest)
-        if path.exists():
-            current = self._read_path(path)
-            if current == record:
-                return current
+        if not isinstance(proposal, LearningUpdateProposal):
+            raise TypeError("proposal must be LearningUpdateProposal")
+        path = self._path(proposal.proposal_digest)
+        current = self._read_path(path) if path.exists() else None
+        if current is not None:
             # Permit an append-only enrichment from proposal -> admission -> preview,
             # while refusing conflicting review or proposal payloads.
-            if current.proposal != record.proposal:
+            if current.proposal != proposal:
                 raise ValueError("proposal digest conflicts with another payload")
             if admission is not None and current.admission is not None and current.admission != admission:
                 raise ValueError("proposal already has a different admission")
             if preview is not None and current.preview is not None and current.preview != preview:
                 raise ValueError("proposal already has a different preview")
             record = LearningProposalRecord(
-                record.proposal,
+                proposal,
                 admission if admission is not None else current.admission,
                 preview if preview is not None else current.preview,
             )
             if record == current:
                 return current
+        else:
+            record = LearningProposalRecord(proposal, admission, preview)
         # A settlement can produce only one immutable proposal in this store.
         if proposal.settlement_digest is not None:
             for candidate in sorted(self.root.glob("proposal-*.json")):
