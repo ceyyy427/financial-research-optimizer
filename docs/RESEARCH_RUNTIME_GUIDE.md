@@ -47,9 +47,12 @@ cd frontend && npm test
 17 passed, 0 failed
 ```
 
-证据状态为 `OFFLINE_PASS`（HTTP、解析后的 HTML 语义、Node 前端契约）。
-未运行真实浏览器、截图、Tab 键交互、屏幕阅读器或响应式视觉验收，
-这些项目仍为 `EXTERNAL_UNVERIFIED`；HTML 语义断言不能替代浏览器可访问性认证。
+证据状态为 `OFFLINE_BROWSER_PASS`。Playwright 1.61 驱动本机 Chromium 1243
+实际打开 loopback 页面，验证 JavaScript-disabled 页面、密码字段、skip-link 与
+Tab traversal、失败 run、报告跳转、stream-fetch 错误提示，以及桌面/390px
+移动端无横向溢出。页面/console error 收集结果为空。截图、HTML 和 SHA-256
+清单保存在 `.superpowers/sdd/2026-10-08-research-capability-completion-plan/task-16-artifacts/`。
+这仍是本地离线证据，不代表外部 provider、生产部署或屏幕阅读器一致性已验证。
 
 ## 实验对比
 

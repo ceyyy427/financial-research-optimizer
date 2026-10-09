@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import os
 import threading
 from datetime import UTC, date, datetime
 from html.parser import HTMLParser
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
+
+import pytest
 
 from finahinking.local_app import LocalAppConfig, LocalApplication, create_server
 from finahinking.research.contracts import AgentReport, ResearchRunResult, ResearchRunState, ResearchState, RunEvent
@@ -74,6 +79,99 @@ def _registered_runtime_app() -> LocalApplication:
     manifest = ReportBundleWriter().write(result, app.artifact_root / "reports")
     app.register_research_run(result, manifest)
     return app
+
+
+def _register_failed_runtime_app() -> LocalApplication:
+    """Register a real server-owned failed run for browser failure coverage."""
+
+    app = LocalApplication(LocalAppConfig(db_path=":memory:", offline=True))
+    state = ResearchRunState(
+        run_id="browser-failed-run",
+        current_state=ResearchState.FAILED,
+        as_of=date(2026, 10, 1),
+        state_history=(ResearchState.RECEIVED, ResearchState.FAILED),
+        analyst_reports=(),
+    )
+    result = ResearchRunResult(state=state, events=())
+    manifest = ReportBundleWriter().write(result, app.artifact_root / "reports")
+    app.register_research_run(result, manifest)
+    return app
+
+
+@pytest.mark.skipif(__import__("importlib.util").util.find_spec("playwright") is None, reason="playwright dev dependency is not installed")
+def test_browser_acceptance_real_engine_keyboard_responsive_failures_and_evidence(monkeypatch) -> None:
+    """Exercise the served product in Chromium; HTMLParser tests cannot prove these behaviors."""
+
+    from playwright.sync_api import sync_playwright
+
+    artifact_dir = Path(__file__).resolve().parents[2] / ".superpowers" / "sdd" / "2026-10-08-research-capability-completion-plan" / "task-16-artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    secret = "browser-secret-must-never-render"
+    monkeypatch.setenv("FINAHINK_USER_API_KEY", secret)
+    app = _register_failed_runtime_app()
+    server = create_server(app, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    browser_path = "/Users/mac/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+    browser_errors: list[str] = []
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True, executable_path=browser_path)
+            no_js = browser.new_context(java_script_enabled=False, viewport={"width": 390, "height": 844})
+            page = no_js.new_page()
+            page.goto(f"{base}/research/browser-failed-run", wait_until="networkidle")
+            assert page.locator("main#main").is_visible()
+            assert page.get_by_text("FAILED", exact=True).count() >= 1
+            assert page.get_by_text("READ-ONLY", exact=False).count() >= 1
+            assert secret not in page.content()
+            page.screenshot(path=str(artifact_dir / "no-js-failed-mobile.png"), full_page=True)
+            (artifact_dir / "no-js-failed-mobile.html").write_text(page.content(), encoding="utf-8")
+            no_js.close()
+
+            context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            page = context.new_page()
+            page.on("pageerror", lambda error: browser_errors.append(f"pageerror:{error}"))
+            page.on("console", lambda msg: browser_errors.append(f"console:{msg.text}") if msg.type == "error" else None)
+            page.goto(f"{base}/settings/data-connections", wait_until="networkidle")
+            assert page.locator('input[name="api_key"]').get_attribute("type") == "password"
+            assert secret not in page.content()
+            # Tab traversal reaches the skip link, then the primary navigation and main content.
+            page.keyboard.press("Tab")
+            assert page.locator(":focus").get_attribute("href") == "#main"
+            for _ in range(8):
+                page.keyboard.press("Tab")
+            assert page.locator(":focus").count() == 1
+            assert page.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth")
+            page.screenshot(path=str(artifact_dir / "settings-desktop.png"), full_page=True)
+            (artifact_dir / "settings-desktop.html").write_text(page.content(), encoding="utf-8")
+
+            # Mobile layout must fit without horizontal overflow and retain readable controls.
+            mobile = browser.new_page(viewport={"width": 390, "height": 844})
+            mobile.goto(f"{base}/settings/data-connections", wait_until="networkidle")
+            assert mobile.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth")
+            assert mobile.locator('input[name="api_key"]').is_visible()
+            mobile.screenshot(path=str(artifact_dir / "settings-mobile.png"), full_page=True)
+
+            # A failed stream fetch must become an explicit visible UI error, not a silent success.
+            page.goto(f"{base}/research/browser-failed-run", wait_until="networkidle")
+            page.route("**/api/research/runs/browser-failed-run/stream", lambda route: route.fulfill(status=200, content_type="application/json", body='{}'))
+            page.reload(wait_until="networkidle")
+            assert page.locator("[data-research-runtime-error]").is_visible()
+            assert "Research runtime unavailable" in page.locator("[data-research-runtime-error]").inner_text()
+            page.screenshot(path=str(artifact_dir / "failed-stream-error.png"), full_page=True)
+            (artifact_dir / "failed-stream-error.html").write_text(page.content(), encoding="utf-8")
+            context.close()
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+        app.close()
+    assert not browser_errors, browser_errors
+    evidence = sorted(artifact_dir.iterdir())
+    manifest = "\n".join(f"{item.name}\t{item.stat().st_size}\t{hashlib.sha256(item.read_bytes()).hexdigest()}" for item in evidence)
+    (artifact_dir / "SHA256SUMS.tsv").write_text(manifest + "\n", encoding="utf-8")
 
 
 def test_http_runtime_journey_has_no_js_navigation_redacted_settings_and_read_only_stream(monkeypatch) -> None:

@@ -379,7 +379,7 @@ class LocalApplication:
                 f'<div class="action-row">{link_html}</div>'
                 f'<section data-research-run data-payload-url="/research/{html.escape(run_id)}/status"><p class="field-help" data-research-run-status>SERVER-RENDERED · {html.escape(view_model["state"])}</p><p class="field-help" data-research-run-summary>As-of {html.escape(str(view_model.get("as_of") or "not attached"))}</p><p class="error-state" data-research-run-error hidden></p></section>'
             )
-            return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"))
+            return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"), scripts=("/assets/finathink-research.js",))
         if len(parts) == 3 and parts[1] == "report":
             section = parts[2]
             allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html", "experiments": "experiments/index.html", "risk_attribution": "risk_attribution/index.html", "learning_history": "learning_history/index.html"}
@@ -919,7 +919,7 @@ class LocalApplication:
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             f"<title>{html.escape(title)} · Finathink</title>"
             '<meta name="theme-color" content="#edf2f1">'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'self\' \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'self\' \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'">'
             f"<style>{_APP_CSS}</style>{style_tags}{script_tags}</head><body>"
             '<a class="skip-link" href="#main">Skip to content</a>'
             '<div class="app-shell">'
