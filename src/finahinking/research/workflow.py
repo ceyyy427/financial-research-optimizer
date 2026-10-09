@@ -94,6 +94,7 @@ class ResearchOrchestrator:
         *,
         connection_store: Any | None = None,
         data_transport: Any | None = None,
+        data_resolver: Any | None = None,
         driver: ModelDriver | None = None,
         tools: ResearchToolGateway | None = None,
         engine_registry: Any | None = None,
@@ -101,6 +102,7 @@ class ResearchOrchestrator:
     ) -> None:
         self.connection_store = connection_store
         self.data_transport = data_transport
+        self.data_resolver = data_resolver
         self.default_driver = driver
         self.default_tools = tools
         self.engine_registry = optional_engine_registry or engine_registry
@@ -151,7 +153,12 @@ class ResearchOrchestrator:
                 instruments=(request.instrument,),
                 as_of=request.as_of.isoformat(),
             )
-            batch = JsonApiConnector(config, self.connection_store.credentials, self.data_transport).fetch(data_request)
+            batch = JsonApiConnector(
+                config,
+                self.connection_store.credentials,
+                self.data_transport,
+                resolver=self.data_resolver,
+            ).fetch(data_request)
         except Exception as exc:  # noqa: BLE001 - convert every connector failure to a typed terminal state
             code = getattr(exc, "code", "transport")
             kind = FailureKind.NO_DATA_AVAILABLE if code in {"no_data", "empty"} else FailureKind.DATA_INVALID if code in {"schema", "invalid_json", "record_limit"} else FailureKind.DATA_UNAVAILABLE

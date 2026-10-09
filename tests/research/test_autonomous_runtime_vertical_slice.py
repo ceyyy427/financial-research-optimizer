@@ -174,7 +174,11 @@ def test_autonomous_runtime_vertical_slice_is_recoverable_and_public(tmp_path: P
     reopened = PersistentDataConnectionStore(tmp_path / "connections.json", credential_store=InMemoryDataCredentialStore())
     batch = _batch()
     tools = _FixtureTools()
-    result = ResearchOrchestrator(connection_store=reopened, data_transport=_MockTransport(_payload())).run_from_connection(
+    result = ResearchOrchestrator(
+        connection_store=reopened,
+        data_transport=_MockTransport(_payload()),
+        data_resolver=lambda host, port=None: ("93.184.216.34",),
+    ).run_from_connection(
         "fixture-feed",
         _request(),
         driver=_OfflineFiveRoleDriver(),
@@ -208,6 +212,17 @@ def test_autonomous_runtime_vertical_slice_is_recoverable_and_public(tmp_path: P
     checkpoint = ResearchRunStore(tmp_path / "checkpoints", workflow_version="research.v1")
     checkpoint.save_checkpoint(result.state.__class__(result.state.run_id, result.state.current_state.__class__("QUANT_VALIDATION"), result.state.as_of, result.state.state_history[:8], result.state.analyst_reports), identity)
     assert checkpoint.load_checkpoint("autonomous-release", identity).current_state.value == "QUANT_VALIDATION"
+
+
+def test_connection_entrypoint_keeps_default_target_validation_fail_closed(tmp_path: Path) -> None:
+    store = PersistentDataConnectionStore(tmp_path / "connections.json", credential_store=InMemoryDataCredentialStore())
+    store.save(_config())
+    result = ResearchOrchestrator(connection_store=store, data_transport=_MockTransport(_payload())).run_from_connection(
+        "fixture-feed",
+        _request("default-resolver-blocked"),
+    )
+    assert result.state.current_state.value == "DATA_UNAVAILABLE"
+    assert result.state.failure_kind is FailureKind.DATA_UNAVAILABLE
 
 
 def test_provider_codex_offline_and_queue_recovery(tmp_path: Path) -> None:
