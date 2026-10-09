@@ -26,5 +26,8 @@ Finathink (Financial Research Optimizer) is a public beta and intentionally cons
   surfaced as `RESOURCE_LIMIT`. These remain deferred until fixed and rerun.
 - Ruff currently reports pre-existing formatting and lint findings. This is
   recorded as a deferred quality gate, not evidence of a clean release.
-- Real provider, vendor, browser, and production deployment behavior is
-  externally unverified in this checkout.
+- A bounded local Playwright/Chromium acceptance exists (`OFFLINE_BROWSER_PASS`:
+  4 tests, 7 HTML/PNG artifacts, hash verified). Portable reruns may skip browser
+  cases when the browser binary is absent. Real external provider, vendor,
+  browser/device, and production deployment behavior remains externally
+  unverified in this checkout.

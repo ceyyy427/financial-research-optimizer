@@ -21,8 +21,8 @@ Phase changes require the corresponding gate design and an independent review.
 - P7.5 gate: PASS — bounded local Knowledge Engine and product journeys validated
 - Next action: maintain the offline autonomous research runtime through its reproducible release gates, artifact review, and human review
 - P8.1 status: CONDITIONAL — local UI/product gates are implemented and tested; the renamed remote retains its original `main` history and the release branch uses a reviewable history bridge
-- P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, and isolated Qlib model smoke are validated; native Qlib/provider, real QMT, browser E2E, and optional-license admission remain deferred
-- P8.2B status: REMOTE VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are merged; browser/vendor/provider gates remain conditional
+- P8.2 status: CONDITIONAL — local research workspace, typed contracts, offline QMT boundary, isolated vectorbt smoke, isolated Qlib model smoke, and bounded local Chromium/Playwright acceptance are validated; native Qlib/provider, real QMT, external browser/device coverage, and optional-license admission remain deferred
+- P8.2B status: REMOTE VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, local UI/API routes, and bounded local browser evidence are merged; external browser/vendor/provider gates remain conditional
 - Autonomous delivery status: IMPLEMENTED LOCALLY — the governed analyst pool, research manager, provider/Codex contracts, user-configured data API contract, deterministic factor proposal pipeline, risk and paper portfolio gates, durable queue and worker, settlement-aware learning proposals, resumable checkpoints, report status wall, experiment comparison, and the offline vertical slice are implemented on this branch. The release checklist records reproducible evidence for each stage.
 - Research capability acceptance matrix: FROZEN — `docs/RESEARCH_CAPABILITY_BACKLOG.md` and `finahinking.research.release_matrix` separate offline evidence, isolated deferred engines, externally unverified connections, and permanent out-of-scope boundaries. `DEFERRED` and `EXTERNAL_UNVERIFIED` are never treated as pass.
 - Task 17 release report: `docs/RESEARCH_CAPABILITY_FINAL_REPORT.md`
@@ -51,7 +51,7 @@ Knowledge Engine, personal continuity, and evidence-linked community: VALIDATED 
 Personal timeline, misconception continuity, guidance and room projection boundaries: VALIDATED
 P8.1: local product polish is complete for this checkout; remote integration, release, and finathink.cloud publication remain conditional pending a deliberate history strategy
 P8.2: local capability expansion is complete to a conditional stop point
-P8.2B: knowledge/pedagogy capability is complete and merged to the requested remote `main` through PR #2; browser/vendor/provider gates remain explicitly deferred
+P8.2B: knowledge/pedagogy capability is complete and merged to the requested remote `main` through PR #2; external browser/vendor/provider gates remain explicitly deferred
 
 ## P8 capability-expansion release boundary
 
@@ -69,7 +69,7 @@ tests are `tests/research/test_capability_vertical_slice.py` and
 | Implemented | OFFLINE PASS | Contracts, mock connector, field mapping, analyst/manager workflow, provider/Codex boundary, factor DSL pipeline, deterministic quant/risk/paper gates, durable queue, settlement-aware learning, report bundle, and checkpoint store are present and tested with fixtures. |
 | Isolated validation | PASS / DEFERRED | Optional Qlib/vectorbt adapters are governed by `EngineRegistry`; only normalized Finathink data and an independently trusted sandbox can make an adapter available. The default path remains deterministic and local. |
 | Not connected | EXPLICIT | No specific data vendor, model SDK, brokerage, account, order, or live-trading service is connected by this release. |
-| Not verified | EXPLICIT | Real provider credentials, external network behavior, vendor authorization, browser E2E, and production deployment are not established by offline fixtures. |
+| Not verified | EXPLICIT | Real provider credentials, external network behavior, vendor authorization, external browser/device behavior, and production deployment are not established by offline fixtures. Bounded local Chromium/Playwright evidence is recorded separately. |
 | Prohibited | PERMANENT BOUNDARY | Secrets in artifacts, arbitrary code/URL execution, broker/order/live-trading behavior, and investment advice are outside the product contract. |
 
 ## Completed gates
@@ -89,8 +89,8 @@ tests are `tests/research/test_capability_vertical_slice.py` and
 | P7 | PASS | `docs/p7/P7_FINAL_VALIDATION_REPORT.md`, mission-44 matrix, 29 P7 tests, and independent A–J pass register |
 | P7.5 | PASS | `docs/p7_5/P7_5_FINAL_VALIDATION_REPORT.md`, 15-concept typed catalog, real event/quant/strategy/projection/restart/backup journeys, 272 passed/1 skipped |
 | P8.1 | CONDITIONAL | `docs/p8_1/P8_1_FINAL_VALIDATION_REPORT.md`; local UI and dual-environment tests pass, canonical remote is reachable, but histories are unrelated and no local-product GitHub release is claimed |
-| P8.2 | CONDITIONAL | `docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`; local contracts/routes/UI bundle, QMT mock boundary, vectorbt sandbox smoke, Qlib isolated model smoke, and offline gates pass; browser/vendor/native-provider/license gates remain explicitly deferred |
-| P8.2B | REMOTE PASS / MERGED | `docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`; PR #2 merged the non-force branch into `main` at `aa515e8`; browser/vendor/provider gates remain explicitly deferred |
+| P8.2 | CONDITIONAL | `docs/p8_2/P8_2_FINAL_VALIDATION_REPORT.md`; local contracts/routes/UI bundle, QMT mock boundary, vectorbt sandbox smoke, Qlib isolated model smoke, bounded local Chromium/Playwright evidence, and offline gates pass; external browser/vendor/native-provider/license gates remain explicitly deferred |
+| P8.2B | REMOTE PASS / MERGED | `docs/p8_2/P8_2B_FINAL_VALIDATION_REPORT.md`; PR #2 merged the non-force branch into `main` at `aa515e8`; external browser/vendor/provider gates remain explicitly deferred |
 
 ## Constraints
 
@@ -101,8 +101,8 @@ trading, and investment advice remain out of scope. P8 cloud sync, hosted
 accounts, broker integration, real-money execution, and major provider
 expansion are outside the public-beta stop condition. P8.2 optional
 Qlib/vectorbt engines remain isolated and non-authoritative; QMT remains
-read-only and disconnected; no browser automation or Computer Use evidence is
-implied.
+read-only and disconnected; bounded local Chromium/Playwright evidence does not
+imply external browser coverage or Computer Use evidence.
 
 ## Task 17 release gate
 

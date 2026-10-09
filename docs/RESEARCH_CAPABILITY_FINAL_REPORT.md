@@ -19,6 +19,17 @@
   风险检查、纸面组合、队列恢复、checkpoint、报告树和学习提案均保持研究用途
   与人工准入边界。
 
+## OFFLINE_BROWSER_PASS
+
+- Task 16 的本地 Playwright/Chromium 验收为 `OFFLINE_BROWSER_PASS`：真实 loopback
+  `create_server()`、内存研究数据和本机 Chromium 覆盖 no-JS、失败状态、secret
+  masking、键盘焦点、报告/运行状态、桌面与 390px 移动布局、stream-fetch 错误和
+  page/console error 检查；首次运行 `4 passed`，保存 7 个 HTML/PNG 证据文件及
+  `SHA256SUMS.tsv`，且哈希校验通过。
+- 可移植重跑在当前 checkout 因 Playwright bundled Chromium 未安装而明确跳过真实
+  浏览器用例，HTTP/parser 用例为 `3 passed, 1 skipped`。这只改变重跑环境状态，
+  不撤销已有本地 Chromium 证据；复现命令和证据路径见 Task 16 报告。
+
 ## ISOLATED_DEFERRED
 
 - `python3 -m ruff check src tests scripts` 失败（exit 1），存在导入排序、未使用
@@ -32,8 +43,9 @@
 
 ## EXTERNAL_UNVERIFIED
 
-- 真实供应商、用户模型 endpoint、凭证授权、网络行为、浏览器 E2E 和生产部署均
-  没有本次门禁所需的外部证据。
+- 真实供应商、用户模型 endpoint、凭证授权、网络行为和生产部署均没有本次门禁所
+  需的外部证据；生产浏览器/设备矩阵、真实网络浏览器行为和屏幕阅读器 conformance
+  也仍未验证。
 - mock provider、fixture 和离线 fallback 只证明合同与失败闭合，不证明外部服务
   可用性或供应商合规。
 

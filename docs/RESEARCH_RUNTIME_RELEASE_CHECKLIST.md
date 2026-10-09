@@ -47,7 +47,9 @@ HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录�
 | `python3 -m ruff check src tests scripts` | `ISOLATED_DEFERRED` | Exit 1; existing import ordering, unused imports, and lint findings remain. |
 | Vertical slice tests | `ISOLATED_DEFERRED` | 8 passed, 1 failed: fixture run returned `DATA_UNAVAILABLE` instead of `LEARNING_RECORDED`. |
 | Concurrent runtime limit test | `ISOLATED_DEFERRED` | Timing-sensitive fork/`multiprocessing.Queue` feeder race; see `runtime-concurrency-diagnosis.md`. |
-| Vendor/provider/browser/production connections | `EXTERNAL_UNVERIFIED` | No credentials, network acceptance, vendor authorization, or browser E2E evidence. |
+| Local browser acceptance | `OFFLINE_BROWSER_PASS` | Task 16 bounded loopback Playwright/Chromium run: 4 tests, 7 HTML/PNG artifacts, `SHA256SUMS.tsv` hash verified. |
+| Portable browser rerun | `CONDITIONAL` | May skip browser cases when the Playwright bundled browser binary is absent; this does not invalidate the recorded local evidence. |
+| External provider/browser/production connections | `EXTERNAL_UNVERIFIED` | No credentials, network acceptance, vendor authorization, real external browser/device matrix, or production evidence. |
 | Broker orders, live trading, secrets in artifacts, arbitrary execution | `NOT_IN_SCOPE` | Permanent product boundary. |
 
 The full repository suite was not used as a release signal in this bounded
