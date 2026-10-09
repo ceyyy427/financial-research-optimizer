@@ -105,6 +105,19 @@ site/                   静态产品入口与前端构建资源
 - [用户数据 API 指南](docs/USER_DATA_API_GUIDE.md)
 - [研究运行时指南](docs/RESEARCH_RUNTIME_GUIDE.md)
 - [自主研究运行时发布清单](docs/RESEARCH_RUNTIME_RELEASE_CHECKLIST.md)
+- [研究能力最终报告](docs/RESEARCH_CAPABILITY_FINAL_REPORT.md)
+
+## 能力边界矩阵
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| 本地数据标准化、PIT 与指纹 | `OFFLINE_PASS` | 使用用户配置连接合同和可重放 fixture。 |
+| 五类分析师、研究经理与证据引用 | `OFFLINE_PASS` | 只汇总带 evidence refs 的观察。 |
+| 因子提案、回测/OOS、风险与纸面组合 | `OFFLINE_PASS` | 确定性、研究用途、人工准入。 |
+| 队列、checkpoint、报告与学习提案 | `OFFLINE_PASS` | 本地持久化；学习只生成提案。 |
+| 可选 Qlib/vectorbt/QMT 边界 | `ISOLATED_DEFERRED` | 隔离 smoke 或只读合同，不是默认权威引擎。 |
+| 真实供应商、模型、浏览器和生产部署 | `EXTERNAL_UNVERIFIED` | 本仓库没有真实凭证或外部验收证据。 |
+| 券商下单、实盘交易、秘密写入、任意执行 | `NOT_IN_SCOPE` | 永久产品边界。 |
 
 研究工作台页面为 `/workbench`，其结构化接口为 `/api/research/workbench`，离线报告使用 `workbench/index.html`。
 

@@ -25,7 +25,8 @@ Phase changes require the corresponding gate design and an independent review.
 - P8.2B status: REMOTE VALIDATION PASS — mathematical knowledge, literature metadata, code pedagogy, context binding, typed widgets, and local UI/API routes are merged; browser/vendor/provider gates remain conditional
 - Autonomous delivery status: IMPLEMENTED LOCALLY — the governed analyst pool, research manager, provider/Codex contracts, user-configured data API contract, deterministic factor proposal pipeline, risk and paper portfolio gates, durable queue and worker, settlement-aware learning proposals, resumable checkpoints, report status wall, experiment comparison, and the offline vertical slice are implemented on this branch. The release checklist records reproducible evidence for each stage.
 - Research capability acceptance matrix: FROZEN — `docs/RESEARCH_CAPABILITY_BACKLOG.md` and `finahinking.research.release_matrix` separate offline evidence, isolated deferred engines, externally unverified connections, and permanent out-of-scope boundaries. `DEFERRED` and `EXTERNAL_UNVERIFIED` are never treated as pass.
-- Last reviewed: 2026-10-07
+- Task 17 release report: `docs/RESEARCH_CAPABILITY_FINAL_REPORT.md`
+- Last reviewed: 2026-10-09
 
 ## Historical later-stage records
 
@@ -102,3 +103,10 @@ expansion are outside the public-beta stop condition. P8.2 optional
 Qlib/vectorbt engines remain isolated and non-authoritative; QMT remains
 read-only and disconnected; no browser automation or Computer Use evidence is
 implied.
+
+## Task 17 release gate
+
+The final report keeps evidence classes separate: offline checks are reproducible
+in this checkout, while the concurrent runtime race and the failing vertical
+slice are recorded as deferred or externally unverified. No release claim is
+made from a single aggregate percentage.

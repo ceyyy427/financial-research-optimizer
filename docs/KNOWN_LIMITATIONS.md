@@ -20,3 +20,11 @@ Finathink (Financial Research Optimizer) is a public beta and intentionally cons
   outside the application's control.
 - The community projection model is evidence-linked and non-hype; it is not a
   social ranking, moderation service, or financial advice channel.
+- The final Task 17 gate has two known isolated failures: the autonomous
+  vertical-slice fixture can return `DATA_UNAVAILABLE`, and concurrent worker
+  runs can hit a fork plus `multiprocessing.Queue` feeder-thread race that is
+  surfaced as `RESOURCE_LIMIT`. These remain deferred until fixed and rerun.
+- Ruff currently reports pre-existing formatting and lint findings. This is
+  recorded as a deferred quality gate, not evidence of a clean release.
+- Real provider, vendor, browser, and production deployment behavior is
+  externally unverified in this checkout.

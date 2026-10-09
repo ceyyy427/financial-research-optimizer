@@ -36,6 +36,24 @@ cd frontend && npm test
 
 HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录、`manifest.json`、`activity.jsonl`、checkpoint 和前端构建产物。门禁结果与命令输出保存在 Task 9 报告中。
 
+## Task 17 final gate evidence (2026-10-09)
+
+| Check | Result | Evidence / boundary |
+| --- | --- | --- |
+| `python3 -m compileall -q src tests` | `OFFLINE_PASS` | Exit 0. |
+| `python3 scripts/validate_governance.py .` | `OFFLINE_PASS` | `PASS: governance validation passed`. |
+| `python3 -m pip check` | `OFFLINE_PASS` | `No broken requirements found.` |
+| `cd frontend && npm test` | `OFFLINE_PASS` | 17 tests passed, 0 failed. |
+| `python3 -m ruff check src tests scripts` | `ISOLATED_DEFERRED` | Exit 1; existing import ordering, unused imports, and lint findings remain. |
+| Vertical slice tests | `ISOLATED_DEFERRED` | 8 passed, 1 failed: fixture run returned `DATA_UNAVAILABLE` instead of `LEARNING_RECORDED`. |
+| Concurrent runtime limit test | `ISOLATED_DEFERRED` | Timing-sensitive fork/`multiprocessing.Queue` feeder race; see `runtime-concurrency-diagnosis.md`. |
+| Vendor/provider/browser/production connections | `EXTERNAL_UNVERIFIED` | No credentials, network acceptance, vendor authorization, or browser E2E evidence. |
+| Broker orders, live trading, secrets in artifacts, arbitrary execution | `NOT_IN_SCOPE` | Permanent product boundary. |
+
+The full repository suite was not used as a release signal in this bounded
+Task 17 pass. A failing check remains visible above and does not become a pass
+through aggregation.
+
 ## 证据入口
 
 - `tests/research/test_autonomous_runtime_vertical_slice.py`
