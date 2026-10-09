@@ -21,9 +21,12 @@ Finathink (Financial Research Optimizer) is a public beta and intentionally cons
 - The community projection model is evidence-linked and non-hype; it is not a
   social ranking, moderation service, or financial advice channel.
 - The final Task 17 gate has two known isolated failures: the autonomous
-  vertical-slice fixture can return `DATA_UNAVAILABLE`, and concurrent worker
-  runs can hit a fork plus `multiprocessing.Queue` feeder-thread race that is
-  surfaced as `RESOURCE_LIMIT`. These remain deferred until fixed and rerun.
+  concurrent worker runs can hit a fork plus `multiprocessing.Queue`
+  feeder-thread race that is surfaced as `RESOURCE_LIMIT`; this remains
+  deferred until the worker architecture is made fork-safe and rerun.
+- The offline vertical-slice fixture now uses an explicit resolver injection
+  seam (`f5d1a61`); the default resolver remains fail-closed for unverified
+  targets.
 - Ruff is clean for the current source, test, and script tree (`python3 -m ruff
   check src tests scripts`); this does not change the two independent runtime
   failures above or the conditional release status.

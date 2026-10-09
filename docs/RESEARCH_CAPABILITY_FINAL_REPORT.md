@@ -9,6 +9,9 @@
 `CONDITIONAL`。最终判定按证据类别列出，不使用单一百分比掩盖失败、跳过或
 外部未验证状态。
 
+最新完整回归：`923 passed, 1 failed, 2 skipped`；唯一失败仍是并发运行时
+fork/线程竞争用例，不能据此宣称全绿发布。
+
 ## OFFLINE_PASS
 
 - `python3 -m compileall -q src tests`：exit 0。
@@ -17,6 +20,8 @@
 - `python3 -m ruff check src tests scripts`：exit 0（Ruff 清理提交
   `dabe0a2`）。
 - `cd frontend && npm test`：17 passed，0 failed。
+- 垂直切片与数据入口定向检查：25 passed；离线 fixture 通过显式 resolver
+  注入，默认 resolver 仍对未验证目标 fail-closed（修复提交 `f5d1a61`）。
 - 本地数据合同、PIT/指纹、五类分析师、证据汇总、受控因子 DSL、回测/OOS、
   风险检查、纸面组合、队列恢复、checkpoint、报告树和学习提案均保持研究用途
   与人工准入边界。
@@ -34,8 +39,6 @@
 
 ## ISOLATED_DEFERRED
 
-- 垂直切片定向检查为 8 passed、1 failed；失败用例收到 `DATA_UNAVAILABLE`，预期
-  `LEARNING_RECORDED`。
 - 并发运行时存在已复现的调度相关 fork 与 `multiprocessing.Queue` feeder-thread
   风险：子进程可能无法发布结果，最终表现为 `RESOURCE_LIMIT`。诊断记录在
   `runtime-concurrency-diagnosis.md`；修复和完整重跑尚未完成。
