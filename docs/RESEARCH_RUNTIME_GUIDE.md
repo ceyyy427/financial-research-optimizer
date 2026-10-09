@@ -10,6 +10,7 @@ Finathink 的研究运行时仍然是本地、只读、paper-only。浏览器只
 
 该接口返回脱敏的运行时快照，包括：
 
+- `schema_version: 3` 和 `stream: {mode: SERVER_SNAPSHOT, read_only: true, paper_only: true}`；
 - `stage_status` / `stages`：数据、分析师、研究计划、量化、风险、组合、纸面决策、学习和报告阶段；
 - `role_status` / `roles`：五类分析师及其状态；
 - `tool_summaries`：工具名称、状态和摘要指纹；
@@ -19,6 +20,36 @@ Finathink 的研究运行时仍然是本地、只读、paper-only。浏览器只
 快照不包含 prompt、密钥、endpoint、本地路径、原始 provider 对象或原始模型响应。取消、失败、阻断和未配置状态会原样显示，不会被 UI 转换为成功。
 
 研究页同时输出服务器渲染的无 JavaScript 版本。启用 JavaScript 时，`finathink-research.js` 只做 schema 校验和 DOM 渲染；它不调用交易服务，也不在浏览器计算指标。
+
+## 本地 HTTP 旅程验收（2026-10-09）
+
+`tests/p7_5/test_e2e.py` 启动真实 loopback HTTP server，注册离线研究报告，
+再通过 HTTP 获取页面与 JSON。`test_http_runtime_journey_has_no_js_navigation_redacted_settings_and_read_only_stream`
+验证 `/settings/data-connections`、`/settings/providers`、`/research/browser-e2e-run`
+均返回 200；HTMLParser 检查 skip link、可聚焦 main、导航标签、密码输入字段、
+无 JS 可读状态和原生报告链接。研究页和完整/运行时报告显示 `READ-ONLY` 与
+`PAPER-ONLY`，全部报告链接可通过 HTTP 打开。
+
+同一测试验证 stream v3 的服务端阶段、工具摘要、重试次数和报告链接；
+向运行页、完整报告和 stream 发送 POST 均返回 405，随后 GET 快照保持不变。
+注入的测试凭证及 artifact 绝对路径未出现在这些页面、报告或 stream 中；
+stream 还检查 `api_key`、`prompt`、`endpoint`、`raw_response` 字段不出现。
+`test_http_missing_runtime_run_returns_explicit_failure_without_fixture_fallback`
+验证缺失 run 的页面、报告和 stream 都返回 404 与明确错误，不回退到其他 run。
+
+本次实际执行：
+
+```text
+PYTHONPATH=src /Users/mac/Documents/ChatGPT/Finahinking\ Autonomous\ Builder/.venv/bin/python -m pytest tests/p7_5/test_e2e.py -q
+3 passed in 3.25s
+
+cd frontend && npm test
+17 passed, 0 failed
+```
+
+证据状态为 `OFFLINE_PASS`（HTTP、解析后的 HTML 语义、Node 前端契约）。
+未运行真实浏览器、截图、Tab 键交互、屏幕阅读器或响应式视觉验收，
+这些项目仍为 `EXTERNAL_UNVERIFIED`；HTML 语义断言不能替代浏览器可访问性认证。
 
 ## 实验对比
 
