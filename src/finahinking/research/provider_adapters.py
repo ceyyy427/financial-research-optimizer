@@ -20,6 +20,7 @@ from typing import Any, Protocol
 from .credentials import CredentialStore, EnvironmentCredentialStore
 from .provider_status import ProviderCredentialRef
 from .providers import ModelEnvelope, ModelResponse, ProviderCapabilities
+from .observability import RuntimeLimitExceeded, current_runtime_budget
 
 
 class ProviderFailureKind(str, Enum):
@@ -30,6 +31,7 @@ class ProviderFailureKind(str, Enum):
     NON_JSON = "NON_JSON"
     SCHEMA_ERROR = "SCHEMA_ERROR"
     CAPABILITY_REJECTED = "CAPABILITY_REJECTED"
+    RESOURCE_LIMIT = "RESOURCE_LIMIT"
 
 
 class ProviderAdapterError(RuntimeError):
@@ -61,7 +63,7 @@ class ProviderContractResult:
     limitations: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        allowed = {"READY", "UNAUTHORIZED", "FORBIDDEN", "RATE_LIMITED", "PROVIDER_ERROR", "TIMEOUT", "NON_JSON", "SCHEMA_ERROR", "RETRY_EXHAUSTED", "NOT_CONFIGURED"}
+        allowed = {"READY", "UNAUTHORIZED", "FORBIDDEN", "RATE_LIMITED", "PROVIDER_ERROR", "TIMEOUT", "NON_JSON", "SCHEMA_ERROR", "RETRY_EXHAUSTED", "NOT_CONFIGURED", "RESOURCE_LIMIT"}
         if self.status not in allowed:
             raise ValueError("provider contract status is invalid")
         for name in ("provider", "model"):
@@ -294,8 +296,14 @@ class _CompatibleAdapter:
         retry_exhausted = False
         for attempt in range(self.retry_policy.max_attempts):
             try:
+                budget = current_runtime_budget()
+                if budget is not None:
+                    budget.charge_provider_call(len(_json.dumps(payload, separators=(",", ":")).encode("utf-8")))
                 response = self._request(headers, payload)
                 status_code, body = _response_parts(response)
+                if budget is not None:
+                    size = len(body) if isinstance(body, (bytes, bytearray)) else len(body.encode("utf-8")) if isinstance(body, str) else len(_json.dumps(body, default=str, separators=(",", ":")).encode("utf-8"))
+                    budget.charge_bytes(size)
                 if status_code < 200 or status_code >= 300:
                     if status_code == 429 or status_code >= 500:
                         retry_exhausted = attempt + 1 >= self.retry_policy.max_attempts
@@ -332,6 +340,8 @@ class _CompatibleAdapter:
                 if type(finish_reason) is not str or finish_reason not in _SAFE_FINISH_REASONS:
                     raise ProviderSchemaError()
                 return ModelResponse(provider=self.provider_name, model=self.model, content=content, finish_reason=finish_reason)
+            except RuntimeLimitExceeded:
+                raise ProviderAdapterError("RESOURCE_LIMIT", kind=ProviderFailureKind.RESOURCE_LIMIT) from None
             except ProviderAdapterError as error:
                 if getattr(error, "status_code", None) in (429, *range(500, 600)):
                         last_transport = error
@@ -342,6 +352,8 @@ class _CompatibleAdapter:
             except Exception:  # noqa: BLE001 - normalize every transport detail
                 last_transport = ProviderAdapterError("provider request failed", kind=ProviderFailureKind.TRANSPORT)
             if attempt + 1 < self.retry_policy.max_attempts and self.retry_policy.backoff_seconds:
+                if budget is not None:
+                    budget.retry_count += 1
                 time.sleep(self.retry_policy.backoff_seconds * (attempt + 1))
         if retry_exhausted:
             exhausted = ProviderAdapterError("provider retry exhausted", kind=ProviderFailureKind.HTTP_ERROR)
@@ -370,6 +382,7 @@ class _CompatibleAdapter:
                 ProviderFailureKind.TIMEOUT: "TIMEOUT",
                 ProviderFailureKind.NON_JSON: "NON_JSON",
                 ProviderFailureKind.SCHEMA_ERROR: "SCHEMA_ERROR",
+                ProviderFailureKind.RESOURCE_LIMIT: "RESOURCE_LIMIT",
             }.get(error.kind, "PROVIDER_ERROR")
             if "retry exhausted" in str(error):
                 status = "RETRY_EXHAUSTED"

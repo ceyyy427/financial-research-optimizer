@@ -96,6 +96,7 @@ from .run_store import (
     RunStoreError,
 )
 from .runtime_service import ResearchRuntimeService, RuntimeLimits
+from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, bind_runtime_budget, current_runtime_budget
 from .settlement import SettlementEvent
 from .tools import (
     ResearchToolGateway,
@@ -210,6 +211,11 @@ __all__ = [
     "RunEvent",
     "RunStoreError",
     "RuntimeLimits",
+    "RuntimeBudget",
+    "RuntimeLimitExceeded",
+    "RuntimeMetrics",
+    "bind_runtime_budget",
+    "current_runtime_budget",
     "SettlementEvent",
     "StaleLeaseError",
     "UserApiDriver",

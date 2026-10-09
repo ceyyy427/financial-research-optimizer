@@ -29,6 +29,7 @@ from .factor_proposals import (
     FactorTemplateRegistry,
     validate_factor_proposal,
 )
+from .observability import current_runtime_budget
 
 _SUSPICIOUS_FIELD = re.compile(r"(?:future|lookahead|target|label|forward|next|tomorrow)", re.IGNORECASE)
 
@@ -267,6 +268,9 @@ class FactorResearchPipeline:
         self.registry = registry if registry is not None else FactorTemplateRegistry()
 
     def run(self, hypothesis: FactorHypothesis | Mapping[str, Any] | str, dataset: Mapping[str, Any], config: Mapping[str, Any] | None = None) -> FactorResearchResult:
+        budget = current_runtime_budget()
+        if budget is not None:
+            budget.check_wall()
         if not isinstance(dataset, Mapping):
             raise TypeError("dataset must be a mapping")
         config = dict(config or {})
@@ -307,6 +311,8 @@ class FactorResearchPipeline:
         }
         split = dict(_config_value(config, "data_split", default={"train": 0.6, "validation": 0.2, "test": 0.2}))
         max_rounds = int(_config_value(config, "max_rounds", default=len(candidates)))
+        if budget is not None:
+            budget.charge_experiments(min(max_rounds, len(candidates)))
         charter = ResearchCharter(
             charter_id=str(_config_value(config, "charter_id", default=f"factor-{normalized_hypothesis.hypothesis_id}")),
             research_question=normalized_hypothesis.text,

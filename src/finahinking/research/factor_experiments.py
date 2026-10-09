@@ -22,6 +22,7 @@ from finahinking.factors.evaluation import FactorEvaluation, evaluate_factor_can
 from finahinking.factors.mining import FactorCandidate
 
 from .factor_pipeline import _dataset_digest
+from .observability import current_runtime_budget
 
 
 def _jsonable(value: Any) -> Any:
@@ -225,6 +226,9 @@ def run_factor_experiments(spec: FactorExperimentSpec, dataset: Mapping[str, Any
         grid = grid[: spec.max_experiments]
     if not grid:
         raise ValueError("parameter grid must contain at least one experiment")
+    budget = current_runtime_budget()
+    if budget is not None:
+        budget.charge_experiments(len(grid))
     records: list[FactorExperimentRecord] = []
     for index, parameters in enumerate(grid, start=1):
         candidate = _candidate_for(parameters, dataset, index)
