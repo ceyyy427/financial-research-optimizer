@@ -14,6 +14,8 @@
 - `python3 -m compileall -q src tests`：exit 0。
 - `python3 scripts/validate_governance.py .`：`PASS: governance validation passed`。
 - `python3 -m pip check`：`No broken requirements found.`
+- `python3 -m ruff check src tests scripts`：exit 0（Ruff 清理提交
+  `dabe0a2`）。
 - `cd frontend && npm test`：17 passed，0 failed。
 - 本地数据合同、PIT/指纹、五类分析师、证据汇总、受控因子 DSL、回测/OOS、
   风险检查、纸面组合、队列恢复、checkpoint、报告树和学习提案均保持研究用途
@@ -32,8 +34,6 @@
 
 ## ISOLATED_DEFERRED
 
-- `python3 -m ruff check src tests scripts` 失败（exit 1），存在导入排序、未使用
-  导入和其他既有 lint findings。
 - 垂直切片定向检查为 8 passed、1 failed；失败用例收到 `DATA_UNAVAILABLE`，预期
   `LEARNING_RECORDED`。
 - 并发运行时存在已复现的调度相关 fork 与 `multiprocessing.Queue` feeder-thread

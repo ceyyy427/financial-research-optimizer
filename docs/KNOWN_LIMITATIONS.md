@@ -24,8 +24,9 @@ Finathink (Financial Research Optimizer) is a public beta and intentionally cons
   vertical-slice fixture can return `DATA_UNAVAILABLE`, and concurrent worker
   runs can hit a fork plus `multiprocessing.Queue` feeder-thread race that is
   surfaced as `RESOURCE_LIMIT`. These remain deferred until fixed and rerun.
-- Ruff currently reports pre-existing formatting and lint findings. This is
-  recorded as a deferred quality gate, not evidence of a clean release.
+- Ruff is clean for the current source, test, and script tree (`python3 -m ruff
+  check src tests scripts`); this does not change the two independent runtime
+  failures above or the conditional release status.
 - A bounded local Playwright/Chromium acceptance exists (`OFFLINE_BROWSER_PASS`:
   4 tests, 7 HTML/PNG artifacts, hash verified). Portable reruns may skip browser
   cases when the browser binary is absent. Real external provider, vendor,
