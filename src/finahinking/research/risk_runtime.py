@@ -259,7 +259,7 @@ def _safe_nested_scenario(value: Any, path: str = "scenario") -> Any:
 
 def _safe_identifier(value: Any, field_name: str) -> str:
     if not isinstance(value, str):
-        raise ValueError(f"{field_name} identifier is invalid")
+        raise ValueError(f"{field_name} identifier is invalid")  # noqa: TRY004 - preserve public validation contract
     try:
         return _public_identifier(value.strip(), field_name)
     except (TypeError, ValueError) as exc:
@@ -375,7 +375,7 @@ def _weights(portfolio: Any) -> tuple[dict[str, float], dict[str, Any]]:
             parsed.append((str(name), item.get("weight", item.get("value"))))
         items = parsed
     else:
-        raise ValueError("portfolio weights are unavailable")
+        raise ValueError("portfolio weights are unavailable")  # noqa: TRY004 - preserve public validation contract
     result: dict[str, float] = {}
     for name, value in items:
         try:
@@ -798,21 +798,21 @@ class RiskManager:
                 factor_shocks = _nested(config, "factor_shocks", "factors") or {}
                 if not all(isinstance(item, Mapping) for item in (instrument_shocks, industry_shocks, factor_shocks)):
                     raise ValueError("scenario shock maps must be mappings")
-                if set(str(key) for key in instrument_shocks) - set(weights):
+                if {str(key) for key in instrument_shocks} - set(weights):
                     raise ValueError("scenario contains unknown instrument shock target")
                 known_industries = {
                     str(_nested(item, "industry", "sector"))
                     for item in observations.values()
                     if _nested(item, "industry", "sector") is not None
                 }
-                if set(str(key) for key in industry_shocks) - known_industries:
+                if {str(key) for key in industry_shocks} - known_industries:
                     raise ValueError("scenario contains unknown industry shock target")
                 known_factors = {
                     str(factor_name)
                     for item in observations.values()
                     for factor_name in (_nested(item, "factors", "factor_exposures") or {})
                 }
-                if set(str(key) for key in factor_shocks) - known_factors:
+                if {str(key) for key in factor_shocks} - known_factors:
                     raise ValueError("scenario contains unknown factor shock target")
                 explicit_loss = _nested(config, "loss", "drawdown")
                 if explicit_loss is not None:
@@ -841,7 +841,7 @@ class RiskManager:
                             raise ValueError(f"factor exposure unavailable: {instrument}")
                         if isinstance(exposures, Mapping):
                             for factor_name, factor_value in exposures.items():
-                                safe_factor = _safe_identifier(factor_name, "factor")
+                                _safe_identifier(factor_name, "factor")
                                 shock += _number(factor_value, "stress factor exposure") * _number(factor_shocks.get(factor_name, 0.0), "stress factor shock")
                         contribution = max(0.0, -weight * shock)
                         loss += contribution

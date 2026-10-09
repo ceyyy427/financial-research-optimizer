@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+
 import pytest
 
 from finahinking.research.risk_runtime import ExposureReport, RiskManager, StressReport

@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime
 
-from finahinking.research.contracts import AgentReport, FailureKind, ResearchRunResult, ResearchRunState, ResearchState, RunEvent
+from finahinking.research.contracts import (
+    AgentReport,
+    FailureKind,
+    ResearchRunResult,
+    ResearchRunState,
+    ResearchState,
+    RunEvent,
+)
 from finahinking.research.reports import ReportBundleWriter, verify_report_bundle
 from finahinking.research.ui import research_runtime_view_model
 
@@ -78,7 +85,7 @@ def test_runtime_tree_blocks_all_runtime_stages_for_data_unavailable_with_blocki
             assert payload["failure_kind"] == failure_kind.value
             assert f"state:{state.value}" in payload["blocked_evidence"]
             assert f"failure_kind:{failure_kind.value}" in payload["blocked_evidence"]
-            assert f"Status: <strong>BLOCKED</strong>" in (bundle / section / "index.html").read_text(encoding="utf-8")
+            assert "Status: <strong>BLOCKED</strong>" in (bundle / section / "index.html").read_text(encoding="utf-8")
 
 
 def test_runtime_payload_is_redacted_and_schema_versioned():

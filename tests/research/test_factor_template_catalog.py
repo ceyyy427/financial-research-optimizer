@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+import pandas as pd
 import pytest
 
-from finahinking.research.factor_proposals import FactorTemplateRegistry
-
-from dataclasses import replace
-from finahinking.research.factor_proposals import FactorProposalCatalog, FactorTemplate
 from finahinking.research.factor_pipeline import FactorResearchPipeline
-import pandas as pd
+from finahinking.research.factor_proposals import (
+    FactorProposalCatalog,
+    FactorTemplate,
+    FactorTemplateRegistry,
+)
 
 
 def test_template_versions_cannot_be_forged() -> None:

@@ -20,7 +20,13 @@ from typing import Any
 from .contracts import AgentTask, ResearchRequest, stable_digest
 from .drivers import OfflineDriver
 from .job_queue import JobQueue, JobRecord, JobStatus, _ref
-from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, bind_runtime_budget, current_runtime_budget
+from .observability import (
+    RuntimeBudget,
+    RuntimeLimitExceeded,
+    RuntimeMetrics,
+    bind_runtime_budget,
+    current_runtime_budget,
+)
 from .provider_adapters import ProviderAdapterError, ProviderFailureKind
 from .tools import ResearchToolGateway
 from .worker import ResearchWorker, WorkerResult, WorkerStatus
@@ -266,7 +272,7 @@ class ResearchRuntimeService:
                 else:
                     value = self._invoke_stage(runner, request, previous, publish_checkpoint)
                 if not isinstance(value, Mapping):
-                    raise ValueError("stage result is invalid")
+                    raise TypeError("stage result is invalid")
                 if value.get("status", "completed") != "completed":
                     raise ValueError("required stage failed")
                 raw_ref = value.get("result_ref")

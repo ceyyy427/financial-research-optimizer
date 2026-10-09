@@ -6,7 +6,6 @@ from finahinking.research.provider_adapters import (
     DeepSeekCompatibleAdapter,
     OpenAICompatibleAdapter,
     ProviderContractResult,
-    ProviderFailureKind,
     RetryPolicy,
 )
 from finahinking.research.providers import ModelEnvelope

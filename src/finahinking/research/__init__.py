@@ -31,19 +31,24 @@ from .contracts import (
     validate_transition,
 )
 from .drivers import CodexInteractiveDriver, CompatibleApiDriver, OfflineDriver, UserApiDriver
+from .factor_catalog_loader import (
+    BUILTIN_AUDITED_CATALOG,
+    DEFAULT_FACTOR_CATALOG,
+    CatalogAdmissionProposal,
+    admit_catalog_entry,
+    load_audited_catalog,
+)
+from .factor_experiments import (
+    FactorExperimentRecord,
+    FactorExperimentResult,
+    FactorExperimentSpec,
+    run_factor_experiments,
+)
 from .factor_loop import (
     FactorResearchRound,
     FactorResearchRun,
     FactorResearchState,
     run_factor_research,
-)
-from .factor_experiments import FactorExperimentRecord, FactorExperimentResult, FactorExperimentSpec, run_factor_experiments
-from .factor_catalog_loader import (
-    BUILTIN_AUDITED_CATALOG,
-    CatalogAdmissionProposal,
-    DEFAULT_FACTOR_CATALOG,
-    admit_catalog_entry,
-    load_audited_catalog,
 )
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
 from .learning import LearningEntry, LearningStore, reconcile_learning, validate_learning_entry
@@ -59,8 +64,14 @@ from .learning_manager import (
     LearningUpdateStatus,
     VersionedResearchPolicy,
 )
+from .observability import (
+    RuntimeBudget,
+    RuntimeLimitExceeded,
+    RuntimeMetrics,
+    bind_runtime_budget,
+    current_runtime_budget,
+)
 from .paper_trader import PaperLedger, PaperLedgerEntry, PaperTrader
-from .quant_analytics import ParameterSurface, PerformanceReport, compute_parameter_surface, compute_performance_report
 from .portfolio_runtime import PaperPortfolioProposal, PortfolioManager
 from .provider_adapters import (
     DeepSeekCompatibleAdapter,
@@ -72,6 +83,12 @@ from .provider_adapters import (
     build_opt_in_provider_adapter,
 )
 from .provider_status import ProviderCredentialRef, ProviderStatus, provider_status_payload
+from .quant_analytics import (
+    ParameterSurface,
+    PerformanceReport,
+    compute_parameter_surface,
+    compute_performance_report,
+)
 from .reports import (
     BundleVerification,
     ReportBundleWriter,
@@ -96,7 +113,6 @@ from .run_store import (
     RunStoreError,
 )
 from .runtime_service import ResearchRuntimeService, RuntimeLimits
-from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, bind_runtime_budget, current_runtime_budget
 from .settlement import SettlementEvent
 from .tools import (
     ResearchToolGateway,
@@ -110,6 +126,8 @@ from .worker import ResearchWorker, WorkerResult, WorkerStatus
 from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
 __all__ = [
+    "BUILTIN_AUDITED_CATALOG",
+    "DEFAULT_FACTOR_CATALOG",
     "AdmissionDecision",
     "AdmittedUpdate",
     "AgentOutcome",
@@ -120,7 +138,6 @@ __all__ = [
     "AgentTask",
     "AnalystSpec",
     "BundleVerification",
-    "BUILTIN_AUDITED_CATALOG",
     "CatalogAdmissionProposal",
     "CheckpointCorruptError",
     "CheckpointIdentity",
@@ -134,12 +151,15 @@ __all__ = [
     "CodexDispatchRecord",
     "CodexInteractiveDriver",
     "CodexTaskEnvelope",
-    "DEFAULT_FACTOR_CATALOG",
     "CompatibleApiDriver",
     "CompletedRunError",
     "CorruptCheckpointError",
     "DecisionCard",
     "DeepSeekCompatibleAdapter",
+    "ExposureReport",
+    "FactorExperimentRecord",
+    "FactorExperimentResult",
+    "FactorExperimentSpec",
     "FactorHealth",
     "FactorHealthStatus",
     "FactorMetadata",
@@ -147,11 +167,6 @@ __all__ = [
     "FactorResearchRound",
     "FactorResearchRun",
     "FactorResearchState",
-    "FactorExperimentRecord",
-    "FactorExperimentResult",
-    "FactorExperimentSpec",
-    "admit_catalog_entry",
-    "load_audited_catalog",
     "FailureKind",
     "JobQueue",
     "JobRecord",
@@ -165,7 +180,6 @@ __all__ = [
     "LearningStore",
     "LearningUpdateProposal",
     "LearningUpdateStatus",
-    "VersionedResearchPolicy",
     "OfflineDriver",
     "OpenAICompatibleAdapter",
     "PaperLedger",
@@ -174,14 +188,11 @@ __all__ = [
     "PaperTrader",
     "ParameterSurface",
     "PerformanceReport",
-    "compute_parameter_surface",
-    "compute_performance_report",
     "PortfolioManager",
     "ProviderAdapterError",
     "ProviderContractResult",
     "ProviderCredentialRef",
     "ProviderFailureKind",
-    "build_opt_in_provider_adapter",
     "ProviderSelection",
     "ProviderStatus",
     "ReportBundleWriter",
@@ -201,36 +212,41 @@ __all__ = [
     "ResearchToolStatus",
     "ResearchWorker",
     "RetryPolicy",
-    "ExposureReport",
     "RiskManager",
     "RiskReview",
     "RiskReviewResult",
-    "StressReport",
     "RoleCapabilityPolicy",
     "RunControl",
     "RunEvent",
     "RunStoreError",
-    "RuntimeLimits",
     "RuntimeBudget",
     "RuntimeLimitExceeded",
+    "RuntimeLimits",
     "RuntimeMetrics",
-    "bind_runtime_budget",
-    "current_runtime_budget",
     "SettlementEvent",
     "StaleLeaseError",
+    "StressReport",
     "UserApiDriver",
+    "VersionedResearchPolicy",
     "WorkerResult",
     "WorkerStatus",
     "WorkflowLimits",
+    "admit_catalog_entry",
+    "bind_runtime_budget",
+    "build_opt_in_provider_adapter",
     "compare_experiments",
     "compare_report_manifests",
+    "compute_parameter_surface",
+    "compute_performance_report",
+    "current_runtime_budget",
+    "load_audited_catalog",
     "provider_status_payload",
     "reconcile_learning",
     "register_runtime_snapshot",
     "render_section_html",
     "research_runtime_view_model",
-    "run_factor_research",
     "run_factor_experiments",
+    "run_factor_research",
     "stable_digest",
     "to_jsonable",
     "validate_learning_entry",

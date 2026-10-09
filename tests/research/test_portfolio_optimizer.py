@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from finahinking.research.paper_trader import PaperLedger, PaperTrader
-from finahinking.research.portfolio_runtime import PaperPortfolioProposal, PortfolioManager
+from finahinking.research.portfolio_runtime import PortfolioManager
 from finahinking.research.risk_runtime import RiskReviewResult
 
 

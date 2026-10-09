@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import re
-from string import Formatter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from string import Formatter
 from typing import Any
 
 import pandas as pd

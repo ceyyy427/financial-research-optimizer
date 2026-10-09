@@ -1,6 +1,9 @@
 import pytest
 
-from finahinking.research.quant_analytics import compute_parameter_surface, compute_performance_report
+from finahinking.research.quant_analytics import (
+    compute_parameter_surface,
+    compute_performance_report,
+)
 
 
 def test_parameter_surface_honors_explicit_robust_flags_and_regions():

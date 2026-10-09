@@ -7,9 +7,10 @@ import math
 import multiprocessing
 import queue
 import time
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterator, Mapping
+from typing import TYPE_CHECKING
 
 from .contracts import stable_digest
 

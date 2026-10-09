@@ -8,19 +8,19 @@ the returned :class:`ModelResponse` or normalized failures.
 
 from __future__ import annotations
 
-import re
 import json as _json
+import os
+import re
 import time
 from collections.abc import Mapping
-import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
 
 from .credentials import CredentialStore, EnvironmentCredentialStore
+from .observability import RuntimeLimitExceeded, current_runtime_budget
 from .provider_status import ProviderCredentialRef
 from .providers import ModelEnvelope, ModelResponse, ProviderCapabilities
-from .observability import RuntimeLimitExceeded, current_runtime_budget
 
 
 class ProviderFailureKind(str, Enum):
@@ -358,7 +358,7 @@ class _CompatibleAdapter:
         if retry_exhausted:
             exhausted = ProviderAdapterError("provider retry exhausted", kind=ProviderFailureKind.HTTP_ERROR)
             if last_transport is not None and hasattr(last_transport, "status_code"):
-                exhausted.status_code = getattr(last_transport, "status_code")  # type: ignore[attr-defined]
+                exhausted.status_code = last_transport.status_code  # type: ignore[attr-defined]
             raise exhausted
         if isinstance(last_transport, ProviderTimeoutError):
             raise last_transport
@@ -442,10 +442,10 @@ __all__ = [
     "JsonTransport",
     "OpenAICompatibleAdapter",
     "ProviderAdapterError",
+    "ProviderContractResult",
     "ProviderFailureKind",
     "ProviderSchemaError",
     "ProviderTimeoutError",
     "RetryPolicy",
-    "ProviderContractResult",
     "build_opt_in_provider_adapter",
 ]

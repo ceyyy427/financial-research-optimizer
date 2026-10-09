@@ -294,7 +294,7 @@ class JobQueue:
     def external_dispatch(self, envelope_digest: str) -> dict[str, str] | None:
         with self._connect() as db:
             row = db.execute("SELECT * FROM external_dispatches WHERE envelope_digest=?", (envelope_digest,)).fetchone()
-            return None if row is None else {key: row[key] for key in row.keys()}
+            return None if row is None else dict(zip(row.keys(), row))
 
     def record_external_result(self, envelope_digest: str, *, status: str, result_digest: str, failure_kind: str | None, output_digest: str) -> None:
         with self._connect() as db:
@@ -514,7 +514,7 @@ class JobQueue:
                 "SELECT stage_name, stage_ref, result_ref, status, created_at FROM stage_checkpoints WHERE job_id=? ORDER BY sequence",
                 (job_id,),
             ).fetchall()
-        return tuple({key: row[key] for key in row.keys()} for row in rows)
+        return tuple(dict(zip(row.keys(), row)) for row in rows)
 
     def complete(
         self,
@@ -711,7 +711,7 @@ class JobQueue:
             worker_id=row["worker_id"], lease_until=row["lease_until"], lease_token=row["lease_token"], last_error_digest=row["last_error_digest"],
             checkpoint_ref=row["checkpoint_ref"], result_ref=row["result_ref"], report_ref=row["report_ref"],
             learning_ref=row["learning_ref"], ledger_ref=row["ledger_ref"], cancel_requested=bool(row["cancel_requested"]),
-            task_type=row["task_type"] if "task_type" in row.keys() else "research",
+            task_type=dict(zip(row.keys(), row)).get("task_type", "research"),
         )
 
 

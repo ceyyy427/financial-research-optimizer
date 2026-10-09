@@ -304,7 +304,7 @@ class PortfolioManager:
                     raise ValueError("candidate instrument is invalid")
                 factors = record.get("factors", record.get("factor_exposures", record.get("factor_exposure", record.get("factor_scores", {}))))
                 if not isinstance(factors, Mapping):
-                    raise ValueError("candidate factors must be a mapping")
+                    raise TypeError("candidate factors must be a mapping")
                 clean_factors = {str(key): _number(value, f"factor.{key}") for key, value in factors.items()}
                 score = _number(record.get("score", record.get("rank_score", 1.0)), f"score.{instrument}")
                 records.append({"instrument": instrument, "score": max(0.0, score), "industry": str(record.get("industry", record.get("sector", ""))), "factors": clean_factors})
@@ -325,7 +325,7 @@ class PortfolioManager:
             industry_limits = policy.get("industry_limits", policy.get("industry_caps", policy.get("industry_exposure_limits", {})))
             factor_limits = policy.get("factor_limits", policy.get("factor_bounds", policy.get("factor_exposure_limits", {})))
             if not isinstance(industry_limits, Mapping) or not isinstance(factor_limits, Mapping):
-                raise ValueError("exposure limits must be mappings")
+                raise TypeError("exposure limits must be mappings")
             industry_limits = {str(key): _number(value, f"industry_limits.{key}") for key, value in industry_limits.items()}
             if any(value < 0 or value > 1 for value in industry_limits.values()):
                 raise ValueError("industry limits must be between zero and one")
@@ -342,7 +342,7 @@ class PortfolioManager:
 
             previous_raw = policy.get("previous_weights", policy.get("current_weights", {}))
             if not isinstance(previous_raw, Mapping):
-                raise ValueError("previous_weights must be a mapping")
+                raise TypeError("previous_weights must be a mapping")
             previous = {}
             for key, value in previous_raw.items():
                 parsed_previous = _number(value, f"previous_weights.{key}")
@@ -425,7 +425,7 @@ class PortfolioManager:
             if not valid:
                 return PaperPortfolioProposal(status="BLOCKED", risk_digest=digest, constraints=policy, rationale="portfolio constraints are infeasible")
             return PaperPortfolioProposal(status="PASSED", passed=True, weights=weights, cash_weight=max(0.0, 1.0 - total), candidates=tuple(item["instrument"] for item in records), risk_digest=digest, constraints=policy, rationale="deterministic constrained long-only paper allocation; no investment recommendation")
-        except (TypeError, ValueError, KeyError) as exc:
+        except (TypeError, ValueError, KeyError):
             # Keep diagnostics generic so malformed/unsafe inputs cannot leak
             # paths, credentials, or arbitrary caller text into the proposal.
             return PaperPortfolioProposal(status="BLOCKED", risk_digest=risk_result.fingerprint if isinstance(risk_result, RiskReviewResult) else "", constraints={}, rationale="portfolio optimization blocked")

@@ -6,7 +6,13 @@ import pytest
 
 from finahinking.research.provider_config import ProviderConfig, ProviderConfigStore
 from finahinking.research.provider_status import ProviderCredentialRef
-from finahinking.research.providers import ProviderCapabilities, ProviderRegistry, load_provider_config, load_provider_config_from_mapping, resolve_provider_selection
+from finahinking.research.providers import (
+    ProviderCapabilities,
+    ProviderRegistry,
+    load_provider_config,
+    load_provider_config_from_mapping,
+    resolve_provider_selection,
+)
 
 
 def test_provider_precedence_and_secret_reference_redaction() -> None:

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
-import os
+import json
 import threading
 from datetime import UTC, date, datetime
 from html.parser import HTMLParser
@@ -13,7 +12,13 @@ from urllib.request import ProxyHandler, Request, build_opener
 import pytest
 
 from finahinking.local_app import LocalAppConfig, LocalApplication, create_server
-from finahinking.research.contracts import AgentReport, ResearchRunResult, ResearchRunState, ResearchState, RunEvent
+from finahinking.research.contracts import (
+    AgentReport,
+    ResearchRunResult,
+    ResearchRunState,
+    ResearchState,
+    RunEvent,
+)
 from finahinking.research.reports import ReportBundleWriter
 
 
@@ -130,7 +135,8 @@ def _assert_artifact_manifest(artifact_dir: Path, lines: list[str]) -> None:
 def test_browser_acceptance_real_engine_keyboard_responsive_failures_and_evidence(monkeypatch) -> None:
     """Exercise the served product in Chromium; HTMLParser tests cannot prove these behaviors."""
 
-    from playwright.sync_api import Error as PlaywrightError, sync_playwright
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
 
     artifact_dir = Path(__file__).resolve().parents[2] / ".superpowers" / "sdd" / "2026-10-08-research-capability-completion-plan" / "task-16-artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)

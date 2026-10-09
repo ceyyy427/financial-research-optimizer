@@ -1,13 +1,22 @@
 from __future__ import annotations
 
-import threading
 import multiprocessing
+import threading
 import time
 
 import pytest
 
-from finahinking.research.observability import RuntimeBudget, RuntimeLimitExceeded, bind_runtime_budget, current_runtime_budget
-from finahinking.research.provider_adapters import OpenAICompatibleAdapter, ProviderFailureKind, RetryPolicy
+from finahinking.research.observability import (
+    RuntimeBudget,
+    RuntimeLimitExceeded,
+    bind_runtime_budget,
+    current_runtime_budget,
+)
+from finahinking.research.provider_adapters import (
+    OpenAICompatibleAdapter,
+    ProviderFailureKind,
+    RetryPolicy,
+)
 from finahinking.research.providers import ModelEnvelope
 from finahinking.research.runtime_service import ResearchRuntimeService, RuntimeLimits
 from finahinking.research.worker import WorkerStatus

@@ -8,8 +8,8 @@ Only a closed digest/reference result crosses back into the durable queue.
 
 from __future__ import annotations
 
-import json
 import inspect
+import json
 import math
 import multiprocessing
 import time
