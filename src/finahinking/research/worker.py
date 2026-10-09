@@ -9,6 +9,7 @@ Only a closed digest/reference result crosses back into the durable queue.
 from __future__ import annotations
 
 import json
+import inspect
 import math
 import multiprocessing
 import time
@@ -37,9 +38,11 @@ class WorkerResult:
     failure_kind: str | None = None
     message_digest: str | None = None
     attempts: int = 0
+    checkpoint_ref: str | None = None
 
 
 _RESULT_FIELDS = frozenset({"status", "result_ref", "checkpoint_ref", "report_ref", "learning_ref", "ledger_ref"})
+_FAILURE_FIELDS = frozenset({"failure", "checkpoint_ref"})
 
 
 def _invoke_child(
@@ -74,8 +77,28 @@ def _invoke_child(
             return
         ready = json.dumps({"ready": True, "timeout_seconds": task.timeout_seconds}, separators=(",", ":"), allow_nan=False).encode("utf-8")
         connection.send_bytes(ready)
-        value = runner(task, checkpoint_ref)
+        def publish_checkpoint(reference: str) -> None:
+            """Send a public checkpoint reference while the stage is running."""
+            connection.send_bytes(
+                json.dumps(
+                    {"checkpoint_ref": _ref(reference, "checkpoint_ref")},
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            )
+
+        try:
+            signature = inspect.signature(runner)
+            accepts_callback = len(
+                [parameter for parameter in signature.parameters.values() if parameter.kind in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD)]
+            ) >= 3 or any(parameter.kind is parameter.VAR_POSITIONAL for parameter in signature.parameters.values())
+        except (TypeError, ValueError):
+            accepts_callback = False
+        value = runner(task, checkpoint_ref, publish_checkpoint) if accepts_callback else runner(task, checkpoint_ref)
         if not isinstance(value, Mapping) or set(value) - _RESULT_FIELDS:
+            if isinstance(value, Mapping) and set(value).issubset(_FAILURE_FIELDS) and isinstance(value.get("failure"), str):
+                connection.send_bytes(json.dumps(dict(value), separators=(",", ":"), allow_nan=False).encode("utf-8"))
+                return
             connection.send_bytes(b'{"failure":"RESULT_INVALID"}')
             return
         if value.get("status") != "completed" or "result_ref" not in value:
@@ -159,6 +182,7 @@ report/learning/ledger references and is idempotent.
         child.close()
         payload: Mapping[str, Any] | None = None
         failure: str | None = None
+        latest_checkpoint: str | None = job.checkpoint_ref
         try:
             while time.monotonic() < task_deadline:
                 if self.queue.is_cancel_requested(job.job_id):
@@ -175,6 +199,23 @@ report/learning/ledger references and is idempotent.
                                 failure = "RESULT_INVALID"
                                 break
                             task_deadline = min(overall_deadline, time.monotonic() + task_timeout)
+                            continue
+                        if isinstance(message, Mapping) and set(message) == {"checkpoint_ref"}:
+                            checkpoint_ref = message.get("checkpoint_ref")
+                            try:
+                                checkpoint_ref = _ref(checkpoint_ref, "checkpoint_ref")
+                                updated = self.queue.update_checkpoint(
+                                    job.job_id,
+                                    checkpoint_ref,
+                                    worker_id=job.worker_id,
+                                    attempt=job.attempts,
+                                    lease_until=job.lease_until,
+                                    lease_token=job.lease_token,
+                                )
+                            except (TypeError, ValueError, StaleLeaseError):
+                                failure = "STALE_LEASE"
+                                break
+                            latest_checkpoint = updated.checkpoint_ref
                             continue
                         payload = message
                     except (EOFError, OSError, UnicodeError, json.JSONDecodeError):
@@ -200,11 +241,19 @@ report/learning/ledger references and is idempotent.
                 return self._stale(job)
             return WorkerResult(WorkerStatus.CANCELLED, job.job_id, attempts=cancelled.attempts)
         if failure is not None:
+            if failure == "STALE_LEASE":
+                return self._stale(job)
             return self._fail(job, failure, retryable=failure in {"TIMEOUT", "RUNNER_FAILED"})
         if not isinstance(payload, Mapping):
             return self._fail(job, "RESULT_INVALID", retryable=False)
         if "failure" in payload:
             kind = str(payload["failure"])
+            if kind == "CANCELLED":
+                try:
+                    cancelled = self.queue.mark_cancelled(job.job_id, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+                except StaleLeaseError:
+                    return self._stale(job)
+                return WorkerResult(WorkerStatus.CANCELLED, job.job_id, attempts=cancelled.attempts)
             return self._fail(job, kind, retryable=kind == "RUNNER_FAILED")
         try:
             if set(payload) - _RESULT_FIELDS or payload.get("status") != "completed":
@@ -216,7 +265,7 @@ report/learning/ledger references and is idempotent.
         except StaleLeaseError:
             return self._stale(job)
         status = WorkerStatus.CANCELLED if completed.status is JobStatus.CANCELLED else WorkerStatus.COMPLETED
-        return WorkerResult(status, completed.job_id, completed.result_ref, attempts=completed.attempts)
+        return WorkerResult(status, completed.job_id, completed.result_ref, attempts=completed.attempts, checkpoint_ref=completed.checkpoint_ref or latest_checkpoint)
 
     def _fail(self, job: JobRecord, kind: str, *, retryable: bool) -> WorkerResult:
         if not retryable:

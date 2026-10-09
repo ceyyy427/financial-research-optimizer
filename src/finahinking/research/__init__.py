@@ -95,6 +95,7 @@ from .run_store import (
     RunControl,
     RunStoreError,
 )
+from .runtime_service import ResearchRuntimeService, RuntimeLimits
 from .settlement import SettlementEvent
 from .tools import (
     ResearchToolGateway,
@@ -190,6 +191,7 @@ __all__ = [
     "ResearchRunResult",
     "ResearchRunState",
     "ResearchRunStore",
+    "ResearchRuntimeService",
     "ResearchState",
     "ResearchToolGateway",
     "ResearchToolName",
@@ -207,6 +209,7 @@ __all__ = [
     "RunControl",
     "RunEvent",
     "RunStoreError",
+    "RuntimeLimits",
     "SettlementEvent",
     "StaleLeaseError",
     "UserApiDriver",

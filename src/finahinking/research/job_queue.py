@@ -136,6 +136,7 @@ class JobQueue:
                     ledger_ref TEXT,
                     cancel_requested INTEGER NOT NULL DEFAULT 0
                     ,task_type TEXT NOT NULL DEFAULT 'research'
+                    ,task_timeout REAL NOT NULL DEFAULT 30.0
                 );
                 CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs(status, available_at, created_at);
                 CREATE TABLE IF NOT EXISTS external_dispatches (
@@ -157,6 +158,17 @@ class JobQueue:
                     attempt INTEGER,
                     lease_token_digest TEXT
                 );
+                CREATE TABLE IF NOT EXISTS stage_checkpoints (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL,
+                    stage_name TEXT NOT NULL,
+                    stage_ref TEXT NOT NULL,
+                    result_ref TEXT,
+                    status TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    UNIQUE(job_id, stage_name)
+                );
+                CREATE INDEX IF NOT EXISTS stage_checkpoints_job_idx ON stage_checkpoints(job_id, sequence);
                 """
             )
             event_columns = {row["name"] for row in db.execute("PRAGMA table_info(job_events)").fetchall()}
@@ -169,6 +181,8 @@ class JobQueue:
                 db.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
             if "task_type" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN task_type TEXT NOT NULL DEFAULT 'research'")
+            if "task_timeout" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN task_timeout REAL NOT NULL DEFAULT 30.0")
             # Backfill external jobs written before the durable dispatch table
             # existed. Only public task/idempotency digests are copied.
             old_external = db.execute(
@@ -232,9 +246,9 @@ class JobQueue:
                 db.execute(
                     """INSERT INTO jobs
                     (job_id, task_ref, task_digest, idempotency_key, status, attempts,
-                     max_attempts, available_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)""",
-                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now),
+                     max_attempts, available_at, created_at, updated_at, task_timeout)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
+                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now, float(task.timeout_seconds)),
                 )
                 self._event(db, job_id, JobStatus.QUEUED.value, now)
                 row = db.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
@@ -424,6 +438,80 @@ class JobQueue:
             db.commit()
             return self._row(result)
 
+    def record_stage_checkpoint(
+        self,
+        job_id: str,
+        stage_name: str,
+        stage_ref: str,
+        *,
+        result_ref: str | None = None,
+        status: str = "completed",
+        worker_id: str | None = None,
+        attempt: int | None = None,
+        lease_until: float | None = None,
+        lease_token: str | None = None,
+    ) -> None:
+        """Persist one stage's public references in the queue journal.
+
+        Stage output payloads stay outside the queue.  A repeated stage write is
+        idempotent only when it carries the same references, which prevents a
+        late process from replacing a trusted checkpoint after a lease change.
+        """
+        job_id = _ref(job_id, "job_id")
+        stage_name = _ref(stage_name, "stage_name")
+        stage_ref = _ref(stage_ref, "stage_ref")
+        result_ref = None if result_ref is None else _ref(result_ref, "result_ref")
+        status = _ref(status, "status")
+        now = float(self._clock())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._must_row(db, job_id)
+            fenced = any(value is not None for value in (worker_id, attempt, lease_until, lease_token))
+            if fenced:
+                self._assert_fence(
+                    row,
+                    worker_id=worker_id,
+                    attempt=attempt,
+                    lease_until=lease_until,
+                    lease_token=lease_token,
+                    now=now,
+                )
+            existing = db.execute(
+                "SELECT stage_ref, result_ref, status FROM stage_checkpoints WHERE job_id=? AND stage_name=?",
+                (job_id, stage_name),
+            ).fetchone()
+            if existing is not None:
+                if (existing["stage_ref"], existing["result_ref"], existing["status"]) != (stage_ref, result_ref, status):
+                    db.rollback()
+                    raise ValueError("stage checkpoint already exists with another digest")
+                db.commit()
+                return
+            db.execute(
+                "INSERT INTO stage_checkpoints(job_id, stage_name, stage_ref, result_ref, status, created_at) VALUES(?,?,?,?,?,?)",
+                (job_id, stage_name, stage_ref, result_ref, status, now),
+            )
+            self._event(
+                db,
+                job_id,
+                "stage_checkpoint",
+                now,
+                worker_id=worker_id,
+                attempt=attempt,
+                lease_token_digest=stable_digest(lease_token)[:32] if lease_token is not None else None,
+            )
+            db.commit()
+
+    def stage_checkpoints(self, job_id: str) -> tuple[dict[str, object], ...]:
+        """Return durable stage references without exposing local storage paths."""
+        job_id = _ref(job_id, "job_id")
+        with self._connect() as db:
+            self._must_row(db, job_id)
+            rows = db.execute(
+                "SELECT stage_name, stage_ref, result_ref, status, created_at FROM stage_checkpoints WHERE job_id=? ORDER BY sequence",
+                (job_id,),
+            ).fetchall()
+        return tuple({key: row[key] for key in row.keys()} for row in rows)
+
     def complete(
         self,
         job_id: str,
@@ -530,6 +618,23 @@ class JobQueue:
         job_id = _ref(job_id, "job_id")
         with self._connect() as db:
             return self._row(self._must_row(db, job_id))
+
+    def job_for_task(self, task_ref: str) -> JobRecord:
+        """Resolve the current durable job by its public task reference."""
+        task_ref = _ref(task_ref, "task_ref")
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM jobs WHERE task_ref=? ORDER BY created_at DESC LIMIT 1", (task_ref,)).fetchone()
+            if row is None:
+                raise KeyError(f"unknown task: {task_ref}")
+            return self._row(row)
+
+    def task_timeout(self, task_ref: str) -> float:
+        task_ref = _ref(task_ref, "task_ref")
+        with self._connect() as db:
+            row = db.execute("SELECT task_timeout FROM jobs WHERE task_ref=? ORDER BY created_at DESC LIMIT 1", (task_ref,)).fetchone()
+            if row is None:
+                raise KeyError(f"unknown task: {task_ref}")
+            return float(row["task_timeout"])
 
     def is_cancel_requested(self, job_id: str) -> bool:
         return bool(self.get(job_id).cancel_requested)
