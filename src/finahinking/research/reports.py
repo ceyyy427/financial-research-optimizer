@@ -197,9 +197,7 @@ class ReportBundleWriter:
     def write_runtime_tree(self, run_result: ResearchRunResult, output_root: str | Path | None = None) -> ReportManifest:
         """Write the complete report tree, including read-only runtime stage pages."""
 
-        root = output_root or self.output_root
-        if root is None:
-            raise ValueError("output_root is required for runtime tree reports")
+        root = output_root or self.output_root or (Path.cwd() / "reports")
         return self.write(run_result, root)
 
     def write(
