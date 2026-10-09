@@ -16,7 +16,7 @@ from .contracts import ReportManifest, ResearchRunState, ResearchState
 from .reports import redact_public_payload
 
 _ANALYST_ROLES = ("fundamentals", "technical", "sentiment", "news", "learning")
-_SECTIONS = frozenset(("complete", "2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision"))
+_SECTIONS = frozenset(("complete", "2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision", "experiments", "risk_attribution", "learning_history"))
 _RUNTIME_REGISTRY: dict[str, tuple[ResearchRunState, Any, tuple[Any, ...]]] = {}
 
 
@@ -97,7 +97,7 @@ def research_view_model(run_state: ResearchRunState, manifest: ReportManifest | 
             "provider_readiness": dict(provider_readiness),
             "report_tree": {
                 "analysts": {role: f"1_analysts/{role}.html" for role in _ANALYST_ROLES},
-                "stages": {section: f"{section}/index.html" for section in ("2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision")},
+                "stages": {section: f"{section}/index.html" for section in ("2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision", "experiments", "risk_attribution", "learning_history")},
                 "complete": "complete_report.html",
             },
             "report_links": report_links,
@@ -158,7 +158,7 @@ def _runtime_tools(metadata: tuple[Mapping[str, Any], ...]) -> list[dict[str, An
 
 
 def research_runtime_view_model(
-    run_id: str,
+    run_id: str | ResearchRunState,
     *,
     state: ResearchRunState | None = None,
     manifest: ReportManifest | Mapping[str, Any] | None = None,
@@ -166,6 +166,9 @@ def research_runtime_view_model(
 ) -> dict[str, Any]:
     """Build a redacted server-owned live snapshot without doing browser math."""
 
+    if isinstance(run_id, ResearchRunState) and state is None:
+        state = run_id
+        run_id = state.run_id
     if not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9._:-]+", run_id):
         raise ValueError("run_id is invalid")
     if state is None:
@@ -211,9 +214,18 @@ def research_runtime_view_model(
     learning = _runtime_latest(metadata, ("learning_proposal", "learning"), {"status": "NO_LEARNING_UPDATE"})
     if not isinstance(learning, Mapping):
         learning = {"status": str(learning)}
+    experiments = _runtime_latest(metadata, ("experiments", "factor_experiments"), [])
+    if not isinstance(experiments, (list, tuple, Mapping)):
+        experiments = []
+    risk_attribution = _runtime_latest(metadata, ("risk_attribution", "risk"), {"status": "PENDING"})
+    if not isinstance(risk_attribution, Mapping):
+        risk_attribution = {"status": str(risk_attribution)}
+    learning_history = _runtime_latest(metadata, ("learning_history", "learning_records"), [])
+    if not isinstance(learning_history, (list, tuple, Mapping)):
+        learning_history = []
     model = {
         **base,
-        "schema_version": 2,
+        "schema_version": 3,
         "stage_status": dict(sorted(stage_status.items())),
         "stages": dict(sorted(stage_status.items())),
         "roles": list(base.get("analysts", ())),
@@ -221,6 +233,9 @@ def research_runtime_view_model(
         "retries": retries,
         "checkpoint": dict(checkpoint),
         "learning_proposal": dict(learning),
+        "experiments": experiments,
+        "risk_attribution": dict(risk_attribution),
+        "learning_history": learning_history,
         "manifest_digest": _runtime_manifest_digest(manifest),
         "stream": {"mode": "SERVER_SNAPSHOT", "read_only": True, "paper_only": True},
     }

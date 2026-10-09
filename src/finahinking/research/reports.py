@@ -23,6 +23,7 @@ _PUBLIC_SENSITIVE_KEY = re.compile(
 )
 _REQUIRED_ANALYSTS = ("fundamentals", "technical", "sentiment", "news", "learning")
 _REQUIRED_SECTIONS = ("2_evidence", "3_research", "4_quant", "5_risk", "6_paper_decision")
+_RUNTIME_SECTIONS = ("experiments", "risk_attribution", "learning_history")
 
 
 def _scrub(value: Any) -> Any:
@@ -190,6 +191,17 @@ def append_event(event: RunEvent, path: Path) -> None:
 
 
 class ReportBundleWriter:
+    def __init__(self, output_root: str | Path | None = None) -> None:
+        self.output_root = Path(output_root) if output_root is not None else None
+
+    def write_runtime_tree(self, run_result: ResearchRunResult, output_root: str | Path | None = None) -> ReportManifest:
+        """Write the complete report tree, including read-only runtime stage pages."""
+
+        root = output_root or self.output_root
+        if root is None:
+            raise ValueError("output_root is required for runtime tree reports")
+        return self.write(run_result, root)
+
     def write(
         self,
         result: ResearchRunResult,
@@ -260,6 +272,12 @@ class ReportBundleWriter:
             quant_index = bundle / "4_quant" / "index.html"
             quant_index.write_text(render_section_html("4_quant", analytics_payload, limitations=analytics_payload.get("limitations", ())), encoding="utf-8")
 
+        runtime_payloads = _runtime_report_payloads(result)
+        for section, payload in runtime_payloads.items():
+            path = bundle / section / "index.html"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(_render_runtime_section_html(section, payload), encoding="utf-8")
+
         # The complete report starts with the same server-owned status facts as
         # the local UI.  It remains useful without JavaScript and never performs
         # client-side metric calculations.
@@ -298,6 +316,7 @@ class ReportBundleWriter:
                 "state_digest": stable_digest(result.state),
                 "decision_digest": stable_digest(result.decision) if result.decision else None,
                 **status_snapshot,
+                **{section: payload for section, payload in runtime_payloads.items()},
                 **({"quant_analytics": {"fingerprint": analytics_payload.get("fingerprint"), "limitations": analytics_payload.get("limitations", ())}} if analytics_payload else {}),
             },
             created_at=datetime.now(UTC),
@@ -322,6 +341,7 @@ def verify_report_bundle(manifest_path: str | Path) -> BundleVerification:
         required = {"complete_report.html", "activity.jsonl"}
         required.update(f"1_analysts/{role}.html" for role in _REQUIRED_ANALYSTS)
         required.update(f"{section}/index.html" for section in _REQUIRED_SECTIONS)
+        required.update(f"{section}/index.html" for section in _RUNTIME_SECTIONS)
         for relative in sorted(required):
             if relative not in files:
                 errors.append(f"manifest missing required file: {relative}")
@@ -338,6 +358,60 @@ def verify_report_bundle(manifest_path: str | Path) -> BundleVerification:
     except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError) as exc:
         errors.append(f"manifest unreadable: {exc}")
     return BundleVerification(ok=not errors, errors=tuple(errors))
+
+
+def _runtime_report_payloads(result: ResearchRunResult) -> dict[str, dict[str, Any]]:
+    """Collect only redacted, server-owned runtime stage summaries."""
+
+    metadata = [event.metadata for event in result.events if isinstance(event.metadata, Mapping)]
+    values: dict[str, Any] = {}
+    for key in _RUNTIME_SECTIONS:
+        for item in reversed(metadata):
+            if key in item:
+                values[key] = item[key]
+                break
+    terminal = result.state.current_state.value
+    history = {item.value for item in result.state.state_history}
+    stage_markers = {
+        "experiments": "QUANT_VALIDATION",
+        "risk_attribution": "RISK_REVIEW",
+        "learning_history": "LEARNING_RECORDED",
+    }
+    output: dict[str, dict[str, Any]] = {}
+    for section in _RUNTIME_SECTIONS:
+        marker = stage_markers[section]
+        status = "COMPLETE" if marker in history else "CURRENT" if marker == terminal else "BLOCKED" if terminal in {"FAILED", "VALIDATION_FAILED", "PROVIDER_NOT_CONFIGURED", "CANCELLED"} else "PENDING"
+        value = values.get(section, [])
+        if isinstance(value, Mapping):
+            payload: dict[str, Any] = dict(value)
+        elif isinstance(value, (list, tuple)):
+            payload = {"items": list(value)}
+        else:
+            payload = {"value": value}
+        payload = _scrub(payload)
+        payload["status"] = status
+        payload.setdefault("limitations", ["server snapshot; descriptive and paper-only"])
+        output[section] = payload
+    return output
+
+
+def _render_runtime_section_html(section: str, payload: Mapping[str, Any]) -> str:
+    safe = _scrub(payload)
+    title = html.escape(section.replace("_", " ").title(), quote=True)
+    status = html.escape(str(safe.get("status", "PENDING")), quote=True)
+    body = html.escape(json.dumps(safe, ensure_ascii=False, sort_keys=True, indent=2), quote=False)
+    links = " ".join(
+        f'<a href="../{other}/index.html">{html.escape(other.replace("_", " ").title())}</a>'
+        for other in _RUNTIME_SECTIONS if other != section
+    )
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        f"<title>{title} · research runtime</title></head><body><main>"
+        f"<nav><a href=\"../complete_report.html\">Complete report</a> {links}</nav>"
+        f"<h1>{title}</h1><p>Status: <strong>{status}</strong> · READ-ONLY · PAPER-ONLY</p>"
+        f"<pre>{body}</pre><p>Values are server-provided; no financial indicators are calculated in the browser.</p>"
+        "</main></body></html>"
+    )
 
 
 def _status_snapshot(result: ResearchRunResult) -> dict[str, Any]:

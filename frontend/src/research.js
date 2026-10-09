@@ -129,7 +129,7 @@ function normalizeRuntimeRecord(value, field) {
 }
 
 export function normalizeResearchRuntime(payload) {
-  if (!payload || payload.schema_version !== 2 || typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research runtime schema is invalid');
+  if (!payload || ![2, 3].includes(payload.schema_version) || typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research runtime schema is invalid');
   if (!RUNTIME_STATES.has(payload.state)) throw new TypeError('research runtime state is invalid');
   if (payload.mode !== 'OFFLINE' || payload.paper_only !== true) throw new TypeError('research runtime boundary is invalid');
   const stage_status = normalizePublicMap(payload.stage_status ?? {}, 'stage_status');
@@ -144,6 +144,25 @@ export function normalizeResearchRuntime(payload) {
     if (typeof item !== 'string' || STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError('runtime limitation is unsafe');
     return item;
   }) : [];
+  const normalizeStageData = (value, field) => {
+    const visit = (item) => {
+      if (item === null || typeof item === 'number' || typeof item === 'boolean') return item;
+      if (typeof item === 'string') {
+        if (STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError(`${field} contains unsafe data`);
+        return item;
+      }
+      if (Array.isArray(item)) return item.map(visit);
+      if (!item || typeof item !== 'object') throw new TypeError(`${field} is invalid`);
+      return Object.fromEntries(Object.entries(item).map(([key, nested]) => {
+        if (STATUS_WALL_FORBIDDEN.test(key)) throw new TypeError(`${field} contains unsafe data`);
+        return [key, visit(nested)];
+      }));
+    };
+    return visit(value ?? []);
+  };
+  const experiments = normalizeStageData(payload.experiments, 'experiments');
+  const risk_attribution = normalizeStageData(payload.risk_attribution, 'risk attribution');
+  const learning_history = normalizeStageData(payload.learning_history, 'learning history');
   return {
     schema_version: 2,
     run_id: payload.run_id,
@@ -158,6 +177,9 @@ export function normalizeResearchRuntime(payload) {
     manifest_digest: payload.manifest_digest,
     tool_summaries,
     limitations,
+    experiments,
+    risk_attribution,
+    learning_history,
   };
 }
 
@@ -173,6 +195,8 @@ export function renderResearchRuntime(root, payload) {
   if (stage) stage.textContent = Object.entries(normalized.stage_status).map(([name, value]) => `${name}: ${value}`).join(' · ');
   const tools = root?.querySelector?.('[data-research-runtime-tools]');
   if (tools) tools.textContent = normalized.tool_summaries.map((item) => `${item.name ?? item.tool ?? 'tool'}: ${item.status ?? 'RECORDED'}`).join(' · ') || 'No tool summary recorded.';
+  const stages = root?.querySelector?.('[data-research-runtime-report-stages]');
+  if (stages) stages.textContent = ['experiments', 'risk_attribution', 'learning_history'].map((name) => `${name}: ${normalized[name]?.status ?? 'PENDING'}`).join(' · ');
   return normalized;
 }
 

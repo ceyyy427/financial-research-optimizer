@@ -177,6 +177,25 @@ test('renderResearchRuntime is render-only and supports no-JS fallback', () => {
   assert.equal(rendered.state, 'CANCELLED');
 });
 
+test('normalizeResearchRuntime preserves server-owned report tree stages without calculating metrics', () => {
+  const normalized = normalizeResearchRuntime({
+    schema_version: 3,
+    run_id: 'tree-ui',
+    state: 'RISK_REVIEW',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { risk: 'CURRENT' },
+    role_status: {},
+    experiments: [{ experiment_id: 'exp-1', status: 'COMPLETE', metrics: { ic: 0.1 } }],
+    risk_attribution: { status: 'CURRENT', factors: [{ name: 'volatility', contribution: 0.2 }] },
+    learning_history: [],
+    manifest_digest: 'a'.repeat(64),
+  });
+  assert.equal(normalized.experiments[0].experiment_id, 'exp-1');
+  assert.equal(normalized.risk_attribution.status, 'CURRENT');
+  assert.throws(() => normalizeResearchRuntime({ ...normalized, experiments: [{ prompt: 'hidden' }] }), /unsafe/i);
+});
+
 const workbench = {
   schema_version: 1,
   view: 'factor-strategy-workbench',

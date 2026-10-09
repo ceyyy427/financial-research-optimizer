@@ -382,7 +382,7 @@ class LocalApplication:
             return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"))
         if len(parts) == 3 and parts[1] == "report":
             section = parts[2]
-            allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html"}
+            allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html", "experiments": "experiments/index.html", "risk_attribution": "risk_attribution/index.html", "learning_history": "learning_history/index.html"}
             if section not in allowed:
                 return 422, "application/json", {"error": "report section is not allow-listed"}
             relative = allowed[section]
