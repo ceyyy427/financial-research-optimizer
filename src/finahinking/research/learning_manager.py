@@ -17,9 +17,10 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
-from .contracts import stable_digest, to_jsonable
+from .contracts import _unsafe_public_text, stable_digest, to_jsonable
 from .settlement import SettlementEvent
 
 _PUBLIC_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -56,6 +57,23 @@ def _public_id(value: str, name: str) -> str:
     return value.strip()
 
 
+def _safe_text(value: Any, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be text")
+    normalized = value.strip()
+    if _SENSITIVE_VALUE.search(normalized) or _unsafe_public_text(normalized):
+        raise ValueError(f"{name} contains unsafe persisted text")
+    return normalized
+
+
+def _text_sequence(value: Any, name: str) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise TypeError(f"{name} must be a sequence of strings")
+    if any(not isinstance(item, str) for item in value):
+        raise TypeError(f"{name} must be a sequence of strings")
+    return tuple(value)
+
+
 def _clean_mapping(value: Any, name: str) -> dict[str, Any]:
     if value is None:
         return {}
@@ -68,9 +86,7 @@ def _clean_mapping(value: Any, name: str) -> dict[str, Any]:
         if isinstance(item, Mapping):
             result[key.strip()] = _clean_mapping(item, f"{name}.{key}")
         elif isinstance(item, str):
-            if _SENSITIVE_VALUE.search(item):
-                raise ValueError(f"{name} contains sensitive value")
-            result[key.strip()] = item
+            result[key.strip()] = _safe_text(item, f"{name}.{key}")
         elif isinstance(item, bool) or item is None:
             result[key.strip()] = item
         elif isinstance(item, (int, float)):
@@ -86,6 +102,34 @@ def _clean_policy_mapping(value: Any, name: str) -> dict[str, Any]:
     """Copy a policy mapping while keeping the learning boundary secret-free."""
 
     return _clean_mapping(value, name)
+
+
+def _freeze(value: Any) -> Any:
+    """Deep-freeze JSON-safe mappings so fingerprints cannot drift in place."""
+
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze(child) for key, child in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(child) for child in value)
+    return value
+
+
+def _strict_mapping(
+    value: Any,
+    *,
+    allowed: set[str] | frozenset[str],
+    required: set[str] | frozenset[str],
+    name: str,
+) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} payload is invalid")
+    keys = set(value)
+    if any(not isinstance(key, str) for key in keys) or not keys.issubset(allowed):
+        raise ValueError(f"{name} schema contains unknown fields")
+    missing = required - keys
+    if missing:
+        raise ValueError(f"{name} schema is missing required fields")
+    return value
 
 
 def _policy_version(value: Any) -> int:
@@ -110,10 +154,7 @@ class LearningAdmissionRecord:
         if not isinstance(self.decision, AdmissionDecision):
             object.__setattr__(self, "decision", AdmissionDecision(self.decision))
         object.__setattr__(self, "as_of", _as_date(self.as_of, "admission as_of"))
-        if not isinstance(self.rationale, str):
-            raise TypeError("rationale must be text")
-        if any(token in self.rationale.casefold() for token in ("api_key", "secret", "token=", "prompt", "http://", "https://")):
-            raise ValueError("admission rationale contains sensitive material")
+        object.__setattr__(self, "rationale", _safe_text(self.rationale, "admission rationale"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,19 +182,21 @@ class LearningUpdateProposal:
             object.__setattr__(self, "dataset_digest", _public_id(self.dataset_digest, "dataset_digest"))
         if self.as_of is not None and not isinstance(self.as_of, date):
             object.__setattr__(self, "as_of", _as_date(self.as_of, "proposal as_of"))
-        object.__setattr__(self, "factor_weight_updates", _clean_mapping(self.factor_weight_updates, "factor_weight_updates"))
-        object.__setattr__(self, "risk_rule_updates", _clean_mapping(self.risk_rule_updates, "risk_rule_updates"))
-        object.__setattr__(self, "registry_updates", _clean_mapping(self.registry_updates, "registry_updates"))
-        refs = tuple(str(ref).strip() for ref in self.evidence_refs if str(ref).strip())
-        if any(_SENSITIVE_VALUE.search(ref) for ref in refs):
-            raise ValueError("evidence refs contain sensitive material")
+        object.__setattr__(self, "factor_weight_updates", _freeze(_clean_mapping(self.factor_weight_updates, "factor_weight_updates")))
+        object.__setattr__(self, "risk_rule_updates", _freeze(_clean_mapping(self.risk_rule_updates, "risk_rule_updates")))
+        object.__setattr__(self, "registry_updates", _freeze(_clean_mapping(self.registry_updates, "registry_updates")))
+        refs = tuple(_safe_text(ref, "evidence_refs") for ref in _text_sequence(self.evidence_refs, "evidence_refs") if ref.strip())
         object.__setattr__(self, "evidence_refs", refs)
         if self.admitted is not False:
             raise ValueError("proposals cannot be marked admitted")
+        expected = self._compute_digest()
         if self.proposal_digest:
-            object.__setattr__(self, "proposal_digest", _public_id(self.proposal_digest, "proposal_digest"))
+            supplied = _public_id(self.proposal_digest, "proposal_digest")
+            if supplied != expected:
+                raise ValueError("proposal digest does not match payload")
+            object.__setattr__(self, "proposal_digest", supplied)
         else:
-            object.__setattr__(self, "proposal_digest", self._compute_digest())
+            object.__setattr__(self, "proposal_digest", expected)
 
     @property
     def factor_weights(self) -> Mapping[str, Any]:
@@ -202,16 +245,16 @@ class LearningApplyPreview:
         object.__setattr__(self, "proposal_digest", _public_id(self.proposal_digest, "proposal_digest"))
         object.__setattr__(self, "baseline_fingerprint", _public_id(self.baseline_fingerprint, "baseline_fingerprint"))
         object.__setattr__(self, "next_version", _policy_version(self.next_version))
-        object.__setattr__(self, "factor_weights", _clean_policy_mapping(self.factor_weights, "factor_weights"))
-        object.__setattr__(self, "risk_rules", _clean_policy_mapping(self.risk_rules, "risk_rules"))
-        object.__setattr__(self, "registry", _clean_policy_mapping(self.registry, "registry"))
+        object.__setattr__(self, "factor_weights", _freeze(_clean_policy_mapping(self.factor_weights, "factor_weights")))
+        object.__setattr__(self, "risk_rules", _freeze(_clean_policy_mapping(self.risk_rules, "risk_rules")))
+        object.__setattr__(self, "registry", _freeze(_clean_policy_mapping(self.registry, "registry")))
         if self.settlement_as_of is not None and not isinstance(self.settlement_as_of, date):
             object.__setattr__(self, "settlement_as_of", _as_date(self.settlement_as_of, "settlement_as_of"))
         for name in ("ledger_digest", "dataset_digest"):
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, _public_id(value, name))
-        object.__setattr__(self, "limitations", tuple(str(item).strip() for item in self.limitations if str(item).strip()))
+        object.__setattr__(self, "limitations", tuple(_safe_text(item, "limitations") for item in _text_sequence(self.limitations, "limitations") if item.strip()))
         if self.paper_only is not True:
             raise ValueError("learning previews must be paper-only")
         expected = stable_digest(self._fingerprint_payload())
@@ -256,9 +299,9 @@ class VersionedResearchPolicy:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "version", _policy_version(self.version))
-        object.__setattr__(self, "factor_weights", _clean_policy_mapping(self.factor_weights, "factor_weights"))
-        object.__setattr__(self, "risk_rules", _clean_policy_mapping(self.risk_rules, "risk_rules"))
-        object.__setattr__(self, "registry", _clean_policy_mapping(self.registry, "registry"))
+        object.__setattr__(self, "factor_weights", _freeze(_clean_policy_mapping(self.factor_weights, "factor_weights")))
+        object.__setattr__(self, "risk_rules", _freeze(_clean_policy_mapping(self.risk_rules, "risk_rules")))
+        object.__setattr__(self, "registry", _freeze(_clean_policy_mapping(self.registry, "registry")))
         if self.baseline_fingerprint:
             object.__setattr__(self, "baseline_fingerprint", _public_id(self.baseline_fingerprint, "baseline_fingerprint"))
         if self.source_proposal_digest:
@@ -417,56 +460,118 @@ def _record_payload(record: LearningProposalRecord) -> dict[str, Any]:
 
 
 def _decode_proposal(payload: Any) -> LearningUpdateProposal:
-    if not isinstance(payload, Mapping):
-        raise TypeError("learning proposal payload is invalid")
+    payload = _strict_mapping(
+        payload,
+        allowed={
+            "status",
+            "settlement_digest",
+            "as_of",
+            "factor_weight_updates",
+            "risk_rule_updates",
+            "registry_updates",
+            "evidence_refs",
+            "ledger_digest",
+            "dataset_digest",
+            "proposal_digest",
+            "admitted",
+        },
+        required={
+            "status",
+            "settlement_digest",
+            "as_of",
+            "factor_weight_updates",
+            "risk_rule_updates",
+            "registry_updates",
+            "evidence_refs",
+            "ledger_digest",
+            "dataset_digest",
+            "proposal_digest",
+            "admitted",
+        },
+        name="learning proposal",
+    )
     return LearningUpdateProposal(
         status=payload["status"],
-        settlement_digest=payload.get("settlement_digest"),
-        as_of=payload.get("as_of"),
-        factor_weight_updates=payload.get("factor_weight_updates", {}),
-        risk_rule_updates=payload.get("risk_rule_updates", {}),
-        registry_updates=payload.get("registry_updates", {}),
-        evidence_refs=tuple(payload.get("evidence_refs", ())),
-        ledger_digest=payload.get("ledger_digest"),
-        dataset_digest=payload.get("dataset_digest"),
+        settlement_digest=payload["settlement_digest"],
+        as_of=payload["as_of"],
+        factor_weight_updates=payload["factor_weight_updates"],
+        risk_rule_updates=payload["risk_rule_updates"],
+        registry_updates=payload["registry_updates"],
+        evidence_refs=_text_sequence(payload["evidence_refs"], "evidence_refs"),
+        ledger_digest=payload["ledger_digest"],
+        dataset_digest=payload["dataset_digest"],
         proposal_digest=payload["proposal_digest"],
-        admitted=payload.get("admitted", False),
+        admitted=payload["admitted"],
     )
 
 
 def _decode_admission(payload: Any) -> LearningAdmissionRecord | None:
     if payload is None:
         return None
-    if not isinstance(payload, Mapping):
-        raise TypeError("learning admission payload is invalid")
+    payload = _strict_mapping(
+        payload,
+        allowed={"admission_id", "proposal_digest", "admitted_by", "decision", "as_of", "rationale"},
+        required={"admission_id", "proposal_digest", "admitted_by", "decision", "as_of", "rationale"},
+        name="learning admission",
+    )
     return LearningAdmissionRecord(
         admission_id=payload["admission_id"],
         proposal_digest=payload["proposal_digest"],
         admitted_by=payload["admitted_by"],
         decision=payload["decision"],
         as_of=payload["as_of"],
-        rationale=payload.get("rationale", ""),
+        rationale=payload["rationale"],
     )
 
 
 def _decode_preview(payload: Any) -> LearningApplyPreview | None:
     if payload is None:
         return None
-    if not isinstance(payload, Mapping):
-        raise TypeError("learning preview payload is invalid")
+    payload = _strict_mapping(
+        payload,
+        allowed={
+            "proposal_digest",
+            "baseline_fingerprint",
+            "next_version",
+            "factor_weights",
+            "risk_rules",
+            "registry",
+            "settlement_as_of",
+            "ledger_digest",
+            "dataset_digest",
+            "policy_fingerprint",
+            "limitations",
+            "paper_only",
+        },
+        required={
+            "proposal_digest",
+            "baseline_fingerprint",
+            "next_version",
+            "factor_weights",
+            "risk_rules",
+            "registry",
+            "settlement_as_of",
+            "ledger_digest",
+            "dataset_digest",
+            "policy_fingerprint",
+            "limitations",
+            "paper_only",
+        },
+        name="learning preview",
+    )
     return LearningApplyPreview(
         proposal_digest=payload["proposal_digest"],
         baseline_fingerprint=payload["baseline_fingerprint"],
         next_version=payload["next_version"],
-        factor_weights=payload.get("factor_weights", {}),
-        risk_rules=payload.get("risk_rules", {}),
-        registry=payload.get("registry", {}),
-        settlement_as_of=payload.get("settlement_as_of"),
-        ledger_digest=payload.get("ledger_digest"),
-        dataset_digest=payload.get("dataset_digest"),
-        policy_fingerprint=payload.get("policy_fingerprint", ""),
-        limitations=tuple(payload.get("limitations", ())),
-        paper_only=payload.get("paper_only", True),
+        factor_weights=payload["factor_weights"],
+        risk_rules=payload["risk_rules"],
+        registry=payload["registry"],
+        settlement_as_of=payload["settlement_as_of"],
+        ledger_digest=payload["ledger_digest"],
+        dataset_digest=payload["dataset_digest"],
+        policy_fingerprint=payload["policy_fingerprint"],
+        limitations=_text_sequence(payload["limitations"], "limitations"),
+        paper_only=payload["paper_only"],
     )
 
 
@@ -485,10 +590,21 @@ class LearningProposalStore:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise ValueError("learning proposal record is corrupt") from exc
-        if not isinstance(payload, Mapping) or payload.get("schema_version") != "learning-proposal.v2":
+        payload = _strict_mapping(
+            payload,
+            allowed={"schema_version", "proposal_digest", "record", "record_digest"},
+            required={"schema_version", "proposal_digest", "record", "record_digest"},
+            name="learning proposal record",
+        )
+        if payload["schema_version"] != "learning-proposal.v2":
             raise ValueError("learning proposal record schema is invalid")
-        body = payload.get("record")
-        if not isinstance(body, Mapping) or payload.get("record_digest") != stable_digest(body):
+        body = _strict_mapping(
+            payload["record"],
+            allowed={"proposal", "admission", "preview"},
+            required={"proposal", "admission", "preview"},
+            name="learning proposal record body",
+        )
+        if payload["record_digest"] != stable_digest(body):
             raise ValueError("learning proposal record digest is invalid")
         try:
             record = LearningProposalRecord(
@@ -496,9 +612,9 @@ class LearningProposalStore:
                 admission=_decode_admission(body.get("admission")),
                 preview=_decode_preview(body.get("preview")),
             )
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError) as exc:
             raise ValueError("learning proposal record payload is invalid") from exc
-        if payload.get("proposal_digest") != record.proposal_digest or path.stem != f"proposal-{record.proposal_digest}":
+        if payload["proposal_digest"] != record.proposal_digest or path.stem != f"proposal-{record.proposal_digest}":
             raise ValueError("learning proposal record digest does not match path")
         return record
 
@@ -519,11 +635,15 @@ class LearningProposalStore:
             # while refusing conflicting review or proposal payloads.
             if current.proposal != record.proposal:
                 raise ValueError("proposal digest conflicts with another payload")
-            if current.admission is not None and current.admission != record.admission:
+            if admission is not None and current.admission is not None and current.admission != admission:
                 raise ValueError("proposal already has a different admission")
-            if current.preview is not None and current.preview != record.preview:
+            if preview is not None and current.preview is not None and current.preview != preview:
                 raise ValueError("proposal already has a different preview")
-            record = LearningProposalRecord(record.proposal, record.admission or current.admission, record.preview or current.preview)
+            record = LearningProposalRecord(
+                record.proposal,
+                admission if admission is not None else current.admission,
+                preview if preview is not None else current.preview,
+            )
             if record == current:
                 return current
         # A settlement can produce only one immutable proposal in this store.
