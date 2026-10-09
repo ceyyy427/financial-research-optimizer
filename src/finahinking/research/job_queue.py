@@ -311,18 +311,22 @@ class JobQueue:
         """Resolve an ephemeral task; reopened queues need an explicit resolver."""
         return self._tasks[_ref(task_ref, "task_ref")]
 
-    def claim(self, worker_id: str) -> JobRecord | None:
+    def claim(self, worker_id: str, *, job_id: str | None = None) -> JobRecord | None:
         worker_id = _ref(worker_id, "worker_id")
+        if job_id is not None:
+            job_id = _ref(job_id, "job_id")
         now = float(self._clock())
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             self._recover_expired(db, now)
-            row = db.execute(
-                """SELECT * FROM jobs
-                   WHERE status IN (?, ?) AND task_type <> 'external' AND available_at <= ? AND cancel_requested = 0
-                   ORDER BY available_at, created_at, job_id LIMIT 1""",
-                (JobStatus.QUEUED.value, JobStatus.RETRYABLE.value, now),
-            ).fetchone()
+            query = """SELECT * FROM jobs
+                   WHERE status IN (?, ?) AND task_type <> 'external' AND available_at <= ? AND cancel_requested = 0"""
+            arguments: list[object] = [JobStatus.QUEUED.value, JobStatus.RETRYABLE.value, now]
+            if job_id is not None:
+                query += " AND job_id = ?"
+                arguments.append(job_id)
+            query += " ORDER BY available_at, created_at, job_id LIMIT 1"
+            row = db.execute(query, arguments).fetchone()
             if row is None:
                 db.commit()
                 return None

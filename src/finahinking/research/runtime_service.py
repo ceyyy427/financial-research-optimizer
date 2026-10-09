@@ -128,7 +128,7 @@ class ResearchRuntimeService:
             terminal = self._terminal_result(record)
             if terminal is not None:
                 return terminal
-            result = worker.run_once()
+            result = worker.run_once(target_job_id=job_id)
             calls += 1
             record = self.queue.get(job_id)
             if result.status in {WorkerStatus.COMPLETED, WorkerStatus.FAILED, WorkerStatus.CANCELLED}:

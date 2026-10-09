@@ -155,10 +155,10 @@ report/learning/ledger references and is idempotent.
         self.max_jobs = max_jobs
         self._executed = 0
 
-    def run_once(self) -> WorkerResult:
+    def run_once(self, target_job_id: str | None = None) -> WorkerResult:
         if self._executed >= self.max_jobs:
             return WorkerResult(WorkerStatus.IDLE, failure_kind="RESOURCE_LIMIT", message_digest=stable_digest("RESOURCE_LIMIT"))
-        job = self.queue.claim(self.worker_id)
+        job = self.queue.claim(self.worker_id, job_id=target_job_id)
         if job is None:
             return WorkerResult(WorkerStatus.IDLE)
         self._executed += 1

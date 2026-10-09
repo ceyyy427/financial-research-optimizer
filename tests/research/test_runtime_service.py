@@ -121,3 +121,18 @@ def test_stage_checkpoint_rejects_a_lost_worker_lease(tmp_path) -> None:
             lease_until=first.lease_until,
             lease_token=first.lease_token,
         )
+
+
+def test_run_until_terminal_only_claims_requested_job(tmp_path) -> None:
+    service = ResearchRuntimeService(
+        tmp_path / "jobs.sqlite",
+        stage_runners={"workflow": stage_runner("workflow")},
+    )
+    first = service.submit(request("first"))
+    second = service.submit(request("second"))
+
+    result = service.run_until_terminal(second.job_id, RuntimeLimits(max_attempts=2))
+
+    assert result.job_id == second.job_id
+    assert service.queue.get(second.job_id).status is JobStatus.COMPLETED
+    assert service.queue.get(first.job_id).status is JobStatus.QUEUED
