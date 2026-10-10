@@ -420,7 +420,7 @@ class JobQueue:
                 if value is not None:
                     merged[key] = value if old.get(key) is None else min(value, old[key])
             effective_attempts = min(max_attempts, row["max_attempts"])
-            if row["status"] == JobStatus.RUNNING.value and any(merged.get(key) != old.get(key) for key in ("max_provider_calls", "max_bytes", "max_experiments", "max_result_bytes")):
+            if row["status"] == JobStatus.RUNNING.value and any(merged.get(key) != old.get(key) for key in ("max_wall_seconds", "max_provider_calls", "max_bytes", "max_experiments", "max_result_bytes")):
                 db.execute("UPDATE jobs SET status=?, lease_until=NULL, lease_token=NULL, worker_id=NULL, last_error_digest=?, updated_at=? WHERE job_id=?", (JobStatus.FAILED.value, stable_digest("RESOURCE_LIMIT"), float(self._clock()), job_id))
                 self._event(db, job_id, JobStatus.FAILED.value, float(self._clock()), reason_digest=stable_digest("RESOURCE_LIMIT"))
                 return self._row(self._must_row(db, job_id))
