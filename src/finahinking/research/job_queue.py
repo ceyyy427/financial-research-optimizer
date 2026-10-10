@@ -46,11 +46,22 @@ _SENSITIVE_VALUE = re.compile(
     r"[A-Za-z][A-Za-z0-9+.-]*://|(?:^|[:\s])(?:~[\\/]|[\\/]|\.\.?[\\/]|[A-Za-z0-9_.-]+[\\/])",
     re.IGNORECASE,
 )
+_SENSITIVE_SNAPSHOT_KEY = re.compile(r"(?:prompt|raw_response|provider_response)", re.IGNORECASE)
 _TERMINAL = frozenset({JobStatus.FAILED.value, JobStatus.CANCELLED.value, JobStatus.COMPLETED.value})
 
 
 def _snapshot_json(request: ResearchRequest) -> str:
     payload = _validate_runtime_value(to_jsonable(request), "request snapshot")
+    def reject_keys(value: object) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if _SENSITIVE_SNAPSHOT_KEY.search(str(key)):
+                    raise ValueError("request snapshot contains private model material")
+                reject_keys(item)
+        elif isinstance(value, list):
+            for item in value:
+                reject_keys(item)
+    reject_keys(payload)
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
     if re.search(r'(?:prompt|raw_response)\s*[=:]', encoded, re.IGNORECASE):
         raise ValueError("request snapshot contains private model material")
@@ -832,6 +843,22 @@ class JobQueue:
             recovered = self._recover_expired(db, now)
             db.commit()
             return recovered
+
+    def recover_worker(self, worker_id: str) -> tuple[JobRecord, ...]:
+        """Fence and requeue jobs owned by a supervisor that was terminated."""
+        worker_id = _ref(worker_id, "worker_id")
+        now = float(self._clock())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute("SELECT * FROM jobs WHERE status=? AND worker_id=?", (JobStatus.RUNNING.value, worker_id)).fetchall()
+            result = []
+            for row in rows:
+                status = JobStatus.FAILED if int(row["attempts"]) >= int(row["max_attempts"]) else JobStatus.RETRYABLE
+                db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, available_at=?, updated_at=?, last_error_digest=? WHERE job_id=?", (status.value, now, now, stable_digest("SUPERVISOR_TERMINATED"), row["job_id"]))
+                self._event(db, row["job_id"], status.value, now, reason_digest=stable_digest("SUPERVISOR_TERMINATED"))
+                result.append(self._row(self._must_row(db, row["job_id"])))
+            db.commit()
+            return tuple(result)
 
     def is_cancel_requested(self, job_id: str) -> bool:
         return bool(self.get(job_id).cancel_requested)

@@ -209,7 +209,9 @@ class ResearchRuntimeService:
         return result
 
     def _resource_limit(self, job_id: str) -> WorkerResult:
-        return WorkerResult(WorkerStatus.RETRYABLE, job_id, failure_kind="RESOURCE_LIMIT", message_digest=stable_digest("RESOURCE_LIMIT"), attempts=self.queue.get(job_id).attempts)
+        record = self.queue.get(job_id)
+        status = WorkerStatus.CANCELLED if record.status is JobStatus.CANCELLED else WorkerStatus.RETRYABLE
+        return WorkerResult(status, job_id, failure_kind="RESOURCE_LIMIT", message_digest=stable_digest("RESOURCE_LIMIT"), attempts=record.attempts)
 
     @property
     def metrics(self) -> RuntimeMetrics | None:

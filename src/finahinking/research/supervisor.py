@@ -133,17 +133,17 @@ def _supervisor_process_main(config: Mapping[str, object], connection) -> None:
         initial_job = config.get("dispatch_job")
         if isinstance(initial_job, str):
             message = core.dispatch(initial_job)
-            if message is not None:
-                _control_send(connection, {"type": "dispatch", "job_id": message.job_id, "message": _message_payload(message)})
+            if message is not None and (config.get("expected_invocation_digest") is None or message.payload.get("invocation_digest") == config.get("expected_invocation_digest")):
+                _control_send(connection, {"type": "dispatch", "job_id": message.job_id, "invocation_digest": message.payload["invocation_digest"], "message": _message_payload(message)})
         while True:
             if connection.poll(core.poll_interval):
                 command = _control_receive(connection)
                 if command.get("type") == "stop" and set(command) == {"type"}:
                     break
-                if command.get("type") == "dispatch" and set(command) == {"type", "job_id"} and (command["job_id"] is None or isinstance(command["job_id"], str)):
+                if command.get("type") == "dispatch" and set(command) == {"type", "job_id", "expected_invocation_digest", "request_digest"} and (command["job_id"] is None or isinstance(command["job_id"], str)) and command["request_digest"] == stable_digest({"job_id": command["job_id"], "invocation_digest": command["expected_invocation_digest"]}):
                     message = core.dispatch(command.get("job_id"))
-                    if message is not None:
-                        _control_send(connection, {"type": "dispatch", "job_id": message.job_id, "message": _message_payload(message)})
+                    if message is not None and message.payload.get("invocation_digest") == command["expected_invocation_digest"]:
+                        _control_send(connection, {"type": "dispatch", "job_id": message.job_id, "invocation_digest": message.payload["invocation_digest"], "message": _message_payload(message)})
                 else:
                     raise ProtocolError("unknown supervisor command")
             core.run_once()
@@ -289,6 +289,9 @@ class ResearchSupervisor:
             if process.is_alive():
                 process.terminate()
                 process.join(timeout)
+                self.queue.recover_worker(self.worker_id)
+            elif process.exitcode not in (0, None):
+                self.queue.recover_worker(self.worker_id)
         if connection is not None:
             connection.close()
         self._connection = None
@@ -414,11 +417,24 @@ class ResearchSupervisor:
                 if existing.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
                     return None
             if self._process is None or not self._process.is_alive():
-                self._start_process(dispatch_job=job_id)
+                try:
+                    expected = self._expected_invocation_digest(job_id)
+                except (KeyError, RuntimeError, ValueError, StageRegistryError):
+                    expected = None
+                self._start_process(dispatch_job=job_id, expected_invocation_digest=expected)
             elif self._connection is not None:
-                _control_send(self._connection, {"type": "dispatch", "job_id": job_id})
+                try:
+                    expected = self._expected_invocation_digest(job_id)
+                except (KeyError, RuntimeError, ValueError, StageRegistryError):
+                    expected = ""
+                request_digest = stable_digest({"job_id": job_id, "invocation_digest": expected})
+                _control_send(self._connection, {"type": "dispatch", "job_id": job_id, "expected_invocation_digest": expected, "request_digest": request_digest})
             if self._connection is None:
                 return None
+            try:
+                expected = self._expected_invocation_digest(job_id) if job_id is not None else None
+            except (KeyError, RuntimeError, ValueError, StageRegistryError):
+                expected = None
             deadline = time.monotonic() + 30.0
             while time.monotonic() < deadline:
                 if self._connection.poll(min(0.05, max(0.0, deadline - time.monotonic()))):
@@ -428,7 +444,7 @@ class ResearchSupervisor:
                         payload = None
                     if payload is None:
                         break
-                    if payload.get("type") == "dispatch" and (job_id is None or payload.get("job_id") == job_id) and set(payload) == {"type", "job_id", "message"}:
+                    if payload.get("type") == "dispatch" and (job_id is None or payload.get("job_id") == job_id) and (expected is None or payload.get("invocation_digest") == expected) and set(payload) == {"type", "job_id", "invocation_digest", "message"} and payload.get("invocation_digest") == payload.get("message", {}).get("payload", {}).get("invocation_digest"):
                         return _message_from_payload(payload["message"])
                 if job_id is not None:
                     record = self.queue.get(job_id)
@@ -439,7 +455,7 @@ class ResearchSupervisor:
                         # state, so it cannot leak into the next dispatch.
                         if self._connection.poll(0.2):
                             payload = _control_receive(self._connection)
-                            if payload.get("type") == "dispatch" and (job_id is None or payload.get("job_id") == job_id) and set(payload) == {"type", "job_id", "message"}:
+                            if payload.get("type") == "dispatch" and (job_id is None or payload.get("job_id") == job_id) and (expected is None or payload.get("invocation_digest") == expected) and set(payload) == {"type", "job_id", "invocation_digest", "message"} and payload.get("invocation_digest") == payload.get("message", {}).get("payload", {}).get("invocation_digest"):
                                 return _message_from_payload(payload["message"])
                         return _synthetic_terminal(record)
                     if record.status is JobStatus.RETRYABLE:
@@ -529,7 +545,7 @@ class ResearchSupervisor:
         )
         return SpawnWorkerHandle(invocation, registry=self.registry)
 
-    def _start_process(self, *, dispatch_job: str | None = None) -> None:
+    def _start_process(self, *, dispatch_job: str | None = None, expected_invocation_digest: str | None = None) -> None:
         if self._embedded:
             raise RuntimeError("embedded supervisor cannot start a process")
         with self._lock:
@@ -545,6 +561,7 @@ class ResearchSupervisor:
                 "poll_interval": self.poll_interval,
                 "budget": dict(self._budget),
                 "dispatch_job": dispatch_job,
+                "expected_invocation_digest": expected_invocation_digest,
                 "lease_seconds": self.queue.lease_seconds,
                 "backoff_base_seconds": self.queue.backoff_base_seconds,
                 "backoff_max_seconds": self.queue.backoff_max_seconds,
@@ -599,7 +616,7 @@ class ResearchSupervisor:
 
     def _retry_or_fail(self, job: JobRecord, reason: str) -> None:
         try:
-            if reason in {"RESOURCE_LIMIT", "TIMEOUT"}:
+            if reason in {"RESOURCE_LIMIT"}:
                 self.queue.fail(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
             else:
                 self.queue.retry(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
@@ -608,6 +625,10 @@ class ResearchSupervisor:
             self.queue.save_metrics(budget.metrics())
         except (StaleLeaseError, ValueError, KeyError):
             return
+
+    def _expected_invocation_digest(self, job_id: str) -> str:
+        job = self.queue.get(job_id)
+        return self._make_handle(job).invocation.digest()
 
     @staticmethod
     def _unbounded_limits() -> SimpleNamespace:
