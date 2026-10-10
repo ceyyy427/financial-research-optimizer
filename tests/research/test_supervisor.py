@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sqlite3
 import time
 
@@ -84,6 +85,19 @@ def test_supervisor_completes_and_is_idempotent(tmp_path) -> None:
     assert queue.get(record.job_id).result_ref == f"artifact:{record.job_id}"
 
 
+def test_supervisor_scheduler_is_an_independent_process(tmp_path) -> None:
+    queue = JobQueue(tmp_path / "jobs.sqlite")
+    queue.enqueue(_task("process-owned"), "idem-process-owned")
+    supervisor = ResearchSupervisor(queue.path, registry=_registry("slow", stage_slow), worker_id="process-owner", max_concurrency=1)
+    try:
+        supervisor.start()
+        assert supervisor._process is not None
+        assert supervisor._process.pid != os.getpid()
+        assert supervisor._process.daemon is False
+    finally:
+        supervisor.stop()
+
+
 def test_supervisor_bounds_concurrency_and_claims_atomically(tmp_path) -> None:
     path = tmp_path / "jobs.sqlite"
     queue = JobQueue(path)
@@ -152,7 +166,9 @@ def test_concurrent_spawn_jobs_have_exact_independent_metrics(tmp_path) -> None:
     supervisor = ResearchSupervisor(queue.path, registry=_registry("workflow", stage_measured), worker_id="metrics-owner", max_concurrency=2, budget={"max_experiments": 2, "max_provider_calls": 2, "max_bytes": 20})
     try:
         supervisor.run_once()
-        assert supervisor.active_count == 2
+        # The independent supervisor may finish a short job before this
+        # observer samples SQLite; it must never exceed the configured bound.
+        assert supervisor.active_count <= 2
         _drain(supervisor, queue, records)
         first, second = (supervisor.metrics_for(record.job_id) for record in records)
         assert first is not None and second is not None
@@ -161,6 +177,13 @@ def test_concurrent_spawn_jobs_have_exact_independent_metrics(tmp_path) -> None:
         assert set(first.stage_durations) == set(second.stage_durations) == {"workflow"}
         assert first.stage_durations["workflow"] > 0
         assert all(queue.get(record.job_id).status is JobStatus.COMPLETED for record in records)
+        supervisor.stop()
+        reopened = ResearchSupervisor(queue.path, registry=_registry("workflow", stage_measured), worker_id="metrics-reopened", max_concurrency=1)
+        try:
+            assert reopened.metrics_for(records[0].job_id) is not None
+            assert reopened.metrics_for(records[1].job_id) is not None
+        finally:
+            reopened.stop()
     finally:
         supervisor.stop()
 

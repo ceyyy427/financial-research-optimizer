@@ -8,17 +8,119 @@ claimed attempt and lease token, so a restarted supervisor can safely recover
 
 from __future__ import annotations
 
+import atexit
+import json
+import multiprocessing
 import threading
 import time
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
 
+from .contracts import stable_digest
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
-from .observability import RuntimeBudget, RuntimeLimitExceeded, WorkerMetricsDelta
+from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, WorkerMetricsDelta
 from .runtime_protocol import WorkerInvocation, WorkerMessage
 from .stage_registry import StageRegistry, StageRegistryError
-from .worker_entrypoint import SpawnWorkerHandle
+from .worker_entrypoint import SpawnWorkerHandle, _rebuild_registry, _registry_payload
+
+
+def _message_payload(message: WorkerMessage) -> dict[str, object]:
+    return {"kind": message.kind, "job_id": message.job_id, "payload": dict(message.payload)}
+
+
+def _message_from_payload(payload: Mapping[str, object]) -> WorkerMessage:
+    return WorkerMessage(str(payload["kind"]), str(payload["job_id"]), payload["payload"])
+
+
+def _synthetic_terminal(record: JobRecord) -> WorkerMessage:
+    """Reconstruct a bounded terminal notice if the supervisor pipe closes.
+
+    Durable queue state is authoritative; this fallback is intentionally a
+    digest-only notice and never fabricates an artifact body.
+    """
+    digest = stable_digest(record.job_id)
+    if record.status is JobStatus.COMPLETED and record.result_ref:
+        return WorkerMessage("RESULT", record.job_id, {
+            "invocation_digest": digest,
+            "job_id": record.job_id,
+            "attempt": record.attempts,
+            "sequence": 0,
+            "status": "completed",
+            "result_ref": record.result_ref,
+            "artifact_digest": stable_digest(record.result_ref),
+        })
+    if record.status is JobStatus.FAILED:
+        error = "RESOURCE_LIMIT" if record.last_error_digest == stable_digest("RESOURCE_LIMIT") else "TIMEOUT" if record.last_error_digest == stable_digest("TIMEOUT") else "RUNNER_FAILED"
+        return WorkerMessage("FAILED", record.job_id, {
+            "invocation_digest": digest,
+            "job_id": record.job_id,
+            "attempt": record.attempts,
+            "sequence": 0,
+            "status": "failed",
+            "failure_kind": error,
+            "error_code": error,
+            "message_digest": stable_digest(error),
+        })
+    return WorkerMessage("CANCELLED", record.job_id, {
+        "invocation_digest": digest,
+        "job_id": record.job_id,
+        "attempt": record.attempts,
+        "sequence": 0,
+        "status": "cancelled",
+    })
+
+
+def _supervisor_process_main(config: Mapping[str, object], connection) -> None:
+    """Independent supervisor process entrypoint.
+
+    Only JSON-shaped configuration crosses the process boundary.  The process
+    reconstructs its own queue and registry, then is the sole owner of worker
+    creation.  The parent can request a synchronous dispatch for deterministic
+    callers; normal API traffic only observes the durable queue.
+    """
+
+    registry = _rebuild_registry(config["registry"])
+    core = ResearchSupervisor(
+        config["queue_path"],
+        registry=registry,
+        worker_id=config["worker_id"],
+        max_concurrency=config["max_concurrency"],
+        poll_interval=config["poll_interval"],
+        budget=config["budget"],
+        lease_seconds=config.get("lease_seconds"),
+        backoff_base_seconds=config.get("backoff_base_seconds"),
+        backoff_max_seconds=config.get("backoff_max_seconds"),
+        max_attempts=config.get("max_attempts"),
+        _embedded=True,
+    )
+    try:
+        core.recover_orphans()
+        initial_job = config.get("dispatch_job")
+        if isinstance(initial_job, str):
+            message = core.dispatch(initial_job)
+            if message is not None:
+                connection.send_bytes(json.dumps({"type": "dispatch", "message": _message_payload(message)}, separators=(",", ":"), default=dict).encode())
+        while True:
+            if connection.poll(core.poll_interval):
+                raw = connection.recv_bytes()
+                command = json.loads(raw.decode("utf-8"))
+                if command.get("type") == "stop":
+                    break
+                if command.get("type") == "dispatch":
+                    message = core.dispatch(command.get("job_id"))
+                    if message is not None:
+                        connection.send_bytes(json.dumps({"type": "dispatch", "message": _message_payload(message)}, separators=(",", ":"), default=dict).encode())
+            core.run_once()
+    finally:
+        core._stop.set()
+        for handle, _job in tuple(core._handles.values()):
+            handle.cancel()
+            handle.join()
+        try:
+            connection.close()
+        except OSError:
+            pass
 
 
 class ResearchSupervisor:
@@ -33,6 +135,11 @@ class ResearchSupervisor:
         max_concurrency: int,
         poll_interval: float = 0.05,
         budget: Mapping[str, int | float | None] | None = None,
+        _embedded: bool = False,
+        lease_seconds: float | None = None,
+        backoff_base_seconds: float | None = None,
+        backoff_max_seconds: float | None = None,
+        max_attempts: int | None = None,
     ) -> None:
         if isinstance(queue, JobQueue):
             path = queue.path
@@ -54,7 +161,14 @@ class ResearchSupervisor:
                 "backoff_base_seconds": queue.backoff_base_seconds,
                 "backoff_max_seconds": queue.backoff_max_seconds,
                 "max_attempts": queue.max_attempts,
-            } if isinstance(queue, JobQueue) else {}),
+            } if isinstance(queue, JobQueue) else {
+                key: value for key, value in {
+                    "lease_seconds": lease_seconds,
+                    "backoff_base_seconds": backoff_base_seconds,
+                    "backoff_max_seconds": backoff_max_seconds,
+                    "max_attempts": max_attempts,
+                }.items() if value is not None
+            }),
         )
         self.registry = registry
         self.worker_id = worker_id
@@ -64,36 +178,80 @@ class ResearchSupervisor:
         self._handles: dict[str, tuple[SpawnWorkerHandle, JobRecord]] = {}
         self._messages: dict[str, WorkerMessage] = {}
         self._metrics: dict[str, RuntimeBudget] = {}
-        self._thread: threading.Thread | None = None
+        self._embedded = _embedded
+        self._process: multiprocessing.Process | None = None
+        self._connection = None
         self._stop = threading.Event()
         self._lock = threading.RLock()
+        if not _embedded:
+            atexit.register(self.stop)
 
     @property
     def active_count(self) -> int:
-        return len(self._handles)
+        if self._embedded:
+            return len(self._handles)
+        with self.queue._connect() as db:
+            row = db.execute("SELECT COUNT(*) AS count FROM jobs WHERE status=? AND worker_id=?", (JobStatus.RUNNING.value, self.worker_id)).fetchone()
+            return int(row["count"])
 
     def start(self) -> None:
-        """Start the supervisor loop in its own thread."""
+        """Start the independent supervisor process."""
+        if self._embedded:
+            return
         with self._lock:
-            if self._thread is not None and self._thread.is_alive():
+            if self._process is not None and self._process.is_alive():
                 return
-            self._stop.clear()
-            self.recover_orphans()
-            self._thread = threading.Thread(target=self._loop, name="research-supervisor", daemon=True)
-            self._thread.start()
+            context = multiprocessing.get_context("spawn")
+            parent, child = context.Pipe(duplex=True)
+            config = {
+                "queue_path": str(self.queue.path),
+                "registry": _registry_payload(self.registry),
+                "worker_id": self.worker_id,
+                "max_concurrency": self.max_concurrency,
+                "poll_interval": self.poll_interval,
+                "budget": dict(self._budget),
+                "lease_seconds": self.queue.lease_seconds,
+                "backoff_base_seconds": self.queue.backoff_base_seconds,
+                "backoff_max_seconds": self.queue.backoff_max_seconds,
+                "max_attempts": self.queue.max_attempts,
+            }
+            process = context.Process(target=_supervisor_process_main, args=(config, child), daemon=False)
+            try:
+                process.start()
+            except Exception:
+                parent.close()
+                child.close()
+                raise
+            child.close()
+            self._connection = parent
+            self._process = process
 
     def stop(self, timeout: float = 5.0) -> None:
+        if self._embedded:
+            self._stop.set()
+            for handle, _job in tuple(self._handles.values()):
+                handle.cancel()
+                handle.join()
+            self._handles.clear()
+            return
         if timeout < 0:
             raise ValueError("timeout must be non-negative")
-        self._stop.set()
-        thread = self._thread
-        if thread is not None:
-            thread.join(timeout)
-        for handle, _job in tuple(self._handles.values()):
-            handle.cancel()
-            handle.join()
-        self._handles.clear()
-        self._thread = None
+        process = self._process
+        connection = self._connection
+        if connection is not None:
+            try:
+                connection.send_bytes(b'{"type":"stop"}')
+            except (BrokenPipeError, OSError):
+                pass
+        if process is not None:
+            process.join(timeout)
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout)
+        if connection is not None:
+            connection.close()
+        self._connection = None
+        self._process = None
 
     def recover_orphans(self) -> int:
         """Return expired leases to the durable queue and report their count."""
@@ -101,6 +259,14 @@ class ResearchSupervisor:
 
     def run_once(self) -> int:
         """Poll active workers and fill available concurrency slots."""
+        if not self._embedded:
+            self.start()
+            # Let the independent process claim a job, but never create a
+            # worker in the caller thread.
+            deadline = time.monotonic() + max(1.0, self.poll_interval * 4)
+            while time.monotonic() < deadline and self.active_count == 0:
+                time.sleep(0.005)
+            return 0
         self.recover_orphans()
         completed = 0
         for job_id, (handle, job) in tuple(self._handles.items()):
@@ -171,6 +337,43 @@ class ResearchSupervisor:
 
     def dispatch(self, job_id: str | None = None) -> WorkerMessage | None:
         """Claim and synchronously drain one job, useful for deterministic callers."""
+        if not self._embedded:
+            if job_id is not None:
+                existing = self.queue.get(job_id)
+                if existing.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                    return None
+            if self._process is None or not self._process.is_alive():
+                self._start_process(dispatch_job=job_id)
+            elif self._connection is not None:
+                self._connection.send_bytes(json.dumps({"type": "dispatch", "job_id": job_id}, separators=(",", ":")).encode())
+            if self._connection is None:
+                return None
+            deadline = time.monotonic() + 30.0
+            while time.monotonic() < deadline:
+                if self._connection.poll(min(0.05, max(0.0, deadline - time.monotonic()))):
+                    try:
+                        payload = json.loads(self._connection.recv_bytes().decode("utf-8"))
+                    except EOFError:
+                        payload = None
+                    if payload is None:
+                        break
+                    if payload.get("type") == "dispatch":
+                        return _message_from_payload(payload["message"])
+                if job_id is not None:
+                    record = self.queue.get(job_id)
+                    if record.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                        # The process may have committed first and be just
+                        # behind on the response pipe. Give that response a
+                        # bounded chance before reconstructing from durable
+                        # state, so it cannot leak into the next dispatch.
+                        if self._connection.poll(0.2):
+                            payload = json.loads(self._connection.recv_bytes().decode("utf-8"))
+                            if payload.get("type") == "dispatch":
+                                return _message_from_payload(payload["message"])
+                        return _synthetic_terminal(record)
+                    if record.status is JobStatus.RETRYABLE:
+                        return None
+            return None
         job = self.queue.claim(self.worker_id, job_id=job_id)
         if job is None:
             return None
@@ -233,6 +436,33 @@ class ResearchSupervisor:
         )
         return SpawnWorkerHandle(invocation, registry=self.registry)
 
+    def _start_process(self, *, dispatch_job: str | None = None) -> None:
+        if self._embedded:
+            raise RuntimeError("embedded supervisor cannot start a process")
+        with self._lock:
+            if self._process is not None and self._process.is_alive():
+                return
+            context = multiprocessing.get_context("spawn")
+            parent, child = context.Pipe(duplex=True)
+            config = {
+                "queue_path": str(self.queue.path),
+                "registry": _registry_payload(self.registry),
+                "worker_id": self.worker_id,
+                "max_concurrency": self.max_concurrency,
+                "poll_interval": self.poll_interval,
+                "budget": dict(self._budget),
+                "dispatch_job": dispatch_job,
+                "lease_seconds": self.queue.lease_seconds,
+                "backoff_base_seconds": self.queue.backoff_base_seconds,
+                "backoff_max_seconds": self.queue.backoff_max_seconds,
+                "max_attempts": self.queue.max_attempts,
+            }
+            process = context.Process(target=_supervisor_process_main, args=(config, child), daemon=False)
+            process.start()
+            child.close()
+            self._connection = parent
+            self._process = process
+
     def _registry_has(self, name: str) -> bool:
         try:
             self.registry.resolve(name)
@@ -264,7 +494,8 @@ class ResearchSupervisor:
                             self._budget_limits(),
                         ),
                     )
-                    budget.apply_delta(delta)
+                    aggregate = budget.apply_delta(delta)
+                    self.queue.save_metrics(aggregate)
                 result_ref = payload.get("result_ref")
                 if isinstance(result_ref, str):
                     self.queue.complete(job.job_id, result_ref=result_ref, checkpoint_ref=job.checkpoint_ref, **fence)
@@ -295,7 +526,20 @@ class ResearchSupervisor:
     def metrics_for(self, job_id: str):
         """Return the supervisor's aggregated worker metrics snapshot."""
         budget = self._metrics.get(job_id)
-        return None if budget is None else budget.metrics()
+        if budget is not None:
+            return budget.metrics()
+        durable = self.queue.load_metrics(job_id)
+        if durable is None:
+            return None
+        return RuntimeMetrics(
+            durable["run_id"],
+            durable["stage_durations"],
+            durable["retry_count"],
+            durable["provider_calls"],
+            durable["resource_failures"],
+            durable["bytes_used"],
+            durable["experiments"],
+        )
 
     def _budget_limits(self) -> SimpleNamespace:
         values = self._budget

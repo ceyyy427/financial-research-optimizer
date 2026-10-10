@@ -9,6 +9,7 @@ table is append-only and contains only public identifiers and digests.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 import sqlite3
@@ -169,6 +170,15 @@ class JobQueue:
                     UNIQUE(job_id, stage_name)
                 );
                 CREATE INDEX IF NOT EXISTS stage_checkpoints_job_idx ON stage_checkpoints(job_id, sequence);
+                CREATE TABLE IF NOT EXISTS runtime_metrics (
+                    job_id TEXT PRIMARY KEY,
+                    experiments INTEGER NOT NULL,
+                    provider_calls INTEGER NOT NULL,
+                    bytes_used INTEGER NOT NULL,
+                    resource_failures INTEGER NOT NULL,
+                    retry_count INTEGER NOT NULL,
+                    stage_durations TEXT NOT NULL
+                );
                 """
             )
             event_columns = {row["name"] for row in db.execute("PRAGMA table_info(job_events)").fetchall()}
@@ -691,6 +701,49 @@ class JobQueue:
 
     def is_cancel_requested(self, job_id: str) -> bool:
         return bool(self.get(job_id).cancel_requested)
+
+    def save_metrics(self, metrics: object) -> None:
+        """Persist the supervisor's redacted aggregate for restart reads."""
+        job_id = _ref(getattr(metrics, "run_id", ""), "job_id")
+        stage_durations = getattr(metrics, "stage_durations", {})
+        if not isinstance(stage_durations, dict):
+            stage_durations = dict(stage_durations)
+        payload = json.dumps(stage_durations, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        values = (
+            int(getattr(metrics, "experiments", 0)),
+            int(getattr(metrics, "provider_calls", 0)),
+            int(getattr(metrics, "bytes_used", 0)),
+            int(getattr(metrics, "resource_failures", 0)),
+            int(getattr(metrics, "retry_count", 0)),
+        )
+        if any(value < 0 for value in values):
+            raise ValueError("metrics counters must be non-negative")
+        with self._connect() as db:
+            db.execute(
+                """INSERT INTO runtime_metrics(job_id, experiments, provider_calls, bytes_used,
+                   resource_failures, retry_count, stage_durations) VALUES(?,?,?,?,?,?,?)
+                   ON CONFLICT(job_id) DO UPDATE SET experiments=excluded.experiments,
+                   provider_calls=excluded.provider_calls, bytes_used=excluded.bytes_used,
+                   resource_failures=excluded.resource_failures, retry_count=excluded.retry_count,
+                   stage_durations=excluded.stage_durations""",
+                (job_id, *values, payload),
+            )
+
+    def load_metrics(self, job_id: str) -> dict[str, object] | None:
+        job_id = _ref(job_id, "job_id")
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM runtime_metrics WHERE job_id=?", (job_id,)).fetchone()
+        if row is None:
+            return None
+        return {
+            "run_id": job_id,
+            "experiments": int(row["experiments"]),
+            "provider_calls": int(row["provider_calls"]),
+            "bytes_used": int(row["bytes_used"]),
+            "resource_failures": int(row["resource_failures"]),
+            "retry_count": int(row["retry_count"]),
+            "stage_durations": json.loads(row["stage_durations"]),
+        }
 
     def _recover_expired(self, db: sqlite3.Connection, now: float) -> tuple[JobRecord, ...]:
         rows = db.execute("SELECT * FROM jobs WHERE status=? AND lease_until IS NOT NULL AND lease_until <= ?", (JobStatus.RUNNING.value, now)).fetchall()
