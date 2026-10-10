@@ -19,7 +19,7 @@ fail closed without leaking exception text.
 
 ```text
 PYTHONPATH=src python3 -m pytest -q tests/research/test_spawn_worker.py
-# 8 passed
+# 9 passed
 
 PYTHONPATH=src python3 -m ruff check \
   src/finahinking/research/worker_entrypoint.py \
@@ -30,4 +30,10 @@ PYTHONPATH=src python3 -m ruff check \
 
 The full Supervisor lifecycle, durable queue ownership, retry/recovery, and
 runtime-service migration remain Tasks 4–8. This task does not add a fork
-fallback.
+fallback. The pre-existing `ResearchWorker.run_once()` fork path is retained
+only as a migration seam and is explicitly scheduled for removal in Task 8;
+the new `SpawnWorkerHandle` path never selects it.
+
+The follow-up fix validates the canonical registry descriptor digest before
+importing any runner module, then repeats the callable identity check after
+import. The malformed-descriptor regression test covers this ordering.
