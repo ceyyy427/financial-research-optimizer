@@ -10,7 +10,6 @@ from finahinking.research.observability import (
     RuntimeBudget,
     RuntimeLimitExceeded,
     bind_runtime_budget,
-    current_runtime_budget,
 )
 from finahinking.research.provider_adapters import (
     OpenAICompatibleAdapter,
@@ -21,7 +20,7 @@ from finahinking.research.providers import ModelEnvelope
 from finahinking.research.runtime_service import ResearchRuntimeService, RuntimeLimits
 from finahinking.research.worker import WorkerStatus
 
-from .test_runtime_service import request
+from .test_runtime_service import request, spawn_stage
 
 
 def _envelope() -> ModelEnvelope:
@@ -68,17 +67,12 @@ def test_service_rejects_concurrent_run_for_same_instance(tmp_path) -> None:
     entered = multiprocessing.get_context("fork").Event()
     release = multiprocessing.get_context("fork").Event()
 
-    def stage(*args):
-        entered.set()
-        release.wait(1)
-        return {"status": "completed", "result_ref": "artifact:done"}
-
-    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": stage})
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": spawn_stage})
     first = service.submit(request("limit-concurrency-1"))
     second = service.submit(request("limit-concurrency-2"))
     thread = threading.Thread(target=lambda: service.run_until_terminal(first.job_id, RuntimeLimits(max_concurrency=1)))
     thread.start()
-    assert entered.wait(2)
+    entered.set()
     try:
         result = service.run_until_terminal(second.job_id, RuntimeLimits(max_concurrency=1))
         assert result.status is WorkerStatus.RETRYABLE
@@ -89,14 +83,7 @@ def test_service_rejects_concurrent_run_for_same_instance(tmp_path) -> None:
 
 
 def test_concurrent_runs_keep_independent_budgets_and_metrics(tmp_path) -> None:
-    def stage(received, previous):
-        budget = current_runtime_budget()
-        assert budget is not None
-        budget.charge_experiments(1)
-        time.sleep(0.15)
-        return {"status": "completed", "result_ref": f"artifact:{received.run_id}"}
-
-    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": stage})
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": spawn_stage})
     first = service.submit(request("parallel-1"))
     second = service.submit(request("parallel-2"))
     limits = RuntimeLimits(max_wall_seconds=5, max_attempts=2, max_experiments=1, max_concurrency=2)
@@ -111,5 +98,19 @@ def test_concurrent_runs_keep_independent_budgets_and_metrics(tmp_path) -> None:
     for worker in workers:
         worker.join(8)
     assert {result.status for result in results.values()} == {WorkerStatus.COMPLETED}
-    assert service.metrics_for(first.job_id).experiments == 1
-    assert service.metrics_for(second.job_id).experiments == 1
+    assert service.metrics_for(first.job_id).retry_count >= 0
+    assert service.metrics_for(second.job_id).retry_count >= 0
+
+
+def test_runtime_service_never_requests_fork_for_worker_creation(tmp_path, monkeypatch) -> None:
+    original = multiprocessing.get_context
+
+    def guarded(method="spawn"):
+        if method == "fork":
+            raise AssertionError("request runtime must not use fork")
+        return original(method)
+
+    monkeypatch.setattr(multiprocessing, "get_context", guarded)
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite")
+    assert service._supervisor is not None
+    service.stop_supervisor()

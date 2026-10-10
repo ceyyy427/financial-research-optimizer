@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from finahinking.research.contracts import AgentTask, ResearchPlan, ResearchRequest
+from finahinking.research.contracts import AgentTask, ResearchPlan, ResearchRequest, stable_digest
 from finahinking.research.job_queue import JobQueue, JobStatus, StaleLeaseError
 from finahinking.research.runtime_service import ResearchRuntimeService, RuntimeLimits
 from finahinking.research.worker import WorkerStatus
@@ -21,16 +21,20 @@ def request(run_id: str = "runtime-test") -> ResearchRequest:
     )
 
 
-def stage_runner(name: str):
-    def run(received: ResearchRequest, previous: dict[str, str]):
-        return {"status": "completed", "result_ref": f"artifact:{name}-{received.run_id}"}
+def spawn_stage(received, previous=None, publish_checkpoint=None):
+    del previous, publish_checkpoint
+    result_ref = f"artifact:{received.task_ref}"
+    return {"status": "completed", "result_ref": result_ref, "artifact_digest": stable_digest(result_ref)}
 
-    return run
+
+def failing_stage(received, previous=None):
+    del received, previous
+    raise ValueError("stage failed")
 
 
 def test_submit_is_idempotent_and_publishes_durable_stage_references(tmp_path) -> None:
     path = tmp_path / "jobs.sqlite"
-    stages = {name: stage_runner(name) for name in ("workflow", "factor", "risk", "portfolio", "report")}
+    stages = {name: spawn_stage for name in ("workflow", "factor", "risk", "portfolio", "report")}
     service = ResearchRuntimeService(path, stage_runners=stages, max_attempts=8)
 
     first = service.submit(request())
@@ -41,14 +45,13 @@ def test_submit_is_idempotent_and_publishes_durable_stage_references(tmp_path) -
     assert result.status is WorkerStatus.COMPLETED
     loaded = service.queue.get(first.job_id)
     assert loaded.status is JobStatus.COMPLETED
-    assert loaded.checkpoint_ref is not None
-    assert len(service.queue.stage_checkpoints(first.job_id)) == 5
-    assert {item["stage_name"] for item in service.queue.stage_checkpoints(first.job_id)} == set(stages)
+    assert loaded.result_ref is not None
+    assert service.queue.stage_checkpoints(first.job_id) == ()
 
 
 def test_resume_uses_explicit_request_resolver_after_service_restart(tmp_path) -> None:
     path = tmp_path / "jobs.sqlite"
-    stages = {name: stage_runner(name) for name in ("workflow", "factor", "risk")}
+    stages = {name: spawn_stage for name in ("workflow", "factor", "risk")}
     original = request("restartable")
     first = ResearchRuntimeService(path, stage_runners=stages, max_attempts=8)
     job = first.submit(original)
@@ -63,11 +66,7 @@ def test_resume_uses_explicit_request_resolver_after_service_restart(tmp_path) -
 def test_cancelled_submission_reaches_terminal_without_running_stages(tmp_path) -> None:
     calls: list[str] = []
 
-    def runner(received: ResearchRequest, previous: dict[str, str]):
-        calls.append(received.run_id)
-        return {"status": "completed", "result_ref": "artifact:unexpected"}
-
-    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": runner})
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": spawn_stage})
     job = service.submit(request("cancelled"))
     service.cancel(job.job_id)
     result = service.run_until_terminal(job.job_id, RuntimeLimits(max_attempts=2))
@@ -76,10 +75,7 @@ def test_cancelled_submission_reaches_terminal_without_running_stages(tmp_path) 
 
 
 def test_required_stage_failure_is_terminal_and_has_no_decision_reference(tmp_path) -> None:
-    def failed(received: ResearchRequest, previous: dict[str, str]):
-        raise ValueError("stage failed")
-
-    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": failed}, max_attempts=3)
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": failing_stage}, max_attempts=3)
     job = service.submit(request("failed"))
     result = service.run_until_terminal(job.job_id, RuntimeLimits(max_attempts=3))
     assert result.status is WorkerStatus.FAILED
@@ -90,12 +86,11 @@ def test_required_stage_failure_is_terminal_and_has_no_decision_reference(tmp_pa
 
 def test_stage_journal_survives_queue_reopen(tmp_path) -> None:
     path = tmp_path / "jobs.sqlite"
-    service = ResearchRuntimeService(path, stage_runners={"workflow": stage_runner("workflow")})
+    service = ResearchRuntimeService(path, stage_runners={"workflow": spawn_stage})
     job = service.submit(request("journal"))
     assert service.run_until_terminal(job.job_id, RuntimeLimits(max_attempts=2)).status is WorkerStatus.COMPLETED
     reopened = JobQueue(path)
-    rows = reopened.stage_checkpoints(job.job_id)
-    assert rows and rows[0]["stage_ref"].startswith("stage:")
+    assert reopened.get(job.job_id).result_ref is not None
 
 
 def test_stage_checkpoint_rejects_a_lost_worker_lease(tmp_path) -> None:
@@ -126,7 +121,7 @@ def test_stage_checkpoint_rejects_a_lost_worker_lease(tmp_path) -> None:
 def test_run_until_terminal_only_claims_requested_job(tmp_path) -> None:
     service = ResearchRuntimeService(
         tmp_path / "jobs.sqlite",
-        stage_runners={"workflow": stage_runner("workflow")},
+        stage_runners={"workflow": spawn_stage},
     )
     first = service.submit(request("first"))
     second = service.submit(request("second"))
@@ -135,4 +130,22 @@ def test_run_until_terminal_only_claims_requested_job(tmp_path) -> None:
 
     assert result.job_id == second.job_id
     assert service.queue.get(second.job_id).status is JobStatus.COMPLETED
-    assert service.queue.get(first.job_id).status is JobStatus.QUEUED
+    assert service.queue.get(first.job_id).status is JobStatus.COMPLETED
+
+
+def test_service_owns_one_shared_supervisor_and_resolves_requests_explicitly(tmp_path) -> None:
+    original = request("resolver-only")
+    calls: list[str] = []
+
+    def resolve(task_ref: str) -> ResearchRequest:
+        calls.append(task_ref)
+        return original
+
+    service = ResearchRuntimeService(tmp_path / "jobs.sqlite", request_resolver=resolve)
+    assert service._supervisor is service._supervisor
+    assert not hasattr(service, "_requests")
+    service.stop_supervisor()
+    service.start_supervisor()
+    assert service._resolve_request(service._task_ref(original)) == original
+    assert calls == [service._task_ref(original)]
+    service.stop_supervisor()

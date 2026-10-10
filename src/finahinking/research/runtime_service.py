@@ -28,8 +28,10 @@ from .observability import (
     current_runtime_budget,
 )
 from .provider_adapters import ProviderAdapterError, ProviderFailureKind
+from .stage_registry import StageRegistry, StageSpec, default_stage_registry
+from .supervisor import ResearchSupervisor
 from .tools import ResearchToolGateway
-from .worker import ResearchWorker, WorkerResult, WorkerStatus
+from .worker import WorkerResult, WorkerStatus
 from .workflow import ResearchOrchestrator
 
 
@@ -83,16 +85,18 @@ class ResearchRuntimeService:
         self.queue = queue if isinstance(queue, JobQueue) else JobQueue(queue, max_attempts=max_attempts, backoff_base_seconds=0)
         self._request_resolver = request_resolver
         self._external_task_resolver = task_resolver
-        self._requests: dict[str, ResearchRequest] = {}
         self._orchestrator = orchestrator or ResearchOrchestrator()
         self._driver = driver or OfflineDriver()
         self._tools = tools or ResearchToolGateway()
         supplied = dict(stage_runners or {})
-        if not supplied:
-            supplied = {"workflow": self._default_workflow_stage}
-        if not supplied or any(not isinstance(name, str) or not name.strip() or not callable(runner) for name, runner in supplied.items()):
-            raise ValueError("stage_runners must contain trusted callables")
-        self._stage_runners = {name.strip(): runner for name, runner in supplied.items()}
+        if supplied:
+            if any(not isinstance(name, str) or not name.strip() or not callable(runner) for name, runner in supplied.items()):
+                raise ValueError("stage_runners must contain trusted callables")
+            self._registry = StageRegistry()
+            for name, runner in supplied.items():
+                self._registry.register(StageSpec(name=name.strip(), version="1.0", runner_key=f"runtime.{name.strip()}"), runner)
+        else:
+            self._registry = default_stage_registry()
         self._worker_id = _ref(worker_id, "worker_id")
         self._run_lock = threading.Lock()
         self._active_runs = 0
@@ -104,6 +108,19 @@ class ResearchRuntimeService:
             raise ValueError("timeout_seconds must be finite and positive")
         if self._max_result_bytes < 1:
             raise ValueError("max_result_bytes must be positive")
+        self._supervisor = ResearchSupervisor(
+            self.queue.path,
+            registry=self._registry,
+            worker_id=self._worker_id,
+            # The service-level RuntimeLimits gate request admission. The
+            # shared supervisor owns the worker pool and is deliberately
+            # sized above one so concurrent requests do not create separate
+            # supervisors.
+            max_concurrency=8,
+        )
+        # Supervisor ownership is established during service construction. A
+        # request thread only observes durable queue state thereafter.
+        self.start_supervisor()
 
     @staticmethod
     def _task_ref(request: ResearchRequest) -> str:
@@ -121,13 +138,18 @@ class ResearchRuntimeService:
             role="research_runtime",
             task_id=task_ref,
             input_digest=stable_digest(request),
-            capabilities=("paper_only", "durable_checkpoint"),
+            capabilities=tuple(spec.name for spec in self._registry.snapshot()),
             inputs={"request_ref": f"request:{stable_digest(request)[:32]}"},
             timeout_seconds=self._timeout_seconds,
         )
         record = self.queue.enqueue(task, idempotency_key or self._idempotency_key(request))
-        self._requests[task_ref] = request
         return record
+
+    def start_supervisor(self) -> None:
+        self._supervisor.start()
+
+    def stop_supervisor(self, timeout: float = 5.0) -> None:
+        self._supervisor.stop(timeout)
 
     def cancel(self, job_id: str) -> JobRecord:
         return self.queue.cancel(job_id)
@@ -147,32 +169,28 @@ class ResearchRuntimeService:
     def _run_bounded(self, job_id: str, bounds: RuntimeLimits) -> WorkerResult:
         started = time.monotonic()
         budget = RuntimeBudget(job_id, bounds)
-        worker = self._worker(max_jobs=bounds.max_attempts, timeout_seconds=min(self._timeout_seconds, bounds.max_wall_seconds), max_result_bytes=min(self._max_result_bytes, bounds.max_bytes) if bounds.max_bytes is not None else self._max_result_bytes)
         calls = 0
         result = self._resource_limit(job_id)
         with bind_runtime_budget(budget):
-            while time.monotonic() - started < bounds.max_wall_seconds and calls < bounds.max_attempts:
+            while time.monotonic() - started < bounds.max_wall_seconds:
                 record = self.queue.get(job_id)
                 terminal = self._terminal_result(record)
                 if terminal is not None:
                     result = terminal
                     break
-                result = worker.run_once(target_job_id=job_id)
+                if record.attempts >= bounds.max_attempts and record.status is not JobStatus.RUNNING:
+                    result = self._resource_limit(job_id)
+                    break
                 calls += 1
                 budget.retry_count = max(0, calls - 1)
                 self._last_metrics = budget.metrics()
                 record = self.queue.get(job_id)
-                if result.status in {WorkerStatus.COMPLETED, WorkerStatus.FAILED, WorkerStatus.CANCELLED}:
-                    break
                 terminal = self._terminal_result(record)
                 if terminal is not None:
+                    result = terminal
                     break
-                if result.status is WorkerStatus.IDLE:
-                    delay = max(0.0, min(0.05, record.available_at - time.time()))
-                    if delay:
-                        time.sleep(delay)
-                    else:
-                        time.sleep(0.005)
+                delay = max(0.0, min(0.05, record.available_at - time.time()))
+                time.sleep(delay or 0.005)
             else:
                 result = self._resource_limit(job_id)
         self._metrics_by_run[job_id] = budget.metrics()
@@ -210,17 +228,6 @@ class ResearchRuntimeService:
             max_concurrency=getattr(limits, "max_concurrency", 1),
         )
 
-    def _worker(self, *, max_jobs: int, timeout_seconds: float | None = None, max_result_bytes: int | None = None) -> ResearchWorker:
-        return ResearchWorker(
-            self.queue,
-            runner=self._trusted_runner,
-            worker_id=self._worker_id,
-            task_resolver=self._resolve_task,
-            timeout_seconds=timeout_seconds or self._timeout_seconds,
-            max_result_bytes=max_result_bytes or self._max_result_bytes,
-            max_jobs=max_jobs,
-        )
-
     def _resolve_task(self, task_ref: str) -> AgentTask:
         if self._external_task_resolver is not None:
             task = self._external_task_resolver(task_ref)
@@ -233,18 +240,15 @@ class ResearchRuntimeService:
             role="research_runtime",
             task_id=task_ref,
             input_digest=stable_digest(request),
-            capabilities=("paper_only", "durable_checkpoint"),
+            capabilities=tuple(spec.name for spec in self._registry.snapshot()),
             inputs={"request_ref": f"request:{stable_digest(request)[:32]}"},
             timeout_seconds=timeout,
         )
 
     def _resolve_request(self, task_ref: str) -> ResearchRequest:
-        request = self._requests.get(task_ref)
-        if request is None and self._request_resolver is not None:
-            request = self._request_resolver(task_ref)
-            if not isinstance(request, ResearchRequest):
-                raise TypeError("request resolver must return ResearchRequest")
-            self._requests[task_ref] = request
+        request = self._request_resolver(task_ref) if self._request_resolver is not None else None
+        if request is not None and not isinstance(request, ResearchRequest):
+            raise TypeError("request resolver must return ResearchRequest")
         if request is None:
             raise KeyError("request resolver is required after restart")
         return request
