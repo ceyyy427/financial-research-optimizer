@@ -14,7 +14,7 @@ finahinking = "finahinking.local_app:main"
 finathink = "finahinking.local_app:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "ruff>=0.8,<1"]
+dev = ["pytest>=8,<10", "ruff>=0.8,<1", "playwright>=1.61,<1.62"]
 research = ["jupyterlab>=4,<5", "ipykernel>=6,<8"]
 math = ["sympy>=1.13,<2"]
 

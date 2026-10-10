@@ -10,23 +10,40 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _run_checked(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run a clean-install boundary and retain diagnostics when it fails.
+
+    ``CalledProcessError`` only renders the command in pytest's default
+    failure output; the captured pip/import traceback is otherwise hidden in
+    ``stdout``/``stderr`` attributes.  Keep the subprocess isolated while
+    turning those boundary diagnostics into a useful assertion failure.
+    """
+
+    result = subprocess.run(command, cwd=cwd, check=False, capture_output=True, text=True)
+    if result.returncode:
+        command_text = " ".join(command)
+        raise AssertionError(
+            f"subprocess failed ({result.returncode}): {command_text}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result
+
+
 def test_wheel_install_exposes_migrations_fixtures_and_local_routes(tmp_path: Path) -> None:
     """A wheel must carry every resource used by the supported local journeys."""
 
     wheel_dir = tmp_path / "wheel"
     wheel_dir.mkdir()
-    subprocess.run(
+    _run_checked(
         [sys.executable, "-m", "pip", "wheel", "--no-deps", "--wheel-dir", str(wheel_dir), str(ROOT)],
         cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
     )
     wheel = next(wheel_dir.glob("finathink-*.whl"))
     env_dir = tmp_path / "venv"
     venv.EnvBuilder(with_pip=True, system_site_packages=False).create(env_dir)
     python = env_dir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
-    subprocess.run([str(python), "-m", "pip", "install", str(wheel)], check=True, capture_output=True, text=True)
+    _run_checked([str(python), "-m", "pip", "install", str(wheel)], cwd=tmp_path)
 
     probe = """
 from pathlib import Path
@@ -54,4 +71,4 @@ assert app.route('GET', '/api/strategy')[2]['execution'] == 'paper-only'
 assert app.route('GET', '/api/p8_2b/knowledge/ols')[2]['unit']['unit_id'] == 'ols'
 app.close()
 """
-    subprocess.run([str(python), "-c", probe], cwd=tmp_path, check=True, capture_output=True, text=True)
+    _run_checked([str(python), "-c", probe], cwd=tmp_path)

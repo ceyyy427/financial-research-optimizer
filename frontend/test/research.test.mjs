@@ -10,6 +10,10 @@ import {
   selectPoint,
   selectWorkbenchPoint,
   previewWorkbenchParameter,
+  normalizeResearchStatusWall,
+  renderResearchStatusWall,
+  normalizeResearchRuntime,
+  renderResearchRuntime,
 } from '../src/research.js';
 
 const payload = {
@@ -89,6 +93,132 @@ test('research run status covers loading, success, partial, blocked, and error',
 test('research run payload rejects non-offline or non-paper boundaries', () => {
   assert.throws(() => normalizeResearchRun({ ...runPayload, paper_only: false }), /boundary/i);
   assert.throws(() => normalizeResearchRun({ ...runPayload, state: 'UNKNOWN' }), /state/i);
+});
+
+test('normalizeResearchStatusWall preserves server-owned status facts and does not calculate metrics', () => {
+  const wall = normalizeResearchStatusWall({
+    schema_version: 1,
+    run_id: 'wall-ui',
+    state: 'ANALYSTS_RUNNING',
+    role_status: { technical: 'READY', fundamentals: 'PARTIAL' },
+    stage_status: { analysts: 'PARTIAL', evidence: 'BLOCKED' },
+    missing_evidence: ['technical:price'],
+    checkpoint_status: { state: 'SAVED' },
+    factor_proposals: [{ proposal_id: 'p-1', status: 'VALIDATED', digest: 'd' }],
+    provider_readiness: { status: 'CONFIGURED', credential_ref: 'USER_KEY' },
+  });
+  assert.deepEqual(Object.keys(wall.role_status), ['fundamentals', 'technical']);
+  assert.equal(wall.stage_status.evidence, 'BLOCKED');
+  assert.deepEqual(wall.missing_evidence, ['technical:price']);
+  assert.equal(wall.factor_proposals[0].digest, 'd');
+  assert.equal(wall.provider_readiness.status, 'CONFIGURED');
+  assert.equal(Object.hasOwn(wall, 'metrics'), false);
+});
+
+test('renderResearchStatusWall is read-only and supports no-JS fallback', () => {
+  const root = {
+    dataset: {},
+    querySelector: () => ({ textContent: '' }),
+  };
+  const normalized = renderResearchStatusWall(root, {
+    schema_version: 1,
+    run_id: 'wall-ui',
+    state: 'CANCELLED',
+    role_status: { technical: 'READY' },
+    stage_status: { cancel: 'CANCELLED' },
+    missing_evidence: [],
+    checkpoint_status: { state: 'CANCELLED' },
+    factor_proposals: [],
+    provider_readiness: { status: 'NOT_CONFIGURED' },
+  });
+  assert.equal(root.dataset.statusWall, 'READY');
+  assert.equal(normalized.state, 'CANCELLED');
+});
+
+test('normalizeResearchRuntime keeps server-owned stream facts and rejects public secrets', () => {
+  const normalized = normalizeResearchRuntime({
+    schema_version: 2,
+    run_id: 'stream-ui',
+    state: 'ANALYSTS_RUNNING',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { analysts: 'CURRENT' },
+    role_status: { technical: 'READY' },
+    tool_summaries: [{ name: 'factor_scan', status: 'COMPLETE' }],
+    retries: { count: 1 },
+    checkpoint: { state: 'SAVED' },
+    learning_proposal: { status: 'NO_LEARNING_UPDATE' },
+    manifest_digest: 'a'.repeat(64),
+    limitations: ['fixture'],
+  });
+  assert.equal(normalized.schema_version, 2);
+  assert.equal(normalized.run_id, 'stream-ui');
+  assert.equal(normalized.tool_summaries[0].name, 'factor_scan');
+  assert.throws(() => normalizeResearchRuntime({ ...normalized, checkpoint: { prompt: 'hidden' } }), /unsafe|invalid/i);
+});
+
+test('renderResearchRuntime is render-only and supports no-JS fallback', () => {
+  const root = { dataset: {}, querySelector: () => ({ textContent: '' }) };
+  const rendered = renderResearchRuntime(root, {
+    schema_version: 2,
+    run_id: 'stream-ui',
+    state: 'CANCELLED',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { cancel: 'CANCELLED' },
+    role_status: {},
+    tool_summaries: [],
+    retries: { count: 0 },
+    checkpoint: { state: 'CANCELLED' },
+    learning_proposal: { status: 'NO_LEARNING_UPDATE' },
+    manifest_digest: 'a'.repeat(64),
+    limitations: [],
+  });
+  assert.equal(root.dataset.runtimeStatus, 'READY');
+  assert.equal(rendered.state, 'CANCELLED');
+});
+
+test('normalizeResearchRuntime preserves server-owned report tree stages without calculating metrics', () => {
+  const normalized = normalizeResearchRuntime({
+    schema_version: 3,
+    run_id: 'tree-ui',
+    state: 'RISK_REVIEW',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { quant: 'COMPLETE', risk: 'CURRENT', learning: 'PENDING' },
+    role_status: {},
+    experiments: [{ experiment_id: 'exp-1', status: 'COMPLETE', metrics: { ic: 0.1 } }],
+    risk_attribution: { status: 'CURRENT', factors: [{ name: 'volatility', contribution: 0.2 }] },
+    learning_history: [],
+    manifest_digest: 'a'.repeat(64),
+  });
+  assert.equal(normalized.schema_version, 3);
+  assert.equal(normalized.experiments[0].experiment_id, 'exp-1');
+  assert.equal(normalized.risk_attribution.status, 'CURRENT');
+  assert.throws(() => normalizeResearchRuntime({ ...normalized, experiments: [{ prompt: 'hidden' }] }), /unsafe/i);
+});
+
+test('renderResearchRuntime uses server stage status for array report data', () => {
+  const state = { textContent: '' };
+  const stages = { textContent: '' };
+  const root = {
+    dataset: {},
+    querySelector: (selector) => selector === '[data-research-runtime-state]' ? state : selector === '[data-research-runtime-report-stages]' ? stages : { textContent: '' },
+  };
+  renderResearchRuntime(root, {
+    schema_version: 3,
+    run_id: 'tree-ui',
+    state: 'RISK_REVIEW',
+    mode: 'OFFLINE',
+    paper_only: true,
+    stage_status: { quant: 'COMPLETE', risk: 'CURRENT', learning: 'PENDING' },
+    role_status: {},
+    experiments: [{ experiment_id: 'exp-1' }],
+    risk_attribution: [],
+    learning_history: [],
+    manifest_digest: 'a'.repeat(64),
+  });
+  assert.equal(stages.textContent, 'experiments: COMPLETE · risk_attribution: CURRENT · learning_history: PENDING');
 });
 
 const workbench = {

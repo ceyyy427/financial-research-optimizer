@@ -13,6 +13,7 @@ from .contracts import (
     ResearchRequest,
     stable_digest,
 )
+from .provider_adapters import ProviderAdapterError, ProviderFailureKind
 from .providers import ModelEnvelope, ProviderAdapter
 
 
@@ -106,7 +107,30 @@ class UserApiDriver:
             input_digest=stable_digest(request),
             context_digest=stable_digest(context),
         )
-        response = self.adapter.invoke(envelope)
+        try:
+            response = self.adapter.invoke(envelope)
+        except ProviderAdapterError as error:
+            failure_kind = {
+                ProviderFailureKind.NOT_CONFIGURED: FailureKind.PROVIDER_NOT_CONFIGURED,
+                ProviderFailureKind.SCHEMA_ERROR: FailureKind.VALIDATION_FAILED,
+                ProviderFailureKind.CAPABILITY_REJECTED: FailureKind.TOOL_REJECTED,
+            }.get(error.kind, FailureKind.INTERNAL_ERROR)
+            return DriverResult(
+                failure_kind=failure_kind,
+                failure_message={
+                    ProviderFailureKind.NOT_CONFIGURED: "provider is not configured",
+                    ProviderFailureKind.SCHEMA_ERROR: "provider response schema invalid",
+                    ProviderFailureKind.CAPABILITY_REJECTED: "provider capability rejected",
+                    ProviderFailureKind.TIMEOUT: "provider timeout",
+                    ProviderFailureKind.NON_JSON: "provider response is not JSON",
+                    ProviderFailureKind.HTTP_ERROR: "provider request failed",
+                }.get(error.kind, "provider request failed"),
+            )
+        except Exception:  # noqa: BLE001 - provider failures must stay secret-free
+            return DriverResult(
+                failure_kind=FailureKind.INTERNAL_ERROR,
+                failure_message="provider request failed",
+            )
         try:
             report = AgentReport(
                 role=role,
@@ -116,10 +140,10 @@ class UserApiDriver:
                 limitations=tuple(str(item) for item in response.content.get("limitations", ())),
                 model_ref=f"{response.provider}/{response.model}",
             )
-        except (TypeError, ValueError) as exc:
+        except Exception:  # noqa: BLE001 - provider schema errors must stay secret-free
             return DriverResult(
                 failure_kind=FailureKind.VALIDATION_FAILED,
-                failure_message=f"provider response schema invalid: {exc}",
+                failure_message="provider response schema invalid",
             )
         plan = request.research_plan if isinstance(request.research_plan, ResearchPlan) else None
         return DriverResult(reports=(report,), research_plan=plan)

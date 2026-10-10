@@ -56,6 +56,172 @@ export function researchRunStatus(payload, error = null) {
   return 'READY';
 }
 
+const STATUS_WALL_FORBIDDEN = /(?:api[_-]?key|token|secret|password|credential(?![_-]?ref)|authorization|prompt|raw[_-]?(?:provider[_-]?)?response|endpoint|absolute[_-]?path|file[_-]?path)/i;
+
+function normalizePublicMap(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`${field} is invalid`);
+  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, status]) => {
+    if (STATUS_WALL_FORBIDDEN.test(key) || typeof status !== 'string') throw new TypeError(`${field} contains unsafe data`);
+    return [key, status];
+  }));
+}
+
+export function normalizeResearchStatusWall(payload) {
+  if (!payload || payload.schema_version !== 1 || typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research status wall schema is invalid');
+  if (!RESEARCH_RUN_STATES.has(payload.state)) throw new TypeError('research status wall state is invalid');
+  const role_status = normalizePublicMap(payload.role_status ?? {}, 'role_status');
+  const stage_status = normalizePublicMap(payload.stage_status ?? {}, 'stage_status');
+  const checkpoint_status = normalizePublicMap(payload.checkpoint_status ?? {}, 'checkpoint_status');
+  const provider_readiness = normalizePublicMap(payload.provider_readiness ?? {}, 'provider_readiness');
+  const missing_evidence = Array.isArray(payload.missing_evidence) ? payload.missing_evidence.map((item) => {
+    if (typeof item !== 'string' || STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError('missing evidence contains unsafe data');
+    return item;
+  }) : [];
+  const factor_proposals = Array.isArray(payload.factor_proposals) ? payload.factor_proposals.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError('factor proposals are invalid');
+    const summary = {};
+    for (const key of ['proposal_id', 'status', 'digest', 'family']) {
+      if (Object.hasOwn(item, key)) {
+        if (STATUS_WALL_FORBIDDEN.test(key) || typeof item[key] !== 'string') throw new TypeError('factor proposal contains unsafe data');
+        summary[key] = item[key];
+      }
+    }
+    return summary;
+  }) : [];
+  return {
+    schema_version: 1,
+    run_id: payload.run_id,
+    state: payload.state,
+    role_status,
+    stage_status,
+    missing_evidence,
+    checkpoint_status,
+    factor_proposals,
+    provider_readiness,
+  };
+}
+
+export function renderResearchStatusWall(root, payload) {
+  const normalized = normalizeResearchStatusWall(payload);
+  if (root?.dataset) {
+    root.dataset.statusWall = 'READY';
+    root.dataset.status = normalized.state;
+  }
+  const status = root?.querySelector?.('[data-research-status-wall-state]');
+  if (status) status.textContent = `${normalized.state} · READ-ONLY · PAPER-ONLY`;
+  const roles = root?.querySelector?.('[data-research-status-wall-roles]');
+  if (roles) roles.textContent = Object.entries(normalized.role_status).map(([role, value]) => `${role}: ${value}`).join(' · ');
+  const stages = root?.querySelector?.('[data-research-status-wall-stages]');
+  if (stages) stages.textContent = Object.entries(normalized.stage_status).map(([stage, value]) => `${stage}: ${value}`).join(' · ');
+  return normalized;
+}
+
+const RUNTIME_STATES = RESEARCH_RUN_STATES;
+
+function normalizeRuntimeRecord(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`${field} is invalid`);
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (STATUS_WALL_FORBIDDEN.test(key) || STATUS_WALL_FORBIDDEN.test(String(item)) || (typeof item !== 'string' && typeof item !== 'number')) throw new TypeError(`${field} contains unsafe data`);
+    output[key] = item;
+  }
+  return output;
+}
+
+export function normalizeResearchRuntime(payload) {
+  if (!payload || ![2, 3].includes(payload.schema_version) || typeof payload.run_id !== 'string' || payload.run_id.trim() === '') throw new TypeError('research runtime schema is invalid');
+  if (!RUNTIME_STATES.has(payload.state)) throw new TypeError('research runtime state is invalid');
+  if (payload.mode !== 'OFFLINE' || payload.paper_only !== true) throw new TypeError('research runtime boundary is invalid');
+  const stage_status = normalizePublicMap(payload.stage_status ?? {}, 'stage_status');
+  const role_status = normalizePublicMap(payload.role_status ?? {}, 'role_status');
+  const checkpoint = normalizeRuntimeRecord(payload.checkpoint ?? { state: 'NOT_ATTACHED' }, 'checkpoint');
+  const learning_proposal = normalizeRuntimeRecord(payload.learning_proposal ?? { status: 'NO_LEARNING_UPDATE' }, 'learning proposal');
+  const retries = normalizeRuntimeRecord(payload.retries ?? { count: 0 }, 'retries');
+  if (!Number.isInteger(retries.count) || retries.count < 0) throw new TypeError('retry count is invalid');
+  if (typeof payload.manifest_digest !== 'string' || !/^[a-f0-9]{64}$/i.test(payload.manifest_digest)) throw new TypeError('manifest digest is invalid');
+  const tool_summaries = Array.isArray(payload.tool_summaries) ? payload.tool_summaries.map((item) => normalizeRuntimeRecord(item, 'tool summary')) : [];
+  const limitations = Array.isArray(payload.limitations) ? payload.limitations.map((item) => {
+    if (typeof item !== 'string' || STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError('runtime limitation is unsafe');
+    return item;
+  }) : [];
+  const normalizeStageData = (value, field) => {
+    const visit = (item) => {
+      if (item === null || typeof item === 'number' || typeof item === 'boolean') return item;
+      if (typeof item === 'string') {
+        if (STATUS_WALL_FORBIDDEN.test(item)) throw new TypeError(`${field} contains unsafe data`);
+        return item;
+      }
+      if (Array.isArray(item)) return item.map(visit);
+      if (!item || typeof item !== 'object') throw new TypeError(`${field} is invalid`);
+      return Object.fromEntries(Object.entries(item).map(([key, nested]) => {
+        if (STATUS_WALL_FORBIDDEN.test(key)) throw new TypeError(`${field} contains unsafe data`);
+        return [key, visit(nested)];
+      }));
+    };
+    return visit(value ?? []);
+  };
+  const experiments = normalizeStageData(payload.experiments, 'experiments');
+  const risk_attribution = normalizeStageData(payload.risk_attribution, 'risk attribution');
+  const learning_history = normalizeStageData(payload.learning_history, 'learning history');
+  return {
+    schema_version: payload.schema_version,
+    run_id: payload.run_id,
+    state: payload.state,
+    mode: payload.mode,
+    paper_only: true,
+    stage_status,
+    role_status,
+    checkpoint,
+    learning_proposal,
+    retries,
+    manifest_digest: payload.manifest_digest,
+    tool_summaries,
+    limitations,
+    experiments,
+    risk_attribution,
+    learning_history,
+  };
+}
+
+export function renderResearchRuntime(root, payload) {
+  const normalized = normalizeResearchRuntime(payload);
+  if (root?.dataset) {
+    root.dataset.runtimeStatus = 'READY';
+    root.dataset.runtimeState = normalized.state;
+  }
+  const state = root?.querySelector?.('[data-research-runtime-state]');
+  if (state) state.textContent = `${normalized.state} · READ-ONLY · PAPER-ONLY`;
+  const stage = root?.querySelector?.('[data-research-runtime-stages]');
+  if (stage) stage.textContent = Object.entries(normalized.stage_status).map(([name, value]) => `${name}: ${value}`).join(' · ');
+  const tools = root?.querySelector?.('[data-research-runtime-tools]');
+  if (tools) tools.textContent = normalized.tool_summaries.map((item) => `${item.name ?? item.tool ?? 'tool'}: ${item.status ?? 'RECORDED'}`).join(' · ') || 'No tool summary recorded.';
+  const stages = root?.querySelector?.('[data-research-runtime-report-stages]');
+  if (stages) {
+    const stageNames = { experiments: 'quant', risk_attribution: 'risk', learning_history: 'learning' };
+    stages.textContent = ['experiments', 'risk_attribution', 'learning_history'].map((name) => {
+      const stageData = normalized[name];
+      const dataStatus = stageData && !Array.isArray(stageData) && typeof stageData === 'object' ? stageData.status : null;
+      const status = normalized.stage_status[name] ?? normalized.stage_status[stageNames[name]] ?? dataStatus ?? 'PENDING';
+      return `${name}: ${status}`;
+    }).join(' · ');
+  }
+  return normalized;
+}
+
+export function mountResearchRuntime(root, { payload, payloadUrl } = {}) {
+  if (root) root.dataset.runtimeStatus = 'LOADING';
+  const load = payload ? Promise.resolve(payload) : fetch(payloadUrl || root.dataset.payloadUrl).then((response) => {
+    if (!response.ok) throw new Error(`research runtime request failed (${response.status})`);
+    return response.json();
+  });
+  return load.then((raw) => renderResearchRuntime(root, raw)).catch((error) => {
+    if (root) root.dataset.runtimeStatus = 'ERROR';
+    const target = root?.querySelector('[data-research-runtime-error]');
+    if (target) { target.textContent = `Research runtime unavailable: ${error.message}`; target.hidden = false; }
+    throw error;
+  });
+}
+
 export function renderResearchRun(root, payload) {
   const normalized = normalizeResearchRun(payload);
   root.dataset.state = normalized.state;
@@ -64,6 +230,10 @@ export function renderResearchRun(root, payload) {
   if (status) status.textContent = `${researchRunStatus(normalized)} · ${normalized.state} · ${normalized.mode} · PAPER-ONLY`;
   const summary = root.querySelector('[data-research-run-summary]');
   if (summary) summary.textContent = `As-of ${normalized.as_of ?? 'not attached'} · ${normalized.analysts.length} analyst report(s) · ${normalized.decision_eligible ? 'decision eligible' : 'decision blocked'}`;
+  if (normalized.role_status || normalized.stage_status) {
+    const wall = root.querySelector('[data-research-status-wall]');
+    if (wall) renderResearchStatusWall(wall, normalized);
+  }
   return normalized;
 }
 
@@ -380,5 +550,6 @@ export function mountResearch(root, { payload, payloadUrl } = {}) {
 if (typeof document !== 'undefined') {
   document.querySelectorAll('[data-finathink-research]').forEach((root) => { mountResearch(root); });
   document.querySelectorAll('[data-research-run]').forEach((root) => { mountResearchRun(root).catch(() => {}); });
+  document.querySelectorAll('[data-research-runtime]').forEach((root) => { mountResearchRuntime(root).catch(() => {}); });
   document.querySelectorAll('[data-finathink-workbench]').forEach((root) => { if (!root.closest('[data-finathink-research]')) mountWorkbench(root).catch(() => {}); });
 }

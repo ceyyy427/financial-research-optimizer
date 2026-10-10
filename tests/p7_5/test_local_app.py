@@ -112,3 +112,34 @@ def test_api_rejects_invalid_payload_without_sql_or_network() -> None:
     assert "required" in payload["error"]
     assert json.dumps(app.diagnostics())[0] == "{"
     app.close()
+
+
+def test_provider_config_routes_require_csrf_and_persist_redacted_config(tmp_path) -> None:
+    app = LocalApplication(LocalAppConfig(db_path=str(tmp_path / "app.sqlite3")))
+    payload = {"provider_id": "personal", "adapter_kind": "openai_compatible", "model": "user-model", "endpoint": "https://provider.example.net/v1", "credential_ref": {"env_var": "FINAHINK_USER_API_KEY"}, "enabled": True, "role_models": {"technical": "user-model"}}
+    assert app.route("POST", "/api/research/providers/config", body=payload)[0] == 403
+    status, _, saved = app.route("POST", "/api/research/providers/config", body={**payload, "_csrf": app.csrf_token})
+    assert status == 201
+    assert saved["endpoint_configured"] is True
+    assert "https://provider.example.net" not in json.dumps(saved)
+    assert app.route("POST", "/api/research/providers/config", body={**payload, "_csrf": app.csrf_token})[0] == 409
+    app.close()
+    app = LocalApplication(LocalAppConfig(db_path=str(tmp_path / "app.sqlite3")))
+    status, _, listed = app.route("GET", "/api/research/providers/config")
+    assert status == 200
+    assert listed["providers"][0]["provider_id"] == "personal"
+    assert listed["providers"][0]["role_models"] == {"technical": "user-model"}
+    readiness = app.route("GET", "/api/research/providers")[2]
+    assert any(item["provider"] == "personal" for item in readiness["providers"])
+    app.close()
+
+
+def test_provider_config_route_rejects_raw_secrets_and_unlisted_fields() -> None:
+    app = LocalApplication(LocalAppConfig(db_path=":memory:"))
+    secret = "never-store-this-value"
+    payload = {"provider_id": "personal", "adapter_kind": "offline", "model": "fixture-v1", "api_key": secret, "_csrf": app.csrf_token}
+    status, _, error = app.route("POST", "/api/research/providers/config", body=payload)
+    assert status == 400
+    assert secret not in json.dumps(error)
+    assert app.route("GET", "/api/research/providers/config")[2]["providers"] == []
+    app.close()

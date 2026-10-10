@@ -86,3 +86,17 @@ def test_compatible_driver_is_explicitly_unavailable_without_sdk() -> None:
     result = CompatibleApiDriver().propose(request(), {})
     assert result.failure_kind is FailureKind.PROVIDER_NOT_CONFIGURED
 
+
+def test_provider_schema_failure_is_generic_and_secret_free() -> None:
+    class BadAdapter(ExplicitAdapter):
+        def invoke(self, envelope):
+            return ModelResponse(
+                provider="explicit",
+                model="model-v1",
+                content={"claims": object(), "raw_provider_response": "api_key=super-secret https://evil.test /Users/private"},
+            )
+
+    result = UserApiDriver(selection=None, adapter=BadAdapter()).propose(request(), {})
+    assert result.failure_kind is FailureKind.VALIDATION_FAILED
+    assert result.failure_message == "provider response schema invalid"
+    assert all(value not in repr(result) for value in ("super-secret", "evil.test", "/Users/private", "raw_provider_response"))

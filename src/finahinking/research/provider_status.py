@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from typing import Any
 
 _ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
+_KEYCHAIN_LABEL = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+_SECRET_LIKE_LABEL = re.compile(r"(?:api[-_]?key|secret|token|password|credential)", re.IGNORECASE)
+_SAFE_CAPABILITY = re.compile(r"^[a-z][a-z0-9_:-]{0,63}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,10 +30,15 @@ class ProviderCredentialRef:
             raise ValueError("provider must be non-empty")
         if self.env_var is None and self.keychain_label is None:
             raise ValueError("credential reference requires environment or keychain reference")
+        if self.env_var is not None and self.keychain_label is not None:
+            raise ValueError("credential reference must select exactly one source")
         if self.env_var is not None and not _ENV_NAME.fullmatch(self.env_var):
             raise ValueError("credential environment variable name is invalid")
-        if self.keychain_label is not None and not self.keychain_label.strip():
-            raise ValueError("credential keychain label must be non-empty")
+        if self.keychain_label is not None and (
+            not _KEYCHAIN_LABEL.fullmatch(self.keychain_label)
+            or _SECRET_LIKE_LABEL.search(self.keychain_label) is not None
+        ):
+            raise ValueError("credential keychain label is invalid")
 
     @classmethod
     def from_mapping(cls, provider: str, value: Mapping[str, Any]) -> ProviderCredentialRef:
@@ -83,6 +91,25 @@ class ProviderStatus:
         return result
 
 
+def _safe_capabilities(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)):
+        raise TypeError("provider capabilities must be a sequence of strings")
+    try:
+        values = tuple(value)
+    except TypeError as exc:
+        raise TypeError("provider capabilities must be a sequence of strings") from exc
+    if any(type(item) is not str for item in values):
+        raise TypeError("provider capabilities must contain only strings")
+    normalized = tuple(item.strip() for item in values)
+    if any(not item or not _SAFE_CAPABILITY.fullmatch(item) or _SECRET_LIKE_LABEL.search(item) for item in normalized):
+        raise ValueError("provider capabilities contain an unsafe name")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("provider capabilities must not contain duplicates")
+    return tuple(sorted(normalized))
+
+
 def provider_status_payload(
     config: Mapping[str, Any], environment: Mapping[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -103,9 +130,9 @@ def provider_status_payload(
     env = environment or {}
     statuses: list[ProviderStatus] = []
     for item in providers:
-        if not isinstance(item, Mapping) or not str(item.get("name", "")).strip():
+        if not isinstance(item, Mapping) or not str(item.get("name", item.get("provider_id", ""))).strip():
             raise ValueError("each provider requires a name")
-        name = str(item["name"]).strip()
+        name = str(item.get("name", item.get("provider_id"))).strip()
         model = str(item.get("model", default_model)).strip()
         if not model:
             raise ValueError("provider model must be non-empty")
@@ -129,6 +156,7 @@ def provider_status_payload(
         else:
             configured = False
             reason = "credential is not configured"
+        capabilities = _safe_capabilities(item.get("capabilities", ()))
         statuses.append(
             ProviderStatus(
                 provider=name,
@@ -136,15 +164,29 @@ def provider_status_payload(
                 enabled=enabled,
                 configured=configured,
                 offline=offline,
-                capabilities=tuple(sorted(str(value) for value in item.get("capabilities", ()))),
+                capabilities=capabilities,
                 credential_ref=credential_ref,
                 reason=reason,
             )
         )
     statuses.sort(key=lambda status: status.provider)
-    return {
+    payload = {
         "defaults": {"provider": default_provider, "model": default_model},
         "role_models": role_models,
         "providers": [status.to_dict() for status in statuses],
         "secret_policy": "Only credential references are returned; secret values stay in the user environment or keychain.",
     }
+    # Persisted user configurations expose only non-sensitive adapter metadata.
+    metadata_by_name = {
+        str(source.get("name", source.get("provider_id"))).strip(): source
+        for source in providers
+        if isinstance(source, Mapping)
+    }
+    for target in payload["providers"]:
+        source = metadata_by_name.get(str(target.get("provider")))
+        if isinstance(source, Mapping) and isinstance(target, dict):
+            if isinstance(source.get("adapter_kind"), str):
+                target["adapter_kind"] = source["adapter_kind"]
+            if type(source.get("endpoint_configured")) is bool:
+                target["endpoint_configured"] = source["endpoint_configured"]
+    return payload

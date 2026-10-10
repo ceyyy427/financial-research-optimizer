@@ -18,7 +18,7 @@ def test_provenance_rejects_naive_retrieval_time():
         Provenance(
             provider="ecb",
             source_url="https://example.test",
-            retrieved_at=datetime(2024, 1, 1),  # noqa: DTZ001 - intentionally naive
+            retrieved_at=datetime.fromisoformat("2024-01-01"),
         )
 
 

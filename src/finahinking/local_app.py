@@ -26,6 +26,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+from finahinking.data.connection_settings import (
+    DataConnectionSettingsStore,
+    DataCredentialStore,
+    PersistentDataConnectionStore,
+    new_local_credential_ref,
+)
+from finahinking.data.http_transport import BoundedHttpTransport
+from finahinking.data.user_api import DataConnectorError, JsonApiConnector
+from finahinking.data.user_api_contracts import (
+    DataConnectionConfig,
+    DataRequest,
+    DataSourceCredentialRef,
+)
 from finahinking.p7 import (
     CommunityClaim,
     CommunityIntegrityService,
@@ -293,7 +306,7 @@ class LocalAppConfig:
 class LocalApplication:
     """Route local product journeys through one P7-backed persistence boundary."""
 
-    def __init__(self, config: LocalAppConfig | None = None, *, connection: sqlite3.Connection | None = None) -> None:
+    def __init__(self, config: LocalAppConfig | None = None, *, connection: sqlite3.Connection | None = None, data_transport: Any | None = None, data_credential_store: DataCredentialStore | None = None) -> None:
         self.config = config or LocalAppConfig.from_env()
         if self.config.db_path != ":memory:":
             Path(self.config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
@@ -309,6 +322,18 @@ class LocalApplication:
             self.artifact_root = Path(self.config.db_path).expanduser().parent / "artifacts"
             self.artifact_root.mkdir(parents=True, exist_ok=True)
         self._research_runs: dict[str, dict[str, Any]] = {}
+        from finahinking.research.provider_config import ProviderConfigStore
+
+        provider_path = None if self.config.db_path == ":memory:" else Path(self.config.db_path).expanduser().with_suffix(".providers.json")
+        self._provider_configs = ProviderConfigStore(provider_path)
+        if self.config.db_path == ":memory:":
+            self._data_connections = DataConnectionSettingsStore(data_credential_store)
+        else:
+            connection_path = Path(self.config.db_path).expanduser().with_suffix(".data-connections.json")
+            self._data_connections = PersistentDataConnectionStore(connection_path, credential_store=data_credential_store)
+        # The transport is inert until the user explicitly invokes a test or
+        # research entrypoint. Saving a connection never performs I/O.
+        self._data_transport = data_transport if data_transport is not None else BoundedHttpTransport()
 
     def register_research_run(self, result: Any, manifest: Any) -> None:
         """Register a completed research result for read-only local inspection."""
@@ -319,10 +344,14 @@ class LocalApplication:
         bundle = self.artifact_root / "reports" / run_id
         if not (bundle / "manifest.json").exists():
             raise ValueError("research report manifest is missing")
-        self._research_runs[run_id] = {"state": result.state, "manifest": manifest, "bundle": bundle}
+        events = tuple(getattr(result, "events", ()) or ())
+        self._research_runs[run_id] = {"state": result.state, "manifest": manifest, "events": events, "bundle": bundle}
+        from finahinking.research.ui import register_runtime_snapshot
+
+        register_runtime_snapshot(result.state, manifest, events)
 
     def _research_run_route(self, clean: str) -> tuple[int, str, Any]:
-        from finahinking.research.ui import research_view_model
+        from finahinking.research.ui import research_runtime_view_model, research_view_model
 
         parts = [part for part in clean.removeprefix("/research/").split("/") if part]
         if not parts:
@@ -332,6 +361,7 @@ class LocalApplication:
         if entry is None:
             return 404, "application/json", {"error": "research run not found"}
         view_model = research_view_model(entry["state"], entry["manifest"])
+        runtime_model = research_runtime_view_model(run_id, state=entry["state"], manifest=entry["manifest"], events=entry.get("events", ()))
         if len(parts) == 2 and parts[1] == "status":
             return 200, "application/json", view_model
         if len(parts) == 1:
@@ -345,13 +375,14 @@ class LocalApplication:
                 f'<h1>Research run {html.escape(run_id)}</h1>'
                 f'<p class="lede">As-of: {html.escape(str(view_model.get("as_of") or "not attached"))}. This view is read-only and never submits an order.</p>'
                 f'<section class="card"><h2>Analyst status</h2><pre>{html.escape(json.dumps(view_model, ensure_ascii=False, indent=2, sort_keys=True))}</pre></section>'
+                f'<section class="card" data-research-runtime data-payload-url="/api/research/runs/{html.escape(run_id)}/stream"><h2>Runtime status wall</h2><p data-research-runtime-state>{html.escape(runtime_model["state"])} · READ-ONLY · PAPER-ONLY</p><p data-research-runtime-stages>{html.escape(" · ".join(f"{key}: {value}" for key, value in runtime_model.get("stage_status", {}).items()))}</p><p data-research-runtime-tools>{html.escape(" · ".join(str(item.get("name", item.get("tool", "tool"))) for item in runtime_model.get("tool_summaries", ())) or "No tool summary recorded." )}</p><p class="field-help">Server snapshot only; the browser never calculates financial indicators.</p><p class="error-state" data-research-runtime-error hidden></p></section>'
                 f'<div class="action-row">{link_html}</div>'
                 f'<section data-research-run data-payload-url="/research/{html.escape(run_id)}/status"><p class="field-help" data-research-run-status>SERVER-RENDERED · {html.escape(view_model["state"])}</p><p class="field-help" data-research-run-summary>As-of {html.escape(str(view_model.get("as_of") or "not attached"))}</p><p class="error-state" data-research-run-error hidden></p></section>'
             )
-            return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"))
+            return 200, "text/html; charset=utf-8", self.render_shell("/research", f"Research {run_id}", body, inspector=self._inspector("Research run", {"Run": run_id, "Mode": "OFFLINE", "Boundary": "PAPER-ONLY / READ-ONLY"}, status="OFFLINE"), scripts=("/assets/finathink-research.js",))
         if len(parts) == 3 and parts[1] == "report":
             section = parts[2]
-            allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html"}
+            allowed = {"complete": "complete_report.html", "2_evidence": "2_evidence/index.html", "3_research": "3_research/index.html", "4_quant": "4_quant/index.html", "5_risk": "5_risk/index.html", "6_paper_decision": "6_paper_decision/index.html", "experiments": "experiments/index.html", "risk_attribution": "risk_attribution/index.html", "learning_history": "learning_history/index.html"}
             if section not in allowed:
                 return 422, "application/json", {"error": "report section is not allow-listed"}
             relative = allowed[section]
@@ -771,11 +802,10 @@ class LocalApplication:
     def research_script_asset() -> bytes:
         return LocalApplication.asset_bytes("finathink-research.js")
 
-    @staticmethod
-    def _provider_config() -> dict[str, Any]:
+    def _provider_config(self) -> dict[str, Any]:
         """Return the local provider registry without accepting secret values."""
 
-        return {
+        config = {
             "defaults": {
                 "provider": os.environ.get("FINAHINKING_PROVIDER", "offline"),
                 "model": os.environ.get("FINAHINKING_MODEL", "fixture-v1"),
@@ -799,6 +829,11 @@ class LocalApplication:
                 },
             ],
         }
+        configured = {item["provider_id"]: item for item in self._provider_configs.list()}
+        config["providers"] = [item for item in config["providers"] if item["name"] not in configured]
+        for item in configured.values():
+            config["providers"].append({"name": item["provider_id"], "model": item["model"], "enabled": item["enabled"], "offline": item["adapter_kind"] == "offline", "credential_ref": item["credential_ref"], "capabilities": ["structured_output"]})
+        return config
 
     @staticmethod
     def katex_asset(asset_name: str, *, font: bool = False) -> bytes:
@@ -884,7 +919,7 @@ class LocalApplication:
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             f"<title>{html.escape(title)} · Finathink</title>"
             '<meta name="theme-color" content="#edf2f1">'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'self\' \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'; frame-ancestors \'none\'">'
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; img-src \'self\'; style-src \'self\' \'unsafe-inline\'; script-src \'self\'; connect-src \'self\'; form-action \'self\'">'
             f"<style>{_APP_CSS}</style>{style_tags}{script_tags}</head><body>"
             '<a class="skip-link" href="#main">Skip to content</a>'
             '<div class="app-shell">'
@@ -896,12 +931,150 @@ class LocalApplication:
             f"{inspector_html}</div></body></html>"
         )
 
+    def _data_write_guard(self, body: Any) -> tuple[int, str, Any] | None:
+        if not isinstance(body, Mapping) or body.get("_csrf") != self.csrf_token:
+            return 403, "application/json", {"error": "csrf token is required"}
+        return None
+
+    def _data_connection_from_payload(self, values: Mapping[str, Any]) -> tuple[DataConnectionConfig, str | None]:
+        auth_mode = str(values.get("auth_mode", "no_auth"))
+        credential_ref = values.get("credential_ref")
+        api_key = values.get("api_key")
+        secret_value: str | None = None
+        if isinstance(api_key, str) and not api_key:
+            api_key = None
+        if api_key is not None:
+            if not isinstance(api_key, str) or not api_key:
+                raise ValueError("api_key must be a non-empty value")
+            if auth_mode == "no_auth":
+                raise ValueError("no_auth connections cannot accept an api_key")
+            credential_ref = new_local_credential_ref(str(values.get("connection_id", "connection")))
+            secret_value = api_key
+        elif credential_ref is not None:
+            if not isinstance(credential_ref, Mapping):
+                raise ValueError("credential_ref must be a data credential reference")
+            credential_ref = DataSourceCredentialRef(
+                env_var=credential_ref.get("env_var"),
+                keychain_label=credential_ref.get("keychain_label"),
+            )
+        field_mapping = values.get("field_mapping", {})
+        if isinstance(field_mapping, str):
+            try:
+                field_mapping = json.loads(field_mapping)
+            except json.JSONDecodeError as exc:
+                raise ValueError("field_mapping must be valid JSON") from exc
+        if not isinstance(field_mapping, Mapping):
+            raise TypeError("field_mapping must be an object")
+        if bool(values.get("allow_local", False)):
+            raise ValueError("local data bridge requires an independently configured target")
+        config = DataConnectionConfig(
+            connection_id=str(values.get("connection_id", "")),
+            display_name=str(values.get("display_name", "")),
+            base_url=str(values.get("base_url", "")),
+            credential_ref=credential_ref,
+            auth_mode=auth_mode,
+            field_mapping={str(key): str(value) for key, value in field_mapping.items()},
+            records_path=(str(values["records_path"]) if values.get("records_path") is not None else None),
+            auth_header=(str(values["auth_header"]) if values.get("auth_header") is not None else None),
+            source_declaration=str(values.get("source_declaration", "User-declared data source; Finathink has not independently verified it.")),
+        )
+        return config, secret_value
+
+    def _data_connections_page(self) -> str:
+        rows = self._data_connections.list()
+        cards = "".join(
+            f'<article class="card"><h2>{html.escape(str(item["display_name"]))}</h2><p><code>{html.escape(str(item["connection_id"]))}</code> · {html.escape(str(item["auth_mode"]))}</p><p class="meta">Credential: {"configured" if item["credential_configured"] else "not configured"} · Endpoint is kept out of this view.</p></article>'
+            for item in rows
+        ) or '<div class="empty-state"><p>No user data connections have been configured.</p></div>'
+        body = (
+            '<h1>User data connections</h1>'
+            '<p class="lede">Connect a data API selected and authorized by you. Finathink stores only the connection contract and a local credential reference.</p>'
+            '<section class="card"><form class="form-grid" method="post" action="/api/data/connections">'
+            f'<input type="hidden" name="_csrf" value="{html.escape(self.csrf_token)}">'
+            '<label>Connection ID<input name="connection_id" required maxlength="64"></label>'
+            '<label>Display name<input name="display_name" required maxlength="160"></label>'
+            '<label>API address<input name="base_url" type="url" required></label>'
+            '<label>Authentication<select name="auth_mode"><option value="no_auth">No authentication</option><option value="bearer">Bearer</option><option value="api_key_header">API key header</option></select></label>'
+            '<label>API key (never displayed)<input name="api_key" type="password" autocomplete="new-password"></label>'
+            '<label>API key header (for header mode)<input name="auth_header" value="X-API-Key" maxlength="64"></label>'
+            '<label>Records path<input name="records_path" placeholder="data" maxlength="128"></label>'
+            '<label>Field mapping (JSON)<textarea name="field_mapping">{"instrument":"ticker","timestamp":"time","close":"price"}</textarea></label>'
+            '<button type="submit">Save connection</button></form><p class="field-help">Saving does not download data. A connection test is a separate, explicit action.</p></section>'
+            f'<section class="section"><h2>Saved connections</h2><div class="grid">{cards}</div></section>'
+        )
+        return self.render_shell("/settings/data-connections", "User data connections", body, inspector=self._inspector("Data boundary", {"Mode": "USER-OWNED API", "Secrets": "REFERENCE ONLY", "Download": "EXPLICIT TEST ONLY"}, status="OFFLINE"))
+
     def route(self, method: str, path: str, *, query: Mapping[str, list[str]] | None = None, body: Any = None) -> tuple[int, str, Any]:
         """Return ``(status, content_type, payload)`` without requiring a socket."""
 
         parsed = urlsplit(path)
         query = parse_qs(parsed.query) if query is None else query
         clean = parsed.path.rstrip("/") or "/"
+        if clean == "/api/research/providers/config":
+            if method == "GET":
+                return 200, "application/json", {"providers": list(self._provider_configs.list()), "paper_only": True, "provider_called": False}
+            if method != "POST":
+                return 405, "application/json", {"error": "provider configuration supports GET and POST"}
+            denied = self._data_write_guard(body)
+            if denied is not None:
+                return denied
+            from finahinking.research.provider_config import ProviderConfig
+
+            try:
+                config = ProviderConfig.from_mapping({key: value for key, value in body.items() if key != "_csrf"})
+                self._provider_configs.save(config)
+            except (TypeError, ValueError) as exc:
+                status = 409 if str(exc) == "provider already exists" else 400
+                return status, "application/json", {"error": str(exc)}
+            return 201, "application/json", config.redacted()
+        if clean == "/settings/data-connections" and method == "GET":
+            return 200, "text/html; charset=utf-8", self._data_connections_page()
+        if clean == "/api/data/connections" and method == "GET":
+            return 200, "application/json", {"connections": list(self._data_connections.list())}
+        if clean == "/api/data/connections" and method == "POST":
+            denied = self._data_write_guard(body)
+            if denied is not None:
+                return denied
+            try:
+                config, secret_value = self._data_connection_from_payload(body)
+                self._data_connections.save(config, credential_value=secret_value)
+            except (TypeError, ValueError) as exc:
+                return 400, "application/json", {"error": str(exc)}
+            return 201, "application/json", {**config.redacted(), "credential_configured": bool(config.credential_ref and self._data_connections.credentials.has(config.credential_ref))}
+        if clean.startswith("/api/data/connections/") and clean.endswith("/test") and method == "POST":
+            denied = self._data_write_guard(body)
+            if denied is not None:
+                return denied
+            connection_id = clean.removeprefix("/api/data/connections/").removesuffix("/test").strip("/")
+            try:
+                config = self._data_connections.get(connection_id)
+            except KeyError:
+                return 404, "application/json", {"error": "data connection not found"}
+            if self._data_transport is None:
+                return 200, "application/json", {"status": "NOT_RUN", "connection_id": connection_id, "reason": "an explicit local test transport is required"}
+            values = body if isinstance(body, Mapping) else {}
+            request = DataRequest(dataset_kind=str(values.get("dataset_kind", "prices")), instruments=tuple(values.get("instruments", ()) or ()), start=values.get("start"), end=values.get("end"), as_of=values.get("as_of"))
+            try:
+                batch = JsonApiConnector(config, self._data_connections.credentials, self._data_transport).fetch(request)
+            except (DataConnectorError, TypeError, ValueError) as exc:
+                return 502, "application/json", {"status": "FAILED", "connection_id": connection_id, "reason": getattr(exc, "code", "connection test failed")}
+            return 200, "application/json", {"status": "READY", "connection_id": connection_id, "record_count": len(batch.records), "quality_issue_count": len(batch.quality_issues), "pit_available": batch.pit_available}
+        if clean.startswith("/api/research/runs/") and clean.endswith("/stream"):
+            if method != "GET":
+                return 405, "application/json", {"error": "research runtime stream is read-only"}
+            run_id = clean.removeprefix("/api/research/runs/").removesuffix("/stream").strip("/")
+            if not run_id or "/" in run_id or "\\" in run_id:
+                return 400, "application/json", {"error": "research run id is invalid"}
+            entry = self._research_runs.get(run_id)
+            if entry is None:
+                return 404, "application/json", {"error": "research run not found"}
+            from finahinking.research.ui import research_runtime_view_model
+
+            try:
+                payload = research_runtime_view_model(run_id, state=entry["state"], manifest=entry["manifest"], events=entry.get("events", ()))
+            except (TypeError, ValueError) as exc:
+                return 422, "application/json", {"error": str(exc)}
+            return 200, "application/json", payload
         if clean == "/assets/finathink-splash-map.jpg" and method == "GET":
             return 200, "image/jpeg", self.splash_asset()
         if clean == "/assets/finathink-research-splash.jpg" and method == "GET":
@@ -1617,7 +1790,7 @@ class _Handler(BaseHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "").split(";", 1)[0].lower()
         if content_type == "application/x-www-form-urlencoded":
             values = parse_qs(raw.decode("utf-8", "replace"), keep_blank_values=True)
-            token = (values.pop("_csrf", [""]) or [""])[0]
+            token = (values.get("_csrf", [""]) or [""])[0]
             if token != self._application().csrf_token:
                 self._send(403, "application/json", {"error": "csrf token is required"})
                 return
