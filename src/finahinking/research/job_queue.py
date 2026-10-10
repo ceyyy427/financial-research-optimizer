@@ -34,6 +34,11 @@ class JobStatus(str, Enum):
 
 _PUBLIC_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _SENSITIVE_REF = re.compile(r"(?:api[-_]?key|secret|token|password|credential|authorization|prompt|endpoint|raw_response)", re.IGNORECASE)
+_SENSITIVE_VALUE = re.compile(
+    r"(?:api[-_]?key|secret|token|password|credential|authorization)\s*[=:]|"
+    r"[A-Za-z][A-Za-z0-9+.-]*://|(?:^|[:\s])(?:~[\\/]|[\\/]|\.\.?[\\/]|[A-Za-z0-9_.-]+[\\/])",
+    re.IGNORECASE,
+)
 _TERMINAL = frozenset({JobStatus.FAILED.value, JobStatus.CANCELLED.value, JobStatus.COMPLETED.value})
 
 
@@ -75,6 +80,7 @@ class JobRecord:
     cancel_requested: bool = False
     task_type: str = "research"
     capabilities: tuple[str, ...] = ()
+    runtime_budget: dict[str, int | float | None] | None = None
 
 
 class JobQueue:
@@ -120,6 +126,7 @@ class JobQueue:
                     job_id TEXT PRIMARY KEY,
                     task_ref TEXT NOT NULL,
                     task_digest TEXT NOT NULL,
+                    input_digest TEXT NOT NULL DEFAULT '',
                     idempotency_key TEXT NOT NULL UNIQUE,
                     status TEXT NOT NULL,
                     attempts INTEGER NOT NULL,
@@ -140,6 +147,7 @@ class JobQueue:
                     ,task_type TEXT NOT NULL DEFAULT 'research'
                     ,task_timeout REAL NOT NULL DEFAULT 30.0
                     ,capabilities TEXT NOT NULL DEFAULT '[]'
+                    ,runtime_budget TEXT NOT NULL DEFAULT '{}'
                 );
                 CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs(status, available_at, created_at);
                 CREATE TABLE IF NOT EXISTS external_dispatches (
@@ -202,6 +210,10 @@ class JobQueue:
                 db.execute("ALTER TABLE jobs ADD COLUMN task_timeout REAL NOT NULL DEFAULT 30.0")
             if "capabilities" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN capabilities TEXT NOT NULL DEFAULT '[]'")
+            if "runtime_budget" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN runtime_budget TEXT NOT NULL DEFAULT '{}'")
+            if "input_digest" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN input_digest TEXT NOT NULL DEFAULT ''")
             # Backfill external jobs written before the durable dispatch table
             # existed. Only public task/idempotency digests are copied.
             old_external = db.execute(
@@ -238,11 +250,23 @@ class JobQueue:
     def _job_id(task_digest: str, idempotency_key: str) -> str:
         return f"job-{stable_digest({'task': task_digest, 'idempotency': idempotency_key})[:32]}"
 
-    def enqueue(self, task: AgentTask, idempotency_key: str) -> JobRecord:
+    def enqueue(self, task: AgentTask, idempotency_key: str, *, request_snapshot: ResearchRequest | None = None) -> JobRecord:
         if not isinstance(task, AgentTask):
             raise TypeError("task must be AgentTask")
         idempotency_key = _ref(idempotency_key, "idempotency_key")
         task_digest = self._task_digest(task)
+        snapshot_encoded: str | None = None
+        snapshot_digest: str | None = None
+        if request_snapshot is not None:
+            if not isinstance(request_snapshot, ResearchRequest):
+                raise TypeError("request_snapshot must be ResearchRequest")
+            snapshot_digest = stable_digest(request_snapshot)
+            if task.input_digest != snapshot_digest:
+                raise ValueError("request snapshot is not bound to task input digest")
+            snapshot_payload = to_jsonable(request_snapshot)
+            snapshot_encoded = json.dumps(snapshot_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            if _SENSITIVE_VALUE.search(snapshot_encoded):
+                raise ValueError("request snapshot contains secret, endpoint, or path material")
         _ref(task.task_id, "task_ref")
         previous = self._tasks.get(task.task_id)
         if previous is not None and self._task_digest(previous) != task_digest:
@@ -265,14 +289,19 @@ class JobQueue:
                 db.execute(
                     """INSERT INTO jobs
                     (job_id, task_ref, task_digest, idempotency_key, status, attempts,
-                     max_attempts, available_at, created_at, updated_at, task_timeout, capabilities)
-                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)""",
-                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now, float(task.timeout_seconds), json.dumps(list(task.capabilities), separators=(",", ":"))),
+                     max_attempts, available_at, created_at, updated_at, task_timeout, capabilities, runtime_budget, input_digest)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now, float(task.timeout_seconds), json.dumps(list(task.capabilities), separators=(",", ":")), "{}", task.input_digest),
                 )
                 self._event(db, job_id, JobStatus.QUEUED.value, now)
                 row = db.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
                 assert row is not None
                 result = self._row(row)
+            if snapshot_encoded is not None and snapshot_digest is not None:
+                existing_snapshot = db.execute("SELECT request_digest FROM request_snapshots WHERE task_ref=?", (task.task_id,)).fetchone()
+                if existing_snapshot is not None and existing_snapshot["request_digest"] != snapshot_digest:
+                    raise ValueError("request snapshot is already bound to another digest")
+                db.execute("INSERT OR IGNORE INTO request_snapshots(task_ref, request_digest, payload) VALUES(?,?,?)", (task.task_id, snapshot_digest, snapshot_encoded))
         # Register only after all durable identity checks and the transaction
         # succeed; rejected collisions must not overwrite the resolver.
         self._tasks[task.task_id] = task
@@ -337,11 +366,40 @@ class JobQueue:
             raise TypeError("request must be ResearchRequest")
         payload = to_jsonable(request)
         encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if _SENSITIVE_VALUE.search(encoded):
+            raise ValueError("request snapshot contains secret, endpoint, or path material")
         with self._connect() as db:
-            db.execute(
-                "INSERT INTO request_snapshots(task_ref, request_digest, payload) VALUES(?,?,?) ON CONFLICT(task_ref) DO UPDATE SET request_digest=excluded.request_digest, payload=excluded.payload",
-                (task_ref, stable_digest(request), encoded),
-            )
+            row = db.execute("SELECT input_digest FROM jobs WHERE task_ref=? ORDER BY created_at DESC LIMIT 1", (task_ref,)).fetchone()
+            if row is None:
+                raise KeyError(f"unknown task: {task_ref}")
+            if row["input_digest"] and stable_digest(request) != row["input_digest"]:
+                raise ValueError("request snapshot is not bound to task input digest")
+            existing = db.execute("SELECT request_digest, payload FROM request_snapshots WHERE task_ref=?", (task_ref,)).fetchone()
+            digest = stable_digest(request)
+            if existing is not None and existing["request_digest"] != digest:
+                raise ValueError("request snapshot is already bound to another digest")
+            db.execute("INSERT OR IGNORE INTO request_snapshots(task_ref, request_digest, payload) VALUES(?,?,?)", (task_ref, digest, encoded))
+
+    def enqueue_with_request_snapshot(self, task: AgentTask, idempotency_key: str, request: ResearchRequest) -> JobRecord:
+        """Atomically publish a queued task and its credential-free request snapshot."""
+        if not isinstance(request, ResearchRequest):
+            raise TypeError("request must be ResearchRequest")
+        return self.enqueue(task, idempotency_key, request_snapshot=request)
+
+    def configure_limits(self, job_id: str, *, max_attempts: int, budget: dict[str, int | float | None]) -> JobRecord:
+        """Bind caller-selected limits to the durable job before it is claimed."""
+        job_id = _ref(job_id, "job_id")
+        if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts < 1:
+            raise ValueError("max_attempts must be positive")
+        if not isinstance(budget, dict):
+            raise TypeError("budget must be a dict")
+        encoded = json.dumps(budget, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        with self._connect() as db:
+            row = self._must_row(db, job_id)
+            if row["status"] not in {JobStatus.QUEUED.value, JobStatus.RETRYABLE.value}:
+                return self._row(row)
+            db.execute("UPDATE jobs SET max_attempts=?, task_timeout=?, runtime_budget=?, updated_at=? WHERE job_id=?", (max_attempts, float(budget.get("max_wall_seconds", row["task_timeout"])), encoded, float(self._clock()), job_id))
+            return self._row(self._must_row(db, job_id))
 
     def load_request_snapshot(self, task_ref: str, *, expected_digest: str | None = None) -> ResearchRequest:
         task_ref = _ref(task_ref, "task_ref")
@@ -688,6 +746,17 @@ class JobQueue:
                 raise KeyError(f"unknown task: {task_ref}")
             return float(row["task_timeout"])
 
+    def task_input_digest(self, task_ref: str) -> str:
+        task_ref = _ref(task_ref, "task_ref")
+        with self._connect() as db:
+            row = db.execute("SELECT input_digest FROM jobs WHERE task_ref=? ORDER BY created_at DESC LIMIT 1", (task_ref,)).fetchone()
+            if row is None:
+                raise KeyError(f"unknown task: {task_ref}")
+            value = row["input_digest"]
+            if not value:
+                raise ValueError("task input digest is unavailable")
+            return _digest(value, "input_digest")
+
     def heartbeat(
         self,
         job_id: str,
@@ -856,6 +925,7 @@ class JobQueue:
             learning_ref=row["learning_ref"], ledger_ref=row["ledger_ref"], cancel_requested=bool(row["cancel_requested"]),
             task_type=dict(zip(row.keys(), row)).get("task_type", "research"),
             capabilities=tuple(json.loads(dict(zip(row.keys(), row)).get("capabilities", "[]"))),
+            runtime_budget=json.loads(dict(zip(row.keys(), row)).get("runtime_budget", "{}")),
         )
 
 

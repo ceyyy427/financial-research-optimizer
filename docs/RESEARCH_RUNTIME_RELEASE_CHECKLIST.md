@@ -36,7 +36,7 @@ cd frontend && npm test
 
 HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录、`manifest.json`、`activity.jsonl`、checkpoint 和前端构建产物。门禁结果与命令输出保存在 Task 9 报告中。
 
-## Task 17 final gate evidence (2026-10-09)
+## Task 17 final gate evidence (2026-10-11)
 
 | Check | Result | Evidence / boundary |
 | --- | --- | --- |
@@ -45,16 +45,17 @@ HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录�
 | `python3 -m pip check` | `OFFLINE_PASS` | `No broken requirements found.` |
 | `cd frontend && npm test` | `OFFLINE_PASS` | 17 tests passed, 0 failed. |
 | `python3 -m ruff check src tests scripts` | `OFFLINE_PASS` | Exit 0 after the spawn Supervisor migration. |
-| Vertical slice tests | `OFFLINE_PASS` | Full repository suite: 1014 passed, 2 skipped, repeated three times. |
+| Vertical slice tests | `OFFLINE_PASS` | Full repository suite: 1015 passed, 1 skipped. |
 | Concurrent runtime limit test | `OFFLINE_PASS` | 20/20 repeated process-owned metrics runs passed. |
 | Local browser acceptance | `OFFLINE_BROWSER_PASS` | Playwright Chromium installed locally; loopback HTTP/browser suite: 4 passed, 0 skipped. |
 | Portable browser rerun | `CONDITIONAL` | A clean host may skip if its browser binary is unavailable; this local evidence is complete. |
 | External provider/browser/production connections | `EXTERNAL_UNVERIFIED` | No credentials, network acceptance, vendor authorization, real external browser/device matrix, or production evidence. |
 | Broker orders, live trading, secrets in artifacts, arbitrary execution | `NOT_IN_SCOPE` | Permanent product boundary. |
 
-The full repository suite was run three times in the current worktree; each
-run reported 1014 passed and 2 skipped. The two skips are environment-gated
-non-browser cases outside the Python/runtime acceptance boundary.
+The full repository suite was run in the current worktree after the final
+Supervisor hardening pass: 1015 passed and 1 skipped. The skip is an
+environment-gated non-browser case outside the Python/runtime acceptance
+boundary.
 
 ## 证据入口
 

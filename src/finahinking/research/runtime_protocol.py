@@ -288,6 +288,7 @@ _MESSAGE_PAYLOAD_FIELDS.update(
                 "failure_kind",
                 "error_code",
                 "message_digest",
+                "metrics",
             }
         ),
     }

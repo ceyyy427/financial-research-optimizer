@@ -48,6 +48,7 @@ def _failure_message(
     error_code: str | None = None,
     *,
     sequence: int = 0,
+    metrics: Mapping[str, object] | None = None,
 ) -> WorkerMessage:
     if invocation is None:
         job_id = "invalid-job"
@@ -56,10 +57,7 @@ def _failure_message(
         job_id = invocation.job_id
         digest = invocation.digest()
     code = error_code or failure_kind
-    return WorkerMessage(
-        "FAILED",
-        job_id,
-        {
+    payload: dict[str, object] = {
             "invocation_digest": digest,
             "job_id": job_id,
             "attempt": _ATTEMPT,
@@ -68,7 +66,13 @@ def _failure_message(
             "failure_kind": failure_kind,
             "error_code": code,
             "message_digest": _message_digest(f"{failure_kind}:{code}"),
-        },
+        }
+    if metrics is not None:
+        payload["metrics"] = dict(metrics)
+    return WorkerMessage(
+        "FAILED",
+        job_id,
+        payload,
     )
 
 
@@ -297,11 +301,15 @@ def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, conne
     final_result: Mapping[str, object] | None = None
     budget = _budget_for(invocation)
     stage_seconds: dict[str, float] = {}
+    def metrics_payload() -> dict[str, object]:
+        payload = budget.delta().to_payload()
+        payload["stage_durations"] = dict(stage_seconds)
+        return payload
     for stage_name in invocation.stage_names:
         try:
             runner = registry.resolve(stage_name)
         except Exception:  # noqa: BLE001 - stage identity is not disclosed
-            _send(connection, _failure_message(invocation, "STAGE_UNAVAILABLE", "UNKNOWN_STAGE", sequence=sequence))
+            _send(connection, _failure_message(invocation, "STAGE_UNAVAILABLE", "UNKNOWN_STAGE", sequence=sequence, metrics=metrics_payload()))
             return
 
         def publish_checkpoint(reference: str, *, _stage_name: str = stage_name) -> None:
@@ -327,33 +335,33 @@ def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, conne
             with bind_runtime_budget(budget):
                 final_result = _call_runner(runner, invocation, checkpoint_ref, publish_checkpoint)
         except RuntimeLimitExceeded:
-            _send(connection, _failure_message(invocation, "RESOURCE_LIMIT", "RESOURCE_LIMIT", sequence=sequence))
+            _send(connection, _failure_message(invocation, "RESOURCE_LIMIT", "RESOURCE_LIMIT", sequence=sequence, metrics=metrics_payload()))
             return
         except Exception:  # noqa: BLE001 - runner failures stay opaque
-            _send(connection, _failure_message(invocation, "RUNNER_FAILED", "RUNNER_EXCEPTION", sequence=sequence))
+            _send(connection, _failure_message(invocation, "RUNNER_FAILED", "RUNNER_EXCEPTION", sequence=sequence, metrics=metrics_payload()))
             return
         finally:
             stage_seconds[stage_name] = time.monotonic() - stage_started
         if not isinstance(final_result, Mapping):
-            _send(connection, _failure_message(invocation, "RESULT_INVALID", "RESULT_INVALID", sequence=sequence))
+            _send(connection, _failure_message(invocation, "RESULT_INVALID", "RESULT_INVALID", sequence=sequence, metrics=metrics_payload()))
             return
         if final_result.get("status") == "blocked":
             failure = final_result.get("failure_kind")
             code = failure if isinstance(failure, str) else "WORKFLOW_BLOCKED"
-            _send(connection, _failure_message(invocation, code, code, sequence=sequence))
+            _send(connection, _failure_message(invocation, code, code, sequence=sequence, metrics=metrics_payload()))
             return
         if final_result.get("status") != "completed" or "result_ref" not in final_result or "artifact_digest" not in final_result:
-            _send(connection, _failure_message(invocation, "RESULT_INVALID", "RESULT_INVALID", sequence=sequence))
+            _send(connection, _failure_message(invocation, "RESULT_INVALID", "RESULT_INVALID", sequence=sequence, metrics=metrics_payload()))
             return
         if isinstance(final_result, Mapping) and final_result.get("checkpoint_ref") is not None:
             checkpoint_ref = final_result["checkpoint_ref"]  # type: ignore[assignment]
     if final_result is None:
-        _send(connection, _failure_message(invocation, "TASK_CONTRACT_INVALID", "NO_STAGE", sequence=sequence))
+        _send(connection, _failure_message(invocation, "TASK_CONTRACT_INVALID", "NO_STAGE", sequence=sequence, metrics=metrics_payload()))
         return
     if isinstance(final_result, Mapping) and final_result.get("status") == "blocked":
         failure = final_result.get("failure_kind")
         code = failure if isinstance(failure, str) else "WORKFLOW_BLOCKED"
-        _send(connection, _failure_message(invocation, code, code, sequence=sequence))
+        _send(connection, _failure_message(invocation, code, code, sequence=sequence, metrics=metrics_payload()))
         return
     try:
         metrics = budget.delta().to_payload()
@@ -362,7 +370,7 @@ def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, conne
         _send(connection, result, result_limit=invocation.max_result_bytes)
     except ProtocolError as exc:
         kind = "RESOURCE_LIMIT" if "max_result_bytes" in str(exc).lower() else "RESULT_INVALID"
-        _send(connection, _failure_message(invocation, kind, kind, sequence=sequence))
+        _send(connection, _failure_message(invocation, kind, kind, sequence=sequence, metrics=metrics_payload()))
 
 
 def run_spawn_worker(invocation_payload: Mapping[str, object], connection: Connection) -> None:
@@ -417,7 +425,7 @@ def run_spawn_worker(invocation_payload: Mapping[str, object], connection: Conne
 class SpawnWorkerHandle:
     """Parent-side lifecycle for one spawn worker."""
 
-    def __init__(self, invocation: WorkerInvocation, *, registry: StageRegistry, daemon: bool = True) -> None:
+    def __init__(self, invocation: WorkerInvocation, *, registry: StageRegistry, daemon: bool = False) -> None:
         if not isinstance(invocation, WorkerInvocation):
             raise TypeError("invocation must be WorkerInvocation")
         if not isinstance(registry, StageRegistry):

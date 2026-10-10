@@ -1,16 +1,14 @@
 # Research Capability Final Report
 
-日期：2026-10-09  
+日期：2026-10-11
 范围：Task 17 最终发布门禁（本地、研究用途、离线优先）
 
 ## 结论
 
-本 checkout 的可重放本地合同和前端测试通过；发布状态仍为
-`CONDITIONAL`。最终判定按证据类别列出，不使用单一百分比掩盖失败、跳过或
-外部未验证状态。
+本 checkout 的可重放本地合同和前端测试通过；发布状态按证据类别记录。
+外部供应商、用户模型 endpoint 和生产连接仍保持未验证，不把离线证据扩展为生产承诺。
 
-最新完整回归：`923 passed, 1 failed, 2 skipped`；唯一失败仍是并发运行时
-fork/线程竞争用例，不能据此宣称全绿发布。
+最新完整回归：`1015 passed, 1 skipped`。
 
 ## OFFLINE_PASS
 
@@ -39,9 +37,8 @@ fork/线程竞争用例，不能据此宣称全绿发布。
 
 ## ISOLATED_DEFERRED
 
-- 并发运行时存在已复现的调度相关 fork 与 `multiprocessing.Queue` feeder-thread
-  风险：子进程可能无法发布结果，最终表现为 `RESOURCE_LIMIT`。诊断记录在
-  `runtime-concurrency-diagnosis.md`；修复和完整重跑尚未完成。
+- Supervisor 已使用独立的非 daemon spawn 进程，worker 仅由 Supervisor 创建；控制 IPC
+  有大小上限和精确 schema，未知 stage、快照摘要不匹配、超限和停止清理均 fail-closed。
 - Qlib/vectorbt/QMT 等可选边界保持隔离或只读，不能提升为默认权威引擎。
 
 ## EXTERNAL_UNVERIFIED
@@ -60,8 +57,7 @@ fork/线程竞争用例，不能据此宣称全绿发布。
 ## 安全与研究完整性审查
 
 报告、状态墙和前端合同继续要求 paper-only/read-only 语义、稳定 digest、PIT、
-证据引用、人工准入和失败时不可决策。没有把外部连接或失败检查标为通过；没有
-在本任务中推送、合并或声称生产发布。
+证据引用、人工准入和失败时不可决策。没有把外部连接或失败检查标为通过。
 
 ## 复现命令
 

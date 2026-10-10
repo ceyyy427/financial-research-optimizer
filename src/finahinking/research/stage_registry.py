@@ -218,7 +218,8 @@ def run_default_workflow_stage(
         from .job_queue import JobQueue
 
         try:
-            request = JobQueue(queue_path).load_request_snapshot(request.task_ref)
+            queue = JobQueue(queue_path)
+            request = queue.load_request_snapshot(request.task_ref, expected_digest=queue.task_input_digest(request.task_ref))
         except (KeyError, ValueError, TypeError):
             return {"status": "blocked", "state": "UNKNOWN", "failure_kind": "REQUEST_UNAVAILABLE"}
     from .drivers import OfflineDriver

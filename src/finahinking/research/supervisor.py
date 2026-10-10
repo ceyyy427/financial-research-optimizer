@@ -21,17 +21,47 @@ from types import SimpleNamespace
 from .contracts import stable_digest
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
 from .observability import RuntimeBudget, RuntimeLimitExceeded, RuntimeMetrics, WorkerMetricsDelta
-from .runtime_protocol import WorkerInvocation, WorkerMessage
+from .runtime_protocol import ProtocolError, WorkerInvocation, WorkerMessage
 from .stage_registry import StageRegistry, StageRegistryError
 from .worker_entrypoint import SpawnWorkerHandle, _rebuild_registry, _registry_payload
 
 
 def _message_payload(message: WorkerMessage) -> dict[str, object]:
-    return {"kind": message.kind, "job_id": message.job_id, "payload": dict(message.payload)}
+    def plain(value: object) -> object:
+        if isinstance(value, Mapping):
+            return {str(key): plain(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [plain(item) for item in value]
+        return value
+    return {"kind": message.kind, "job_id": message.job_id, "payload": plain(message.payload)}  # type: ignore[return-value]
+
+
+_CONTROL_MAX_BYTES = 65_536
+
+
+def _control_send(connection, payload: Mapping[str, object]) -> None:
+    raw = json.dumps(dict(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if len(raw) > _CONTROL_MAX_BYTES:
+        raise ProtocolError("supervisor control message exceeds maximum size")
+    connection.send_bytes(raw)
+
+
+def _control_receive(connection) -> Mapping[str, object]:
+    raw = connection.recv_bytes(maxlength=_CONTROL_MAX_BYTES)
+    if len(raw) > _CONTROL_MAX_BYTES:
+        raise ProtocolError("supervisor control message exceeds maximum size")
+    value = json.loads(raw.decode("utf-8"))
+    if not isinstance(value, Mapping):
+        raise ProtocolError("supervisor control message must be an object")
+    return value
 
 
 def _message_from_payload(payload: Mapping[str, object]) -> WorkerMessage:
-    return WorkerMessage(str(payload["kind"]), str(payload["job_id"]), payload["payload"])
+    if not isinstance(payload, Mapping) or set(payload) != {"kind", "job_id", "payload"}:
+        raise ProtocolError("worker message envelope is not exact")
+    if not isinstance(payload["kind"], str) or not isinstance(payload["job_id"], str) or not isinstance(payload["payload"], Mapping):
+        raise ProtocolError("worker message envelope is malformed")
+    return WorkerMessage(payload["kind"], payload["job_id"], payload["payload"])
 
 
 def _synthetic_terminal(record: JobRecord) -> WorkerMessage:
@@ -104,23 +134,29 @@ def _supervisor_process_main(config: Mapping[str, object], connection) -> None:
         if isinstance(initial_job, str):
             message = core.dispatch(initial_job)
             if message is not None:
-                connection.send_bytes(json.dumps({"type": "dispatch", "message": _message_payload(message)}, separators=(",", ":"), default=dict).encode())
+                _control_send(connection, {"type": "dispatch", "job_id": message.job_id, "message": _message_payload(message)})
         while True:
             if connection.poll(core.poll_interval):
-                raw = connection.recv_bytes()
-                command = json.loads(raw.decode("utf-8"))
-                if command.get("type") == "stop":
+                command = _control_receive(connection)
+                if command.get("type") == "stop" and set(command) == {"type"}:
                     break
-                if command.get("type") == "dispatch":
+                if command.get("type") == "dispatch" and set(command) == {"type", "job_id"} and (command["job_id"] is None or isinstance(command["job_id"], str)):
                     message = core.dispatch(command.get("job_id"))
                     if message is not None:
-                        connection.send_bytes(json.dumps({"type": "dispatch", "message": _message_payload(message)}, separators=(",", ":"), default=dict).encode())
+                        _control_send(connection, {"type": "dispatch", "job_id": message.job_id, "message": _message_payload(message)})
+                else:
+                    raise ProtocolError("unknown supervisor command")
             core.run_once()
+    except (EOFError, OSError, ValueError, UnicodeError, ProtocolError):
+        # Malformed or oversized parent control input fails closed; durable
+        # jobs are left for lease recovery rather than accepting ambiguity.
+        pass
     finally:
         core._stop.set()
         for handle, _job in tuple(core._handles.values()):
             handle.cancel()
             handle.join()
+            core._retry_or_fail(_job, "SUPERVISOR_STOPPED")
         try:
             connection.close()
         except OSError:
@@ -233,9 +269,10 @@ class ResearchSupervisor:
     def stop(self, timeout: float = 5.0) -> None:
         if self._embedded:
             self._stop.set()
-            for handle, _job in tuple(self._handles.values()):
+            for handle, job in tuple(self._handles.values()):
                 handle.cancel()
                 handle.join()
+                self._retry_or_fail(job, "SUPERVISOR_STOPPED")
             self._handles.clear()
             return
         if timeout < 0:
@@ -244,7 +281,7 @@ class ResearchSupervisor:
         connection = self._connection
         if connection is not None:
             try:
-                connection.send_bytes(b'{"type":"stop"}')
+                _control_send(connection, {"type": "stop"})
             except (BrokenPipeError, OSError):
                 pass
         if process is not None:
@@ -367,19 +404,19 @@ class ResearchSupervisor:
             if self._process is None or not self._process.is_alive():
                 self._start_process(dispatch_job=job_id)
             elif self._connection is not None:
-                self._connection.send_bytes(json.dumps({"type": "dispatch", "job_id": job_id}, separators=(",", ":")).encode())
+                _control_send(self._connection, {"type": "dispatch", "job_id": job_id})
             if self._connection is None:
                 return None
             deadline = time.monotonic() + 30.0
             while time.monotonic() < deadline:
                 if self._connection.poll(min(0.05, max(0.0, deadline - time.monotonic()))):
                     try:
-                        payload = json.loads(self._connection.recv_bytes().decode("utf-8"))
+                        payload = _control_receive(self._connection)
                     except EOFError:
                         payload = None
                     if payload is None:
                         break
-                    if payload.get("type") == "dispatch":
+                    if payload.get("type") == "dispatch" and (job_id is None or payload.get("job_id") == job_id) and set(payload) == {"type", "job_id", "message"}:
                         return _message_from_payload(payload["message"])
                 if job_id is not None:
                     record = self.queue.get(job_id)
@@ -389,8 +426,8 @@ class ResearchSupervisor:
                         # bounded chance before reconstructing from durable
                         # state, so it cannot leak into the next dispatch.
                         if self._connection.poll(0.2):
-                            payload = json.loads(self._connection.recv_bytes().decode("utf-8"))
-                            if payload.get("type") == "dispatch":
+                            payload = _control_receive(self._connection)
+                            if payload.get("type") == "dispatch" and (job_id is None or payload.get("job_id") == job_id) and set(payload) == {"type", "job_id", "message"}:
                                 return _message_from_payload(payload["message"])
                         return _synthetic_terminal(record)
                     if record.status is JobStatus.RETRYABLE:
@@ -432,13 +469,19 @@ class ResearchSupervisor:
     def _make_handle(self, job: JobRecord) -> SpawnWorkerHandle:
         stage_names: tuple[str, ...] = ()
         requested = tuple(job.capabilities)
-        if requested and all(self._registry_has(name) for name in requested):
+        if requested:
+            missing = tuple(name for name in requested if not self._registry_has(name))
+            if missing:
+                raise StageRegistryError("persisted stage capability is unavailable")
             stage_names = requested
         try:
             if not stage_names:
                 task = self.queue.resolve_task(job.task_ref)
                 requested = tuple(task.capabilities)
-                if requested and all(self._registry_has(name) for name in requested):
+                if requested:
+                    missing = tuple(name for name in requested if not self._registry_has(name))
+                    if missing:
+                        raise StageRegistryError("task stage capability is unavailable")
                     stage_names = requested
         except (KeyError, AttributeError):
             pass
@@ -450,15 +493,18 @@ class ResearchSupervisor:
         timeout = self.queue.task_timeout(job.task_ref)
         if self._budget.get("max_wall_seconds") is not None:
             timeout = min(timeout, float(self._budget["max_wall_seconds"]))
+        budget = dict(self._budget)
+        if job.runtime_budget:
+            budget.update(job.runtime_budget)
         invocation = WorkerInvocation(
             job_id=job.job_id,
             task_ref=job.task_ref,
             task_digest=job.task_digest,
             checkpoint_ref=job.checkpoint_ref,
             stage_names=stage_names,
-            timeout_seconds=timeout,
-            max_result_bytes=8192,
-            budget=dict(self._budget),
+            timeout_seconds=min(timeout, float(budget.get("max_wall_seconds", timeout))),
+            max_result_bytes=int(budget.get("max_result_bytes", 8192)),
+            budget=budget,
         )
         return SpawnWorkerHandle(invocation, registry=self.registry)
 
@@ -503,25 +549,12 @@ class ResearchSupervisor:
             current = self.queue.get(job.job_id)
             if current.status is not JobStatus.RUNNING or (current.worker_id, current.attempts, current.lease_token) != (job.worker_id, job.attempts, job.lease_token) or current.lease_until is None or current.lease_until <= self.queue._clock():
                 return
+            metrics_payload = payload.get("metrics")
+            if isinstance(metrics_payload, Mapping):
+                self._persist_metrics(job.job_id, metrics_payload, resource_failure=message.kind == "FAILED" and payload.get("failure_kind") == "RESOURCE_LIMIT")
+            elif message.kind in {"FAILED", "CANCELLED"}:
+                self._persist_metrics(job.job_id, {}, resource_failure=message.kind == "FAILED" and payload.get("failure_kind") == "RESOURCE_LIMIT")
             if message.kind == "RESULT":
-                metrics_payload = payload.get("metrics")
-                if isinstance(metrics_payload, Mapping):
-                    delta = WorkerMetricsDelta(
-                        job.job_id,
-                        experiments=int(metrics_payload.get("experiments", 0)),
-                        provider_calls=int(metrics_payload.get("provider_calls", 0)),
-                        bytes_used=int(metrics_payload.get("bytes_used", 0)),
-                        stage_seconds=dict(metrics_payload.get("stage_durations", {})),
-                    )
-                    budget = self._metrics.setdefault(
-                        job.job_id,
-                        RuntimeBudget(
-                            job.job_id,
-                            self._budget_limits(),
-                        ),
-                    )
-                    aggregate = budget.apply_delta(delta)
-                    self.queue.save_metrics(aggregate)
                 result_ref = payload.get("result_ref")
                 if isinstance(result_ref, str):
                     self.queue.complete(job.job_id, result_ref=result_ref, checkpoint_ref=job.checkpoint_ref, **fence)
@@ -546,8 +579,30 @@ class ResearchSupervisor:
     def _retry_or_fail(self, job: JobRecord, reason: str) -> None:
         try:
             self.queue.retry(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            budget = self._metrics.setdefault(job.job_id, RuntimeBudget(job.job_id, self._unbounded_limits()))
+            budget.retry_count += 1
+            self.queue.save_metrics(budget.metrics())
         except (StaleLeaseError, ValueError, KeyError):
             return
+
+    @staticmethod
+    def _unbounded_limits() -> SimpleNamespace:
+        return SimpleNamespace(max_wall_seconds=float("inf"), max_provider_calls=None, max_bytes=None, max_experiments=None)
+
+    def _persist_metrics(self, job_id: str, payload: Mapping[str, object], *, resource_failure: bool = False) -> None:
+        delta = WorkerMetricsDelta(
+            job_id,
+            experiments=int(payload.get("experiments", 0)),
+            provider_calls=int(payload.get("provider_calls", 0)),
+            bytes_used=int(payload.get("bytes_used", 0)),
+            stage_seconds=dict(payload.get("stage_durations", {})),
+        )
+        budget = self._metrics.setdefault(job_id, RuntimeBudget(job_id, self._unbounded_limits()))
+        aggregate = budget.apply_delta(delta)
+        if resource_failure:
+            budget.resource_failures += 1
+            aggregate = budget.metrics()
+        self.queue.save_metrics(aggregate)
 
     def metrics_for(self, job_id: str):
         """Return the supervisor's aggregated worker metrics snapshot."""

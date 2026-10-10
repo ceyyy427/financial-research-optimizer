@@ -134,9 +134,7 @@ class ResearchRuntimeService:
             inputs={"request_ref": f"request:{stable_digest(request)[:32]}"},
             timeout_seconds=self._timeout_seconds,
         )
-        record = self.queue.enqueue(task, idempotency_key or self._idempotency_key(request))
-        self.queue.save_request_snapshot(task_ref, request)
-        return record
+        return self.queue.enqueue_with_request_snapshot(task, idempotency_key or self._idempotency_key(request), request)
 
     def start_supervisor(self) -> None:
         self._supervisor.start()
@@ -162,6 +160,17 @@ class ResearchRuntimeService:
     def _run_bounded(self, job_id: str, bounds: RuntimeLimits) -> WorkerResult:
         started = time.monotonic()
         budget = RuntimeBudget(job_id, bounds)
+        self.queue.configure_limits(
+            job_id,
+            max_attempts=bounds.max_attempts,
+            budget={
+                "max_wall_seconds": bounds.max_wall_seconds,
+                "max_provider_calls": bounds.max_provider_calls,
+                "max_bytes": bounds.max_bytes,
+                "max_experiments": bounds.max_experiments,
+                "max_result_bytes": self._max_result_bytes,
+            },
+        )
         calls = 0
         result = self._resource_limit(job_id)
         with bind_runtime_budget(budget):
@@ -239,16 +248,22 @@ class ResearchRuntimeService:
         )
 
     def _resolve_request(self, task_ref: str) -> ResearchRequest:
+        try:
+            expected_digest = self.queue.task_input_digest(task_ref)
+        except KeyError:
+            expected_digest = None
         request = self._request_resolver(task_ref) if self._request_resolver is not None else None
         if request is None:
             try:
-                request = self.queue.load_request_snapshot(task_ref)
+                request = self.queue.load_request_snapshot(task_ref, expected_digest=expected_digest)
             except (KeyError, ValueError):
                 request = None
         if request is not None and not isinstance(request, ResearchRequest):
             raise TypeError("request resolver must return ResearchRequest")
         if request is None:
             raise KeyError("request resolver is required after restart")
+        if expected_digest is not None and stable_digest(request) != expected_digest:
+            raise ValueError("request resolver digest does not match persisted task")
         return request
 
     @staticmethod
