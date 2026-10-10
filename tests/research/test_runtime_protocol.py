@@ -27,6 +27,18 @@ def invocation(**overrides):
     return WorkerInvocation(**values)
 
 
+def result_payload(digest, **overrides):
+    payload = {
+        "invocation_digest": digest,
+        "status": "completed",
+        "result_ref": "artifact:result-1",
+        "artifact_digest": "b" * 64,
+        "metrics": {"experiments": 1, "provider_calls": 2},
+    }
+    payload.update(overrides)
+    return payload
+
+
 def test_invocation_round_trip_and_stable_digest():
     original = invocation()
     payload = original.to_payload()
@@ -57,6 +69,11 @@ def test_invocation_rejects_nonfinite_numbers(payload):
         values[key] = value
     with pytest.raises(ValueError):
         WorkerInvocation.from_payload(values)
+
+
+def test_invocation_rejects_integer_that_overflows_finite_number_check():
+    with pytest.raises(ValueError):
+        invocation(timeout_seconds=10**10000)
 
 
 @pytest.mark.parametrize("payload", [
@@ -98,15 +115,62 @@ def test_message_round_trip_and_kinds_are_explicit():
         encode_message(WorkerMessage("UNKNOWN", "job-1", {"invocation_digest": digest}), 2048)
 
 
+def test_all_message_kinds_have_positive_round_trips():
+    digest = invocation().digest()
+    payloads = {
+        "READY": {"invocation_digest": digest, "status": "ready"},
+        "CHECKPOINT": {
+            "invocation_digest": digest,
+            "status": "checkpoint",
+            "stage_name": "research",
+            "checkpoint_ref": "checkpoint:cp-1",
+        },
+        "PROGRESS": {
+            "invocation_digest": digest,
+            "status": "running",
+            "stage_name": "research",
+            "progress": 0.5,
+            "metrics": {"experiments": 1, "stage_durations": {"research": 0.25}},
+        },
+        "RESULT": result_payload(digest),
+        "FAILED": {
+            "invocation_digest": digest,
+            "status": "failed",
+            "failure_kind": "worker",
+            "error_code": "E_FAIL",
+            "message_digest": "c" * 64,
+        },
+        "CANCELLED": {"invocation_digest": digest, "status": "cancelled"},
+        "HEARTBEAT": {"invocation_digest": digest, "status": "alive"},
+    }
+    for kind, payload in payloads.items():
+        message = WorkerMessage(kind, "job-1", payload)
+        assert decode_message(encode_message(message, 4096), 4096) == message
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"invocation_digest": "a" * 64},
+        {"invocation_digest": "a" * 64, "status": "running", "result_ref": "artifact:r"},
+        {"invocation_digest": "a" * 64, "status": "completed", "artifact_digest": "b" * 64},
+        {"invocation_digest": "a" * 64, "status": "running", "result_ref": "artifact:r", "artifact_digest": "b" * 64},
+    ],
+)
+def test_result_requires_completed_status_and_artifact_contract(payload):
+    with pytest.raises(ValueError):
+        WorkerMessage("RESULT", "job-1", payload)
+
+
 def test_messages_reject_oversize_unknown_fields_nonfinite_and_mismatch():
     digest = invocation().digest()
-    message = WorkerMessage("RESULT", "job-1", {"invocation_digest": digest, "value": "x"})
+    message = WorkerMessage("RESULT", "job-1", result_payload(digest))
     with pytest.raises(ValueError):
         encode_message(message, max_bytes=10)
     with pytest.raises(ValueError):
         WorkerMessage("RESULT", "job-1", {"invocation_digest": digest, "unknown": object()})
     with pytest.raises(ValueError):
-        encode_message(WorkerMessage("RESULT", "job-1", {"invocation_digest": digest, "value": math.inf}), 2048)
+        encode_message(WorkerMessage("RESULT", "job-1", result_payload(digest, metrics={"experiments": math.inf})), 2048)
     with pytest.raises(ValueError):
         encode_message(WorkerMessage("RESULT", "job-1", {"job_id": "other", "invocation_digest": digest}), 2048)
     raw = json.dumps({"kind": "RESULT", "job_id": "job-1", "payload": {"invocation_digest": "wrong"}}).encode()
@@ -117,7 +181,7 @@ def test_messages_reject_oversize_unknown_fields_nonfinite_and_mismatch():
 def test_message_rejects_dangerous_nested_values():
     digest = invocation().digest()
     with pytest.raises(ValueError):
-        WorkerMessage("RESULT", "job-1", {"invocation_digest": digest, "value": {"url": "https://example.test"}})
+        WorkerMessage("RESULT", "job-1", result_payload(digest, metrics={"stage_durations": {"/tmp/private": 1.0}}))
     with pytest.raises(ValueError):
         WorkerMessage("PROGRESS", "job-1", {"invocation_digest": digest, "progress": ["/tmp/private"]})
 
@@ -125,7 +189,7 @@ def test_message_rejects_dangerous_nested_values():
 def test_message_payload_schema_rejects_fields_for_the_wrong_kind():
     digest = invocation().digest()
     with pytest.raises(ValueError):
-        WorkerMessage("READY", "job-1", {"invocation_digest": digest, "value": "unexpected"})
+        WorkerMessage("READY", "job-1", {"invocation_digest": digest, "status": "ready", "value": "unexpected"})
     with pytest.raises(ValueError):
         WorkerMessage("RESULT", "job-1", {"invocation_digest": digest, "progress": 0.5})
 
@@ -152,13 +216,17 @@ def test_invocation_and_message_are_deeply_defensive_against_mutation():
     with pytest.raises(TypeError):
         original.budget["attempts"] = 99
 
-    value = {"items": [1]}
-    message = WorkerMessage("RESULT", "job-1", {"invocation_digest": invocation_digest, "value": value})
+    durations = {"research": 1.0}
+    message = WorkerMessage(
+        "RESULT",
+        "job-1",
+        result_payload(invocation_digest, metrics={"stage_durations": durations}),
+    )
     encoded = encode_message(message, max_bytes=2048)
-    value["items"].append(2)
+    durations["research"] = 2.0
     assert encode_message(message, max_bytes=2048) == encoded
     with pytest.raises((TypeError, AttributeError)):
-        message.payload["value"]["items"].append(3)
+        message.payload["metrics"]["stage_durations"]["research"] = 3.0
 
 
 def test_message_can_validate_against_expected_invocation_digest():
@@ -177,7 +245,8 @@ def test_decode_rejects_duplicate_json_envelope_keys():
     digest = invocation().digest()
     raw = (
         '{"kind":"RESULT","kind":"READY","job_id":"job-1",'
-        f'"payload":{{"invocation_digest":"{digest}","value":"x"}}}}'
+        f'"payload":{{"invocation_digest":"{digest}","status":"completed",'
+        f'"result_ref":"artifact:result-1","artifact_digest":"{"b" * 64}"}}}}'
     ).encode()
     with pytest.raises(ValueError):
         decode_message(raw, max_bytes=2048)
@@ -244,7 +313,12 @@ def test_message_kinds_require_typed_payload_fields_and_safe_terminal_refs():
         WorkerMessage(
             "RESULT",
             "job:1",
-            {"invocation_digest": digest, "result_ref": "artifact:result-1", "artifact_digest": "bad"},
+            {
+                "invocation_digest": digest,
+                "status": "completed",
+                "result_ref": "artifact:result-1",
+                "artifact_digest": "bad",
+            },
         )
     with pytest.raises(ValueError):
         WorkerMessage(
@@ -293,7 +367,29 @@ def test_protocol_rejects_deep_payloads_as_protocol_errors():
     for _ in range(1000):
         nested = [nested]
     with pytest.raises(ValueError):
-        WorkerMessage("RESULT", "job:1", {"invocation_digest": digest, "value": nested})
+        WorkerMessage("RESULT", "job:1", result_payload(digest, metrics={"stage_durations": nested}))
+
+
+def test_decode_rejects_deep_json_and_huge_integer_as_protocol_errors():
+    digest = invocation().digest()
+    nested = "x"
+    for _ in range(1000):
+        nested = [nested]
+    raw = json.dumps({
+        "kind": "READY",
+        "job_id": "job-1",
+        "payload": {"invocation_digest": digest, "status": "ready", "nested": nested},
+    }).encode()
+    with pytest.raises(ValueError):
+        decode_message(raw, max_bytes=len(raw) + 1)
+
+    raw = (
+        b'{"kind":"PROGRESS","job_id":"job-1","payload":'
+        b'{"invocation_digest":"' + digest.encode() + b'","status":"running",'
+        b'"progress":1e1000000,"stage_name":"research"}}'
+    )
+    with pytest.raises(ValueError):
+        decode_message(raw, max_bytes=len(raw) + 1)
 
 
 def test_protocol_rejects_lone_surrogates_as_protocol_errors():

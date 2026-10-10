@@ -47,6 +47,8 @@ _UNSAFE_VALUE_RE = re.compile(
 )
 _MAX_JSON_DEPTH = 32
 _MAX_INVOCATION_BYTES = 65_536
+_METRIC_COUNTS = frozenset({"provider_calls", "experiments", "bytes_used", "resource_failures"})
+_METRIC_FIELDS = _METRIC_COUNTS | {"stage_durations"}
 
 
 class ProtocolError(ValueError):
@@ -54,7 +56,13 @@ class ProtocolError(ValueError):
 
 
 def _finite_number(value: object, name: str) -> int | float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolError(f"{name} must be a finite number")
+    try:
+        finite = math.isfinite(value)
+    except OverflowError as exc:
+        raise ProtocolError(f"{name} must be a finite number") from exc
+    if not finite:
         raise ProtocolError(f"{name} must be a finite number")
     return value
 
@@ -268,7 +276,6 @@ _MESSAGE_PAYLOAD_FIELDS.update(
                 "result_ref",
                 "artifact_digest",
                 "metrics",
-                "value",
             }
         ),
         "FAILED": frozenset(
@@ -288,8 +295,26 @@ _MESSAGE_PAYLOAD_FIELDS.update(
 _MESSAGE_REQUIRED_FIELDS: dict[str, frozenset[str]] = {
     "CHECKPOINT": frozenset({"stage_name", "checkpoint_ref"}),
     "PROGRESS": frozenset({"stage_name", "progress"}),
+    "RESULT": frozenset({"status", "result_ref", "artifact_digest"}),
     "FAILED": frozenset({"failure_kind", "error_code", "message_digest"}),
 }
+
+
+def _validate_metrics(value: object) -> None:
+    if not isinstance(value, Mapping):
+        raise ProtocolError("message metrics must be a mapping")
+    if not set(value).issubset(_METRIC_FIELDS):
+        raise ProtocolError("message metrics contains unknown fields")
+    for key, item in value.items():
+        if key in _METRIC_COUNTS:
+            _nonnegative_int(item, f"message metrics.{key}")
+        elif key == "stage_durations":
+            if not isinstance(item, Mapping):
+                raise ProtocolError("message metrics.stage_durations must be a mapping")
+            for stage, duration in item.items():
+                _public_ref(stage, "message metrics.stage_durations stage")
+                if _finite_number(duration, f"message metrics.stage_durations.{stage}") < 0:
+                    raise ProtocolError("message stage duration must be non-negative")
 
 
 @dataclass(frozen=True)
@@ -326,6 +351,8 @@ class WorkerMessage:
                 _nonnegative_int(payload[field], f"message {field}")
         if "status" in payload:
             _public_ref(payload["status"], "message status")
+        if self.kind == "RESULT" and payload["status"] != "completed":
+            raise ProtocolError("RESULT status must be completed")
         if "stage_name" in payload:
             _public_ref(payload["stage_name"], "message stage_name")
         if "checkpoint_ref" in payload:
@@ -334,8 +361,8 @@ class WorkerMessage:
             progress = _finite_number(payload["progress"], "message progress")
             if not 0 <= progress <= 1:
                 raise ProtocolError("message progress must be between zero and one")
-        if "metrics" in payload and not isinstance(payload["metrics"], Mapping):
-            raise ProtocolError("message metrics must be a mapping")
+        if "metrics" in payload:
+            _validate_metrics(payload["metrics"])
         if "result_ref" in payload:
             _public_ref(payload["result_ref"], "message result_ref")
         if "artifact_digest" in payload:
@@ -353,6 +380,16 @@ class WorkerMessage:
             raise ProtocolError("message does not match invocation job_id")
         if self.payload["invocation_digest"] != invocation.digest():
             raise ProtocolError("message invocation_digest does not match invocation")
+        stage_name = self.payload.get("stage_name")
+        if stage_name is not None and stage_name not in invocation.stage_names:
+            raise ProtocolError("message stage_name does not match invocation")
+        metrics = self.payload.get("metrics")
+        if (
+            isinstance(metrics, Mapping)
+            and "stage_durations" in metrics
+            and not set(metrics["stage_durations"]).issubset(invocation.stage_names)
+        ):
+            raise ProtocolError("message stage_durations do not match invocation")
         return self
 
 
@@ -387,7 +424,7 @@ def decode_message(raw: bytes, max_bytes: int, *, expected_invocation_digest: st
             parse_constant=lambda _: (_ for _ in ()).throw(ValueError()),
             object_pairs_hook=reject_duplicates,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
         raise ProtocolError("message is not valid JSON") from exc
     if not isinstance(value, Mapping) or set(value) != _MESSAGE_FIELDS:
         raise ProtocolError("message envelope fields are not exact")
