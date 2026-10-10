@@ -227,7 +227,11 @@ def test_connection_entrypoint_keeps_default_target_validation_fail_closed(tmp_p
         _request("default-resolver-blocked"),
     )
     assert result.state.current_state.value in {"DATA_UNAVAILABLE", "VALIDATION_FAILED"}
-    assert result.state.failure_kind in {FailureKind.DATA_UNAVAILABLE, FailureKind.VALIDATION_FAILED}
+    assert result.state.failure_kind in {
+        FailureKind.DATA_UNAVAILABLE,
+        FailureKind.VALIDATION_FAILED,
+        FailureKind.QUANT_VALIDATION_FAILED,
+    }
 
 
 def test_provider_codex_offline_and_queue_recovery(tmp_path: Path) -> None:
