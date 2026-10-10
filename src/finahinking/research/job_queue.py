@@ -74,6 +74,7 @@ class JobRecord:
     ledger_ref: str | None = None
     cancel_requested: bool = False
     task_type: str = "research"
+    capabilities: tuple[str, ...] = ()
 
 
 class JobQueue:
@@ -138,6 +139,7 @@ class JobQueue:
                     cancel_requested INTEGER NOT NULL DEFAULT 0
                     ,task_type TEXT NOT NULL DEFAULT 'research'
                     ,task_timeout REAL NOT NULL DEFAULT 30.0
+                    ,capabilities TEXT NOT NULL DEFAULT '[]'
                 );
                 CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs(status, available_at, created_at);
                 CREATE TABLE IF NOT EXISTS external_dispatches (
@@ -198,6 +200,8 @@ class JobQueue:
                 db.execute("ALTER TABLE jobs ADD COLUMN task_type TEXT NOT NULL DEFAULT 'research'")
             if "task_timeout" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN task_timeout REAL NOT NULL DEFAULT 30.0")
+            if "capabilities" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN capabilities TEXT NOT NULL DEFAULT '[]'")
             # Backfill external jobs written before the durable dispatch table
             # existed. Only public task/idempotency digests are copied.
             old_external = db.execute(
@@ -261,9 +265,9 @@ class JobQueue:
                 db.execute(
                     """INSERT INTO jobs
                     (job_id, task_ref, task_digest, idempotency_key, status, attempts,
-                     max_attempts, available_at, created_at, updated_at, task_timeout)
-                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
-                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now, float(task.timeout_seconds)),
+                     max_attempts, available_at, created_at, updated_at, task_timeout, capabilities)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)""",
+                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now, float(task.timeout_seconds), json.dumps(list(task.capabilities), separators=(",", ":"))),
                 )
                 self._event(db, job_id, JobStatus.QUEUED.value, now)
                 row = db.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
@@ -851,6 +855,7 @@ class JobQueue:
             checkpoint_ref=row["checkpoint_ref"], result_ref=row["result_ref"], report_ref=row["report_ref"],
             learning_ref=row["learning_ref"], ledger_ref=row["ledger_ref"], cancel_requested=bool(row["cancel_requested"]),
             task_type=dict(zip(row.keys(), row)).get("task_type", "research"),
+            capabilities=tuple(json.loads(dict(zip(row.keys(), row)).get("capabilities", "[]"))),
         )
 
 

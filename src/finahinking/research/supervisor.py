@@ -411,11 +411,15 @@ class ResearchSupervisor:
 
     def _make_handle(self, job: JobRecord) -> SpawnWorkerHandle:
         stage_names: tuple[str, ...] = ()
+        requested = tuple(job.capabilities)
+        if requested and all(self._registry_has(name) for name in requested):
+            stage_names = requested
         try:
-            task = self.queue.resolve_task(job.task_ref)
-            requested = tuple(task.capabilities)
-            if requested and all(self._registry_has(name) for name in requested):
-                stage_names = requested
+            if not stage_names:
+                task = self.queue.resolve_task(job.task_ref)
+                requested = tuple(task.capabilities)
+                if requested and all(self._registry_has(name) for name in requested):
+                    stage_names = requested
         except (KeyError, AttributeError):
             pass
         if not stage_names:
