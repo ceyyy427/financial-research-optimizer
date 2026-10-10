@@ -1,5 +1,11 @@
 # Task 5 runtime service decision
 
+> Status correction: implementation is incomplete. The dedicated-process
+> requirement cannot be deferred away, and merely retaining resolver methods
+> does not prove they are called by spawned workers. Durable request loading,
+> default-workflow compatibility and meaningful budget-isolation acceptance
+> remain open. The description below records intent, not verified completion.
+
 `ResearchRuntimeService` now creates one `ResearchSupervisor` for the durable
 queue during service construction. `submit()` only persists a task contract;
 `run_until_terminal()` observes queue state and returns the durable terminal

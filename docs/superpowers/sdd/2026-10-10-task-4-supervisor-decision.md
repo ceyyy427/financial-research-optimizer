@@ -1,5 +1,9 @@
 # Task 4 supervisor decision
 
+> Status correction: this is an interim draft, not an accepted architecture
+> change. Task 4 explicitly requires an independent Supervisor process; the
+> daemon-thread implementation below does not satisfy that requirement.
+
 ## Decision
 
 `ResearchSupervisor` owns the only `SpawnWorkerHandle` construction path and

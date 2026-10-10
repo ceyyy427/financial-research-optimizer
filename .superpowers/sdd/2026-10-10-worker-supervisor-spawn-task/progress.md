@@ -37,10 +37,10 @@ Ruling: Default workflow must fail closed on blocked research states and persist
 Correction: Earlier completion entries overstated review closure. Local passing tests are not independent review; unavailable or interrupted reviewers did not approve changes. Only explicit tool capacity errors prove capacity unavailability. Both gates below are reopened before dependent implementation proceeds.
 Task 1: complete at c1d637f; 51 focused tests and Ruff pass; independent review approved strict RESULT, metrics, recursion/overflow, and invocation binding.
 Task 2: complete at 6439cde; 8 focused tests and Ruff pass; scoped independent re-review approved fail-closed artifact behavior and preserved callable/digest gates.
-Task 3: complete at 4ace08d plus digest-ordering fix 3fac889 and report 84dbaf2; 9 focused spawn tests and Ruff pass; scoped re-review approved pre-import digest validation. The worker uses spawn, strict RESULT artifact_ref+digest, sequenced terminal failures, timeout/cancel, and fail-closed registry/payload handling. Legacy ResearchWorker fork remains an explicit Task 8 migration item.
-Task 4: complete at 92099ad plus startup-recovery fix 42e3cc3; 31 focused supervisor/job_queue/spawn/worker tests and Ruff pass. Scoped re-review approved the dispatch recovery fix. The implementation deliberately keeps the supervisor loop in an owner-only daemon thread at this boundary; Task 5 must host the same loop behind a dedicated process/service lifecycle before request handling.
-Task 5: implementation in progress from a fresh runtime-service agent.
-Task 6: pending.
+Task 3: partial implementation at 4ace08d plus 3fac889; 9 focused spawn tests passed. Scoped review approved only the import-order fix, not every Task 3 acceptance criterion. Worker-local budget, bounded receive allocation, terminal-message latching, and all-stage validation still require verification. Legacy fork removal remains Task 8 work.
+Task 4: incomplete at 92099ad plus 42e3cc3. 31 focused tests passed and scoped review approved dispatch startup recovery, but a daemon thread does not satisfy the required independent Supervisor process. Reopen architecture, cancellation, ownership, and restart gates before integration continues.
+Task 5: incomplete draft committed at e44b9ee; 37 related tests passed, but independent reviewers were interrupted without a verdict. Callback resolver methods exist but are not wired into the new worker path; the default workflow receives WorkerInvocation rather than ResearchRequest. Stage routing still falls back when the reopened queue lacks ephemeral tasks. Metrics concurrency assertions were weakened to nonnegative retry counts; these do not demonstrate experiment isolation and must be restored with real worker charges. Explicit dedicated-process lifecycle and durable request loading remain required, not optional deferrals.
+Task 6: interrupted draft preserved in observability.py, supervisor.py and related tests; uncommitted and not accepted. No further dependent implementation until Task 3–5 gates close.
 Task 7: pending.
 Task 8: pending.
 Task 9: pending.
@@ -53,4 +53,10 @@ Task 9: pending.
 - Ruling: Stage callable admission is a correctness check on application-owned bootstrap code, not a sandbox against an attacker able to replace Python code objects and module exports — arbitrary-code resistance belongs to task-input isolation — cost if wrong is reworking the execution trust boundary.
 - Ruling: Keep interrupted Task 3 changes uncommitted while Task 1/2 gates are closed; test and review them only after prerequisite approval — prevents accidental acceptance of unfinished spawn behavior — cost is later integration work.
 - Ruling: Retain the pre-existing ResearchWorker fork path only as a temporary migration seam while Task 3 introduces SpawnWorkerHandle; Task 8 must remove the legacy path before release — avoids mixing the protocol implementation with the larger runtime-service migration — cost is a known interim fork finding in Task 3 review.
-- Ruling: Accept the Task 4 owner-only supervisor thread as an interim seam, because the public class has no process IPC contract yet; Task 5 is required to move lifecycle ownership out of request threads before release — cost is that Task 4 alone is not the final independent-process topology.
+- Correction: The interim-thread ruling is withdrawn as an acceptance decision. It cannot override the task plan's explicit independent-process architecture. Thread-based code is a draft only.
+
+## Current handoff evidence
+
+- This request's Task 1 and Task 2 independent reviews are approved. Task 2 intentionally blocks unverified in-memory report claims; file-backed report publication is not implemented by that fix.
+- Later implementation advanced before prerequisite acceptance. Those gates are reopened above, and no release/push/merge occurred.
+- Full-suite run during Task 5: 998 passed, 2 skipped, 1 failed at tests/validation/test_artifact_install.py::test_wheel_install_exposes_migrations_fixtures_and_local_routes. Cause and baseline attribution are unverified; do not call it unrelated or pre-existing.
