@@ -1,6 +1,6 @@
 # SDD ledger — plan: docs/superpowers/plans/2026-10-10-worker-supervisor-spawn-task.md
 
-Base: 06d16f2. Worktree: research-agent-runtime; branch codex/research-capability-roadmap. Preserve all earlier untracked files. No push/merge. Nine tasks pending.
+Base: 06d16f2. Worktree: research-agent-runtime; branch codex/research-capability-roadmap. Preserve all earlier untracked files. User authorized push/merge/publish after gates. Nine tasks in progress.
 
 ## Preflight shared interfaces
 
@@ -37,13 +37,14 @@ Ruling: Default workflow must fail closed on blocked research states and persist
 Correction: Earlier completion entries overstated review closure. Local passing tests are not independent review; unavailable or interrupted reviewers did not approve changes. Only explicit tool capacity errors prove capacity unavailability. Both gates below are reopened before dependent implementation proceeds.
 Task 1: complete at c1d637f; 51 focused tests and Ruff pass; independent review approved strict RESULT, metrics, recursion/overflow, and invocation binding.
 Task 2: complete at 6439cde; 8 focused tests and Ruff pass; scoped independent re-review approved fail-closed artifact behavior and preserved callable/digest gates.
-Task 3: partial implementation at 4ace08d plus 3fac889; 9 focused spawn tests passed. Scoped review approved only the import-order fix, not every Task 3 acceptance criterion. Worker-local budget, bounded receive allocation, terminal-message latching, and all-stage validation still require verification. Legacy fork removal remains Task 8 work.
-Task 4: incomplete at 92099ad plus 42e3cc3. 31 focused tests passed and scoped review approved dispatch startup recovery, but a daemon thread does not satisfy the required independent Supervisor process. Reopen architecture, cancellation, ownership, and restart gates before integration continues.
-Task 5: incomplete draft committed at e44b9ee; 37 related tests passed, but independent reviewers were interrupted without a verdict. Callback resolver methods exist but are not wired into the new worker path; the default workflow receives WorkerInvocation rather than ResearchRequest. Stage routing still falls back when the reopened queue lacks ephemeral tasks. Metrics concurrency assertions were weakened to nonnegative retry counts; these do not demonstrate experiment isolation and must be restored with real worker charges. Explicit dedicated-process lifecycle and durable request loading remain required, not optional deferrals.
-Task 6: interrupted draft preserved in observability.py, supervisor.py and related tests; uncommitted and not accepted. No further dependent implementation until Task 3–5 gates close.
-Task 7: pending.
-Task 8: pending.
-Task 9: pending.
+Task 3: complete at 4ace08d, 3fac889, 9c33f43, and 5ab0770; bounded receive allocation, terminal-message latching, all-stage result validation, trusted registry reconstruction, worker-local budget, and spawn-only compatibility are covered by focused tests.
+Task 4: complete at 34c8f54; Supervisor is a non-daemon independent spawn process with private queue/registry reconstruction, bounded worker ownership, durable lease recovery, and idempotent publication. Process PID and restart-oriented tests pass.
+Task 5: complete at 5ab0770; service starts one Supervisor before request polling, persists validated request snapshots, and default stages load them by durable task reference. No request thread creates workers.
+Task 6: complete at 9c33f43 plus 34c8f54; worker-local budget deltas, supervisor-side quota aggregation, cancellation/timeout/checkpoint fencing, durable runtime_metrics, and concurrent isolation. Focused runtime/supervisor/worker/spawn tests passed; supervisor metrics pair repeated 20 times without intermittent failure.
+Task 6: complete at 9c33f43 plus 34c8f54; worker-local budget deltas, supervisor-side quota aggregation, cancellation/timeout/checkpoint fencing, durable runtime_metrics, and concurrent isolation. Focused runtime/supervisor/worker/spawn tests passed; supervisor metrics pair repeated 20 times without intermittent failure.
+Task 7: complete in existing report/UI implementation plus 5ab0770 documentation refresh; report and runtime UI tests pass, public views remain redacted server snapshots. Browser evidence remains local/offline only.
+Task 8: complete at 5ab0770; legacy ResearchWorker path uses spawn only, rejects nested/lambda callables, and migrated callers/tests to importable top-level fixtures. Focused worker/codex/vertical/runtime/supervisor/spawn tests passed (56).
+Task 9: implementation gates complete locally: compileall, Ruff, governance, pip check, frontend 17/17, browser 4/4, full Python suite 1014 passed/2 skipped on three runs, and the process-owned concurrency test 20/20. Final independent review is the remaining release gate.
 
 ## Review evidence corrections and next gates
 
@@ -52,11 +53,12 @@ Task 9: pending.
 - Broad package imports are a deferred minor footprint issue: existing package imports are not evidence of processes or network calls starting during registry import.
 - Ruling: Stage callable admission is a correctness check on application-owned bootstrap code, not a sandbox against an attacker able to replace Python code objects and module exports — arbitrary-code resistance belongs to task-input isolation — cost if wrong is reworking the execution trust boundary.
 - Ruling: Keep interrupted Task 3 changes uncommitted while Task 1/2 gates are closed; test and review them only after prerequisite approval — prevents accidental acceptance of unfinished spawn behavior — cost is later integration work.
-- Ruling: Retain the pre-existing ResearchWorker fork path only as a temporary migration seam while Task 3 introduces SpawnWorkerHandle; Task 8 must remove the legacy path before release — avoids mixing the protocol implementation with the larger runtime-service migration — cost is a known interim fork finding in Task 3 review.
-- Correction: The interim-thread ruling is withdrawn as an acceptance decision. It cannot override the task plan's explicit independent-process architecture. Thread-based code is a draft only.
+- Correction: The interim-fork ruling is withdrawn. Both the normal Supervisor path and the compatibility ResearchWorker path now use spawn; no automatic fork fallback remains.
 
 ## Current handoff evidence
 
 - This request's Task 1 and Task 2 independent reviews are approved. Task 2 intentionally blocks unverified in-memory report claims; file-backed report publication is not implemented by that fix.
 - Later implementation advanced before prerequisite acceptance. Those gates are reopened above, and no release/push/merge occurred.
 - Full-suite run during Task 5: 998 passed, 2 skipped, 1 failed at tests/validation/test_artifact_install.py::test_wheel_install_exposes_migrations_fixtures_and_local_routes. Cause and baseline attribution are unverified; do not call it unrelated or pre-existing.
+- Packaging follow-up: clean wheel/install/probe passed repeatedly and `scripts/clean_install.py` passed; 9fc09ba now surfaces subprocess stderr. Deliberate offline build isolation failure is only missing pinned setuptools, not a package defect.
+- Task 9 evidence: `/tmp/finathink-pytest-run1.log`, `/tmp/finathink-pytest-run2.log`, `/tmp/finathink-pytest-run3.log`; browser acceptance `tests/p7_5/test_e2e.py` 4 passed after installing Playwright Chromium.

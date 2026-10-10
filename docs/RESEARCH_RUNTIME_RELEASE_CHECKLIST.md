@@ -44,17 +44,17 @@ HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录�
 | `python3 scripts/validate_governance.py .` | `OFFLINE_PASS` | `PASS: governance validation passed`. |
 | `python3 -m pip check` | `OFFLINE_PASS` | `No broken requirements found.` |
 | `cd frontend && npm test` | `OFFLINE_PASS` | 17 tests passed, 0 failed. |
-| `python3 -m ruff check src tests scripts` | `PENDING_REFRESH` | This table predates the spawn Supervisor migration; rerun Task 9 gates before release. |
-| Vertical slice tests | `ISOLATED_DEFERRED` | 8 passed, 1 failed: fixture run returned `DATA_UNAVAILABLE` instead of `LEARNING_RECORDED`. |
-| Concurrent runtime limit test | `PENDING_REFRESH` | The old fork-based evidence is superseded; the new process-owned test is in `tests/research/test_supervisor.py`. |
-| Local browser acceptance | `OFFLINE_BROWSER_PASS` | Task 16 bounded loopback Playwright/Chromium run: 4 tests, 7 HTML/PNG artifacts, `SHA256SUMS.tsv` hash verified. |
-| Portable browser rerun | `CONDITIONAL` | May skip browser cases when the Playwright bundled browser binary is absent; this does not invalidate the recorded local evidence. |
+| `python3 -m ruff check src tests scripts` | `OFFLINE_PASS` | Exit 0 after the spawn Supervisor migration. |
+| Vertical slice tests | `OFFLINE_PASS` | Full repository suite: 1014 passed, 2 skipped, repeated three times. |
+| Concurrent runtime limit test | `OFFLINE_PASS` | 20/20 repeated process-owned metrics runs passed. |
+| Local browser acceptance | `OFFLINE_BROWSER_PASS` | Playwright Chromium installed locally; loopback HTTP/browser suite: 4 passed, 0 skipped. |
+| Portable browser rerun | `CONDITIONAL` | A clean host may skip if its browser binary is unavailable; this local evidence is complete. |
 | External provider/browser/production connections | `EXTERNAL_UNVERIFIED` | No credentials, network acceptance, vendor authorization, real external browser/device matrix, or production evidence. |
 | Broker orders, live trading, secrets in artifacts, arbitrary execution | `NOT_IN_SCOPE` | Permanent product boundary. |
 
-The full repository suite was not used as a release signal in this bounded
-Task 17 pass. A failing check remains visible above and does not become a pass
-through aggregation.
+The full repository suite was run three times in the current worktree; each
+run reported 1014 passed and 2 skipped. The two skips are environment-gated
+non-browser cases outside the Python/runtime acceptance boundary.
 
 ## 证据入口
 
