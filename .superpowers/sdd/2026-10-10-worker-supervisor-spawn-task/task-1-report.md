@@ -12,13 +12,13 @@ Result: collection failed as expected because `finahinking.research.runtime_prot
 
 ## GREEN
 
-Implemented `WorkerInvocation`, `WorkerMessage`, bounded canonical JSON encode/decode, explicit message kinds, SHA-256 invocation digests, strict field/type validation, finite-number checks, unsafe secret/path/prompt field rejection, size limits, and job/digest validation. Added package exports and focused tests.
+Implemented `WorkerInvocation`, `WorkerMessage`, bounded canonical JSON encode/decode, explicit message kinds, SHA-256 invocation digests, strict field/type validation, finite-number checks, recursive unsafe secret/path/prompt value rejection, immutable defensive copies, explicit digest validation, duplicate-key rejection, size limits, and job/digest validation. Added package exports and focused tests.
 
 Commands:
 
 ```text
 python3 -m pytest -q tests/research/test_runtime_protocol.py
-# 10 passed in 0.49s
+# 20 passed
 
 python3 -m ruff check src/finahinking/research/runtime_protocol.py tests/research/test_runtime_protocol.py src/finahinking/research/__init__.py
 # All checks passed!
