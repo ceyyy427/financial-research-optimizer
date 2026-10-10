@@ -138,3 +138,26 @@ def test_malformed_direct_payload_fails_closed() -> None:
     finally:
         parent.close()
 
+
+def test_registry_digest_is_checked_before_runner_import(monkeypatch: pytest.MonkeyPatch) -> None:
+    from finahinking.research import worker_entrypoint
+
+    def forbidden_import(name: str):
+        raise AssertionError(f"unexpected import: {name}")
+
+    monkeypatch.setattr(worker_entrypoint.importlib, "import_module", forbidden_import)
+    descriptor = {
+        "digest": "0" * 64,
+        "stages": [
+            {
+                "name": "json-stage",
+                "version": "1",
+                "runner_key": "json.stage",
+                "paper_only": True,
+                "runner": {"module": "json", "name": "dumps", "qualname": "dumps"},
+            }
+        ],
+    }
+    with pytest.raises(StageRegistryError, match="digest mismatch"):
+        worker_entrypoint._rebuild_registry(descriptor)
+

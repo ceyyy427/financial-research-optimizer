@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import inspect
+import json
 import math
 import multiprocessing
 import time
@@ -114,6 +115,40 @@ def _registry_payload(registry: StageRegistry) -> dict[str, object]:
     return {"digest": registry.digest(), "stages": stages}
 
 
+def _registry_descriptor_digest(stages: list[object]) -> str:
+    """Hash only the code-owned descriptor, before importing any runner."""
+
+    normalized: list[dict[str, object]] = []
+    for item in stages:
+        if not isinstance(item, Mapping) or set(item) != _STAGE_FIELDS:
+            raise StageRegistryError("registry stage descriptor is malformed")
+        runner_identity = item.get("runner")
+        if not isinstance(runner_identity, Mapping) or set(runner_identity) != {"module", "name", "qualname"}:
+            raise StageRegistryError("registry runner descriptor is malformed")
+        module_name = runner_identity.get("module")
+        runner_name = runner_identity.get("name")
+        qualname = runner_identity.get("qualname")
+        if (
+            not isinstance(module_name, str)
+            or not isinstance(runner_name, str)
+            or not isinstance(qualname, str)
+            or not module_name
+            or not runner_name
+            or qualname != runner_name
+        ):
+            raise StageRegistryError("registry runner identity is malformed")
+        spec = StageSpec(
+            name=item["name"],
+            version=item["version"],
+            runner_key=item["runner_key"],
+            paper_only=item["paper_only"],
+        )
+        normalized.append({**spec.to_payload(), "runner": {"module": module_name, "name": runner_name, "qualname": qualname}})
+    normalized.sort(key=lambda value: str(value["name"]))
+    raw = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _rebuild_registry(payload: Mapping[str, object]) -> StageRegistry:
     if not isinstance(payload, Mapping) or set(payload) != _REGISTRY_FIELDS:
         raise StageRegistryError("registry bootstrap is malformed")
@@ -123,6 +158,11 @@ def _rebuild_registry(payload: Mapping[str, object]) -> StageRegistry:
         raise StageRegistryError("registry digest is malformed")
     if not isinstance(stages, list):
         raise StageRegistryError("registry stages are malformed")
+    # Verify the signed-by-parent descriptor before importing any module name
+    # it contains.  The final registry digest check below still confirms that
+    # each imported runner is the exact exported top-level callable.
+    if _registry_descriptor_digest(stages) != digest:
+        raise StageRegistryError("registry digest mismatch")
     registry = StageRegistry()
     for item in stages:
         if not isinstance(item, Mapping) or set(item) != _STAGE_FIELDS:
