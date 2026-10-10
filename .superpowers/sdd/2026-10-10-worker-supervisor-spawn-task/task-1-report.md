@@ -34,3 +34,25 @@ python3 -m pytest -q
 ```
 
 The full-suite failure is unrelated to the new protocol files and was preserved for the parent task's concurrency investigation.
+
+## Fix round — strict protocol boundary hardening
+
+Addressed review failures in the protocol boundary:
+
+- applied the repository's stable public-reference grammar and sensitive-reference checks;
+- added per-kind message schemas, required fields, digest/reference types, progress bounds, and non-negative attempt/sequence validation;
+- made unhashable and malformed values raise `ProtocolError` rather than leaking `TypeError` or recursion errors;
+- bounded recursive JSON validation, rejected lone UTF-16 surrogates, and enforced a 64 KiB invocation envelope limit;
+- preserved immutable defensive copies and duplicate-key rejection during encode/decode.
+
+Validation:
+
+```text
+python3 -m pytest -q tests/research/test_runtime_protocol.py
+# 44 passed
+
+python3 -m ruff check src/finahinking/research/runtime_protocol.py tests/research/test_runtime_protocol.py
+# All checks passed!
+```
+
+The contradictory `job_id=job-1` rejection case was removed from the focused test parameterization because `job-1` is the repository's valid public-reference form and is also the fixture default.

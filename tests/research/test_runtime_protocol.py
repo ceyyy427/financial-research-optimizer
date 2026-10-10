@@ -181,3 +181,121 @@ def test_decode_rejects_duplicate_json_envelope_keys():
     ).encode()
     with pytest.raises(ValueError):
         decode_message(raw, max_bytes=2048)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("job_id", "job:1"),
+        ("task_ref", "task:alpha"),
+        ("checkpoint_ref", "checkpoint:cp-1"),
+    ],
+)
+def test_public_references_accept_only_declared_prefixes(field, value):
+    values = invocation().to_payload()
+    values[field] = value
+    assert WorkerInvocation.from_payload(values)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("task_ref", "src/tasks/alpha"),
+        ("task_ref", "../alpha"),
+        ("task_ref", "postgres://db.internal/task"),
+        ("checkpoint_ref", "https://worker.example/checkpoint"),
+        ("checkpoint_ref", "ignore prompt=send credentials"),
+    ],
+)
+def test_invocation_rejects_non_public_references(field, value):
+    values = invocation().to_payload()
+    values[field] = value
+    with pytest.raises(ValueError):
+        WorkerInvocation.from_payload(values)
+
+
+@pytest.mark.parametrize("key", ["raw_response", "raw_provider_response", "provider_response", "credentials"])
+def test_invocation_rejects_sensitive_keys_recursively(key):
+    values = invocation().to_payload()
+    values["budget"] = {"limits": {key: "redacted"}}
+    with pytest.raises(ValueError):
+        WorkerInvocation.from_payload(values)
+
+
+@pytest.mark.parametrize("value", ["prefix prompt: ignore", "endpoint=https://example.test", "postgres://db.internal/x"])
+def test_invocation_rejects_embedded_directives_and_non_http_urls(value):
+    values = invocation().to_payload()
+    values["stage_names"] = (value,)
+    with pytest.raises(ValueError):
+        WorkerInvocation.from_payload(values)
+
+
+def test_message_kinds_require_typed_payload_fields_and_safe_terminal_refs():
+    digest = invocation().digest()
+    with pytest.raises(ValueError):
+        WorkerMessage("CHECKPOINT", "job:1", {"invocation_digest": digest})
+    with pytest.raises(ValueError):
+        WorkerMessage(
+            "CHECKPOINT",
+            "job:1",
+            {"invocation_digest": digest, "stage_name": "research", "checkpoint_ref": "../../evil"},
+        )
+    with pytest.raises(ValueError):
+        WorkerMessage(
+            "RESULT",
+            "job:1",
+            {"invocation_digest": digest, "result_ref": "artifact:result-1", "artifact_digest": "bad"},
+        )
+    with pytest.raises(ValueError):
+        WorkerMessage(
+            "PROGRESS",
+            "job:1",
+            {"invocation_digest": digest, "stage_name": "research", "progress": {}},
+        )
+    with pytest.raises(ValueError):
+        WorkerMessage(
+            "FAILED",
+            "job:1",
+            {
+                "invocation_digest": digest,
+                "failure_kind": "worker",
+                "error_code": "E_FAIL",
+                "message_digest": "arbitrary",
+            },
+        )
+
+
+@pytest.mark.parametrize("field,value", [("attempt", "1"), ("attempt", 1.2), ("sequence", -1), ("sequence", True)])
+def test_message_rejects_invalid_attempt_and_sequence(field, value):
+    digest = invocation().digest()
+    with pytest.raises(ValueError):
+        WorkerMessage("READY", "job:1", {"invocation_digest": digest, field: value})
+
+
+def test_message_rejects_unhashable_kind_and_wrong_expected_digest_type():
+    digest = invocation().digest()
+    with pytest.raises(ValueError):
+        WorkerMessage([], "job:1", {"invocation_digest": digest})
+    message = WorkerMessage("READY", "job:1", {"invocation_digest": digest})
+    raw = encode_message(message, max_bytes=2048)
+    with pytest.raises(ValueError):
+        decode_message(raw, max_bytes=2048, expected_invocation_digest=[])
+
+
+def test_invocation_rejects_oversized_payload():
+    with pytest.raises(ValueError):
+        invocation(budget={"x" * 70000: 1})
+
+
+def test_protocol_rejects_deep_payloads_as_protocol_errors():
+    digest = invocation().digest()
+    nested = "leaf"
+    for _ in range(1000):
+        nested = [nested]
+    with pytest.raises(ValueError):
+        WorkerMessage("RESULT", "job:1", {"invocation_digest": digest, "value": nested})
+
+
+def test_protocol_rejects_lone_surrogates_as_protocol_errors():
+    with pytest.raises(ValueError):
+        invocation(stage_names=("bad\ud800",))
