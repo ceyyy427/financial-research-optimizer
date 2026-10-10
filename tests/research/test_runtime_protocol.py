@@ -372,14 +372,16 @@ def test_protocol_rejects_deep_payloads_as_protocol_errors():
 
 def test_decode_rejects_deep_json_and_huge_integer_as_protocol_errors():
     digest = invocation().digest()
-    nested = "x"
+    nested = b'"x"'
     for _ in range(1000):
-        nested = [nested]
-    raw = json.dumps({
-        "kind": "READY",
-        "job_id": "job-1",
-        "payload": {"invocation_digest": digest, "status": "ready", "nested": nested},
-    }).encode()
+        nested = b"[" + nested + b"]"
+    raw = (
+        b'{"kind":"READY","job_id":"job-1","payload":{"invocation_digest":"'
+        + digest.encode()
+        + b'","status":"ready","nested":'
+        + nested
+        + b"}}"
+    )
     with pytest.raises(ValueError):
         decode_message(raw, max_bytes=len(raw) + 1)
 

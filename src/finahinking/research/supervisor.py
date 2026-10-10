@@ -90,7 +90,9 @@ def _supervisor_process_main(config: Mapping[str, object], connection) -> None:
         max_concurrency=config["max_concurrency"],
         poll_interval=config["poll_interval"],
         budget=config["budget"],
-        lease_seconds=config.get("lease_seconds"),
+        # Spawn startup on slower CI hosts can exceed a sub-second test lease;
+        # the supervisor's operational lease must cover process admission.
+        lease_seconds=max(1.0, float(config.get("lease_seconds") or 300.0)),
         backoff_base_seconds=config.get("backoff_base_seconds"),
         backoff_max_seconds=config.get("backoff_max_seconds"),
         max_attempts=config.get("max_attempts"),
@@ -330,6 +332,24 @@ class ResearchSupervisor:
             try:
                 handle = self._make_handle(job)
                 handle.start()
+                # Record an admission heartbeat immediately. Besides making
+                # the lease extension observable, this renews the fence after
+                # potentially slow spawn startup on a constrained host.
+                if job.lease_until is not None and job.lease_token is not None:
+                    try:
+                        job = self.queue.heartbeat(
+                            job.job_id,
+                            worker_id=job.worker_id or self.worker_id,
+                            attempt=job.attempts,
+                            lease_until=job.lease_until,
+                            lease_token=job.lease_token,
+                        )
+                    except StaleLeaseError:
+                        handle.cancel()
+                        handle.join()
+                        self._retry_or_fail(job, "STALE_LEASE")
+                        completed += 1
+                        continue
             except (OSError, RuntimeError, ValueError):
                 self._retry_or_fail(job, "WORKER_START_FAILED")
                 completed += 1
