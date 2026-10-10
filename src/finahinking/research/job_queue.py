@@ -640,11 +640,61 @@ class JobQueue:
                 raise KeyError(f"unknown task: {task_ref}")
             return float(row["task_timeout"])
 
+    def heartbeat(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        attempt: int,
+        lease_until: float,
+        lease_token: str,
+    ) -> JobRecord:
+        """Renew a live lease using the complete worker fence.
+
+        Renewal is a durable atomic transition; a late worker can never
+        resurrect an expired or reassigned attempt.
+        """
+        job_id = _ref(job_id, "job_id")
+        now = float(self._clock())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._must_row(db, job_id)
+            self._assert_fence(
+                row, worker_id=worker_id, attempt=attempt,
+                lease_until=lease_until, lease_token=lease_token, now=now,
+            )
+            renewed_until = now + self.lease_seconds
+            db.execute(
+                "UPDATE jobs SET lease_until=?, updated_at=? WHERE job_id=?",
+                (renewed_until, now, job_id),
+            )
+            self._event(
+                db, job_id, "heartbeat", now, worker_id=worker_id,
+                attempt=attempt, lease_token_digest=stable_digest(lease_token)[:32],
+            )
+            result = self._must_row(db, job_id)
+            db.commit()
+            return self._row(result)
+
+    def recover_expired(self) -> tuple[JobRecord, ...]:
+        """Requeue or terminally settle all expired running leases.
+
+        The transition runs under one IMMEDIATE transaction so a concurrent
+        claimant cannot observe a half-recovered job.
+        """
+        now = float(self._clock())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            recovered = self._recover_expired(db, now)
+            db.commit()
+            return recovered
+
     def is_cancel_requested(self, job_id: str) -> bool:
         return bool(self.get(job_id).cancel_requested)
 
-    def _recover_expired(self, db: sqlite3.Connection, now: float) -> None:
+    def _recover_expired(self, db: sqlite3.Connection, now: float) -> tuple[JobRecord, ...]:
         rows = db.execute("SELECT * FROM jobs WHERE status=? AND lease_until IS NOT NULL AND lease_until <= ?", (JobStatus.RUNNING.value, now)).fetchall()
+        recovered: list[JobRecord] = []
         for row in rows:
             if row["cancel_requested"]:
                 status = JobStatus.CANCELLED
@@ -654,6 +704,8 @@ class JobQueue:
                 status = JobStatus.RETRYABLE
             db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, available_at=?, updated_at=? WHERE job_id=?", (status.value, now, now, row["job_id"]))
             self._event(db, row["job_id"], status.value, now)
+            recovered.append(self._row(self._must_row(db, row["job_id"])))
+        return tuple(recovered)
 
     @staticmethod
     def _event(

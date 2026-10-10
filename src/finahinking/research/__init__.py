@@ -130,6 +130,7 @@ from .stage_registry import (
     default_stage_registry,
     run_default_workflow_stage,
 )
+from .supervisor import ResearchSupervisor
 from .tools import (
     ResearchToolGateway,
     ResearchToolName,
@@ -223,6 +224,7 @@ __all__ = [
     "ResearchRunStore",
     "ResearchRuntimeService",
     "ResearchState",
+    "ResearchSupervisor",
     "ResearchToolGateway",
     "ResearchToolName",
     "ResearchToolRequest",
