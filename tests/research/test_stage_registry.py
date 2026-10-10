@@ -129,3 +129,21 @@ def test_default_workflow_requires_persisted_manifest_for_success():
 
     malformed = type("Workflow", (), {"state": None})()
     assert _workflow_result_payload(malformed)["status"] == "blocked"
+
+
+def test_default_workflow_rejects_fake_mismatched_or_unverified_manifests():
+    from finahinking.research.contracts import ReportManifest
+    from finahinking.research.stage_registry import _workflow_result_payload
+
+    state = type("State", (), {"run_id": "run-1", "current_state": "LEARNING_RECORDED", "decision_eligible": True})()
+    fake = type("Manifest", (), {"run_id": "run-1", "files": {"report.html": "a" * 64}})()
+    workflow = type("Workflow", (), {"state": state, "decision": object(), "manifest": fake})()
+    assert _workflow_result_payload(workflow)["status"] == "blocked"
+
+    mismatched = ReportManifest(run_id="run-2", schema_version="research-report.v1", files={"report.html": "a" * 64}, source_snapshot={}, created_at="2026-01-01T00:00:00+00:00")
+    workflow.manifest = mismatched
+    assert _workflow_result_payload(workflow)["status"] == "blocked"
+
+    valid = ReportManifest(run_id="run-1", schema_version="research-report.v1", files={"report.html": "a" * 64}, source_snapshot={}, created_at="2026-01-01T00:00:00+00:00")
+    workflow.manifest = valid
+    assert _workflow_result_payload(workflow) == {"status": "completed", "result_ref": "artifact:run-1"}

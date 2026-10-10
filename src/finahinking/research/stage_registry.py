@@ -20,6 +20,8 @@ from dataclasses import dataclass
 StageRunner = Callable[..., Mapping[str, object]]
 _SAFE_REF = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]{0,63}$")
 _SAFE_VERSION = re.compile(r"^[0-9A-Za-z][A-Za-z0-9_.:-]{0,63}$")
+_SAFE_FILE = re.compile(r"^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class StageRegistryError(ValueError):
@@ -141,18 +143,33 @@ def _workflow_result_payload(workflow: object) -> Mapping[str, object]:
         state = getattr(getattr(workflow, "state", None), "current_state", None)
         state_name = getattr(state, "value", state)
         state_obj = getattr(workflow, "state", None)
+        state_run_id = getattr(state_obj, "run_id", None)
         eligible = getattr(state_obj, "decision_eligible", False)
         decision = getattr(workflow, "decision", None)
         manifest = getattr(workflow, "manifest", None)
         files = getattr(manifest, "files", None)
         run_id = getattr(manifest, "run_id", None)
+        from .contracts import ReportManifest
+
+        valid_files = (
+            isinstance(files, Mapping)
+            and bool(files)
+            and all(
+                isinstance(path, str)
+                and _SAFE_FILE.fullmatch(path)
+                and isinstance(digest, str)
+                and _SHA256.fullmatch(digest)
+                for path, digest in files.items()
+            )
+        )
         if (
             state_name == "LEARNING_RECORDED"
             and eligible is True
             and decision is not None
-            and isinstance(files, Mapping)
-            and bool(files)
-            and isinstance(run_id, str)
+            and isinstance(manifest, ReportManifest)
+            and valid_files
+            and isinstance(state_run_id, str)
+            and state_run_id == run_id
             and _SAFE_REF.fullmatch(run_id)
         ):
             return {"status": "completed", "result_ref": f"artifact:{run_id}"}

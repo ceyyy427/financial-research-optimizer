@@ -39,11 +39,15 @@ task only establishes the trusted bootstrap registry and its admission tests.
   reference; malformed workflow objects fail closed;
 - regression coverage expanded to seven focused tests.
 
+The follow-up artifact hardening now requires an actual `ReportManifest`, a
+matching workflow run id, safe relative file names, and verified SHA-256 file
+digests before a completed result reference is emitted.
+
 Validation:
 
 ```text
 PYTHONPATH=src python3 -m pytest -q tests/research/test_stage_registry.py
-# 7 passed
+# 8 passed
 
 PYTHONPATH=src python3 -m ruff check src/finahinking/research/stage_registry.py tests/research/test_stage_registry.py
 # All checks passed!
