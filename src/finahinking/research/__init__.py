@@ -112,6 +112,14 @@ from .run_store import (
     RunControl,
     RunStoreError,
 )
+from .runtime_protocol import (
+    ALLOWED_MESSAGE_KINDS,
+    ProtocolError,
+    WorkerInvocation,
+    WorkerMessage,
+    decode_message,
+    encode_message,
+)
 from .runtime_service import ResearchRuntimeService, RuntimeLimits
 from .settlement import SettlementEvent
 from .tools import (
@@ -126,6 +134,7 @@ from .worker import ResearchWorker, WorkerResult, WorkerStatus
 from .workflow import AnalystSpec, ResearchOrchestrator, WorkflowLimits
 
 __all__ = [
+    "ALLOWED_MESSAGE_KINDS",
     "BUILTIN_AUDITED_CATALOG",
     "DEFAULT_FACTOR_CATALOG",
     "AdmissionDecision",
@@ -189,6 +198,7 @@ __all__ = [
     "ParameterSurface",
     "PerformanceReport",
     "PortfolioManager",
+    "ProtocolError",
     "ProviderAdapterError",
     "ProviderContractResult",
     "ProviderCredentialRef",
@@ -228,6 +238,8 @@ __all__ = [
     "StressReport",
     "UserApiDriver",
     "VersionedResearchPolicy",
+    "WorkerInvocation",
+    "WorkerMessage",
     "WorkerResult",
     "WorkerStatus",
     "WorkflowLimits",
@@ -239,6 +251,8 @@ __all__ = [
     "compute_parameter_surface",
     "compute_performance_report",
     "current_runtime_budget",
+    "decode_message",
+    "encode_message",
     "load_audited_catalog",
     "provider_status_payload",
     "reconcile_learning",
