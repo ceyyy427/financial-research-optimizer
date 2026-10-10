@@ -148,8 +148,9 @@ class ResearchSupervisor:
         job = self.queue.claim(self.worker_id, job_id=job_id)
         if job is None:
             return None
-        handle = self._make_handle(job)
+        handle: SpawnWorkerHandle | None = None
         try:
+            handle = self._make_handle(job)
             handle.start()
             terminal: WorkerMessage | None = None
             while terminal is None:
@@ -164,8 +165,15 @@ class ResearchSupervisor:
                     terminal = message
             self._publish_terminal(job, terminal)
             return terminal
+        except (OSError, RuntimeError, ValueError, StageRegistryError):
+            # A synchronous caller must not strand a claimed job in RUNNING
+            # when registry admission or process startup fails.  Return the
+            # job to the durable retry state under the same lease fence.
+            self._retry_or_fail(job, "WORKER_START_FAILED")
+            return None
         finally:
-            handle.join()
+            if handle is not None:
+                handle.join()
 
     def _make_handle(self, job: JobRecord) -> SpawnWorkerHandle:
         stage_names: tuple[str, ...] = ()

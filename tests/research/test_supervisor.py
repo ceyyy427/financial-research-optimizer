@@ -99,3 +99,13 @@ def test_queue_heartbeat_uses_fence_and_wal(tmp_path) -> None:
     with sqlite3.connect(path) as db:
         assert db.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
 
+
+def test_dispatch_start_failure_does_not_strand_running_job(tmp_path) -> None:
+    path = tmp_path / "jobs.sqlite"
+    queue = JobQueue(path, backoff_base_seconds=0)
+    record = queue.enqueue(_task("start-failure"), "idem-start-failure")
+    supervisor = ResearchSupervisor(path, registry=StageRegistry(), worker_id="supervisor-a", max_concurrency=1)
+
+    assert supervisor.dispatch(record.job_id) is None
+    assert queue.get(record.job_id).status is JobStatus.RETRYABLE
+
