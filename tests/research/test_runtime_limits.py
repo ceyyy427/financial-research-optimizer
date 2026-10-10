@@ -9,6 +9,7 @@ import pytest
 from finahinking.research.observability import (
     RuntimeBudget,
     RuntimeLimitExceeded,
+    WorkerMetricsDelta,
     bind_runtime_budget,
 )
 from finahinking.research.provider_adapters import (
@@ -63,9 +64,47 @@ def test_experiment_and_wall_limits_are_traceable() -> None:
         budget.check_wall()
 
 
+def test_worker_metrics_deltas_are_aggregated_per_job_and_enforce_limits() -> None:
+    limits = RuntimeLimits(max_provider_calls=2, max_bytes=20, max_experiments=3)
+    first = RuntimeBudget("job-one", limits)
+    second = RuntimeBudget("job-two", limits)
+    first.apply_delta(WorkerMetricsDelta("job-one", experiments=2, provider_calls=1, bytes_used=8, stage_seconds={"workflow": 0.5}))
+    second.apply_delta(WorkerMetricsDelta("job-two", experiments=1, provider_calls=2, bytes_used=12))
+    assert first.metrics().experiments == 2
+    assert second.metrics().experiments == 1
+    assert first.metrics().stage_durations == {"workflow": 0.5}
+    with pytest.raises(RuntimeLimitExceeded, match="RESOURCE_LIMIT"):
+        first.apply_delta(WorkerMetricsDelta("job-one", provider_calls=2))
+    with pytest.raises(ValueError, match="another job"):
+        first.apply_delta(WorkerMetricsDelta("job-two", provider_calls=1))
+
+
+def test_worker_local_delta_drains_only_unpublished_charges() -> None:
+    worker = RuntimeBudget("job-one", RuntimeLimits())
+    aggregate = RuntimeBudget("job-one", RuntimeLimits())
+    worker.charge_experiments(2)
+    worker.charge_provider_call(10)
+    aggregate.apply_delta(worker.delta())
+    aggregate.apply_delta(worker.delta())
+    worker.charge_bytes(5)
+    aggregate.apply_delta(worker.delta())
+    assert aggregate.metrics().experiments == 2
+    assert aggregate.metrics().provider_calls == 1
+    assert aggregate.metrics().bytes_used == 15
+
+
+@pytest.mark.parametrize("amount", [-1, True, 1.5])
+def test_provider_charge_cannot_reduce_or_coerce_byte_counter(amount) -> None:
+    budget = RuntimeBudget("job-one", RuntimeLimits(max_bytes=1))
+    with pytest.raises(ValueError, match="non-negative"):
+        budget.charge_provider_call(amount)
+    assert budget.metrics().provider_calls == 0
+    assert budget.metrics().bytes_used == 0
+
+
 def test_service_rejects_concurrent_run_for_same_instance(tmp_path) -> None:
-    entered = multiprocessing.get_context("fork").Event()
-    release = multiprocessing.get_context("fork").Event()
+    entered = threading.Event()
+    release = threading.Event()
 
     service = ResearchRuntimeService(tmp_path / "jobs.sqlite", stage_runners={"workflow": spawn_stage})
     first = service.submit(request("limit-concurrency-1"))

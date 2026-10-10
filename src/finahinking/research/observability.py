@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import contextvars
 import math
-import multiprocessing
-import queue
+import threading
 import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -50,61 +49,93 @@ class RuntimeMetrics:
         return safe
 
 
+@dataclass(frozen=True, slots=True)
+class WorkerMetricsDelta:
+    """Worker-local counters safe to aggregate at the supervisor boundary."""
+
+    job_id: str
+    experiments: int = 0
+    provider_calls: int = 0
+    bytes_used: int = 0
+    stage_seconds: Mapping[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.job_id, str) or not self.job_id:
+            raise ValueError("job_id must be non-empty")
+        for name in ("experiments", "provider_calls", "bytes_used"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be non-negative")
+        if not isinstance(self.stage_seconds, Mapping) or any(not isinstance(k, str) or not k or isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0 for k, v in self.stage_seconds.items()):
+            raise ValueError("stage_seconds is invalid")
+
+    def to_payload(self) -> dict[str, object]:
+        """Return the bounded, JSON-shaped payload sent over worker IPC."""
+
+        return {
+            "experiments": self.experiments,
+            "provider_calls": self.provider_calls,
+            "bytes_used": self.bytes_used,
+            "stage_durations": dict(self.stage_seconds),
+        }
+
+
 class RuntimeBudget:
-    """Shared per-run accounting; charges happen before resource use."""
+    """Worker-local accounting; supervisors aggregate published deltas."""
 
     def __init__(self, run_id: str, limits: RuntimeLimits) -> None:
         self.run_id = run_id
         self.limits = limits
         self.started = time.monotonic()
-        self._lock = multiprocessing.RLock()
-        self._provider_calls = multiprocessing.Value("q", 0)
-        self._bytes_used = multiprocessing.Value("q", 0)
-        self._experiments = multiprocessing.Value("q", 0)
-        self._resource_failures = multiprocessing.Value("q", 0)
-        self._retry_count = multiprocessing.Value("q", 0)
-        self._stage_events: multiprocessing.Queue[tuple[str, float]] = multiprocessing.Queue()
+        self._lock = threading.RLock()
+        self._provider_calls = 0
+        self._bytes_used = 0
+        self._experiments = 0
+        self._resource_failures = 0
+        self._retry_count = 0
         self.stage_durations: dict[str, float] = {}
+        self._published_counts = (0, 0, 0)
+        self._published_durations: dict[str, float] = {}
 
     @property
     def provider_calls(self) -> int:
-        return self._provider_calls.value
+        return self._provider_calls
 
     @provider_calls.setter
     def provider_calls(self, value: int) -> None:
-        self._provider_calls.value = value
+        self._provider_calls = value
 
     @property
     def bytes_used(self) -> int:
-        return self._bytes_used.value
+        return self._bytes_used
 
     @bytes_used.setter
     def bytes_used(self, value: int) -> None:
-        self._bytes_used.value = value
+        self._bytes_used = value
 
     @property
     def experiments(self) -> int:
-        return self._experiments.value
+        return self._experiments
 
     @experiments.setter
     def experiments(self, value: int) -> None:
-        self._experiments.value = value
+        self._experiments = value
 
     @property
     def resource_failures(self) -> int:
-        return self._resource_failures.value
+        return self._resource_failures
 
     @resource_failures.setter
     def resource_failures(self, value: int) -> None:
-        self._resource_failures.value = value
+        self._resource_failures = value
 
     @property
     def retry_count(self) -> int:
-        return self._retry_count.value
+        return self._retry_count
 
     @retry_count.setter
     def retry_count(self, value: int) -> None:
-        self._retry_count.value = value
+        self._retry_count = value
 
     def _fail(self) -> None:
         self.resource_failures += 1
@@ -116,6 +147,8 @@ class RuntimeBudget:
                 self._fail()
 
     def charge_provider_call(self, request_bytes: int = 0) -> None:
+        if type(request_bytes) is not int or request_bytes < 0:
+            raise ValueError("byte charge must be non-negative")
         with self._lock:
             if time.monotonic() - self.started >= self.limits.max_wall_seconds:
                 self._fail()
@@ -145,18 +178,42 @@ class RuntimeBudget:
             self.experiments += count
 
     def metrics(self) -> RuntimeMetrics:
-        while True:
-            try:
-                stage, duration = self._stage_events.get_nowait()
-            except queue.Empty:
-                break
-            self.stage_durations[stage] = self.stage_durations.get(stage, 0.0) + duration
         with self._lock:
             return RuntimeMetrics(self.run_id, dict(self.stage_durations), self.retry_count, self.provider_calls, self.resource_failures, self.bytes_used, self.experiments)
 
     def record_stage_duration(self, stage_name: str, duration: float) -> None:
         safe_name = stage_name if stage_name in {"workflow", "factor", "risk", "portfolio", "report"} else f"stage_{stable_digest(stage_name)[:12]}"
-        self._stage_events.put((safe_name, max(0.0, float(duration))))
+        with self._lock:
+            self.stage_durations[safe_name] = self.stage_durations.get(safe_name, 0.0) + max(0.0, float(duration))
+
+    def delta(self) -> WorkerMetricsDelta:
+        """Drain only increments since the last publication in this worker."""
+        with self._lock:
+            counts = (self.experiments, self.provider_calls, self.bytes_used)
+            increments = tuple(value - previous for value, previous in zip(counts, self._published_counts))
+            durations = {stage: duration - self._published_durations.get(stage, 0.0) for stage, duration in self.stage_durations.items()}
+            self._published_counts = counts
+            self._published_durations = dict(self.stage_durations)
+            return WorkerMetricsDelta(self.run_id, *increments, durations)
+
+    def apply_delta(self, delta: WorkerMetricsDelta) -> RuntimeMetrics:
+        if not isinstance(delta, WorkerMetricsDelta) or delta.job_id != self.run_id:
+            raise ValueError("metrics delta belongs to another job")
+        with self._lock:
+            if time.monotonic() - self.started >= self.limits.max_wall_seconds:
+                self._fail()
+            if self.limits.max_provider_calls is not None and self.provider_calls + delta.provider_calls > self.limits.max_provider_calls:
+                self._fail()
+            if self.limits.max_bytes is not None and self.bytes_used + delta.bytes_used > self.limits.max_bytes:
+                self._fail()
+            if self.limits.max_experiments is not None and self.experiments + delta.experiments > self.limits.max_experiments:
+                self._fail()
+            self.provider_calls += delta.provider_calls
+            self.bytes_used += delta.bytes_used
+            self.experiments += delta.experiments
+            for stage, seconds in delta.stage_seconds.items():
+                self.stage_durations[stage] = self.stage_durations.get(stage, 0.0) + seconds
+            return self.metrics()
 
 
 _CURRENT_BUDGET: contextvars.ContextVar[RuntimeBudget | None] = contextvars.ContextVar("research_runtime_budget", default=None)
@@ -175,4 +232,4 @@ def bind_runtime_budget(budget: RuntimeBudget) -> Iterator[None]:
         _CURRENT_BUDGET.reset(token)
 
 
-__all__ = ["RuntimeBudget", "RuntimeLimitExceeded", "RuntimeMetrics", "bind_runtime_budget", "current_runtime_budget"]
+__all__ = ["RuntimeBudget", "RuntimeLimitExceeded", "RuntimeMetrics", "WorkerMetricsDelta", "bind_runtime_budget", "current_runtime_budget"]

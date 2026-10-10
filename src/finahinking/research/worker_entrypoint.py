@@ -18,7 +18,9 @@ import multiprocessing
 import time
 from collections.abc import Callable, Mapping
 from multiprocessing.connection import Connection
+from types import SimpleNamespace
 
+from .observability import RuntimeBudget, RuntimeLimitExceeded, bind_runtime_budget
 from .runtime_protocol import (
     ProtocolError,
     WorkerInvocation,
@@ -236,6 +238,7 @@ def _result_message(
     stage_result: Mapping[str, object],
     *,
     sequence: int,
+    metrics: Mapping[str, object] | None = None,
 ) -> WorkerMessage:
     if not isinstance(stage_result, Mapping):
         raise ProtocolError("stage result must be a mapping")
@@ -253,10 +256,26 @@ def _result_message(
         "sequence": sequence,
         "status": "completed",
     }
-    for key in ("result_ref", "artifact_digest", "metrics"):
-        if key in stage_result and stage_result[key] is not None:
-            payload[key] = stage_result[key]
+    for key in ("result_ref", "artifact_digest"):
+        payload[key] = stage_result[key]
+    # Metrics are measured in the worker and are never reconstructed from
+    # supervisor state.  A stage may return an informational metrics mapping,
+    # but the worker-local budget snapshot is the only published accounting.
+    if metrics is not None:
+        payload["metrics"] = dict(metrics)
     return WorkerMessage("RESULT", invocation.job_id, payload)
+
+
+def _budget_for(invocation: WorkerInvocation) -> RuntimeBudget:
+    values = invocation.budget
+    wall = values.get("max_wall_seconds")
+    limits = SimpleNamespace(
+        max_wall_seconds=float(invocation.timeout_seconds if wall is None else wall),
+        max_provider_calls=values.get("max_provider_calls"),
+        max_bytes=values.get("max_bytes"),
+        max_experiments=values.get("max_experiments"),
+    )
+    return RuntimeBudget(invocation.job_id, limits)
 
 
 def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, connection: Connection) -> None:
@@ -276,6 +295,8 @@ def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, conne
     sequence += 1
     checkpoint_ref = invocation.checkpoint_ref
     final_result: Mapping[str, object] | None = None
+    budget = _budget_for(invocation)
+    stage_seconds: dict[str, float] = {}
     for stage_name in invocation.stage_names:
         try:
             runner = registry.resolve(stage_name)
@@ -301,18 +322,27 @@ def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, conne
             _send(connection, checkpoint)
             sequence += 1
 
+        stage_started = time.monotonic()
         try:
-            final_result = _call_runner(runner, invocation, checkpoint_ref, publish_checkpoint)
+            with bind_runtime_budget(budget):
+                final_result = _call_runner(runner, invocation, checkpoint_ref, publish_checkpoint)
+        except RuntimeLimitExceeded:
+            _send(connection, _failure_message(invocation, "RESOURCE_LIMIT", "RESOURCE_LIMIT", sequence=sequence))
+            return
         except Exception:  # noqa: BLE001 - runner failures stay opaque
             _send(connection, _failure_message(invocation, "RUNNER_FAILED", "RUNNER_EXCEPTION", sequence=sequence))
             return
+        finally:
+            stage_seconds[stage_name] = time.monotonic() - stage_started
         if isinstance(final_result, Mapping) and final_result.get("checkpoint_ref") is not None:
             checkpoint_ref = final_result["checkpoint_ref"]  # type: ignore[assignment]
     if final_result is None:
         _send(connection, _failure_message(invocation, "TASK_CONTRACT_INVALID", "NO_STAGE", sequence=sequence))
         return
     try:
-        result = _result_message(invocation, final_result, sequence=sequence)
+        metrics = budget.delta().to_payload()
+        metrics["stage_durations"] = stage_seconds
+        result = _result_message(invocation, final_result, sequence=sequence, metrics=metrics)
         _send(connection, result, result_limit=invocation.max_result_bytes)
     except ProtocolError as exc:
         kind = "RESOURCE_LIMIT" if "max_result_bytes" in str(exc).lower() else "RESULT_INVALID"

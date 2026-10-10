@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Mapping
 from pathlib import Path
+from types import SimpleNamespace
 
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError
+from .observability import RuntimeBudget, RuntimeLimitExceeded, WorkerMetricsDelta
 from .runtime_protocol import WorkerInvocation, WorkerMessage
 from .stage_registry import StageRegistry, StageRegistryError
 from .worker_entrypoint import SpawnWorkerHandle
@@ -29,6 +32,7 @@ class ResearchSupervisor:
         worker_id: str,
         max_concurrency: int,
         poll_interval: float = 0.05,
+        budget: Mapping[str, int | float | None] | None = None,
     ) -> None:
         if isinstance(queue, JobQueue):
             path = queue.path
@@ -40,13 +44,26 @@ class ResearchSupervisor:
             raise ValueError("max_concurrency must be positive")
         if not isinstance(poll_interval, (int, float)) or isinstance(poll_interval, bool) or poll_interval <= 0:
             raise ValueError("poll_interval must be positive")
-        self.queue = JobQueue(path)
+        if budget is not None and not isinstance(budget, Mapping):
+            raise TypeError("budget must be a mapping")
+        self.queue = JobQueue(
+            path,
+            **({
+                "clock": queue._clock,
+                "lease_seconds": queue.lease_seconds,
+                "backoff_base_seconds": queue.backoff_base_seconds,
+                "backoff_max_seconds": queue.backoff_max_seconds,
+                "max_attempts": queue.max_attempts,
+            } if isinstance(queue, JobQueue) else {}),
+        )
         self.registry = registry
         self.worker_id = worker_id
         self.max_concurrency = max_concurrency
         self.poll_interval = float(poll_interval)
+        self._budget = dict(budget or {})
         self._handles: dict[str, tuple[SpawnWorkerHandle, JobRecord]] = {}
         self._messages: dict[str, WorkerMessage] = {}
+        self._metrics: dict[str, RuntimeBudget] = {}
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.RLock()
@@ -106,6 +123,15 @@ class ResearchSupervisor:
                 handle.join()
                 self._handles.pop(job_id, None)
                 continue
+            if current.cancel_requested:
+                handle.cancel()
+                cancelled = handle.poll(0)
+                if cancelled is not None:
+                    self._publish_terminal(job, cancelled)
+                handle.join()
+                self._handles.pop(job_id, None)
+                completed += 1
+                continue
             message = handle.poll(0)
             if message is None:
                 continue
@@ -154,13 +180,16 @@ class ResearchSupervisor:
             handle.start()
             terminal: WorkerMessage | None = None
             while terminal is None:
+                current = self.queue.get(job.job_id)
+                if current.cancel_requested:
+                    handle.cancel()
                 message = handle.poll(self.poll_interval)
                 if message is None:
                     continue
                 if message.kind == "CHECKPOINT":
                     reference = message.payload.get("checkpoint_ref")
                     if isinstance(reference, str):
-                        self.queue.update_checkpoint(job.job_id, reference, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+                        job = self.queue.update_checkpoint(job.job_id, reference, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
                 elif message.kind in {"RESULT", "FAILED", "CANCELLED"}:
                     terminal = message
             self._publish_terminal(job, terminal)
@@ -189,15 +218,18 @@ class ResearchSupervisor:
             if not names:
                 raise ValueError("no registered research stage")
             stage_names = ("workflow",) if self._registry_has("workflow") else (names[0],)
+        timeout = self.queue.task_timeout(job.task_ref)
+        if self._budget.get("max_wall_seconds") is not None:
+            timeout = min(timeout, float(self._budget["max_wall_seconds"]))
         invocation = WorkerInvocation(
             job_id=job.job_id,
             task_ref=job.task_ref,
             task_digest=job.task_digest,
             checkpoint_ref=job.checkpoint_ref,
             stage_names=stage_names,
-            timeout_seconds=max(0.01, float(job.lease_until - time.time()) if job.lease_until else 30.0),
+            timeout_seconds=timeout,
             max_result_bytes=8192,
-            budget={},
+            budget=dict(self._budget),
         )
         return SpawnWorkerHandle(invocation, registry=self.registry)
 
@@ -212,7 +244,27 @@ class ResearchSupervisor:
         payload = message.payload
         fence = {"worker_id": job.worker_id, "attempt": job.attempts, "lease_until": job.lease_until, "lease_token": job.lease_token}
         try:
+            current = self.queue.get(job.job_id)
+            if current.status is not JobStatus.RUNNING or (current.worker_id, current.attempts, current.lease_token) != (job.worker_id, job.attempts, job.lease_token) or current.lease_until is None or current.lease_until <= self.queue._clock():
+                return
             if message.kind == "RESULT":
+                metrics_payload = payload.get("metrics")
+                if isinstance(metrics_payload, Mapping):
+                    delta = WorkerMetricsDelta(
+                        job.job_id,
+                        experiments=int(metrics_payload.get("experiments", 0)),
+                        provider_calls=int(metrics_payload.get("provider_calls", 0)),
+                        bytes_used=int(metrics_payload.get("bytes_used", 0)),
+                        stage_seconds=dict(metrics_payload.get("stage_durations", {})),
+                    )
+                    budget = self._metrics.setdefault(
+                        job.job_id,
+                        RuntimeBudget(
+                            job.job_id,
+                            self._budget_limits(),
+                        ),
+                    )
+                    budget.apply_delta(delta)
                 result_ref = payload.get("result_ref")
                 if isinstance(result_ref, str):
                     self.queue.complete(job.job_id, result_ref=result_ref, checkpoint_ref=job.checkpoint_ref, **fence)
@@ -223,7 +275,13 @@ class ResearchSupervisor:
             else:
                 failure = str(payload.get("error_code", payload.get("failure_kind", "RUNNER_FAILED")))
                 self._retry_or_fail(job, failure)
-        except (StaleLeaseError, ValueError, KeyError):
+        except RuntimeLimitExceeded:
+            self._retry_or_fail(job, "RESOURCE_LIMIT")
+        except StaleLeaseError:
+            return
+        except ValueError:
+            self._retry_or_fail(job, "RESULT_INVALID")
+        except KeyError:
             # Another supervisor already owns or published the job.  Terminal
             # publication is intentionally idempotent and fail closed.
             return
@@ -233,6 +291,21 @@ class ResearchSupervisor:
             self.queue.retry(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
         except (StaleLeaseError, ValueError, KeyError):
             return
+
+    def metrics_for(self, job_id: str):
+        """Return the supervisor's aggregated worker metrics snapshot."""
+        budget = self._metrics.get(job_id)
+        return None if budget is None else budget.metrics()
+
+    def _budget_limits(self) -> SimpleNamespace:
+        values = self._budget
+        wall = values.get("max_wall_seconds")
+        return SimpleNamespace(
+            max_wall_seconds=float("inf") if wall is None else float(wall),
+            max_provider_calls=values.get("max_provider_calls"),
+            max_bytes=values.get("max_bytes"),
+            max_experiments=values.get("max_experiments"),
+        )
 
     def _loop(self) -> None:
         while not self._stop.is_set():
