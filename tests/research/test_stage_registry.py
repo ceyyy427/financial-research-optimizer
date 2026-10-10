@@ -72,6 +72,28 @@ def test_registry_rejects_lambda_closure_and_bound_method():
         registry.register(spec("partial", runner_key="partial.runner"), functools.partial(top_level_stage))
 
 
+def test_registry_rejects_rebound_or_metadata_spoofed_function():
+    registry = StageRegistry()
+    original = top_level_stage
+    original_name = original.__name__
+    original_module = original.__module__
+    import finahinking.research.stage_registry as module
+
+    original_export = getattr(module, "run_default_workflow_stage", None)
+    try:
+        original.__name__ = "run_default_workflow_stage"
+        original.__qualname__ = "run_default_workflow_stage"
+        original.__module__ = "finahinking.research.stage_registry"
+        module.run_default_workflow_stage = original
+        with pytest.raises(StageRegistryError):
+            registry.register(spec(), original)
+    finally:
+        original.__name__ = original_name
+        original.__qualname__ = original_name
+        original.__module__ = original_module
+        module.run_default_workflow_stage = original_export
+
+
 def test_digest_is_stable_across_registration_order_and_changes_on_spec():
     first = StageRegistry()
     first.register(spec("zeta", runner_key="zeta.runner"), second_stage)
@@ -95,3 +117,15 @@ def test_unknown_stage_fails_closed_and_default_has_no_side_effects():
     assert registry.resolve("workflow") is run_default_workflow_stage
     with pytest.raises(StageRegistryError):
         registry.resolve("missing")
+
+
+def test_default_workflow_requires_persisted_manifest_for_success():
+    blocked = type("Workflow", (), {"state": type("State", (), {"current_state": "LEARNING_RECORDED", "decision_eligible": True})(), "decision": object(), "manifest": None})()
+    from finahinking.research.stage_registry import _workflow_result_payload
+
+    result = _workflow_result_payload(blocked)
+    assert result["status"] == "blocked"
+    assert result["failure_kind"] == "WORKFLOW_ARTIFACT_UNAVAILABLE"
+
+    malformed = type("Workflow", (), {"state": None})()
+    assert _workflow_result_payload(malformed)["status"] == "blocked"

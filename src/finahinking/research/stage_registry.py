@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import os
 import re
 import sys
 from collections.abc import Callable, Mapping
@@ -61,6 +62,8 @@ def _is_module_level_runner(runner: object) -> bool:
         return False
     if runner.__code__.co_freevars:
         return False
+    if runner.__code__.co_name != runner.__name__ or runner.__code__.co_qualname != runner.__qualname__:
+        return False
     module_name = runner.__module__
     if not module_name or module_name == "__main__":
         return False
@@ -70,6 +73,15 @@ def _is_module_level_runner(runner: object) -> bool:
     # A callable can spoof ``__module__``/``__qualname__``.  Requiring the
     # exact object exported under its declared name makes the bootstrap
     # descriptor reconstructable without importing a task-supplied path.
+    module_file = getattr(module, "__file__", None)
+    code_file = getattr(runner.__code__, "co_filename", None)
+    if not module_file or not code_file:
+        return False
+    try:
+        if os.path.realpath(module_file) != os.path.realpath(code_file):
+            return False
+    except (OSError, TypeError):
+        return False
     return getattr(module, runner.__name__, None) is runner
 
 
@@ -125,22 +137,34 @@ class StageRegistry:
 def _workflow_result_payload(workflow: object) -> Mapping[str, object]:
     """Convert a workflow result into a fail-closed stage result."""
 
-    state = getattr(getattr(workflow, "state", None), "current_state", None)
-    state_name = getattr(state, "value", state)
-    eligible = getattr(getattr(workflow, "state", None), "decision_eligible", False)
-    decision = getattr(workflow, "decision", None)
-    if state_name != "LEARNING_RECORDED" or eligible is not True or decision is None:
+    try:
+        state = getattr(getattr(workflow, "state", None), "current_state", None)
+        state_name = getattr(state, "value", state)
+        state_obj = getattr(workflow, "state", None)
+        eligible = getattr(state_obj, "decision_eligible", False)
+        decision = getattr(workflow, "decision", None)
+        manifest = getattr(workflow, "manifest", None)
+        files = getattr(manifest, "files", None)
+        run_id = getattr(manifest, "run_id", None)
+        if (
+            state_name == "LEARNING_RECORDED"
+            and eligible is True
+            and decision is not None
+            and isinstance(files, Mapping)
+            and bool(files)
+            and isinstance(run_id, str)
+            and _SAFE_REF.fullmatch(run_id)
+        ):
+            return {"status": "completed", "result_ref": f"artifact:{run_id}"}
         failure_kind = getattr(getattr(workflow, "state", None), "failure_kind", None)
-        failure_name = getattr(failure_kind, "value", failure_kind) or "WORKFLOW_BLOCKED"
+        failure_name = getattr(failure_kind, "value", failure_kind) or "WORKFLOW_ARTIFACT_UNAVAILABLE"
         return {
             "status": "blocked",
             "state": str(state_name or "UNKNOWN"),
-            "failure_kind": str(failure_name),
+            "failure_kind": str(failure_name if failure_name != "WORKFLOW_BLOCKED" else "WORKFLOW_ARTIFACT_UNAVAILABLE"),
         }
-
-    from .contracts import stable_digest
-
-    return {"status": "completed", "result_ref": f"artifact:{stable_digest(workflow)[:40]}"}
+    except Exception:  # noqa: BLE001 - malformed workflow objects fail closed
+        return {"status": "blocked", "state": "UNKNOWN", "failure_kind": "WORKFLOW_ARTIFACT_UNAVAILABLE"}
 
 
 def run_default_workflow_stage(

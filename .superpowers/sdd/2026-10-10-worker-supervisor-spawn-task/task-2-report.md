@@ -28,3 +28,23 @@ PYTHONPATH=src python3 -m ruff check src/finahinking/research/stage_registry.py 
 
 RuntimeService wiring and child reconstruction remain Task 3–5 work. This
 task only establishes the trusted bootstrap registry and its admission tests.
+
+## Fix round — review findings
+
+- callable admission now checks code metadata and the source file/module
+  binding, rejecting renamed/rebound functions that spoof `__module__` or
+  `__qualname__`;
+- the default workflow stage returns `WORKFLOW_ARTIFACT_UNAVAILABLE` unless a
+  completed workflow includes a non-empty persisted manifest and safe run
+  reference; malformed workflow objects fail closed;
+- regression coverage expanded to seven focused tests.
+
+Validation:
+
+```text
+PYTHONPATH=src python3 -m pytest -q tests/research/test_stage_registry.py
+# 7 passed
+
+PYTHONPATH=src python3 -m ruff check src/finahinking/research/stage_registry.py tests/research/test_stage_registry.py
+# All checks passed!
+```
