@@ -122,7 +122,7 @@ class ResearchRuntimeService:
     def _idempotency_key(request: ResearchRequest) -> str:
         return f"runtime:{stable_digest(request)[:40]}"
 
-    def submit(self, request: ResearchRequest, idempotency_key: str | None = None) -> JobRecord:
+    def submit(self, request: ResearchRequest, idempotency_key: str | None = None, *, limits: RuntimeLimits | None = None) -> JobRecord:
         if not isinstance(request, ResearchRequest):
             raise TypeError("request must be ResearchRequest")
         task_ref = self._task_ref(request)
@@ -134,7 +134,21 @@ class ResearchRuntimeService:
             inputs={"request_ref": f"request:{stable_digest(request)[:32]}"},
             timeout_seconds=self._timeout_seconds,
         )
-        return self.queue.enqueue_with_request_snapshot(task, idempotency_key or self._idempotency_key(request), request)
+        bounds = self._limits(limits)
+        return self.queue.enqueue_with_request_snapshot(
+            task, idempotency_key or self._idempotency_key(request), request,
+            runtime_budget={**self._budget_payload(bounds), "deadline_at": time.time() + bounds.max_wall_seconds},
+            attempts_limit=min(self.queue.max_attempts, bounds.max_attempts),
+        )
+
+    def _budget_payload(self, bounds: RuntimeLimits) -> dict[str, int | float | None]:
+        return {
+            "max_wall_seconds": bounds.max_wall_seconds,
+            "max_provider_calls": bounds.max_provider_calls,
+            "max_bytes": bounds.max_bytes,
+            "max_experiments": bounds.max_experiments,
+            "max_result_bytes": self._max_result_bytes,
+        }
 
     def start_supervisor(self) -> None:
         self._supervisor.start()
@@ -163,13 +177,7 @@ class ResearchRuntimeService:
         self.queue.configure_limits(
             job_id,
             max_attempts=bounds.max_attempts,
-            budget={
-                "max_wall_seconds": bounds.max_wall_seconds,
-                "max_provider_calls": bounds.max_provider_calls,
-                "max_bytes": bounds.max_bytes,
-                "max_experiments": bounds.max_experiments,
-                "max_result_bytes": self._max_result_bytes,
-            },
+            budget=self._budget_payload(bounds),
         )
         calls = 0
         result = self._resource_limit(job_id)
@@ -184,7 +192,7 @@ class ResearchRuntimeService:
                     result = self._resource_limit(job_id)
                     break
                 calls += 1
-                budget.retry_count = max(0, calls - 1)
+                budget.retry_count = max(0, record.attempts - 1)
                 self._last_metrics = budget.metrics()
                 record = self.queue.get(job_id)
                 terminal = self._terminal_result(record)
@@ -194,8 +202,9 @@ class ResearchRuntimeService:
                 delay = max(0.0, min(0.05, record.available_at - time.time()))
                 time.sleep(delay or 0.005)
             else:
+                self.queue.cancel(job_id)
                 result = self._resource_limit(job_id)
-        self._metrics_by_run[job_id] = budget.metrics()
+        self._metrics_by_run[job_id] = self._supervisor.metrics_for(job_id) or budget.metrics()
         self._last_metrics = self._metrics_by_run[job_id]
         return result
 

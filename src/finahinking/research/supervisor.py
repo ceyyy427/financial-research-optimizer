@@ -315,6 +315,18 @@ class ResearchSupervisor:
             # lease is deliberately tolerated: stale workers fail closed.
             try:
                 current = self.queue.get(job_id)
+                if current.status is not JobStatus.RUNNING:
+                    handle.cancel()
+                    handle.join()
+                    self._handles.pop(job_id, None)
+                    continue
+                deadline = (current.runtime_budget or {}).get("deadline_at")
+                if deadline is not None and time.time() >= deadline:
+                    handle.cancel()
+                    handle.join()
+                    self._retry_or_fail(current, "RESOURCE_LIMIT")
+                    self._handles.pop(job_id, None)
+                    continue
                 if current.status is JobStatus.RUNNING and current.lease_until is not None and current.lease_until - time.time() < self.queue.lease_seconds / 2:
                         renewed = self.queue.heartbeat(
                             job_id,
@@ -496,6 +508,15 @@ class ResearchSupervisor:
         budget = dict(self._budget)
         if job.runtime_budget:
             budget.update(job.runtime_budget)
+        deadline = budget.get("deadline_at")
+        if deadline is not None:
+            timeout = min(timeout, float(deadline) - time.time())
+        if timeout <= 0:
+            raise RuntimeLimitExceeded()
+        totals = self.queue.load_metrics(job.job_id) or {}
+        for limit, metric in (("max_provider_calls", "provider_calls"), ("max_bytes", "bytes_used"), ("max_experiments", "experiments")):
+            if budget.get(limit) is not None:
+                budget[limit] = max(0, budget[limit] - int(totals.get(metric, 0)))
         invocation = WorkerInvocation(
             job_id=job.job_id,
             task_ref=job.task_ref,
@@ -578,9 +599,12 @@ class ResearchSupervisor:
 
     def _retry_or_fail(self, job: JobRecord, reason: str) -> None:
         try:
-            self.queue.retry(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
-            budget = self._metrics.setdefault(job.job_id, RuntimeBudget(job.job_id, self._unbounded_limits()))
-            budget.retry_count += 1
+            if reason in {"RESOURCE_LIMIT", "TIMEOUT"}:
+                self.queue.fail(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            else:
+                self.queue.retry(job.job_id, reason, worker_id=job.worker_id, attempt=job.attempts, lease_until=job.lease_until, lease_token=job.lease_token)
+            budget = self._metrics_budget(job.job_id)
+            budget.retry_count = max(0, job.attempts - 1)
             self.queue.save_metrics(budget.metrics())
         except (StaleLeaseError, ValueError, KeyError):
             return
@@ -597,12 +621,23 @@ class ResearchSupervisor:
             bytes_used=int(payload.get("bytes_used", 0)),
             stage_seconds=dict(payload.get("stage_durations", {})),
         )
-        budget = self._metrics.setdefault(job_id, RuntimeBudget(job_id, self._unbounded_limits()))
+        budget = self._metrics_budget(job_id)
         aggregate = budget.apply_delta(delta)
         if resource_failure:
             budget.resource_failures += 1
             aggregate = budget.metrics()
         self.queue.save_metrics(aggregate)
+
+    def _metrics_budget(self, job_id: str) -> RuntimeBudget:
+        if job_id not in self._metrics:
+            budget = RuntimeBudget(job_id, self._unbounded_limits())
+            durable = self.queue.load_metrics(job_id)
+            if durable:
+                for key in ("provider_calls", "bytes_used", "experiments", "resource_failures", "retry_count"):
+                    setattr(budget, key, durable[key])
+                budget.stage_durations = dict(durable["stage_durations"])
+            self._metrics[job_id] = budget
+        return self._metrics[job_id]
 
     def metrics_for(self, job_id: str):
         """Return the supervisor's aggregated worker metrics snapshot."""

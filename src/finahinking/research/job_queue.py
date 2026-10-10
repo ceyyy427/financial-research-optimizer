@@ -19,7 +19,14 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from .contracts import AgentTask, ResearchPlan, ResearchRequest, stable_digest, to_jsonable
+from .contracts import (
+    AgentTask,
+    ResearchPlan,
+    ResearchRequest,
+    _validate_runtime_value,
+    stable_digest,
+    to_jsonable,
+)
 
 
 class JobStatus(str, Enum):
@@ -40,6 +47,16 @@ _SENSITIVE_VALUE = re.compile(
     re.IGNORECASE,
 )
 _TERMINAL = frozenset({JobStatus.FAILED.value, JobStatus.CANCELLED.value, JobStatus.COMPLETED.value})
+
+
+def _snapshot_json(request: ResearchRequest) -> str:
+    payload = _validate_runtime_value(to_jsonable(request), "request snapshot")
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    if re.search(r'(?:prompt|raw_response)\s*[=:]', encoded, re.IGNORECASE):
+        raise ValueError("request snapshot contains private model material")
+    if len(encoded.encode("utf-8")) > 65_536:
+        raise ValueError("request snapshot exceeds maximum size")
+    return encoded
 
 
 class StaleLeaseError(ValueError):
@@ -250,7 +267,7 @@ class JobQueue:
     def _job_id(task_digest: str, idempotency_key: str) -> str:
         return f"job-{stable_digest({'task': task_digest, 'idempotency': idempotency_key})[:32]}"
 
-    def enqueue(self, task: AgentTask, idempotency_key: str, *, request_snapshot: ResearchRequest | None = None) -> JobRecord:
+    def enqueue(self, task: AgentTask, idempotency_key: str, *, request_snapshot: ResearchRequest | None = None, runtime_budget: dict | None = None, attempts_limit: int | None = None) -> JobRecord:
         if not isinstance(task, AgentTask):
             raise TypeError("task must be AgentTask")
         idempotency_key = _ref(idempotency_key, "idempotency_key")
@@ -263,10 +280,7 @@ class JobQueue:
             snapshot_digest = stable_digest(request_snapshot)
             if task.input_digest != snapshot_digest:
                 raise ValueError("request snapshot is not bound to task input digest")
-            snapshot_payload = to_jsonable(request_snapshot)
-            snapshot_encoded = json.dumps(snapshot_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-            if _SENSITIVE_VALUE.search(snapshot_encoded):
-                raise ValueError("request snapshot contains secret, endpoint, or path material")
+            snapshot_encoded = _snapshot_json(request_snapshot)
         _ref(task.task_id, "task_ref")
         previous = self._tasks.get(task.task_id)
         if previous is not None and self._task_digest(previous) != task_digest:
@@ -274,6 +288,7 @@ class JobQueue:
         job_id = self._job_id(task_digest, idempotency_key)
         now = float(self._clock())
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             existing = db.execute("SELECT * FROM jobs WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
             if existing is not None:
                 if existing["task_digest"] != task_digest:
@@ -291,7 +306,7 @@ class JobQueue:
                     (job_id, task_ref, task_digest, idempotency_key, status, attempts,
                      max_attempts, available_at, created_at, updated_at, task_timeout, capabilities, runtime_budget, input_digest)
                     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, self.max_attempts, now, now, now, float(task.timeout_seconds), json.dumps(list(task.capabilities), separators=(",", ":")), "{}", task.input_digest),
+                    (job_id, task.task_id, task_digest, idempotency_key, JobStatus.QUEUED.value, attempts_limit or self.max_attempts, now, now, now, float(task.timeout_seconds), json.dumps(list(task.capabilities), separators=(",", ":")), json.dumps(runtime_budget or {}, allow_nan=False), task.input_digest),
                 )
                 self._event(db, job_id, JobStatus.QUEUED.value, now)
                 row = db.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
@@ -364,15 +379,13 @@ class JobQueue:
         task_ref = _ref(task_ref, "task_ref")
         if not isinstance(request, ResearchRequest):
             raise TypeError("request must be ResearchRequest")
-        payload = to_jsonable(request)
-        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        if _SENSITIVE_VALUE.search(encoded):
-            raise ValueError("request snapshot contains secret, endpoint, or path material")
+        encoded = _snapshot_json(request)
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT input_digest FROM jobs WHERE task_ref=? ORDER BY created_at DESC LIMIT 1", (task_ref,)).fetchone()
             if row is None:
                 raise KeyError(f"unknown task: {task_ref}")
-            if row["input_digest"] and stable_digest(request) != row["input_digest"]:
+            if not row["input_digest"] or stable_digest(request) != row["input_digest"]:
                 raise ValueError("request snapshot is not bound to task input digest")
             existing = db.execute("SELECT request_digest, payload FROM request_snapshots WHERE task_ref=?", (task_ref,)).fetchone()
             digest = stable_digest(request)
@@ -380,11 +393,11 @@ class JobQueue:
                 raise ValueError("request snapshot is already bound to another digest")
             db.execute("INSERT OR IGNORE INTO request_snapshots(task_ref, request_digest, payload) VALUES(?,?,?)", (task_ref, digest, encoded))
 
-    def enqueue_with_request_snapshot(self, task: AgentTask, idempotency_key: str, request: ResearchRequest) -> JobRecord:
+    def enqueue_with_request_snapshot(self, task: AgentTask, idempotency_key: str, request: ResearchRequest, **kwargs) -> JobRecord:
         """Atomically publish a queued task and its credential-free request snapshot."""
         if not isinstance(request, ResearchRequest):
             raise TypeError("request must be ResearchRequest")
-        return self.enqueue(task, idempotency_key, request_snapshot=request)
+        return self.enqueue(task, idempotency_key, request_snapshot=request, **kwargs)
 
     def configure_limits(self, job_id: str, *, max_attempts: int, budget: dict[str, int | float | None]) -> JobRecord:
         """Bind caller-selected limits to the durable job before it is claimed."""
@@ -395,10 +408,24 @@ class JobQueue:
             raise TypeError("budget must be a dict")
         encoded = json.dumps(budget, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             row = self._must_row(db, job_id)
-            if row["status"] not in {JobStatus.QUEUED.value, JobStatus.RETRYABLE.value}:
+            if row["status"] in _TERMINAL:
                 return self._row(row)
-            db.execute("UPDATE jobs SET max_attempts=?, task_timeout=?, runtime_budget=?, updated_at=? WHERE job_id=?", (max_attempts, float(budget.get("max_wall_seconds", row["task_timeout"])), encoded, float(self._clock()), job_id))
+            old = json.loads(row["runtime_budget"])
+            # Limits may only tighten. A running process cannot retroactively
+            # adopt them: revoke its lease instead of silently ignoring them.
+            merged = dict(old)
+            for key, value in budget.items():
+                if value is not None:
+                    merged[key] = value if old.get(key) is None else min(value, old[key])
+            effective_attempts = min(max_attempts, row["max_attempts"])
+            if row["status"] == JobStatus.RUNNING.value and any(merged.get(key) != old.get(key) for key in ("max_provider_calls", "max_bytes", "max_experiments", "max_result_bytes")):
+                db.execute("UPDATE jobs SET status=?, lease_until=NULL, lease_token=NULL, worker_id=NULL, last_error_digest=?, updated_at=? WHERE job_id=?", (JobStatus.FAILED.value, stable_digest("RESOURCE_LIMIT"), float(self._clock()), job_id))
+                self._event(db, job_id, JobStatus.FAILED.value, float(self._clock()), reason_digest=stable_digest("RESOURCE_LIMIT"))
+                return self._row(self._must_row(db, job_id))
+            encoded = json.dumps(merged, allow_nan=False)
+            db.execute("UPDATE jobs SET max_attempts=?, runtime_budget=?, updated_at=? WHERE job_id=?", (effective_attempts, encoded, float(self._clock()), job_id))
             return self._row(self._must_row(db, job_id))
 
     def load_request_snapshot(self, task_ref: str, *, expected_digest: str | None = None) -> ResearchRequest:
