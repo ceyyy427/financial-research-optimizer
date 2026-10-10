@@ -202,7 +202,7 @@ class ResearchRuntimeService:
                 delay = max(0.0, min(0.05, record.available_at - time.time()))
                 time.sleep(delay or 0.005)
             else:
-                self.queue.cancel(job_id)
+                self.queue.cancel_and_release(job_id)
                 result = self._resource_limit(job_id)
         self._metrics_by_run[job_id] = self._supervisor.metrics_for(job_id) or budget.metrics()
         self._last_metrics = self._metrics_by_run[job_id]

@@ -554,6 +554,33 @@ class JobQueue:
             db.commit()
             return self._row(result)
 
+    def cancel_and_release(self, job_id: str) -> JobRecord:
+        """Cancel a job and immediately release any active worker lease.
+
+        This is reserved for an owning runtime that has reached its observer
+        wall deadline.  A worker that later publishes against the released
+        lease is rejected by the normal fence, so the durable cancellation is
+        fail-closed and does not wait for lease expiry.
+        """
+        job_id = _ref(job_id, "job_id")
+        now = float(self._clock())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._must_row(db, job_id)
+            status = JobStatus(row["status"])
+            if status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                return self._row(row)
+            db.execute(
+                """UPDATE jobs SET status=?, updated_at=?, cancel_requested=1,
+                   worker_id=NULL, lease_until=NULL, lease_token=NULL
+                   WHERE job_id=?""",
+                (JobStatus.CANCELLED.value, now, job_id),
+            )
+            self._event(db, job_id, JobStatus.CANCELLED.value, now)
+            result = self._must_row(db, job_id)
+            db.commit()
+            return self._row(result)
+
     def update_checkpoint(
         self,
         job_id: str,
@@ -853,7 +880,10 @@ class JobQueue:
             rows = db.execute("SELECT * FROM jobs WHERE status=? AND worker_id=?", (JobStatus.RUNNING.value, worker_id)).fetchall()
             result = []
             for row in rows:
-                status = JobStatus.FAILED if int(row["attempts"]) >= int(row["max_attempts"]) else JobStatus.RETRYABLE
+                if row["cancel_requested"]:
+                    status = JobStatus.CANCELLED
+                else:
+                    status = JobStatus.FAILED if int(row["attempts"]) >= int(row["max_attempts"]) else JobStatus.RETRYABLE
                 db.execute("UPDATE jobs SET status=?, worker_id=NULL, lease_until=NULL, lease_token=NULL, available_at=?, updated_at=?, last_error_digest=? WHERE job_id=?", (status.value, now, now, stable_digest("SUPERVISOR_TERMINATED"), row["job_id"]))
                 self._event(db, row["job_id"], status.value, now, reason_digest=stable_digest("SUPERVISOR_TERMINATED"))
                 result.append(self._row(self._must_row(db, row["job_id"])))

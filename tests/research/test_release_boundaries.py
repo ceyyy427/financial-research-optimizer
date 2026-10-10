@@ -14,6 +14,7 @@ from finahinking.research.supervisor import (
     _control_receive,
     _message_from_payload,
 )
+from finahinking.research.worker import WorkerStatus
 
 from .test_runtime_service import request
 from .test_supervisor import _registry, stage_checkpoint_then_wait, stage_measured, stage_ok
@@ -85,3 +86,16 @@ def test_stop_releases_active_lease(tmp_path):
         supervisor.stop()
     assert queue.get(job.job_id).status is not JobStatus.RUNNING
     assert queue.get(job.job_id).lease_token is None
+
+
+def test_observer_wall_deadline_persists_cancellation(tmp_path):
+    service = ResearchRuntimeService(tmp_path / 'jobs.sqlite', stage_runners={'workflow': stage_checkpoint_then_wait})
+    try:
+        job = service.submit(request('wall-deadline'))
+        result = service.run_until_terminal(job.job_id, RuntimeLimits(max_wall_seconds=0.05, max_attempts=1))
+        record = service.queue.get(job.job_id)
+        assert result.status is WorkerStatus.CANCELLED
+        assert record.status is JobStatus.CANCELLED
+        assert record.lease_token is None
+    finally:
+        service.stop_supervisor()

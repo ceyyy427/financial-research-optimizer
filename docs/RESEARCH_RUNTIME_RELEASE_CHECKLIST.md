@@ -45,7 +45,7 @@ HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录�
 | `python3 -m pip check` | `OFFLINE_PASS` | `No broken requirements found.` |
 | `cd frontend && npm test` | `OFFLINE_PASS` | 17 tests passed, 0 failed. |
 | `python3 -m ruff check src tests scripts` | `OFFLINE_PASS` | Exit 0 after the spawn Supervisor migration. |
-| Vertical slice tests | `OFFLINE_PASS` | Full repository suite: 1015 passed, 1 skipped. |
+| Vertical slice tests | `OFFLINE_PASS` | Full repository suite: 1025 passed, 1 skipped. |
 | Concurrent runtime limit test | `OFFLINE_PASS` | 20/20 repeated process-owned metrics runs passed. |
 | Local browser acceptance | `OFFLINE_BROWSER_PASS` | Playwright Chromium installed locally; loopback HTTP/browser suite: 4 passed, 0 skipped. |
 | Portable browser rerun | `CONDITIONAL` | A clean host may skip if its browser binary is unavailable; this local evidence is complete. |
@@ -53,7 +53,7 @@ HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录�
 | Broker orders, live trading, secrets in artifacts, arbitrary execution | `NOT_IN_SCOPE` | Permanent product boundary. |
 
 The full repository suite was run in the current worktree after the final
-Supervisor hardening pass: 1015 passed and 1 skipped. The skip is an
+Supervisor hardening pass: 1025 passed and 1 skipped. The skip is an
 environment-gated non-browser case outside the Python/runtime acceptance
 boundary.
 

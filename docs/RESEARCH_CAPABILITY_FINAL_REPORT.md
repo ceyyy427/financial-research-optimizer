@@ -8,7 +8,7 @@
 本 checkout 的可重放本地合同和前端测试通过；发布状态按证据类别记录。
 外部供应商、用户模型 endpoint 和生产连接仍保持未验证，不把离线证据扩展为生产承诺。
 
-最新完整回归：`1015 passed, 1 skipped`。
+最新完整回归：`1025 passed, 1 skipped`。
 
 ## OFFLINE_PASS
 
