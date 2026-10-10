@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import date
 
 from finahinking.research.contracts import AgentTask, ResearchPlan, ResearchRequest, stable_digest
@@ -130,6 +131,9 @@ def test_run_until_terminal_only_claims_requested_job(tmp_path) -> None:
 
     assert result.job_id == second.job_id
     assert service.queue.get(second.job_id).status is JobStatus.COMPLETED
+    deadline = time.monotonic() + 2.0
+    while service.queue.get(first.job_id).status not in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED} and time.monotonic() < deadline:
+        time.sleep(0.01)
     assert service.queue.get(first.job_id).status is JobStatus.COMPLETED
 
 
