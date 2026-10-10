@@ -20,6 +20,7 @@ from typing import Any
 
 from .contracts import AgentTask, stable_digest
 from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError, _ref
+from .worker_entrypoint import SpawnWorkerHandle
 
 
 class WorkerStatus(str, Enum):
@@ -288,4 +289,4 @@ report/learning/ledger references and is idempotent.
         return WorkerResult(WorkerStatus.FAILED, job.job_id, failure_kind=kind, message_digest=stable_digest(kind), attempts=job.attempts)
 
 
-__all__ = ["ResearchWorker", "WorkerResult", "WorkerStatus"]
+__all__ = ["ResearchWorker", "SpawnWorkerHandle", "WorkerResult", "WorkerStatus"]
