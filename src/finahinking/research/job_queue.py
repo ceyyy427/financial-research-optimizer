@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from .contracts import AgentTask, stable_digest
+from .contracts import AgentTask, ResearchPlan, ResearchRequest, stable_digest, to_jsonable
 
 
 class JobStatus(str, Enum):
@@ -179,6 +179,11 @@ class JobQueue:
                     retry_count INTEGER NOT NULL,
                     stage_durations TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS request_snapshots (
+                    task_ref TEXT PRIMARY KEY,
+                    request_digest TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                );
                 """
             )
             event_columns = {row["name"] for row in db.execute("PRAGMA table_info(job_events)").fetchall()}
@@ -320,6 +325,35 @@ class JobQueue:
     def resolve_task(self, task_ref: str) -> AgentTask:
         """Resolve an ephemeral task; reopened queues need an explicit resolver."""
         return self._tasks[_ref(task_ref, "task_ref")]
+
+    def save_request_snapshot(self, task_ref: str, request: ResearchRequest) -> None:
+        """Persist a validated, credential-free request for spawn recovery."""
+        task_ref = _ref(task_ref, "task_ref")
+        if not isinstance(request, ResearchRequest):
+            raise TypeError("request must be ResearchRequest")
+        payload = to_jsonable(request)
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO request_snapshots(task_ref, request_digest, payload) VALUES(?,?,?) ON CONFLICT(task_ref) DO UPDATE SET request_digest=excluded.request_digest, payload=excluded.payload",
+                (task_ref, stable_digest(request), encoded),
+            )
+
+    def load_request_snapshot(self, task_ref: str, *, expected_digest: str | None = None) -> ResearchRequest:
+        task_ref = _ref(task_ref, "task_ref")
+        with self._connect() as db:
+            row = db.execute("SELECT request_digest, payload FROM request_snapshots WHERE task_ref=?", (task_ref,)).fetchone()
+        if row is None:
+            raise KeyError(f"unknown request snapshot: {task_ref}")
+        payload = json.loads(row["payload"])
+        if expected_digest is not None and row["request_digest"] != expected_digest:
+            raise ValueError("request snapshot digest mismatch")
+        plan_payload = payload.get("research_plan")
+        plan = ResearchPlan(**plan_payload) if isinstance(plan_payload, dict) else plan_payload
+        request = ResearchRequest(**{**payload, "research_plan": plan})
+        if stable_digest(request) != row["request_digest"]:
+            raise ValueError("request snapshot digest mismatch")
+        return request
 
     def claim(self, worker_id: str, *, job_id: str | None = None) -> JobRecord | None:
         worker_id = _ref(worker_id, "worker_id")

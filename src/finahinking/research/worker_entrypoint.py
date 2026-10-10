@@ -334,10 +334,26 @@ def _run_invocation(invocation: WorkerInvocation, registry: StageRegistry, conne
             return
         finally:
             stage_seconds[stage_name] = time.monotonic() - stage_started
+        if not isinstance(final_result, Mapping):
+            _send(connection, _failure_message(invocation, "RESULT_INVALID", "RESULT_INVALID", sequence=sequence))
+            return
+        if final_result.get("status") == "blocked":
+            failure = final_result.get("failure_kind")
+            code = failure if isinstance(failure, str) else "WORKFLOW_BLOCKED"
+            _send(connection, _failure_message(invocation, code, code, sequence=sequence))
+            return
+        if final_result.get("status") != "completed" or "result_ref" not in final_result or "artifact_digest" not in final_result:
+            _send(connection, _failure_message(invocation, "RESULT_INVALID", "RESULT_INVALID", sequence=sequence))
+            return
         if isinstance(final_result, Mapping) and final_result.get("checkpoint_ref") is not None:
             checkpoint_ref = final_result["checkpoint_ref"]  # type: ignore[assignment]
     if final_result is None:
         _send(connection, _failure_message(invocation, "TASK_CONTRACT_INVALID", "NO_STAGE", sequence=sequence))
+        return
+    if isinstance(final_result, Mapping) and final_result.get("status") == "blocked":
+        failure = final_result.get("failure_kind")
+        code = failure if isinstance(failure, str) else "WORKFLOW_BLOCKED"
+        _send(connection, _failure_message(invocation, code, code, sequence=sequence))
         return
     try:
         metrics = budget.delta().to_payload()
@@ -449,7 +465,7 @@ class SpawnWorkerHandle:
     def _make_terminal(self, kind: str, code: str) -> WorkerMessage:
         if kind == "CANCELLED":
             return _cancelled_message(self.invocation, sequence=self._next_sequence)
-        return _failure_message(self.invocation, kind, code, sequence=self._next_sequence)
+        return _failure_message(self.invocation, code, code, sequence=self._next_sequence)
 
     def _terminate(self) -> None:
         process = self._process
@@ -488,7 +504,7 @@ class SpawnWorkerHandle:
                 return self.poll(0)
             return None
         try:
-            raw = self._connection.recv_bytes()
+            raw = self._connection.recv_bytes(maxlength=_TRANSPORT_MAX_BYTES)
             message = decode_message(raw, _TRANSPORT_MAX_BYTES, expected_invocation_digest=self.invocation.digest())
             message.validate_for(self.invocation)
             attempt = message.payload.get("attempt")
@@ -496,6 +512,9 @@ class SpawnWorkerHandle:
             if attempt != _ATTEMPT or sequence != self._next_sequence:
                 raise ProtocolError("message attempt or sequence identity mismatch")
             self._next_sequence += 1
+            if message.kind in {"RESULT", "FAILED", "CANCELLED"}:
+                self._terminal = message
+                self._terminal_delivered = True
             return message
         except (EOFError, OSError, ProtocolError, UnicodeError, ValueError):
             self._terminate()

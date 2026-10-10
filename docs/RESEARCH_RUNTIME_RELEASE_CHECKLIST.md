@@ -12,7 +12,7 @@
 - [x] quant、risk、portfolio、paper trader 均使用确定性输入，风险失败保持纸面决策不可用。
 - [x] paper ledger 记录费用、滑点、现金和组合指纹。
 - [x] settlement 以 as-of 和 ledger 指纹绑定，`LearningManager` 只生成更新提案。
-- [x] JobQueue 和 ResearchWorker 支持幂等、租约、重试、退避、取消和恢复。
+- [x] JobQueue 和 spawn Supervisor 支持幂等、租约、重试、退避、取消和恢复；旧兼容 worker 也只允许 spawn。
 - [x] ProviderAdapter 和 CodexBridge 支持 mock 成功、离线 fallback 和显式 handoff 状态。
 - [x] HTML 报告、manifest、activity、状态墙和 checkpoint 共享同一运行 ID。
 
@@ -44,9 +44,9 @@ HTML/XML 和 secret/path/raw-object 扫描应覆盖所有生成的报告目录�
 | `python3 scripts/validate_governance.py .` | `OFFLINE_PASS` | `PASS: governance validation passed`. |
 | `python3 -m pip check` | `OFFLINE_PASS` | `No broken requirements found.` |
 | `cd frontend && npm test` | `OFFLINE_PASS` | 17 tests passed, 0 failed. |
-| `python3 -m ruff check src tests scripts` | `ISOLATED_DEFERRED` | Exit 1; existing import ordering, unused imports, and lint findings remain. |
+| `python3 -m ruff check src tests scripts` | `PENDING_REFRESH` | This table predates the spawn Supervisor migration; rerun Task 9 gates before release. |
 | Vertical slice tests | `ISOLATED_DEFERRED` | 8 passed, 1 failed: fixture run returned `DATA_UNAVAILABLE` instead of `LEARNING_RECORDED`. |
-| Concurrent runtime limit test | `ISOLATED_DEFERRED` | Timing-sensitive fork/`multiprocessing.Queue` feeder race; see `runtime-concurrency-diagnosis.md`. |
+| Concurrent runtime limit test | `PENDING_REFRESH` | The old fork-based evidence is superseded; the new process-owned test is in `tests/research/test_supervisor.py`. |
 | Local browser acceptance | `OFFLINE_BROWSER_PASS` | Task 16 bounded loopback Playwright/Chromium run: 4 tests, 7 HTML/PNG artifacts, `SHA256SUMS.tsv` hash verified. |
 | Portable browser rerun | `CONDITIONAL` | May skip browser cases when the Playwright bundled browser binary is absent; this does not invalidate the recorded local evidence. |
 | External provider/browser/production connections | `EXTERNAL_UNVERIFIED` | No credentials, network acceptance, vendor authorization, real external browser/device matrix, or production evidence. |

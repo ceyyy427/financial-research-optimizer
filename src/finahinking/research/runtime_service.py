@@ -8,7 +8,6 @@ bounded and can publish a checkpoint reference while a stage is running.
 
 from __future__ import annotations
 
-import inspect
 import math
 import threading
 import time
@@ -20,14 +19,7 @@ from typing import Any
 from .contracts import AgentTask, ResearchRequest, stable_digest
 from .drivers import OfflineDriver
 from .job_queue import JobQueue, JobRecord, JobStatus, _ref
-from .observability import (
-    RuntimeBudget,
-    RuntimeLimitExceeded,
-    RuntimeMetrics,
-    bind_runtime_budget,
-    current_runtime_budget,
-)
-from .provider_adapters import ProviderAdapterError, ProviderFailureKind
+from .observability import RuntimeBudget, RuntimeMetrics, bind_runtime_budget
 from .stage_registry import StageRegistry, StageSpec, default_stage_registry
 from .supervisor import ResearchSupervisor
 from .tools import ResearchToolGateway
@@ -143,6 +135,7 @@ class ResearchRuntimeService:
             timeout_seconds=self._timeout_seconds,
         )
         record = self.queue.enqueue(task, idempotency_key or self._idempotency_key(request))
+        self.queue.save_request_snapshot(task_ref, request)
         return record
 
     def start_supervisor(self) -> None:
@@ -247,89 +240,16 @@ class ResearchRuntimeService:
 
     def _resolve_request(self, task_ref: str) -> ResearchRequest:
         request = self._request_resolver(task_ref) if self._request_resolver is not None else None
+        if request is None:
+            try:
+                request = self.queue.load_request_snapshot(task_ref)
+            except (KeyError, ValueError):
+                request = None
         if request is not None and not isinstance(request, ResearchRequest):
             raise TypeError("request resolver must return ResearchRequest")
         if request is None:
             raise KeyError("request resolver is required after restart")
         return request
-
-    def _trusted_runner(self, task: AgentTask, checkpoint_ref: str | None, publish_checkpoint: Callable[[str], None] | None = None) -> Mapping[str, str]:
-        request = self._resolve_request(task.task_id)
-        job = self.queue.job_for_task(task.task_id)
-        completed = {str(item["stage_name"]): str(item["result_ref"]) for item in self.queue.stage_checkpoints(job.job_id) if item["status"] == "completed" and item["result_ref"]}
-        previous = dict(completed)
-        latest = checkpoint_ref
-        for stage_name, runner in self._stage_runners.items():
-            if stage_name in completed:
-                continue
-            if self.queue.is_cancel_requested(job.job_id):
-                return {"failure": "CANCELLED"}
-            try:
-                budget = current_runtime_budget()
-                if budget is not None:
-                    budget.check_wall()
-                    stage_started = time.monotonic()
-                    with bind_runtime_budget(budget):
-                        value = self._invoke_stage(runner, request, previous, publish_checkpoint)
-                    budget.record_stage_duration(stage_name, time.monotonic() - stage_started)
-                    budget.check_wall()
-                else:
-                    value = self._invoke_stage(runner, request, previous, publish_checkpoint)
-                if not isinstance(value, Mapping):
-                    raise TypeError("stage result is invalid")
-                if value.get("status", "completed") != "completed":
-                    raise ValueError("required stage failed")
-                raw_ref = value.get("result_ref")
-                generated = stable_digest({"stage": stage_name, "request": request, "previous": previous})[:40]
-                result_ref = _ref(raw_ref or f"artifact:{generated}", "result_ref")
-            except RuntimeLimitExceeded:
-                return {"failure": "RESOURCE_LIMIT"}
-            except ProviderAdapterError as error:
-                return {"failure": "RESOURCE_LIMIT" if error.kind is ProviderFailureKind.RESOURCE_LIMIT else "STAGE_FAILED"}
-            except Exception:  # noqa: BLE001 - stage details never cross the worker boundary
-                return {"failure": "STAGE_FAILED"}
-            stage_ref = f"stage:{stable_digest({'job': job.job_id, 'stage': stage_name, 'result': result_ref})[:40]}"
-            try:
-                self.queue.record_stage_checkpoint(
-                    job.job_id,
-                    stage_name,
-                    stage_ref,
-                    result_ref=result_ref,
-                    worker_id=job.worker_id,
-                    attempt=job.attempts,
-                    lease_until=job.lease_until,
-                    lease_token=job.lease_token,
-                )
-                latest = f"checkpoint:{stable_digest({'job': job.job_id, 'stage': stage_name})[:40]}"
-                if publish_checkpoint is not None:
-                    publish_checkpoint(latest)
-            except Exception:  # noqa: BLE001 - durable publication failure is fail-closed
-                return {"failure": "CHECKPOINT_FAILED"}
-            previous[stage_name] = result_ref
-        final_ref = f"artifact:{stable_digest(previous)[:40]}"
-        result: dict[str, str] = {"status": "completed", "result_ref": final_ref}
-        if latest is not None:
-            result["checkpoint_ref"] = latest
-        return result
-
-    @staticmethod
-    def _invoke_stage(runner: StageRunner, request: ResearchRequest, previous: Mapping[str, str], publish_checkpoint: Callable[[str], None] | None) -> Mapping[str, str]:
-        try:
-            signature = inspect.signature(runner)
-            positional = [parameter for parameter in signature.parameters.values() if parameter.kind in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD)]
-            variadic = any(parameter.kind is parameter.VAR_POSITIONAL for parameter in signature.parameters.values())
-        except (TypeError, ValueError):
-            positional, variadic = (), False
-        if variadic or len(positional) >= 3:
-            return runner(request, dict(previous), publish_checkpoint)
-        if len(positional) >= 2:
-            return runner(request, dict(previous))
-        return runner(request)
-
-    def _default_workflow_stage(self, request: ResearchRequest, previous: Mapping[str, str]) -> Mapping[str, str]:
-        del previous
-        workflow = self._orchestrator.run(request, self._driver, self._tools)
-        return {"status": "completed", "result_ref": f"artifact:{stable_digest(workflow)[:40]}"}
 
     @staticmethod
     def _terminal_result(record: JobRecord) -> WorkerResult | None:

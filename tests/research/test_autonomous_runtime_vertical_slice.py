@@ -58,6 +58,11 @@ class _MockTransport:
         return TransportResponse(200, {"content-type": "application/json"}, json.dumps(self.payload).encode(), "https://example.com/api")
 
 
+def unsafe_worker_runner(task, checkpoint):
+    del task, checkpoint
+    return {"status": "completed", "result_ref": "../secret"}
+
+
 class _OfflineFiveRoleDriver(ModelDriver):
     def propose(self, request: ResearchRequest, context: dict[str, object]) -> DriverResult:
         assert isinstance(context.get("dataset"), dict)
@@ -299,7 +304,7 @@ def test_factor_risk_portfolio_and_worker_fail_closed(tmp_path: Path) -> None:
     task = AgentTask("technical", "failure-worker", "failure-input", ("paper_only",), inputs={"scope": "fixture"})
     queue = JobQueue(tmp_path / "failed.sqlite", backoff_base_seconds=0, max_attempts=1)
     queue.enqueue(task, "failure-worker-key")
-    worker = ResearchWorker(queue, worker_id="failure-worker", runner=lambda task, checkpoint: {"status": "completed", "result_ref": "../secret"})
+    worker = ResearchWorker(queue, worker_id="failure-worker", runner=unsafe_worker_runner)
     outcome = worker.run_once()
     assert outcome.status is WorkerStatus.FAILED
     assert queue.get(outcome.job_id).status is JobStatus.FAILED

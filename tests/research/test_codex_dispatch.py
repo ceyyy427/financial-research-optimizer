@@ -5,6 +5,11 @@ from finahinking.research.job_queue import JobQueue
 from finahinking.research.worker import ResearchWorker, WorkerStatus
 
 
+def no_op_runner(task, checkpoint):
+    del task, checkpoint
+    return {"status": "completed", "result_ref": "artifact:no"}
+
+
 @dataclass(frozen=True)
 class Task:
     task_id: str = "dispatch-1"
@@ -43,7 +48,7 @@ def test_external_handoff_is_not_claimed_or_failed_by_normal_worker(tmp_path):
     bridge = CodexBridge(queue=queue)
     envelope = bridge.create_handoff(Task())
     record = bridge.enqueue(envelope)
-    result = ResearchWorker(queue, runner=lambda *_: {"status": "completed", "result_ref": "artifact:no"}, worker_id="worker").run_once()
+    result = ResearchWorker(queue, runner=no_op_runner, worker_id="worker").run_once()
     assert result.status is WorkerStatus.IDLE
     assert queue.external_dispatch(record.envelope_digest)["status"] == "external_waiting"
 

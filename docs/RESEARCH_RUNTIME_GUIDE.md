@@ -2,6 +2,18 @@
 
 Finathink 的研究运行时仍然是本地、只读、paper-only。浏览器只展示服务端已经持久化的阶段状态，不会重新计算收益、风险或任何金融指标。
 
+## 运行时拓扑
+
+API/UI 线程只向 SQLite `JobQueue` 写入任务和读取状态。`ResearchSupervisor`
+由独立的非 daemon `spawn` 进程运行，拥有自己的队列连接和静态 stage registry；只有
+Supervisor 可以创建 `spawn` worker。worker 只收到版本化、长度受限的 invocation，返回
+digest、checkpoint、结果引用和本地预算增量。Supervisor 通过租约围栏将这些状态原子写回
+队列，并把指标快照持久化到 `runtime_metrics`，所以进程重启后仍可读取同一份结果。
+
+请求的安全 JSON 快照保存在私有 `request_snapshots` 表中并以请求 digest 绑定；它不保存
+API Key、provider 响应或 prompt。默认工作流在 worker 内按 task 引用加载快照，缺失或 digest
+不一致时明确失败，不会把失败伪装成成功。
+
 ## 阶段状态流
 
 注册研究结果后，应用提供：

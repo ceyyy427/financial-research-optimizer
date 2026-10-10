@@ -208,6 +208,19 @@ def run_default_workflow_stage(
     """
 
     del previous, publish_checkpoint
+    if not hasattr(request, "run_id"):
+        # The supervisor process exposes only its private queue location to
+        # the trusted built-in stage.  The worker still receives a digest-only
+        # invocation and reconstructs the validated request from SQLite.
+        queue_path = os.environ.get("FINATHINK_QUEUE_PATH")
+        if not queue_path:
+            return {"status": "blocked", "state": "UNKNOWN", "failure_kind": "REQUEST_UNAVAILABLE"}
+        from .job_queue import JobQueue
+
+        try:
+            request = JobQueue(queue_path).load_request_snapshot(request.task_ref)
+        except (KeyError, ValueError, TypeError):
+            return {"status": "blocked", "state": "UNKNOWN", "failure_kind": "REQUEST_UNAVAILABLE"}
     from .drivers import OfflineDriver
     from .tools import ResearchToolGateway
     from .workflow import ResearchOrchestrator

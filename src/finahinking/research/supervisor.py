@@ -11,6 +11,7 @@ from __future__ import annotations
 import atexit
 import json
 import multiprocessing
+import os
 import threading
 import time
 from collections.abc import Mapping
@@ -80,6 +81,7 @@ def _supervisor_process_main(config: Mapping[str, object], connection) -> None:
     callers; normal API traffic only observes the durable queue.
     """
 
+    os.environ["FINATHINK_QUEUE_PATH"] = str(config["queue_path"])
     registry = _rebuild_registry(config["registry"])
     core = ResearchSupervisor(
         config["queue_path"],

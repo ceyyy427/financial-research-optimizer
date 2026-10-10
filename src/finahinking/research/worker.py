@@ -23,6 +23,15 @@ from .job_queue import JobQueue, JobRecord, JobStatus, StaleLeaseError, _ref
 from .worker_entrypoint import SpawnWorkerHandle
 
 
+def _spawn_callable(value: object) -> bool:
+    return (
+        inspect.isfunction(value)
+        and value.__module__ not in {None, "__main__"}
+        and value.__qualname__ == value.__name__
+        and not value.__code__.co_freevars
+    )
+
+
 class WorkerStatus(str, Enum):
     IDLE = "idle"
     COMPLETED = "completed"
@@ -48,16 +57,17 @@ _FAILURE_FIELDS = frozenset({"failure", "checkpoint_ref"})
 
 def _invoke_child(
     connection: Any,
-    resolver: Callable[[str], AgentTask],
+    resolver: Callable[[str], AgentTask] | None,
     runner: Callable[..., Any],
     task_ref: str,
     expected_digest: str,
     checkpoint_ref: str | None,
     max_result_bytes: int,
+    task_snapshot: AgentTask | None = None,
 ) -> None:
     """Send JSON only; exceptions and arbitrary objects never cross IPC."""
     try:
-        task = resolver(task_ref)
+        task = task_snapshot if task_snapshot is not None else resolver(task_ref)  # type: ignore[misc]
     except Exception:  # noqa: BLE001 - resolver details never cross the boundary
         connection.send_bytes(b'{"failure":"TASK_UNAVAILABLE"}')
         connection.close()
@@ -143,6 +153,10 @@ report/learning/ledger references and is idempotent.
     ) -> None:
         if not isinstance(queue, JobQueue) or not callable(runner):
             raise TypeError("queue and trusted runner are required")
+        if not _spawn_callable(runner):
+            raise ValueError("runner must be a module-level function for spawn")
+        if task_resolver is not None and not _spawn_callable(task_resolver):
+            raise ValueError("task_resolver must be a module-level function for spawn")
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be finite and positive")
         if any(isinstance(value, bool) or not isinstance(value, int) or value < 1 for value in (max_result_bytes, max_jobs)):
@@ -173,9 +187,19 @@ report/learning/ledger references and is idempotent.
         # Lease must outlive this attempt. A stricter queue lease prevents two
         # workers from simultaneously publishing the same logical job.
         deadline = min(self.timeout_seconds, self.queue.lease_seconds)
-        context = multiprocessing.get_context("fork")
+        # Legacy compatibility uses the same spawn-only boundary as the
+        # Supervisor.  Production requests never instantiate this class.
+        context = multiprocessing.get_context("spawn")
         parent, child = context.Pipe(duplex=False)
-        process = context.Process(target=_invoke_child, args=(child, self.task_resolver, self.runner, job.task_ref, job.task_digest, job.checkpoint_ref, self.max_result_bytes), daemon=True)
+        task_snapshot: AgentTask | None = None
+        resolver: Callable[[str], AgentTask] | None = self.task_resolver
+        # The queue's in-memory resolver is not a process contract. Resolve
+        # its already-durable task in the owner and pass only the immutable
+        # AgentTask snapshot; custom restart resolvers remain spawn-callable.
+        if getattr(resolver, "__self__", None) is self.queue:
+            task_snapshot = resolver(job.task_ref)
+            resolver = None
+        process = context.Process(target=_invoke_child, args=(child, resolver, self.runner, job.task_ref, job.task_digest, job.checkpoint_ref, self.max_result_bytes, task_snapshot), daemon=True)
         started = time.monotonic()
         overall_deadline = started + deadline
         task_deadline = overall_deadline
