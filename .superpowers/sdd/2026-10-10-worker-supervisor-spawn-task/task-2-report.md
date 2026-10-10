@@ -40,8 +40,12 @@ task only establishes the trusted bootstrap registry and its admission tests.
 - regression coverage expanded to seven focused tests.
 
 The follow-up artifact hardening now requires an actual `ReportManifest`, a
-matching workflow run id, safe relative file names, and verified SHA-256 file
-digests before a completed result reference is emitted.
+matching workflow run id, safe relative file names, and digest-shaped entries.
+Because the current `ReportManifest` contract does not carry a filesystem
+root or a verification proof, even a well-typed in-memory manifest is kept
+explicitly `WORKFLOW_ARTIFACT_UNAVAILABLE` rather than promoted to a false
+completed result. A later report-publication task must provide the
+filesystem-backed verification hand-off before this stage can complete.
 
 Validation:
 

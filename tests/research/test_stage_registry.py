@@ -146,4 +146,11 @@ def test_default_workflow_rejects_fake_mismatched_or_unverified_manifests():
 
     valid = ReportManifest(run_id="run-1", schema_version="research-report.v1", files={"report.html": "a" * 64}, source_snapshot={}, created_at="2026-01-01T00:00:00+00:00")
     workflow.manifest = valid
-    assert _workflow_result_payload(workflow) == {"status": "completed", "result_ref": "artifact:run-1"}
+    # A typed in-memory manifest and digest-shaped strings do not prove that
+    # files exist or that their bytes match.  The stage must fail closed until
+    # the report writer provides a filesystem-backed verification hand-off.
+    assert _workflow_result_payload(workflow) == {
+        "status": "blocked",
+        "state": "LEARNING_RECORDED",
+        "failure_kind": "WORKFLOW_ARTIFACT_UNAVAILABLE",
+    }

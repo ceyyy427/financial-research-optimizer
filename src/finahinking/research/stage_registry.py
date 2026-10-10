@@ -162,6 +162,12 @@ def _workflow_result_payload(workflow: object) -> Mapping[str, object]:
                 for path, digest in files.items()
             )
         )
+        # A ReportManifest is only an in-memory description.  It does not
+        # carry the bundle root, the manifest file, or proof that every listed
+        # digest was recomputed from durable bytes.  Treating its hex strings
+        # as proof would let a fabricated object publish a false success.
+        # ReportBundleWriter/Task 7 will add a filesystem-backed verification
+        # hand-off; until then this stage must remain explicitly blocked.
         if (
             state_name == "LEARNING_RECORDED"
             and eligible is True
@@ -170,9 +176,14 @@ def _workflow_result_payload(workflow: object) -> Mapping[str, object]:
             and valid_files
             and isinstance(state_run_id, str)
             and state_run_id == run_id
+            and isinstance(run_id, str)
             and _SAFE_REF.fullmatch(run_id)
         ):
-            return {"status": "completed", "result_ref": f"artifact:{run_id}"}
+            return {
+                "status": "blocked",
+                "state": "LEARNING_RECORDED",
+                "failure_kind": "WORKFLOW_ARTIFACT_UNAVAILABLE",
+            }
         failure_kind = getattr(getattr(workflow, "state", None), "failure_kind", None)
         failure_name = getattr(failure_kind, "value", failure_kind) or "WORKFLOW_ARTIFACT_UNAVAILABLE"
         return {
