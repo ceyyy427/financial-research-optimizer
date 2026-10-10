@@ -122,6 +122,14 @@ from .runtime_protocol import (
 )
 from .runtime_service import ResearchRuntimeService, RuntimeLimits
 from .settlement import SettlementEvent
+from .stage_registry import (
+    StageRegistry,
+    StageRegistryError,
+    StageRunner,
+    StageSpec,
+    default_stage_registry,
+    run_default_workflow_stage,
+)
 from .tools import (
     ResearchToolGateway,
     ResearchToolName,
@@ -234,6 +242,10 @@ __all__ = [
     "RuntimeLimits",
     "RuntimeMetrics",
     "SettlementEvent",
+    "StageRegistry",
+    "StageRegistryError",
+    "StageRunner",
+    "StageSpec",
     "StaleLeaseError",
     "StressReport",
     "UserApiDriver",
@@ -252,6 +264,7 @@ __all__ = [
     "compute_performance_report",
     "current_runtime_budget",
     "decode_message",
+    "default_stage_registry",
     "encode_message",
     "load_audited_catalog",
     "provider_status_payload",
@@ -259,6 +272,7 @@ __all__ = [
     "register_runtime_snapshot",
     "render_section_html",
     "research_runtime_view_model",
+    "run_default_workflow_stage",
     "run_factor_experiments",
     "run_factor_research",
     "stable_digest",
